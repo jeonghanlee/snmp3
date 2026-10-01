@@ -1,0 +1,7 @@
+record(longin, "$(P)PiniProbe") {
+    field(DESC, "Base PINI lifecycle probe")
+    field(DTYP, "Soft Channel")
+    field(INP, "42")
+    field(PINI, "YES")
+    field(TPRO, "1")
+}

@@ -1,0 +1,6 @@
+record(longin, "$(P)Probe") {
+    field(DESC, "Independent Base processing probe")
+    field(DTYP, "Soft Channel")
+    field(INP, "42")
+    field(TPRO, "1")
+}
