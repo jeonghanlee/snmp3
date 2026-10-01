@@ -153,5 +153,8 @@ WienerCrate/configure/RULES.Db
 *.zip
 .iocsh_history
 
+# Python cache directories
+__pycache__/
+
 # Local review artifacts
 /work/
