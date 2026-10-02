@@ -25,6 +25,7 @@ public:
     void report();
     static const char* stateName(State state);
     uint64_t bind(const std::string& definition);
+    uint64_t bind(std::shared_ptr<const Binding> binding,uint64_t retainedBytes,uint64_t generationBytes);
     std::vector<ipc::Identity> admit(const std::vector<uint64_t>& handles,
                                    const std::vector<Value>& payload,unsigned budgetMs);
     void queueLimit(const std::string& address,uint64_t count,uint64_t bytes);
@@ -40,7 +41,7 @@ private:
     static void run(void*);
     void trace(const char* event);
     void prepare(const ConfigState& config);
-    epicsMutex operationMutex, stateMutex;
+    epicsMutex lifecycleMutex, operationMutex, stateMutex;
     epicsEvent ready, wake;
     epicsThreadId thread;
     Snapshot current;

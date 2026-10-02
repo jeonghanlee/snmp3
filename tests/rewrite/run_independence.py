@@ -142,7 +142,7 @@ def main():
         src = ROOT / "snmp3App/src" / ("O." + ARCH)
         objects = sorted(p.name for p in src.glob("*.o"))
         results["objects"] = objects
-        check("object_set", objects == ["Config.o", "Identity.o", "Ipc.o", "Json.o", "Main.o", "Register.o", "Runtime.o", "Scheduler.o", "Supervisor.o",
+        check("object_set", objects == ["Config.o", "Conversion.o", "DeviceSupport.o", "Identity.o", "Ipc.o", "Json.o", "Main.o", "Register.o", "Request.o", "Runtime.o", "Scheduler.o", "Supervisor.o",
                                         "snmp3Ioc_registerRecordDeviceDriver.o"])
         dependencies = "\n".join(p.read_text() for p in src.glob("*.d"))
         (output / "dependencies.txt").write_text(dependencies)

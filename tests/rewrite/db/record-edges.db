@@ -1,0 +1,177 @@
+record(ai, "$(P)WideDouble") {
+    field(DESC, "Reject Counter64 precision loss")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=Counter64Read deadline_ms=5000")
+    field(VAL, "42")
+}
+
+record(longin, "$(P)UnsignedLong") {
+    field(DESC, "Reject unsigned 32-bit overflow")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=Counter32Read deadline_ms=5000")
+    field(VAL, "42")
+}
+
+record(int64in, "$(P)WideSigned") {
+    field(DESC, "Reject unsigned 64-bit overflow")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=Counter64Read deadline_ms=5000")
+    field(VAL, "42")
+}
+
+record(waveform, "$(P)NarrowFloat") {
+    field(DESC, "Reject Counter64 FLOAT precision loss")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "1")
+    field(INP, "@binding=Counter64Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)NarrowDouble") {
+    field(DESC, "Reject double FLOAT precision loss")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "1")
+    field(INP, "@binding=DoubleRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)Octets") {
+    field(DESC, "Binary octet input including NUL")
+    field(DTYP, "snmp3")
+    field(FTVL, "UCHAR")
+    field(NELM, "1024")
+    field(INP, "@binding=OctetsRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)ShortOctets") {
+    field(DESC, "Reject octet capacity overflow")
+    field(DTYP, "snmp3")
+    field(FTVL, "UCHAR")
+    field(NELM, "4")
+    field(INP, "@binding=OctetsRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)Oid") {
+    field(DESC, "Exact SNMP OID arc array")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "7")
+    field(INP, "@binding=OidRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)ShortOid") {
+    field(DESC, "Reject OID array capacity overflow")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "6")
+    field(INP, "@binding=OidRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)Ip") {
+    field(DESC, "Exact SNMP IPv4 octet array")
+    field(DTYP, "snmp3")
+    field(FTVL, "UCHAR")
+    field(NELM, "4")
+    field(INP, "@binding=IpRead deadline_ms=5000")
+}
+
+record(stringin, "$(P)Text") {
+    field(DESC, "Reject binary or excessive octet text")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=OctetsRead deadline_ms=5000")
+    field(VAL, "retained")
+}
+
+record(lsi, "$(P)SmallLsi") {
+    field(DESC, "Minimum Base-clamped long string")
+    field(DTYP, "snmp3")
+    field(SIZV, "1")
+    field(INP, "@binding=OctetsRead deadline_ms=5000")
+}
+
+record(lsi, "$(P)LargeLsi") {
+    field(DESC, "Maximum Base-clamped long string")
+    field(DTYP, "snmp3")
+    field(SIZV, "32768")
+    field(INP, "@binding=OctetsRead deadline_ms=5000")
+}
+
+record(lso, "$(P)SmallLso") {
+    field(DESC, "Minimum Base-clamped output storage")
+    field(DTYP, "snmp3")
+    field(SIZV, "1")
+    field(OUT, "@binding=OctetsWrite deadline_ms=5000")
+}
+
+record(lso, "$(P)LargeLso") {
+    field(DESC, "Maximum Base-clamped output storage")
+    field(DTYP, "snmp3")
+    field(SIZV, "32768")
+    field(OUT, "@binding=OctetsWrite deadline_ms=5000")
+}
+
+record(ai, "$(P)UnknownBinding") {
+    field(DESC, "Reject unknown binding at startup")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=Unknown deadline_ms=5000")
+}
+
+record(ai, "$(P)BadGrammar") {
+    field(DESC, "Reject missing explicit deadline")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=IntegerRead")
+}
+
+record(longout, "$(P)BadOopt") {
+    field(DESC, "Reject unsupported output policy")
+    field(DTYP, "snmp3")
+    field(OOPT, "On Change")
+    field(OUT, "@binding=IntegerWrite deadline_ms=5000")
+}
+
+record(waveform, "$(P)BadFtvl") {
+    field(DESC, "Reject unsupported waveform storage")
+    field(DTYP, "snmp3")
+    field(FTVL, "STRING")
+    field(NELM, "1")
+    field(INP, "@binding=Counter64Read deadline_ms=5000")
+}
+
+record(longin, "$(P)SimNumber") {
+    field(DESC, "Distinct Base simulation number")
+    field(INP, "85")
+    field(PINI, "YES")
+}
+
+record(stringin, "$(P)SimString") {
+    field(DESC, "Distinct Base simulation text")
+    field(VAL, "simulated")
+}
+
+record(lso, "$(P)MaxLso") {
+    field(DESC, "Maximum complete long string SET")
+    field(DTYP, "snmp3")
+    field(SIZV, "32767")
+    field(OUT, "@binding=MaxOctetsWrite deadline_ms=5000")
+}
+
+record(lsi, "$(P)MaxLsi1") {
+    field(DESC, "Maximum complete long string GET")
+    field(DTYP, "snmp3")
+    field(SIZV, "32767")
+    field(INP, "@binding=MaxOctetsRead deadline_ms=5000")
+}
+
+record(lsi, "$(P)MaxLsi2") {
+    field(DESC, "Retained maximum GET reservation")
+    field(DTYP, "snmp3")
+    field(SIZV, "32767")
+    field(INP, "@binding=MaxOctetsRead deadline_ms=5000")
+}
+
+record(lsi, "$(P)MaxLsi3") {
+    field(DESC, "Queue byte limit GET rejection")
+    field(DTYP, "snmp3")
+    field(SIZV, "32767")
+    field(INP, "@binding=MaxOctetsRead deadline_ms=5000")
+}

@@ -1,0 +1,115 @@
+record(ao, "$(P)PolicyAo") {
+    field(DESC, "Base output policy completion")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=PolicyFloatWrite deadline_ms=5000")
+    field(SIOL, "$(P)SimAo.VAL")
+    field(FLNK, "$(P)PolicyCompleted")
+}
+
+record(ai, "$(P)SimAo") {
+    field(DESC, "Base output simulation target")
+}
+
+record(longout, "$(P)PolicyLongout") {
+    field(DESC, "Base output policy completion")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=PolicyIntegerWrite deadline_ms=5000")
+    field(SIOL, "$(P)SimLongout.VAL")
+    field(FLNK, "$(P)PolicyCompleted")
+}
+
+record(longin, "$(P)SimLongout") {
+    field(DESC, "Base output simulation target")
+}
+
+record(int64out, "$(P)PolicyInt64out") {
+    field(DESC, "Base output policy completion")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=PolicyCounter64Write deadline_ms=5000")
+    field(SIOL, "$(P)SimInt64out.VAL")
+    field(FLNK, "$(P)PolicyCompleted")
+}
+
+record(int64in, "$(P)SimInt64out") {
+    field(DESC, "Base output simulation target")
+}
+
+record(stringout, "$(P)PolicyStringout") {
+    field(DESC, "Base output policy completion")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=PolicyOctetsWrite deadline_ms=5000")
+    field(SIOL, "$(P)SimStringout.VAL")
+    field(FLNK, "$(P)PolicyCompleted")
+}
+
+record(stringin, "$(P)SimStringout") {
+    field(DESC, "Base output simulation target")
+}
+
+record(lso, "$(P)PolicyLso") {
+    field(DESC, "Base output policy completion")
+    field(DTYP, "snmp3")
+    field(SIZV, "256")
+    field(OUT, "@binding=PolicyOctetsWrite deadline_ms=5000")
+    field(SIOL, "$(P)SimLso.VAL")
+    field(FLNK, "$(P)PolicyCompleted")
+}
+
+record(lsi, "$(P)SimLso") {
+    field(DESC, "Base output simulation target")
+    field(SIZV, "256")
+}
+
+record(calc, "$(P)PolicyCompleted") {
+    field(DESC, "Base output policy FLNK count")
+    field(CALC, "VAL+1")
+}
+
+record(lsi, "$(P)DolSource") {
+    field(DESC, "Long desired output source")
+    field(SIZV, "512")
+}
+
+record(ao, "$(P)DriveAo") {
+    field(DESC, "Base drive and OVAL preparation")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=FloatWrite deadline_ms=5000")
+    field(DRVL, "0")
+    field(DRVH, "5")
+    field(OROC, "1")
+}
+
+record(longout, "$(P)BadOopt1") {
+    field(DESC, "Unsupported initial output option")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=IntegerWrite deadline_ms=5000")
+    field(OOPT, "On Change")
+}
+
+record(longout, "$(P)BadOopt2") {
+    field(DESC, "Unsupported initial output option")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=IntegerWrite deadline_ms=5000")
+    field(OOPT, "When Zero")
+}
+
+record(longout, "$(P)BadOopt3") {
+    field(DESC, "Unsupported initial output option")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=IntegerWrite deadline_ms=5000")
+    field(OOPT, "When Non-zero")
+}
+
+record(longout, "$(P)BadOopt4") {
+    field(DESC, "Unsupported initial output option")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=IntegerWrite deadline_ms=5000")
+    field(OOPT, "Transition To Zero")
+}
+
+record(longout, "$(P)BadOopt5") {
+    field(DESC, "Unsupported initial output option")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=IntegerWrite deadline_ms=5000")
+    field(OOPT, "Transition To Non-zero")
+}

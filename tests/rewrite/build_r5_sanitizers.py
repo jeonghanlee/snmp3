@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build separately identified R5 products with ASan and UBSan instrumentation."""
+"""Build separate worker and record products with ASan and UBSan instrumentation."""
 import argparse
 from pathlib import Path
 import shlex
@@ -25,8 +25,8 @@ def build(output):
     jobs = [("libsnmp3Wire.so", [src / (n + ".cpp") for n in ("Ipc", "Identity")],
              ["-shared"], ["-lCom"], False),
             ("libsnmp3.so", [src / (n + ".cpp") for n in
-             ("Register", "Runtime", "Config", "Json", "Scheduler", "Supervisor")],
-             ["-shared"], ["-lsnmp3Wire", "-lCom"], False),
+             ("Register", "Runtime", "Config", "Json", "Scheduler", "Supervisor", "Conversion", "Request", "DeviceSupport")],
+             ["-shared"], ["-lsnmp3Wire", "-ldbCore", "-lCom"], False),
             ("libsnmp3Native.so", [native / (n + ".cpp") for n in ("Capabilities", "Native", "Worker")],
              ["-shared"], ["-lCom"] + native_libs, True),
             ("snmp3NativeProbe", [native / "NativeProbe.cpp"], [],
@@ -34,11 +34,17 @@ def build(output):
             ("snmp3NativeAgent", [tests / "NativeAgent.cpp"], [], ["-lnetsnmpagent"] + native_libs, True),
             ("snmp3Worker", [native / "WorkerMain.cpp"], [],
              ["-lsnmp3Native", "-lsnmp3Wire", "-lCom"] + native_libs, True)]
-    for name in ("Qualification", "Supervisor", "Ipc", "Scheduler", "Inventory"):
+    for name in ("Qualification", "Supervisor", "Ipc", "Scheduler", "Inventory", "Conversion"):
         jobs.append(("snmp3" + name + "Test", [tests / (name + "Test.cpp")], [],
                      ["-lsnmp3", "-lsnmp3Wire", "-lCom"], name == "Inventory"))
     jobs.append(("snmp3RuntimeTest", [tests / "RuntimeTest.cpp", tests / ("O." + ARCH) /
                  "snmp3RuntimeTest_registerRecordDeviceDriver.cpp"], [],
+                 ["-lsnmp3", "-lsnmp3Wire", "-ldbRecStd", "-ldbCore", "-lca", "-lCom"], False))
+    jobs.append(("snmp3RecordTest", [tests / "RecordTest.cpp", tests / ("O." + ARCH) /
+                 "snmp3RecordTest_registerRecordDeviceDriver.cpp"], [],
+                 ["-lsnmp3", "-lsnmp3Wire", "-ldbRecStd", "-ldbCore", "-lca", "-lCom"], False))
+    jobs.append(("snmp3Ioc", [src / "Main.cpp", src / ("O." + ARCH) /
+                 "snmp3Ioc_registerRecordDeviceDriver.cpp"], [],
                  ["-lsnmp3", "-lsnmp3Wire", "-ldbRecStd", "-ldbCore", "-lca", "-lCom"], False))
     receipts = []
     inputs = sorted(src.glob("*.h")) + sorted(native.glob("*.h"))
@@ -58,9 +64,9 @@ def build(output):
             receipt["ubsan_imports"] = "__ubsan_" in symbols
         receipts.append(receipt)
         write_json(output / "sanitizer-build.json", {"products": receipts,
-                   "coverage": "R5 module, wire, native owner, actual worker, component drivers and actual IOC; dependencies uninstrumented; leaks disabled"})
+                   "coverage": "Module, wire, native owner, actual worker, component/record drivers and actual IOC; dependencies uninstrumented; leaks disabled"})
         if code or not receipt.get("asan_imports") or (name != "snmp3InventoryTest" and not receipt.get("ubsan_imports")):
-            raise RuntimeError("instrumented R5 build failed: " + name)
+            raise RuntimeError("instrumented build failed: " + name)
     return products
 
 

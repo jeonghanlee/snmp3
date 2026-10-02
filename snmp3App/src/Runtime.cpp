@@ -1,5 +1,6 @@
 #include "Runtime.h"
 #include "Config.h"
+#include "Request.h"
 
 #include <cstdio>
 #include <cantProceed.h>
@@ -54,6 +55,7 @@ void Runtime::trace(const char* event)
 
 bool Runtime::start()
 {
+    epicsGuard<epicsMutex> lifecycle(lifecycleMutex);
     epicsGuard<epicsMutex> operation(operationMutex);
     Config::instance().freeze();
     {
@@ -61,6 +63,7 @@ bool Runtime::start()
         if(current.state==State::Running)return true;
         if(current.state==State::Failed)return false;
     }
+    if(Requests::instance().snapshot().drainFailed)return false;
     if(supervisor && !thread && !supervisor->reconcile()) {
         epicsGuard<epicsMutex> state(stateMutex); current.state=State::IncompleteStopped; return false;
     }
@@ -69,6 +72,7 @@ bool Runtime::start()
         prepare(config);
         supervisor.reset();
         if(!config.configuration->endpoints.empty())supervisor.reset(new Supervisor(scheduler,config.workerPath,qualification));
+        Requests::instance().start(schedulerOwner());
     } catch(const std::exception&) {
         if(scheduler)scheduler->stop();
         epicsGuard<epicsMutex> state(stateMutex); current.state=State::Failed; current.admission=false; trace("preflight-failed"); return false;
@@ -116,6 +120,7 @@ void Runtime::run(void* argument)
         try {
             for(;;) {
                 const auto now=monotonicUs(); self.supervisor->step(now);
+                Requests::instance().service();
                 if(self.supervisor->finished(monotonicUs()))break;
                 const auto timer=self.supervisor->nextTimer(); const auto origin=monotonicUs();
                 self.wake.wait(timer<=origin ? 0.0:std::min(0.01,double(timer-origin)/1000000.0));
@@ -130,7 +135,10 @@ void Runtime::run(void* argument)
             self.supervisor->requestStop();
             const auto end=ipc::add(monotonicUs(),2000000);
             while(monotonicUs()<end) {
-                try { self.supervisor->step(monotonicUs()); if(self.supervisor->finished(monotonicUs()))break; } catch(...) {}
+                try {
+                    self.supervisor->step(monotonicUs()); Requests::instance().service();
+                    if(self.supervisor->finished(monotonicUs()))break;
+                } catch(...) {}
                 self.wake.wait(0.01);
             }
         }
@@ -144,33 +152,39 @@ void Runtime::run(void* argument)
 
 void Runtime::stop()
 {
-    // The target never acquires operationMutex; join holds no state lock.
-    epicsGuard<epicsMutex> operation(operationMutex);
+    // Completion callbacks need no lifecycle lock; waits hold neither operation nor record locks.
+    epicsGuard<epicsMutex> lifecycle(lifecycleMutex);
     Config::instance().freeze();
     epicsThreadId target;
+    const bool recordDrainFailed=Requests::instance().snapshot().drainFailed;
     {
         epicsGuard<epicsMutex> state(stateMutex);
         current.admission = false;
         target = thread;
-        if (!target) {
-            if(supervisor) {
-                supervisor->requestStop();
-                if(supervisor->reconcile() && current.state==State::IncompleteStopped)current.state=State::Stopped;
-            }
-            return;
+        if(target) {
+            current.state = State::Stopping;
+            trace("stop-requested");
         }
-        current.state = State::Stopping;
-        trace("stop-requested");
+    }
+    if(!target) {
+        const bool drained=Requests::instance().drain();
+        bool reconciled=true;
+        if(supervisor) { supervisor->requestStop(); reconciled=supervisor->reconcile(); }
+        epicsGuard<epicsMutex> state(stateMutex);
+        if(reconciled && drained && !recordDrainFailed && current.state==State::IncompleteStopped)
+            current.state=State::Stopped;
+        return;
     }
     if(supervisor)supervisor->requestStop();
     else if(scheduler)scheduler->stop();
     wake.trigger();
     epicsThreadMustJoin(target);
+    const bool drained=Requests::instance().drain();
     {
         epicsGuard<epicsMutex> state(stateMutex);
         thread = NULL;
         ++current.joined;
-        current.state = !supervisor || supervisor->reconcile() ? State::Stopped:State::IncompleteStopped;
+        current.state = drained && (!supervisor || supervisor->reconcile()) ? State::Stopped:State::IncompleteStopped;
         trace("joined");
     }
 }
@@ -188,6 +202,14 @@ void Runtime::report()
     std::printf("snmp3 runtime: state=%s admission=%u activation=%lu created=%lu exited=%lu joined=%lu\n",
                 stateName(value.state), value.admission ? 1u : 0u,
                 value.activation, value.created, value.exited, value.joined);
+    const auto records=Requests::instance().snapshot();
+    std::printf("snmp3 records: contexts=%llu active=%llu pending=%llu queued=%llu running=%llu inert=%llu entered=%llu enqueueFailures=%llu completions=%llu entryOpen=%u drainFailed=%u detachAllowed=%u\n",
+                (unsigned long long)records.contexts,(unsigned long long)records.active,
+                (unsigned long long)records.pending,(unsigned long long)records.queued,
+                (unsigned long long)records.running,(unsigned long long)records.inert,
+                (unsigned long long)records.entered,(unsigned long long)records.enqueueFailures,
+                (unsigned long long)records.completions,records.entryOpen?1u:0u,
+                records.drainFailed?1u:0u,records.detachAllowed?1u:0u);
     auto owner=schedulerOwner();
     if(owner)for(const auto id:owner->addresses()) {
         const auto queue=owner->snapshot(id);
@@ -220,11 +242,15 @@ void Runtime::prepare(const ConfigState& config)
 }
 uint64_t Runtime::bind(const std::string& definition)
 {
+    return bind(Config::instance().bind(definition),0,0);
+}
+uint64_t Runtime::bind(std::shared_ptr<const Binding> binding,uint64_t retainedBytes,uint64_t generationBytes)
+{
     epicsGuard<epicsMutex> operation(operationMutex);
     const auto state=snapshot().state;
     if(state==State::IncompleteStopped || state==State::Failed || state==State::Stopping)throw std::runtime_error("binding lifecycle rejected");
-    const auto binding=Config::instance().bind(definition); prepare(Config::instance().snapshot());
-    return schedulerOwner()->registerBinding(binding);
+    prepare(Config::instance().snapshot());
+    return schedulerOwner()->registerBinding(std::move(binding),retainedBytes,generationBytes);
 }
 std::shared_ptr<Scheduler> Runtime::schedulerOwner()
 { epicsGuard<epicsMutex> state(stateMutex); return scheduler; }

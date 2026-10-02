@@ -22,7 +22,10 @@ deadline containment and exact PID reap. Native requests run in separate workers
 `Json.cpp` uses Base YAJL to produce a bounded strict owned tree. `Config.cpp`
 validates security, endpoints, bindings, secret descriptors, and the native
 catalogue before publishing one immutable snapshot. Binding and Value headers
-define owned component data without record pointers or conversions.
+define owned component data without record pointers. `Conversion.cpp` checks
+record representations; `DeviceSupport.cpp` owns eleven typed DSETs.
+`Request.cpp` owns immutable record contexts, terminal borrowing, Base callback
+retry, completion entry and lifetime accounting.
 The local `configure/RELEASE.local` hook selects an existing Base install;
 no machine-specific Base path is committed.
 
@@ -33,7 +36,13 @@ immutable binding. The per-address scheduler sends bounded framed IPC to the
 actual address worker. Its native single-session adapter calls Net-SNMP and
 returns owned positional results. Scheduler consumers borrow/release reserved
 terminals; charge release additionally requires real native retirement or reap.
-Record admission and locked Base record completion remain later integration.
+First-pass DSET captures Base-prepared output and admits through Runtime. The
+servicing owner borrows a terminal, reserves callback ownership before enqueue
+and retries queue failures. An entered callback takes the record lock, validates
+the exact identity, stages checked data/alarm and calls the real rset process.
+Only matching DSET completion publishes staged native input. Base selects
+simulation, processes monitors/FLNK and clears PACT; the wrapper releases the
+terminal before dropping the record lock. Native retirement remains separate.
 
 The native worker holds no record pointers. Transport owners and schedulers
 write no record fields. Profiles and contexts retain distinct sessions within
@@ -41,18 +50,19 @@ one canonical address worker. The IOC rejects stale activation/epoch/request
 identity. Only a contiguous FIFO prefix with exactly equal absolute deadlines
 can batch. Ambiguous transmitted work is never automatically replayed.
 
-## Planned Ownership And Dependencies
+## Ownership And Dependencies
 
-The new runtime will own configuration, queues, requests, IPC and threads.
-It will not depend on devSnmp manager/host/group/OID/PV classes, polling
+The runtime owns configuration, queues, requests, IPC and threads.
+It does not depend on devSnmp manager/host/group/OID/PV classes, polling
 readback callbacks, the legacy network loop or its exit flag. Existing
 sources are comparison baselines and are not renamed into the new target.
-Net-SNMP will own protocol encoding, native retries, discovery and USM.
-Base will own record processing, alarms, callback facilities and thread APIs.
+Net-SNMP owns protocol encoding, native retries, discovery and USM.
+Base owns record processing, alarms, callback facilities and thread APIs.
 
-Lifecycle, configuration, native adapter, scheduler and device support will
-be implemented and verified separately, then tested together. Planned
-boundaries do not constitute implementation or runtime acceptance.
+Lifecycle, configuration, native adapter and scheduler have separate qualified
+products. Device support has current integrated subset evidence; its complete
+record matrix remains pending. Component boundaries do not imply acceptance
+of an unexecuted integration path.
 
 ## Implemented Configuration Data Flow
 
@@ -98,16 +108,27 @@ locks and storage survive database cleanup for the process lifetime.
 AfterFinishDevSup freezes configuration, then starts the thread and waits for its readiness event before
 returning. Base then performs initial processing, including PINI records.
 The servicing thread handles deadlines, nonblocking IPC and supervision.
-An empty foundation has no worker and waits for stop. No record work runs here.
+An empty foundation has no worker and waits for stop. Configured record requests
+use the same serving thread and worker ownership, with Base callback threads
+performing the locked record completion.
 AtShutdown closes admission permission, signals the thread and joins it
 before Base reaches AfterStopScan and AfterStopCallback. The late process
 fallback invokes the same idempotent stop method. Exit and join counts
 are separate observations.
 
-The operation mutex serializes start/stop. A separate state mutex protects
-state, admission, thread identity and counters. Lock order includes lifecycle operation, scheduler state and address state;
-the servicing owner never needs the operation mutex held by its join owner. Readiness waits and join hold no state
-lock. The worker never needs the operation mutex retained by its join owner.
+The lifecycle mutex serializes start/stop. The operation mutex protects startup
+and configuration operations; stop holds it across neither join nor record
+drain. A separate state mutex protects state, admission, thread identity and
+counters. The callback entry mutex is released before dbScanLock, rset process
+and FLNK. Readiness, join and entered-callback safety waits hold no state or
+record lock needed for progress.
+
+Stop closes record admission, joins native servicing and drains borrowed
+terminals through Base callbacks. The 2000 ms attempt closes producers and the
+entry gate on success or expiry. Expiry prevents restart; entered callbacks
+finish before AtShutdown enables detach. Detached callback storage remains
+until actual queue destruction in isolated shutdown; callback join alone does
+not permit freeing it. Non-isolated shutdown retains Base-referenced storage.
 
 Lifecycle verification runs the actual IOC/generated registration/PINI DB,
 the shipped Runtime library in a separate test product, and two actual
@@ -140,7 +161,8 @@ contexts through native callbacks and closes each handle once.
 
 Actual native agents and external UDP faults verify this library in separate
 processes. The IOC services address queues and IPC while native calls remain in separate
-workers. Record integration and hardware traffic remain later qualification. The
+workers. Record products exercise the candidate DSET boundary; its full matrix
+and hardware traffic remain pending qualification. The
 [native transport reference](snmp-native-transport.md) defines lifetime, security,
 representation limits and executable verification commands.
 
@@ -152,4 +174,6 @@ per-address fairness/deadlines and stop/restart ownership. AfterFinishDevSup
 readiness precedes initial processing; AtShutdown closes dispatch and joins
 while Base callback services still exist. IncompleteStopped retains exact old
 worker/terminal ownership after join and blocks reuse until nonblocking
-reconciliation settles it. No callback-drain or SNMP record claim follows.
+reconciliation settles it. An expired record drain separately blocks reuse even
+after native ownership settles. Current record coverage is recorded in the
+[work register](milestone-5dff352.md), rather than inferred from component PASS.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Record real IPC/scheduler/ABI/digest component executions; no IOC integration claim."""
+"""Record real IPC/scheduler/ABI/digest/conversion executions; no IOC integration claim."""
 import argparse
 import hashlib
 import json
@@ -28,7 +28,8 @@ def main():
     source_paths = sorted((ROOT / "snmp3App").rglob("*.cpp"))
     source_paths += sorted((ROOT / "snmp3App").rglob("*.h"))
     source_paths += [Path(__file__).resolve(), ROOT / "tests/rewrite/IpcTest.cpp",
-                     ROOT / "tests/rewrite/SchedulerTest.cpp", ROOT / "tests/rewrite/InventoryTest.cpp"]
+                     ROOT / "tests/rewrite/SchedulerTest.cpp", ROOT / "tests/rewrite/InventoryTest.cpp",
+                     ROOT / "tests/rewrite/ConversionTest.cpp"]
     sources = {str(p): sha(p) for p in source_paths}
     environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"}
     if args.sanitizers:
@@ -58,7 +59,7 @@ def main():
         receipts.append(receipt)
         return actual
 
-    for name in ("Ipc", "Scheduler", "Inventory"):
+    for name in ("Ipc", "Scheduler", "Inventory", "Conversion"):
         invoke(name.lower(), [str(products / ("snmp3" + name + "Test"))])
     for length in (0, 1, 55, 56, 63, 64, 65, 4096, 65537):
         fixture = output / ("digest-" + str(length) + ".bin")

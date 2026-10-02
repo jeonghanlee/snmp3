@@ -1,0 +1,26 @@
+record(ai, "$(P)OrderA") {
+    field(DESC, "Actual asynchronous FLNK source")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=IntegerRead deadline_ms=5000")
+    field(FLNK, "$(P)OrderPhase")
+}
+
+record(calc, "$(P)OrderPhase") {
+    field(DESC, "Observe PACT during Base FLNK")
+    field(INPA, "$(P)OrderA.PACT NPP")
+    field(CALC, "A")
+    field(FLNK, "$(P)OrderB")
+}
+
+record(lsi, "$(P)OrderB") {
+    field(DESC, "Actual asynchronous FLNK target")
+    field(DTYP, "snmp3")
+    field(SIZV, "256")
+    field(INP, "@binding=OctetsRead deadline_ms=5000")
+    field(FLNK, "$(P)OrderCount")
+}
+
+record(calc, "$(P)OrderCount") {
+    field(DESC, "Count completed FLNK target")
+    field(CALC, "VAL+1")
+}

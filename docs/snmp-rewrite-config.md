@@ -8,9 +8,14 @@ and the ownership boundary.
 
 Configuration, immutable bindings, owned values, native capability observation,
 address queues, private IPC and supervised native workers are implemented.
-IOC record device support and conversion require later integration. Loading
-configuration performs no request; iocInit starts configured workers, and only
-component API admission sends application GET/SET. See the
+Eleven record DSETs and conversion form a qualification candidate; the complete
+record matrix remains pending. Loading configuration and device initialization
+perform no request; iocInit starts configured workers, and record/component
+admission sends application GET/SET. Records select an existing JSON definition
+with `DTYP="snmp3"` and `@binding=<id> deadline_ms=<1..600000>` on INP/OUT.
+Both keys are mandatory and frozen at initialization. The
+[record contract](snmp-rewrite-contract.md#record-qualification-candidate)
+defines supported records, conversion and live-field behavior. See the
 [worker reference](snmp-worker-supervision.md) for queue and lifecycle ownership.
 
 ## Strict JSON and root fields
@@ -193,7 +198,8 @@ Both `iocBuild` and `iocInit` reach this hook.
 and joins the servicing thread. Unsettled ownership remains IncompleteStopped. Stop, isolated database cleanup, and another database
 activation never permit reload. A fresh IOC process is required to use different
 definitions. No operator reset, bind, freeze, or replacement command exists.
-Record-triggered binding remains a later device-support integration requirement.
+Record device initialization uses the same immutable Config binding and freeze;
+the candidate DSET performs no request until actual record processing.
 
 ## IOC commands and reports
 

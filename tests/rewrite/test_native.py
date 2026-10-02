@@ -265,9 +265,11 @@ class Runner:
                 str(paths["community"]), str(paths["auth"]), str(paths["privacy"]), user]
         return self.invoke(name, argv, expected)
 
-    def fault(self, name, family, peer, mode):
+    def fault(self, name, family, peer, mode, delay_ms=None):
         argv = [sys.executable, str(ROOT / "tests/rewrite/helpers/udp_fault.py"), "--family", str(family),
                 "--agent-port", peer.rsplit(":", 1)[1], "--mode", mode]
+        if delay_ms is not None:
+            argv += ["--delay-ms", str(delay_ms)]
         stdout = (self.output / (name + ".stdout")).open("wb")
         stderr = (self.output / (name + ".stderr")).open("wb")
         child = subprocess.Popen(argv, stdout=stdout, stderr=stderr, env=self.env)

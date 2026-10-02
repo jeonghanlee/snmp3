@@ -7,8 +7,11 @@ address, supervises a separate native worker and returns scheduler-owned termina
 results. Net-SNMP runs only in the native worker. This reference covers component
 admission, IPC, accounting, failure containment and IOC lifecycle.
 
-Record DSET, record conversion, alarms, PACT completion and FLNK integration are
-not implemented. The standard longin fixture processes constant 42; it is not an
+Record DSET, conversion and completion are implemented as a qualification
+candidate; their complete matrix is pending. The
+[record contract](snmp-rewrite-contract.md#record-qualification-candidate)
+defines that boundary. The standard foundation longin fixture processes
+constant 42; it is not an
 SNMP record. Hardware acceptance, two-OS, TSan, leaks and sustained RSS checks
 remain separate work. There is no IOC command that sends GET or SET.
 
@@ -16,7 +19,7 @@ remain separate work. There is no IOC command that sends GET or SET.
 
 | Product | Ownership |
 | --- | --- |
-| `libsnmp3.so` | Config, Runtime, Scheduler and Supervisor; Base-only |
+| `libsnmp3.so` | Config, Runtime, Scheduler, Supervisor, Conversion, Requests and eleven DSETs; Base-only |
 | `libsnmp3Wire.so` | Checked framing, typed values and SHA256; native-free |
 | `snmp3Ioc` | Base shell, generated registration and checked exit |
 | `snmp3NativeProbe` | Callable native catalogue; no device session |
@@ -138,9 +141,24 @@ Octets content is capacity; ObjectId content is 4 + 4*capacity; exceptions are 0
 
 ```text
 Q = round64(4096 + 4*O + 4*S + 4*R + 144)
+Record Q = Q + 512 + 4*(content + textBytes)
 Batch payload = 8 + sum(48 + actual encoded SET Value bytes)
 Result maximum = 8 + sum(48 + R)
 ```
+
+Component handles retain the original Q. Record handles additionally reserve
+simultaneous decode/conversion/text staging: content is 4*capacity for ObjectId
+and capacity otherwise; textBytes is 11*capacity for ObjectId, 16 for IPv4 and
+content otherwise. This extra charge remains until consumption and native
+retirement both finish. It is conservative module storage accounting, not an
+RSS measurement.
+
+Record registration charges `sizeof(RecordContext)+128+link.capacity()+1`
+against the 268435456-byte registration bound, with an 8192-byte fixed-context
+ceiling. SET registration also reserves `256+2*min(binding capacity,record
+capacity)` for pre-admission capture. Base-owned lsi/lso/waveform buffers are
+separate. The callback borrows scheduler storage; it creates no accumulating
+second result queue. Servicing visits at most 128 contexts per iteration.
 
 A nine-arc Integer GET charges 4608 bytes, admitting 227 under the default
 1048576-byte limit. The ten-arc Integer GET fixture charges 4672. A 128-arc,
@@ -219,7 +237,14 @@ ownership after join. Later explicit stop/fallback/start preflight performs only
 nonblocking reconciliation; start is rejected until retained ownership settles.
 Then isolated activation can create a new scheduler and worker epoch. Failed
 preflight/thread creation closes admission; unexpected service failure also
-closes admission. Base record callback drain remains an unqualified R6 boundary.
+closes admission. Record stop adds a 2000 ms callback-drain attempt, followed by
+entry-gate closure and a separate safety wait for entered callbacks. Failed
+record drain stays failed after native reconciliation and refuses restart.
+AtShutdown permits detach only after entered processing reaches zero; isolated
+queue destruction, rather than callback join alone, permits context release.
+Non-isolated shutdown retains still-referenced contexts. The complete record
+lifecycle qualification remains pending; external Base processing can extend
+the safety wait without a bounded total shutdown claim.
 
 ## Execute real verification
 

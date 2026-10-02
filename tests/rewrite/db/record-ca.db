@@ -1,0 +1,58 @@
+record(longin, "$(P)Pini") {
+    field(DESC, "Native input after pre-PINI servicing")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=IntegerRead deadline_ms=5000")
+    field(PINI, "YES")
+    field(FLNK, "$(P)Completed")
+}
+
+record(calc, "$(P)Completed") {
+    field(DESC, "Base PINI input completion count")
+    field(CALC, "VAL+1")
+}
+
+record(int64in, "$(P)WideIn") {
+    field(DESC, "Exact native Counter64 decimal CA")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=WideRead deadline_ms=5000")
+}
+
+record(int64out, "$(P)WideOut") {
+    field(DESC, "Exact native wide SET from decimal CA")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=WideWrite deadline_ms=5000")
+}
+
+record(waveform, "$(P)UnsignedWide") {
+    field(DESC, "Complete unsigned native Counter64")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "1")
+    field(INP, "@binding=WideRead deadline_ms=5000")
+}
+
+record(lsi, "$(P)TextIn") {
+    field(DESC, "Native long string CHAR-array CA")
+    field(DTYP, "snmp3")
+    field(SIZV, "256")
+    field(INP, "@binding=TextRead deadline_ms=5000")
+}
+
+record(lso, "$(P)TextOut") {
+    field(DESC, "Native long SET from CHAR-array CA")
+    field(DTYP, "snmp3")
+    field(SIZV, "256")
+    field(OUT, "@binding=TextWrite deadline_ms=5000")
+}
+
+record(stringin, "$(P)ShortIn") {
+    field(DESC, "Native short string CA input")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=TextRead deadline_ms=5000")
+}
+
+record(stringout, "$(P)ShortOut") {
+    field(DESC, "Native short string CA output")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=TextWrite deadline_ms=5000")
+}

@@ -1,0 +1,1081 @@
+# Numeric records use immutable bindings and the real worker/native agent path.
+
+record(ai, "$(P)MatrixIntegerAi") {
+    field(DESC, "Numeric ai conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixIntegerRead deadline_ms=5000")
+}
+
+record(longin, "$(P)MatrixIntegerLongin") {
+    field(DESC, "Numeric longin conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixIntegerRead deadline_ms=5000")
+}
+
+record(int64in, "$(P)MatrixIntegerInt64in") {
+    field(DESC, "Numeric int64in conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixIntegerRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixIntegerWaveLONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "LONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixIntegerRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixIntegerWaveULONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixIntegerRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixIntegerWaveINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "INT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixIntegerRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixIntegerWaveUINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixIntegerRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixIntegerWaveFLOAT") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixIntegerRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixIntegerWaveDOUBLE") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "DOUBLE")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixIntegerRead deadline_ms=5000")
+}
+
+record(ao, "$(P)MatrixIntegerAo") {
+    field(DESC, "Numeric ao conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixIntegerWrite deadline_ms=5000")
+}
+
+record(longout, "$(P)MatrixIntegerLongout") {
+    field(DESC, "Numeric longout conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixIntegerWrite deadline_ms=5000")
+}
+
+record(int64out, "$(P)MatrixIntegerInt64out") {
+    field(DESC, "Numeric int64out conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixIntegerWrite deadline_ms=5000")
+}
+
+record(ai, "$(P)MatrixUnsigned32Ai") {
+    field(DESC, "Numeric ai conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixUnsigned32Read deadline_ms=5000")
+}
+
+record(longin, "$(P)MatrixUnsigned32Longin") {
+    field(DESC, "Numeric longin conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixUnsigned32Read deadline_ms=5000")
+}
+
+record(int64in, "$(P)MatrixUnsigned32Int64in") {
+    field(DESC, "Numeric int64in conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixUnsigned32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixUnsigned32WaveLONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "LONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixUnsigned32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixUnsigned32WaveULONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixUnsigned32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixUnsigned32WaveINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "INT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixUnsigned32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixUnsigned32WaveUINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixUnsigned32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixUnsigned32WaveFLOAT") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixUnsigned32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixUnsigned32WaveDOUBLE") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "DOUBLE")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixUnsigned32Read deadline_ms=5000")
+}
+
+record(ao, "$(P)MatrixUnsigned32Ao") {
+    field(DESC, "Numeric ao conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixUnsigned32Write deadline_ms=5000")
+}
+
+record(longout, "$(P)MatrixUnsigned32Longout") {
+    field(DESC, "Numeric longout conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixUnsigned32Write deadline_ms=5000")
+}
+
+record(int64out, "$(P)MatrixUnsigned32Int64out") {
+    field(DESC, "Numeric int64out conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixUnsigned32Write deadline_ms=5000")
+}
+
+record(ai, "$(P)MatrixCounter32Ai") {
+    field(DESC, "Numeric ai conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixCounter32Read deadline_ms=5000")
+}
+
+record(longin, "$(P)MatrixCounter32Longin") {
+    field(DESC, "Numeric longin conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixCounter32Read deadline_ms=5000")
+}
+
+record(int64in, "$(P)MatrixCounter32Int64in") {
+    field(DESC, "Numeric int64in conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixCounter32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixCounter32WaveLONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "LONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixCounter32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixCounter32WaveULONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixCounter32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixCounter32WaveINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "INT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixCounter32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixCounter32WaveUINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixCounter32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixCounter32WaveFLOAT") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixCounter32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixCounter32WaveDOUBLE") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "DOUBLE")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixCounter32Read deadline_ms=5000")
+}
+
+record(ao, "$(P)MatrixCounter32Ao") {
+    field(DESC, "Numeric ao conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixCounter32Write deadline_ms=5000")
+}
+
+record(longout, "$(P)MatrixCounter32Longout") {
+    field(DESC, "Numeric longout conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixCounter32Write deadline_ms=5000")
+}
+
+record(int64out, "$(P)MatrixCounter32Int64out") {
+    field(DESC, "Numeric int64out conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixCounter32Write deadline_ms=5000")
+}
+
+record(ai, "$(P)MatrixGauge32Ai") {
+    field(DESC, "Numeric ai conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixGauge32Read deadline_ms=5000")
+}
+
+record(longin, "$(P)MatrixGauge32Longin") {
+    field(DESC, "Numeric longin conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixGauge32Read deadline_ms=5000")
+}
+
+record(int64in, "$(P)MatrixGauge32Int64in") {
+    field(DESC, "Numeric int64in conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixGauge32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixGauge32WaveLONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "LONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixGauge32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixGauge32WaveULONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixGauge32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixGauge32WaveINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "INT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixGauge32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixGauge32WaveUINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixGauge32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixGauge32WaveFLOAT") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixGauge32Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixGauge32WaveDOUBLE") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "DOUBLE")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixGauge32Read deadline_ms=5000")
+}
+
+record(ao, "$(P)MatrixGauge32Ao") {
+    field(DESC, "Numeric ao conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixGauge32Write deadline_ms=5000")
+}
+
+record(longout, "$(P)MatrixGauge32Longout") {
+    field(DESC, "Numeric longout conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixGauge32Write deadline_ms=5000")
+}
+
+record(int64out, "$(P)MatrixGauge32Int64out") {
+    field(DESC, "Numeric int64out conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixGauge32Write deadline_ms=5000")
+}
+
+record(ai, "$(P)MatrixTimeTicksAi") {
+    field(DESC, "Numeric ai conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixTimeTicksRead deadline_ms=5000")
+}
+
+record(longin, "$(P)MatrixTimeTicksLongin") {
+    field(DESC, "Numeric longin conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixTimeTicksRead deadline_ms=5000")
+}
+
+record(int64in, "$(P)MatrixTimeTicksInt64in") {
+    field(DESC, "Numeric int64in conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixTimeTicksRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixTimeTicksWaveLONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "LONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixTimeTicksRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixTimeTicksWaveULONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixTimeTicksRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixTimeTicksWaveINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "INT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixTimeTicksRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixTimeTicksWaveUINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixTimeTicksRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixTimeTicksWaveFLOAT") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixTimeTicksRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixTimeTicksWaveDOUBLE") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "DOUBLE")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixTimeTicksRead deadline_ms=5000")
+}
+
+record(ao, "$(P)MatrixTimeTicksAo") {
+    field(DESC, "Numeric ao conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixTimeTicksWrite deadline_ms=5000")
+}
+
+record(longout, "$(P)MatrixTimeTicksLongout") {
+    field(DESC, "Numeric longout conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixTimeTicksWrite deadline_ms=5000")
+}
+
+record(int64out, "$(P)MatrixTimeTicksInt64out") {
+    field(DESC, "Numeric int64out conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixTimeTicksWrite deadline_ms=5000")
+}
+
+record(ai, "$(P)MatrixCounter64Ai") {
+    field(DESC, "Numeric ai conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixCounter64Read deadline_ms=5000")
+}
+
+record(longin, "$(P)MatrixCounter64Longin") {
+    field(DESC, "Numeric longin conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixCounter64Read deadline_ms=5000")
+}
+
+record(int64in, "$(P)MatrixCounter64Int64in") {
+    field(DESC, "Numeric int64in conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixCounter64Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixCounter64WaveLONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "LONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixCounter64Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixCounter64WaveULONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixCounter64Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixCounter64WaveINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "INT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixCounter64Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixCounter64WaveUINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixCounter64Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixCounter64WaveFLOAT") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixCounter64Read deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixCounter64WaveDOUBLE") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "DOUBLE")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixCounter64Read deadline_ms=5000")
+}
+
+record(ao, "$(P)MatrixCounter64Ao") {
+    field(DESC, "Numeric ao conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixCounter64Write deadline_ms=5000")
+}
+
+record(longout, "$(P)MatrixCounter64Longout") {
+    field(DESC, "Numeric longout conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixCounter64Write deadline_ms=5000")
+}
+
+record(int64out, "$(P)MatrixCounter64Int64out") {
+    field(DESC, "Numeric int64out conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixCounter64Write deadline_ms=5000")
+}
+
+record(ai, "$(P)MatrixOpaqueFloatAi") {
+    field(DESC, "Numeric ai conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixOpaqueFloatRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixOpaqueFloatWaveLONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "LONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixOpaqueFloatRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixOpaqueFloatWaveULONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixOpaqueFloatRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixOpaqueFloatWaveINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "INT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixOpaqueFloatRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixOpaqueFloatWaveUINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixOpaqueFloatRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixOpaqueFloatWaveFLOAT") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixOpaqueFloatRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixOpaqueFloatWaveDOUBLE") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "DOUBLE")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixOpaqueFloatRead deadline_ms=5000")
+}
+
+record(ao, "$(P)MatrixOpaqueFloatAo") {
+    field(DESC, "Numeric ao conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixOpaqueFloatWrite deadline_ms=5000")
+}
+
+record(ai, "$(P)MatrixOpaqueDoubleAi") {
+    field(DESC, "Numeric ai conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixOpaqueDoubleRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixOpaqueDoubleWaveLONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "LONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixOpaqueDoubleRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixOpaqueDoubleWaveULONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixOpaqueDoubleRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixOpaqueDoubleWaveINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "INT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixOpaqueDoubleRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixOpaqueDoubleWaveUINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixOpaqueDoubleRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixOpaqueDoubleWaveFLOAT") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixOpaqueDoubleRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixOpaqueDoubleWaveDOUBLE") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "DOUBLE")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixOpaqueDoubleRead deadline_ms=5000")
+}
+
+record(ao, "$(P)MatrixOpaqueDoubleAo") {
+    field(DESC, "Numeric ao conversion boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=MatrixOpaqueDoubleWrite deadline_ms=5000")
+}
+
+record(ai, "$(P)MatrixWideHighAi") {
+    field(DESC, "Numeric ai conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixWideHighRead deadline_ms=5000")
+}
+
+record(longin, "$(P)MatrixWideHighLongin") {
+    field(DESC, "Numeric longin conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixWideHighRead deadline_ms=5000")
+}
+
+record(int64in, "$(P)MatrixWideHighInt64in") {
+    field(DESC, "Numeric int64in conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixWideHighRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixWideHighWaveLONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "LONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixWideHighRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixWideHighWaveULONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixWideHighRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixWideHighWaveINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "INT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixWideHighRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixWideHighWaveUINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixWideHighRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixWideHighWaveFLOAT") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixWideHighRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixWideHighWaveDOUBLE") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "DOUBLE")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixWideHighRead deadline_ms=5000")
+}
+
+record(ai, "$(P)MatrixWideMaxAi") {
+    field(DESC, "Numeric ai conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixWideMaxRead deadline_ms=5000")
+}
+
+record(longin, "$(P)MatrixWideMaxLongin") {
+    field(DESC, "Numeric longin conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixWideMaxRead deadline_ms=5000")
+}
+
+record(int64in, "$(P)MatrixWideMaxInt64in") {
+    field(DESC, "Numeric int64in conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixWideMaxRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixWideMaxWaveLONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "LONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixWideMaxRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixWideMaxWaveULONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixWideMaxRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixWideMaxWaveINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "INT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixWideMaxRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixWideMaxWaveUINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixWideMaxRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixWideMaxWaveFLOAT") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixWideMaxRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixWideMaxWaveDOUBLE") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "DOUBLE")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixWideMaxRead deadline_ms=5000")
+}
+
+record(ai, "$(P)MatrixFloatNaNAi") {
+    field(DESC, "Numeric ai conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixFloatNaNRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatNaNWaveLONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "LONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatNaNRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatNaNWaveULONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatNaNRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatNaNWaveINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "INT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatNaNRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatNaNWaveUINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatNaNRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatNaNWaveFLOAT") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatNaNRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatNaNWaveDOUBLE") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "DOUBLE")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatNaNRead deadline_ms=5000")
+}
+
+record(ai, "$(P)MatrixFloatInfinityAi") {
+    field(DESC, "Numeric ai conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixFloatInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatInfinityWaveLONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "LONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatInfinityWaveULONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatInfinityWaveINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "INT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatInfinityWaveUINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatInfinityWaveFLOAT") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatInfinityWaveDOUBLE") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "DOUBLE")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatInfinityRead deadline_ms=5000")
+}
+
+record(ai, "$(P)MatrixFloatNegativeInfinityAi") {
+    field(DESC, "Numeric ai conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixFloatNegativeInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatNegativeInfinityWaveLONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "LONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatNegativeInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatNegativeInfinityWaveULONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatNegativeInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatNegativeInfinityWaveINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "INT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatNegativeInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatNegativeInfinityWaveUINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatNegativeInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatNegativeInfinityWaveFLOAT") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatNegativeInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixFloatNegativeInfinityWaveDOUBLE") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "DOUBLE")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixFloatNegativeInfinityRead deadline_ms=5000")
+}
+
+record(ai, "$(P)MatrixDoubleNaNAi") {
+    field(DESC, "Numeric ai conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixDoubleNaNRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleNaNWaveLONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "LONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleNaNRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleNaNWaveULONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleNaNRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleNaNWaveINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "INT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleNaNRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleNaNWaveUINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleNaNRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleNaNWaveFLOAT") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleNaNRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleNaNWaveDOUBLE") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "DOUBLE")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleNaNRead deadline_ms=5000")
+}
+
+record(ai, "$(P)MatrixDoubleInfinityAi") {
+    field(DESC, "Numeric ai conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixDoubleInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleInfinityWaveLONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "LONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleInfinityWaveULONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleInfinityWaveINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "INT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleInfinityWaveUINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleInfinityWaveFLOAT") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleInfinityWaveDOUBLE") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "DOUBLE")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleInfinityRead deadline_ms=5000")
+}
+
+record(ai, "$(P)MatrixDoubleNegativeInfinityAi") {
+    field(DESC, "Numeric ai conversion boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=MatrixDoubleNegativeInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleNegativeInfinityWaveLONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "LONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleNegativeInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleNegativeInfinityWaveULONG") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleNegativeInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleNegativeInfinityWaveINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "INT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleNegativeInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleNegativeInfinityWaveUINT64") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleNegativeInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleNegativeInfinityWaveFLOAT") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "FLOAT")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleNegativeInfinityRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)MatrixDoubleNegativeInfinityWaveDOUBLE") {
+    field(DESC, "Numeric waveform conversion boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "DOUBLE")
+    field(NELM, "2")
+    field(INP, "@binding=MatrixDoubleNegativeInfinityRead deadline_ms=5000")
+}

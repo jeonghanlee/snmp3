@@ -55,8 +55,10 @@ PASS qualifies only the independent build and Base foundation. It does
 not qualify SNMP requests, conversions, queues, native session cleanup,
 APC CA/PVA consumers or in-flight lifecycle behavior. Module-thread
 qualification requires the separate lifecycle runner below.
-The foundation has no SNMP DSETs or session commands. Full two-OS,
-sanitizer and one-hour resource checks belong to later implementations.
+The foundation fixture exercises standard Base support. The product also
+registers the eleven candidate snmp3 DSETs; the separate record runner below
+qualifies their executed paths. There are no IOC session commands. Full two-OS
+and one-hour resource checks remain separate work.
 Startup command-error propagation requires `on error break`; the Base
 script default remains unchanged.
 
@@ -232,3 +234,144 @@ include full third-person implementation and second-person operator review.
 Privilege-dependent wrong-owner remains an explicit NOT RUN when unavailable.
 Evidence directories are mode 0700, generated secrets mode 0600, failed runs are
 retained, and diagnostic drops or unwaited children fail qualification.
+
+## Record Verification
+
+Build the current test product and run each case with a new private output
+directory. All traffic traverses the shipped record/DSET/Runtime/Scheduler/IPC/
+worker/native path and a real loopback agent. Base record support, its callback
+queue, FLNK and isolated shutdown run unchanged.
+
+```bash
+make -C snmp3App/native/tests -j4
+make -C tests/rewrite -j4
+python3 tests/rewrite/test_records.py --case baseline --output work/r6-records
+python3 tests/rewrite/test_records.py --case edges --output work/r6-edges
+python3 tests/rewrite/test_records.py --case alarms --output work/r6-alarms
+python3 tests/rewrite/test_records.py --case active --output work/r6-active
+python3 tests/rewrite/test_records.py --case policy --output work/r6-policy
+python3 tests/rewrite/test_records.py --case numeric --output work/r6-numeric
+python3 tests/rewrite/test_records.py --case shutdown --output work/r6-shutdown
+python3 tests/rewrite/test_records.py --case queued-shutdown --output work/r6-queued
+```
+
+| Case | Shipped fixtures and observed boundary |
+| --- | --- |
+| baseline | records.db and record-output.db; all eleven DSET kinds, independent handles, exact Counter64 and long strings, refused live links, direct DTYP identity checks, actual GET/SET callback pressure |
+| edges | record-edges.db and record-order.db; startup rejection, Base SIZV clamps, precision/capacity rejection with prior-data preservation, binary/OID/IPv4 input, FLNK before PACT clearing, six input simulation switches/SDLY, ai RAW, actual binary32 SET/GET bits across four rounding modes, unusable SET rejection and maximum lsi/lso payloads under live queue limits |
+| alarms | record-alarms.db and actual outer UDP response dropping; all eleven record kinds receive native timeout before their 5000 ms record deadline, preserve record-specific UDF/publication state and report COMM/INVALID; a separate 1 ms record deadline is observed as IPC Deadline |
+| active | record-active.db; actual 750 ms UDP response delay, dbPutField on all five active outputs, immutable first payload and latest RPRO value, exact DBR_INT64, 200-byte first lso payload, Base FLNK, same-value explicit retry, configured native retry and separate GET after successful SET response loss |
+| policy | record-policy.db; three first-pass/completion IVOA branches for all five outputs, initial/live longout OOPT rejection, synchronous/delayed output simulation, terminal release/error/FLNK when DSET is bypassed, ao drive/rate/OVAL capture, lso supervisory/closed-loop DOL, short IVOV and Base pre-DSET capacity boundary with actual SET/GET |
+| numeric | record-numeric.db; all 68 advertised numeric GET pairs, including 48 native-tag/waveform-FTVL pairs; all 20 numeric SET pairs; range/precision boundaries, previous data and NORD preservation after valid input, complete Counter64 range, nonfinite input and rejected SET with separate native GET |
+| shutdown | An actual module callback has entered but waits for a held Base record lock; drain expiry closes the gate, shutdown waits for the lease to finish and restart is refused |
+| queued-shutdown | An external callback holds the actual Base queue; a module completion remains queued after gate closure/detach and retains its storage until actual isolated queue cleanup |
+
+The pressure cases fill the actual Base low-priority queue with external
+callbacks. Failed module enqueue retains the terminal, full reservation and
+PACT, then retries once consumers can proceed. Shutdown faults hold only the
+external callback or actual record-lock boundary; no internal function or
+terminal fixture replaces the path.
+
+The alarm case observes the actual borrowed IPC terminal while its callback
+holds an entry lease and waits for the test-owned record lock. It requires
+NativeFailure/native code 2 for each native timeout and Deadline for the
+separate record deadline. UDP proxy receipts identify actual responses dropped
+after the agent handled the GET or SET. A failed SET response remains distinct
+from the agent's committed value; the module adds no retry.
+
+The active case observes actual SET transmission before changing VAL through
+dbPutField. An external callback holds the Base consumer until native retirement
+of SET and a following GET, so admission is available for RPRO. FIFO GET observes
+the first captured payload; a separate GET after RPRO observes the latest value.
+Response-drop metadata distinguishes new request IDs on explicit retries from
+the same request ID on configured native retries. A separate GET confirms agent
+application despite lost successful SET responses. CA writes and retained-native
+ownership admission rejection remain outside this executed subset.
+
+The policy case holds only the external Base callback consumer while an actual
+SET times out. Live IVOA, SIMM and OOPT changes exercise unchanged Base branches
+without replacing DSET or terminal processing. Completion preserves errors and
+requested values and releases ownership once, including DSET bypass. Simulation
+before admission, with synchronous or delayed Base callbacks, sends no native
+request. First-pass invalid-output values and ao prepared OVAL are checked with
+separate real GETs. lso DOL uses a long-string CHAR-array link: the 200-byte value
+is exact, while Base reduces an oversized 300-byte source to the 255-byte buffer
+capacity before DSET capture. This boundary is distinct from snmp3 rejecting
+oversized native payloads.
+
+The numeric case initializes 148 numeric record contexts in addition to the
+12 baseline contexts. Every advertised GET pair first receives an exact zero
+through an actual SET and GET, before tag-specific range/precision values.
+Independent declared acceptance masks cover INT32/UINT32 boundaries, 2^24,
+2^53, signed-64 boundaries, finite floating extrema, subnormals and signed zero.
+Fixed agent OIDs provide Counter64 2^63/UINT64_MAX and opaque NaN/infinities;
+these are initial-input checks rather than failure-after-success checks.
+Rejected input preserves full prior value bytes and NORD, follows the actual
+Base UDF rule and leaves the diagnostic native-success state unchanged.
+Output cases capture the real Base-prepared value and use separate GETs to
+verify wire state, including unchanged agent state after a rejected SET.
+Agent SET-action counts distinguish accepted output/stimulus commands from
+rejected outputs. The case covers IOC database access; CA qualification uses
+the separate production runner below.
+
+For separate ASan/UBSan products:
+
+```bash
+python3 tests/rewrite/build_r5_sanitizers.py --output work/r6-sanitizer-build
+R6_PRODUCTS=work/r6-sanitizer-build/products
+python3 tests/rewrite/test_records.py --case edges --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-edge
+python3 tests/rewrite/test_records.py --case alarms --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-alarm
+python3 tests/rewrite/test_records.py --case active --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-active
+python3 tests/rewrite/test_records.py --case policy --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-policy
+python3 tests/rewrite/test_records.py --case numeric --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-num
+python3 tests/rewrite/test_records.py --case shutdown --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-stop
+```
+
+Run queued-shutdown with the same selected products in another new output
+directory. New module, wire, worker and native code are instrumented;
+Base/system/vendor dependencies are uninstrumented and leak checks are disabled.
+
+Production CA access uses a separate runner:
+
+```bash
+python3 tests/rewrite/test_record_ca.py --output work/r6-ca
+python3 tests/rewrite/test_record_ca.py --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-ca
+```
+
+This runner launches the actual snmp3Ioc Main and generated registrar with
+record-ca.db, the unchanged Base CA server, actual worker/native products and
+loopback agent. Private CA ports and a private repeater isolate the clients;
+all child exit/reap and loaded-library identities are recorded. The sanitizer
+builder includes a separate production snmp3Ioc for this path. Base caget/caput
+and Base/system/vendor dependencies remain uninstrumented.
+
+Actual decimal CA STRING access preserves 2^53+1 and INT64_MAX through
+int64out SET/int64in GET; UINT64 waveform reads UINT64_MAX exactly. lso/lsi
+VAL$ CHAR arrays qualify 0/39/40/200/255 data bytes and LEN, while ordinary
+CA STRING exposes 39 data bytes. caput rejects an oversized 300-byte VAL$
+write before put; the requested value and later native GET remain unchanged.
+This differs from Base DOL reducing a long source before DSET entry in the
+policy case. PINI input, Base FLNK and normal non-isolated exit also run.
+Active CA changes and in-flight non-isolated shutdown require separate cases.
+
+Real-path negative controls build defective copies of the production support
+in private directories. They reuse the compiler arguments from an identified
+sanitizer build, compile the unchanged shipped record test and use the same
+worker/native/agent products. Each control requires its named assertion to fail
+normally, and loader diagnostics must identify the defective library. A build
+failure, timeout, forced kill or unrelated failure does not qualify a control.
+
+```bash
+BUILD_RECEIPT=work/r6-sanitizer-build/sanitizer-build.json
+python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --output work/r6-controls
+```
+
+The shipped controls cover communication-alarm classification, integer
+precision, text capacity, binary32 tie selection, ambient-rounding dependence,
+callback retry and terminal release.
+The stale-generation control remains pending. Current partial coverage and the complete
+required T1-T14 matrix belong to the canonical
+[work register](../../docs/milestone-5dff352.md); passing these cases does not
+close R6 or advertise record support. Receipts retain source/product/library
+hashes, request identities, alarms/UDF/publication state, actual child exits and
+cleanup observations without credentials.

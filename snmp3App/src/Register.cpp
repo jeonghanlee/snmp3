@@ -1,5 +1,6 @@
 #include "Runtime.h"
 #include "Config.h"
+#include "Request.h"
 
 #include <cstdio>
 #include <initHooks.h>
@@ -82,6 +83,7 @@ const iocshFuncDef stopDefinition = {
 
 void hook(initHookState state)
 {
+    static bool isolatedCleanup=false;
     const char* name = NULL;
     switch (state) {
     case initHookAfterFinishDevSup: name = "AfterFinishDevSup"; break;
@@ -89,12 +91,14 @@ void hook(initHookState state)
     case initHookAtShutdown: name = "AtShutdown"; break;
     case initHookAfterStopScan: name = "AfterStopScan"; break;
     case initHookAfterStopCallback: name = "AfterStopCallback"; break;
+    case initHookBeforeFree: isolatedCleanup=true; return;
     case initHookAfterShutdown: name = "AfterShutdown"; break;
     default: return;
     }
     std::printf("snmp3 hook: %s\n", name);
     snmp3::Runtime& runtime = snmp3::Runtime::instance();
     if (state == initHookAfterFinishDevSup) {
+        isolatedCleanup=false;
         snmp3::Config::instance().freeze();
         snmp3::Config::instance().report();
         if (!runtime.start()) {
@@ -103,6 +107,9 @@ void hook(initHookState state)
         }
     } else if (state == initHookAtShutdown) {
         runtime.stop();
+        snmp3::Requests::instance().permitDetach();
+    } else if(state==initHookAfterShutdown && isolatedCleanup) {
+        snmp3::Requests::instance().queuesDestroyed();
     }
 }
 }

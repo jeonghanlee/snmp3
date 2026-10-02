@@ -1,0 +1,51 @@
+record(ai, "$(P)Ai") {
+    field(DESC, "Exact numeric SNMP input")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=IntegerRead deadline_ms=5000")
+}
+
+record(longin, "$(P)Longin") {
+    field(DESC, "Signed 32-bit SNMP input")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=IntegerRead deadline_ms=5000")
+    field(FLNK, "$(P)Completed")
+}
+
+record(int64in, "$(P)Int64in") {
+    field(DESC, "Exact unsigned 32-bit SNMP input")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=Counter32Read deadline_ms=5000")
+}
+
+record(stringin, "$(P)Stringin") {
+    field(DESC, "Formatted SNMP OID input")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=OidRead deadline_ms=5000")
+}
+
+record(lsi, "$(P)Lsi") {
+    field(DESC, "Bounded SNMP octet text input")
+    field(DTYP, "snmp3")
+    field(SIZV, "256")
+    field(INP, "@binding=OctetsRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)Waveform") {
+    field(DESC, "Exact unsigned 64-bit SNMP input")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "1")
+    field(BUSY, "1")
+    field(INP, "@binding=Counter64Read deadline_ms=5000")
+}
+
+record(calc, "$(P)Completed") {
+    field(DESC, "Base FLNK completion count")
+    field(CALC, "VAL+1")
+}
+
+record(ai, "$(P)FloatRead") {
+    field(DESC, "Actual binary32 SET readback")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=FloatRead deadline_ms=5000")
+}

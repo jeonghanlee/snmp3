@@ -1,0 +1,52 @@
+record(ao, "$(P)ActiveAo") {
+    field(DESC, "Owned floating SET with active put")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=ActiveFloatWrite deadline_ms=5000")
+    field(FLNK, "$(P)ActiveCompleted")
+}
+
+record(longout, "$(P)ActiveLongout") {
+    field(DESC, "Owned signed SET with active put")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=ActiveIntegerWrite deadline_ms=5000")
+    field(FLNK, "$(P)ActiveCompleted")
+}
+
+record(int64out, "$(P)ActiveInt64out") {
+    field(DESC, "Owned wide SET with active put")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=ActiveCounter64Write deadline_ms=5000")
+    field(FLNK, "$(P)ActiveCompleted")
+}
+
+record(stringout, "$(P)ActiveStringout") {
+    field(DESC, "Owned short SET with active put")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=ActiveOctetsWrite deadline_ms=5000")
+    field(FLNK, "$(P)ActiveCompleted")
+}
+
+record(lso, "$(P)ActiveLso") {
+    field(DESC, "Owned long SET with active put")
+    field(DTYP, "snmp3")
+    field(SIZV, "256")
+    field(OUT, "@binding=ActiveOctetsWrite deadline_ms=5000")
+    field(FLNK, "$(P)ActiveCompleted")
+}
+
+record(calc, "$(P)ActiveCompleted") {
+    field(DESC, "Base active output FLNK count")
+    field(CALC, "VAL+1")
+}
+
+record(ao, "$(P)ActiveRetry") {
+    field(DESC, "Explicit same-value SET after timeout")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=RetryFloatWrite deadline_ms=5000")
+}
+
+record(ao, "$(P)ActiveNativeRetry") {
+    field(DESC, "Configured native retry within one SET")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=NativeRetryFloatWrite deadline_ms=5000")
+}

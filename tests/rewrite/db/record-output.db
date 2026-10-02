@@ -1,0 +1,30 @@
+record(ao, "$(P)Ao") {
+    field(DESC, "Binary32 SNMP output rounding")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=FloatWrite deadline_ms=5000")
+}
+
+record(longout, "$(P)Longout") {
+    field(DESC, "Signed 32-bit SNMP output")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=IntegerWrite deadline_ms=5000")
+}
+
+record(int64out, "$(P)Int64out") {
+    field(DESC, "Exact signed 64-bit SNMP output")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=Counter64Write deadline_ms=5000")
+}
+
+record(stringout, "$(P)Stringout") {
+    field(DESC, "Short SNMP octet output")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=OctetsWrite deadline_ms=5000")
+}
+
+record(lso, "$(P)Lso") {
+    field(DESC, "Long SNMP octet output")
+    field(DTYP, "snmp3")
+    field(SIZV, "256")
+    field(OUT, "@binding=OctetsWrite deadline_ms=5000")
+}

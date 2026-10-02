@@ -13,6 +13,10 @@ PROD_HOST += snmp3ConfigTest
 snmp3ConfigTest_SRCS += ConfigTest.cpp
 snmp3ConfigTest_LIBS += snmp3 Com
 
+PROD_HOST += snmp3ConversionTest
+snmp3ConversionTest_SRCS += ConversionTest.cpp
+snmp3ConversionTest_LIBS += snmp3 Com
+
 PROD_HOST += snmp3IpcTest
 snmp3IpcTest_SRCS += IpcTest.cpp
 snmp3IpcTest_LIBS += snmp3Wire
@@ -40,5 +44,11 @@ snmp3RuntimeTest_DBD += base.dbd snmp3.dbd snmp3RuntimeTestRegistrar.dbd
 PROD_IOC += snmp3RuntimeTest
 snmp3RuntimeTest_SRCS += RuntimeTest.cpp snmp3RuntimeTest_registerRecordDeviceDriver.cpp
 snmp3RuntimeTest_LIBS += snmp3 snmp3Wire $(EPICS_BASE_IOC_LIBS)
+
+DBD += snmp3RecordTest.dbd
+snmp3RecordTest_DBD += base.dbd snmp3.dbd
+PROD_IOC += snmp3RecordTest
+snmp3RecordTest_SRCS += RecordTest.cpp snmp3RecordTest_registerRecordDeviceDriver.cpp
+snmp3RecordTest_LIBS += snmp3 snmp3Wire $(EPICS_BASE_IOC_LIBS)
 
 include $(TOP)/configure/RULES

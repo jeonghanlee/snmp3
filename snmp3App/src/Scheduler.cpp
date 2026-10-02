@@ -37,7 +37,8 @@ Scheduler::Scheduler(std::shared_ptr<const Configuration> value, uint64_t rev, u
     for(const auto& k:unique) { keys[k]=++id; queues[id].key=k; }
     id=0; for(const auto& b:config->bindings)definitions[b.first]=++id;
 }
-uint64_t Scheduler::registerBinding(std::shared_ptr<const Binding> b)
+uint64_t Scheduler::registerBinding(std::shared_ptr<const Binding> b,
+                                    uint64_t retainedBytes, uint64_t generationBytes)
 {
     std::lock_guard<std::mutex> guard(mutex);
     require(accepting && b && &b->capabilities()==&config->capabilities);
@@ -46,9 +47,10 @@ uint64_t Scheduler::registerBinding(std::shared_ptr<const Binding> b)
             spec.valueType==expected.valueType && spec.capacity==expected.capacity);
     uint64_t address=keys.at(ipc::addressKey(b->endpoint().address)),count=0;
     for(const auto& h:handles)if(h.second.address==address)++count;
-    const auto retained=ipc::add(256,ipc::add(ipc::multiply(spec.oid.capacity(),4),ipc::add(spec.id.capacity()+1,spec.endpoint.capacity()+1)));
+    const auto retained=ipc::add(retainedBytes,ipc::add(256,ipc::add(ipc::multiply(spec.oid.capacity(),4),ipc::add(spec.id.capacity()+1,spec.endpoint.capacity()+1))));
     require(count<ipc::MaxCount && ipc::add(configurationBytes,ipc::add(registrationBytes,retained))<=268435456);
     auto id=next(nextHandle); Handle h; h.binding=std::move(b); h.address=address; h.definition=definitions.at(spec.id);
+    h.generationBytes=generationBytes;
     handles.emplace(id,std::move(h)); registrationBytes+=retained; return id;
 }
 void Scheduler::reserveConfiguration(uint64_t bytes)
@@ -75,7 +77,7 @@ std::vector<ipc::Identity> Scheduler::admit(const std::vector<uint64_t>& ids, co
         const auto id=ids[index]; const auto& h=handles.at(id); const auto& b=h.binding->definition();
         require(h.address==address && b.operation==operation && unique.insert(id).second && !a.generations.count(id));
         if(h.generation==UINT64_MAX) { a.accepting=false; throw std::runtime_error("generation identity exhausted"); }
-        total=ipc::add(total,ipc::charge(b)); require(ipc::add(a.bytes,total)<=a.byteLimit);
+        total=ipc::add(total,ipc::add(ipc::charge(b),h.generationBytes)); require(ipc::add(a.bytes,total)<=a.byteLimit);
         require(ipc::add(8+48,ipc::responseBytes(b))<=ipc::DataBytes);
         if(operation==Operation::Set) {
             require(values[index].type()==b.valueType);
@@ -92,7 +94,7 @@ std::vector<ipc::Identity> Scheduler::admit(const std::vector<uint64_t>& ids, co
         auto g=std::unique_ptr<Generation>(new Generation);
         g->command.definition=h.definition; g->command.id.binding=id; g->command.id.generation=h.generation+1;
         g->command.id.admission=admission++; g->command.deadline=deadline; g->command.operation=operation;
-        g->q=ipc::charge(b); require(ipc::add(8+48,ipc::responseBytes(b))<=ipc::DataBytes);
+        g->q=ipc::add(ipc::charge(b),h.generationBytes); require(ipc::add(8+48,ipc::responseBytes(b))<=ipc::DataBytes);
         if(operation==Operation::Set) {
             auto encoded=ipc::encodeValue(values[index]); ipc::Reader check(encoded);
             ipc::decodeValue(check,b,true); check.end();

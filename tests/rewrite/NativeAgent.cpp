@@ -11,6 +11,7 @@
 #include <cstring>
 #include <array>
 #include <memory>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -20,7 +21,7 @@ constexpr size_t ConfigLimit = 65536;
 constexpr unsigned FirstPort = 1024;
 constexpr unsigned LastPort = 65535;
 constexpr size_t ContextCount = 3;
-constexpr size_t ScalarCount = 18;
+constexpr size_t ScalarCount = 26;
 const std::array<unsigned char, 8> Engine = {{0x80, 0, 0, 0, 1, 2, 3, 4}};
 const char* Contexts[ContextCount] = {"", "alpha", "beta"};
 volatile sig_atomic_t Running = 1;
@@ -65,12 +66,17 @@ Var value(unsigned index, unsigned context)
     netsnmp_variable_list* result = nullptr;
     const long integer = -123L - static_cast<long>(context);
     const unsigned long unsignedValue = 0xffffffffUL;
-    const counter64 wide = {0xffffffffUL, 0xffffffffUL};
+    const counter64 wide = {index == 19 ? 0x80000000UL : 0xffffffffUL,
+                            index == 19 ? 0UL : 0xffffffffUL};
     const unsigned char bytes[] = {'A', 0, 'B', 0xff, static_cast<unsigned char>(context)};
     const oid arcs[] = {1, 3, 6, 1, 4, 1, 53864};
     const unsigned char ip[] = {127, 0, 0, 1};
-    const float single = -2.25f;
-    const double precise = 1.0 / 3.0;
+    const float single = index == 21 ? std::numeric_limits<float>::quiet_NaN() :
+                         index == 22 ? std::numeric_limits<float>::infinity() :
+                         index == 23 ? -std::numeric_limits<float>::infinity() : -2.25f;
+    const double precise = index == 24 ? std::numeric_limits<double>::quiet_NaN() :
+                           index == 25 ? std::numeric_limits<double>::infinity() :
+                           index == 26 ? -std::numeric_limits<double>::infinity() : 1.0 / 3.0;
     const void* data = &integer;
     size_t length = sizeof(integer);
     unsigned char type = ASN_INTEGER;
@@ -78,12 +84,14 @@ Var value(unsigned index, unsigned context)
     case 2: type = ASN_COUNTER; data = &unsignedValue; length = sizeof(unsignedValue); break;
     case 3: type = ASN_GAUGE; data = &unsignedValue; length = sizeof(unsignedValue); break;
     case 4: type = ASN_TIMETICKS; data = &unsignedValue; length = sizeof(unsignedValue); break;
-    case 5: type = ASN_COUNTER64; data = &wide; length = sizeof(wide); break;
+    case 5: case 19: case 20: type = ASN_COUNTER64; data = &wide; length = sizeof(wide); break;
     case 6: type = ASN_OCTET_STR; data = bytes; length = sizeof(bytes); break;
     case 7: type = ASN_OBJECT_ID; data = arcs; length = sizeof(arcs); break;
     case 8: type = ASN_IPADDRESS; data = ip; length = sizeof(ip); break;
-    case 9: type = ASN_OPAQUE_FLOAT; data = &single; length = sizeof(single); break;
-    case 10: type = ASN_OPAQUE_DOUBLE; data = &precise; length = sizeof(precise); break;
+    case 9: case 21: case 22: case 23:
+        type = ASN_OPAQUE_FLOAT; data = &single; length = sizeof(single); break;
+    case 10: case 24: case 25: case 26:
+        type = ASN_OPAQUE_DOUBLE; data = &precise; length = sizeof(precise); break;
     case 13: type = SNMP_NOSUCHOBJECT; data = nullptr; length = 0; break;
     case 14: type = SNMP_NOSUCHINSTANCE; data = nullptr; length = 0; break;
     case 15: type = SNMP_ENDOFMIBVIEW; data = nullptr; length = 0; break;
@@ -91,7 +99,7 @@ Var value(unsigned index, unsigned context)
     if (!snmp_varlist_add_variable(&result, nullptr, 0, type,
                                    static_cast<const unsigned char*>(data), length))
         throw std::runtime_error("fixture value allocation failed");
-    if (index >= 16) {
+    if (index >= 16 && index <= 18) {
         const long boundary = index == 16 ? INT32_MIN : index == 17 ? INT32_MAX : LONG_MAX;
         snmp_set_var_typed_value(result, ASN_INTEGER,
                                 reinterpret_cast<const unsigned char*>(&boundary), sizeof(boundary));

@@ -22,7 +22,8 @@ struct TerminalView {
 class Scheduler {
 public:
     Scheduler(std::shared_ptr<const Configuration> config, uint64_t revision, uint64_t activation);
-    uint64_t registerBinding(std::shared_ptr<const Binding> binding);
+    uint64_t registerBinding(std::shared_ptr<const Binding> binding,
+                             uint64_t retainedBytes=0, uint64_t generationBytes=0);
     std::vector<ipc::Identity> admit(const std::vector<uint64_t>& handles,
                                    const std::vector<Value>& payload, unsigned budgetMs, uint64_t nowUs);
     void limits(const std::string& address, uint64_t count, uint64_t bytes);
@@ -57,6 +58,7 @@ private:
     struct Handle {
         std::shared_ptr<const Binding> binding;
         uint64_t address=0, definition=0, generation=0;
+        uint64_t generationBytes=0;
     };
     struct Address {
         std::string key;

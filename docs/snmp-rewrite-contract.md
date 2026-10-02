@@ -23,7 +23,11 @@ Returning from the interactive shell leads Main to call epicsExit.
 
 Owned startup definitions, address admission queues, framed IPC and native
 worker supervision are implemented. Component callers use the actual
-scheduler/worker/native path. No SNMP DSET or record conversion is implemented.
+scheduler/worker/native path. Eleven record DSETs, checked conversion and
+terminal callbacks are implemented as a qualification candidate. The complete
+record matrix is still pending, so the public report retains
+`recordSupport=unavailable`. The canonical [work register](milestone-5dff352.md)
+owns current acceptance and observed coverage.
 The servicing thread owns deadlines/IPC/reap and never calls native session APIs.
 The separate capability probe performs no session open. Native dependencies and
 legacy production sources remain excluded from IOC/support/wire products.
@@ -31,32 +35,70 @@ The standard longin fixture verifies Base processing, not an SNMP request.
 
 ## Selected Interface Direction
 
-The SNMP interface will use new explicit configuration and record bindings.
+The SNMP interface uses new explicit configuration and record bindings.
 APC startup files and databases will be migrated deliberately. A legacy
-syntax translation adapter is excluded. Existing DBs cannot bind SNMP
-records to this foundation IOC. Previous verification qualifies only its
+syntax translation adapter is excluded. Legacy record links require deliberate
+migration to the explicit new grammar. Previous verification qualifies only its
 identified previous source, never this independent target.
 
-## Implemented Value And Planned Record Contract
+## Record Qualification Candidate
 
 The shipped Value API owns exact signed 64-bit, unsigned 32-bit, Counter64,
 binary octets, OID arcs, IPv4, Float32, Float64, and exception tags. Accessors
 check tags. Binding handles own immutable profile/endpoint definitions and
-their configuration snapshot. No record-field conversion is implemented.
+their configuration snapshot. Record conversion rejects range, precision and
+capacity loss before publishing any input or admitting an unusable SET.
 
-Later implementation will support inputs ai, longin, stringin and waveform;
-outputs ao, longout and stringout. Each binding owns endpoint identity,
-OID, native value type, capacity, conversion policy and operation.
-Integer range, floating-point precision and waveform capacity policies
-require concrete contracts and real tests before support is advertised.
+Use `DTYP="snmp3"` and INST_IO `@binding=<id> deadline_ms=<ms>` on INP or OUT.
+Exactly these two keys are required; the explicit deadline budget is 1-600000
+ms. Device initialization resolves one immutable JSON binding and registers a
+separate handle for each record. It performs no network I/O. Live INP/OUT
+replacement is refused; admission and completion check the original
+DTYP/link/DSET and effective storage identity. A direct Base DTYP write can
+succeed, but a mismatch produces LINK/INVALID and no new snmp3 request.
 
-Per-record ordering will be request, terminal response/error, locked value
+| Record | Native operation and representation |
+| --- | --- |
+| ai | Numeric GET to direct double VAL; LINR NO CONVERSION; exact integer conversion required |
+| longin | Integer-tag GET to signed 32-bit VAL; overflow rejected |
+| int64in | Integer-tag GET to signed 64-bit VAL without a double intermediate; Counter64 above INT64_MAX rejected |
+| stringin | Octets, OID or IPv4 GET to at most 39 data bytes; embedded NUL or overflow rejected |
+| lsi | The same text GET to effective SIZV storage; LEN includes the terminating NUL |
+| waveform | One numeric scalar or octet/OID/IPv4 array GET; numeric LONG/ULONG/INT64/UINT64/FLOAT/DOUBLE, octet/IP UCHAR, OID ULONG |
+| ao | Numeric SET from Base-prepared OVAL; LINR NO CONVERSION; finite OpaqueFloat rounding uses software roundTiesToEven |
+| longout | Integer-tag SET from signed 32-bit VAL; OOPT must remain Every Time |
+| int64out | Integer-tag SET from signed 64-bit VAL without a double intermediate |
+| stringout | Bounded Octets SET from a terminated 40-byte buffer |
+| lso | Octets SET of LEN-1 bytes from effective SIZV storage; terminating NUL excluded |
+
+For ao-to-OpaqueFloat only, finite binary32 rounding is accepted without changing
+the requested VAL. All other precision/capacity loss is an error. Input rejection
+preserves the previous complete VAL/BPTR and NORD/LEN. Base clamps lsi/lso SIZV
+to 16-32767 before binding; that effective capacity and storage pointer are
+frozen. Base/client truncation before DSET is separate from SNMP conversion.
+
+Local admission/conversion errors use READ/INVALID or WRITE/INVALID. Native
+protocol/security/exception failures use the same operation alarms. Native
+timeout, session-open/send failures and cancellation are communication failures;
+they use COMM/INVALID, as do record deadlines, worker loss and Stopping.
+Invalid identity uses LINK/INVALID. Base still owns competing
+record alarms, monitors and simulation. Failed native inputs retain prior UDF
+for ai/longin/int64in/stringin/lsi; successful input clears it. Waveform follows
+Base's UDF processing and separately retains a native-publication success flag.
+BUSY is FALSE at initialization, admission and valid completion before Base
+record processing; PACT represents pending asynchronous work.
+
+Per-record ordering is request, terminal response/error, locked value
 and alarm processing, Base completion, FLNK, then Base clears PACT.
-Device support will not manually run FLNK. Fanout does not imply an
+Device support does not manually run FLNK. Fanout does not imply an
 asynchronous completion barrier. Successful SET completion and device
 readback remain distinct observations. Generation and activation identity
-will reject stale or duplicate completions and prevent implicit SET replay.
-These are planned module requirements, not verified foundation behavior.
+reject stale or duplicate completions and prevent implicit SET replay.
+Checked input remains staged until Base selects DSET completion rather than
+simulation. The callback finalizes its terminal even when simulation or an
+output policy skips DSET. A failed callbackRequest retains the borrowed result
+and reservation and is retried without native replay or deadline reset.
+These contracts require the complete qualification matrix before advertisement.
 
 ## Implemented Startup Configuration Contract
 
@@ -111,9 +153,19 @@ and worker state; Running does not promise device availability.
 
 Process-owned Config/Runtime survive isolated cleanup and never permit reload.
 Readiness waits and joins retain no servicing state lock. Base init hooks are
-void, so future DSET must reject closed admission; Main also checks retained
-Failed state after a startup script returns. Record callback drain, conversion,
-PACT completion and shutdown FLNK remain later R6 integration requirements.
+void, so DSET rejects closed admission; Main also checks retained Failed state
+after a startup script returns. Stop services record completions while Base is
+alive, then closes the atomic completion-entry gate after a 2000 ms drain
+attempt. An unsuccessful attempt is retained and blocks restart. Callbacks
+already entered, including those waiting for a record lock, must finish before
+AtShutdown permits link closure. This safety wait can exceed the attempt budget;
+total IOC shutdown is not bounded when external processing stalls.
+
+Shutdown del_record detaches pointers without freeing callback storage. Base
+callback join alone is insufficient: isolated cleanup releases abandoned
+contexts only after actual callback queue destruction. Non-isolated shutdown
+retains any context Base may still reference. Waits hold no callback-needed
+operation or record lock.
 
 ## Verification Boundary
 
@@ -131,5 +183,7 @@ dependencies explicitly bounded. The [native transport contract](snmp-native-tra
 defines that component boundary. Actual R5 owner/IPC/worker/Native traffic, external faults and actual IOC
 lifecycle use separate current component/IOC/qualification runners. Targeted
 ASan/UBSan also instrument new R5 code; dependencies remain uninstrumented and
-leaks disabled. Record-driven SNMP, APC, two-OS and sustained qualification
-require later implementations and fixtures.
+leaks disabled. The separate record runner executes actual DSET, Base callbacks,
+worker/native traffic and isolated cleanup, including initial queue-pressure and
+blocked-shutdown cases. Its executed subset does not close the full R6 matrix.
+APC, two-OS and sustained qualification remain separate milestones.
