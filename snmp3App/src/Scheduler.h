@@ -3,12 +3,15 @@
 
 #include "Ipc.h"
 #include <deque>
+#include <map>
 #include <mutex>
+#include <utility>
 
 namespace snmp3 {
 struct QueueSnapshot {
     uint64_t address=0, count=0, bytes=0, countLimit=ipc::DefaultCount, byteLimit=ipc::DefaultBytes;
     uint64_t queued=0, active=0, undelivered=0, retirementPending=0;
+    uint64_t behindRetirement=0, behindAdmitted=0, behindNeverSent=0;
     bool accepting=false;
 };
 struct Dispatch {
@@ -18,6 +21,7 @@ struct Dispatch {
 struct TerminalView {
     ipc::Identity id;
     const ipc::Result* result=nullptr;
+    bool sent=false;
 };
 class Scheduler {
 public:
@@ -41,7 +45,7 @@ public:
     void workerLost(uint64_t address, ipc::Outcome reason);
     void reaped(uint64_t address);
     void stop();
-    TerminalView take(uint64_t binding);
+    TerminalView take(const ipc::Identity& terminal);
     void release(const ipc::Identity& terminal);
     bool settled() const;
     uint64_t earliestDeadline(uint64_t address) const;
@@ -49,11 +53,15 @@ public:
     void reserveConfiguration(uint64_t supervisorBytes);
     void closeAdmission(uint64_t address);
 private:
+    // A handle holds at most one consumed, retirement-pending generation plus one unconsumed
+    // generation; every structure is keyed by (binding, generation).
+    using Key=std::pair<uint64_t,uint64_t>;
+    static Key key(const ipc::Identity& id) { return Key(id.binding,id.generation); }
     struct Generation {
         ipc::Command command;
         ipc::Result result;
         uint64_t q=0;
-        bool selected=false, borrowed=false, consumed=false, retired=false, sent=false, active=false;
+        bool selected=false, borrowed=false, consumed=false, retired=false, sent=false, active=false, behind=false;
     };
     struct Handle {
         std::shared_ptr<const Binding> binding;
@@ -64,13 +72,14 @@ private:
         std::string key;
         uint64_t countLimit=ipc::DefaultCount, byteLimit=ipc::DefaultBytes;
         uint64_t count=0, bytes=0, nextAdmission=1, nextBatch=1, batch=0;
+        uint64_t behindAdmitted=0, behindNeverSent=0;
         bool accepting=true;
-        std::deque<uint64_t> queue;
-        std::vector<uint64_t> active;
-        std::map<uint64_t,std::unique_ptr<Generation>> generations;
+        std::deque<Key> queue;
+        std::vector<Key> active;
+        std::map<Key,std::unique_ptr<Generation>> generations;
     };
     void select(Generation& g, ipc::Outcome outcome);
-    void collect(Address& a, uint64_t binding);
+    void collect(Address& a, const Key& id);
     bool matches(const Address& a, uint64_t batch, const std::vector<ipc::Identity>& ids) const;
     bool compatible(uint64_t first, uint64_t next, const Generation& a, const Generation& b) const;
     std::shared_ptr<const Configuration> config;

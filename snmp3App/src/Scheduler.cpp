@@ -1,11 +1,15 @@
 #include "Scheduler.h"
 #include <algorithm>
 #include <set>
+#include <type_traits>
 
 namespace snmp3 {
 uint64_t Scheduler::fixedGenerationBytes()
 {
-    using GenerationNode=std::_Rb_tree_node<std::pair<const uint64_t,std::unique_ptr<Generation>>>;
+    using GenerationEntry=std::pair<const Key,std::unique_ptr<Generation>>;
+    static_assert(std::is_same<decltype(Address::generations)::value_type,GenerationEntry>::value,
+                  "charged generation node must match the generation container");
+    using GenerationNode=std::_Rb_tree_node<GenerationEntry>;
     using HandleNode=std::_Rb_tree_node<std::pair<const uint64_t,Handle>>;
     return sizeof(Generation)+sizeof(GenerationNode)+sizeof(HandleNode)+3*sizeof(ipc::Command)+
            2*sizeof(ipc::Result)+2*sizeof(ipc::Identity)+sizeof(ipc::ResultReservation)+
@@ -70,12 +74,19 @@ std::vector<ipc::Identity> Scheduler::admit(const std::vector<uint64_t>& ids, co
     require(a.accepting);
     const auto operation=handles.at(ids.front()).binding->definition().operation;
     require(operation==Operation::Get ? values.empty():values.size()==ids.size());
-    std::set<uint64_t> unique; uint64_t total=0;
+    std::set<uint64_t> unique; std::vector<bool> behind; uint64_t total=0;
     require(ipc::add(a.count,ids.size())<=a.countLimit);
     if(ids.size()>UINT64_MAX-a.nextAdmission) { a.accepting=false; throw std::runtime_error("admission identity exhausted"); }
     for(size_t index=0;index<ids.size();++index) {
         const auto id=ids[index]; const auto& h=handles.at(id); const auto& b=h.binding->definition();
-        require(h.address==address && b.operation==operation && unique.insert(id).second && !a.generations.count(id));
+        require(h.address==address && b.operation==operation && unique.insert(id).second);
+        // A new generation is admitted only when every existing generation of the handle is consumed
+        // and at most one exists; it then queues behind that generation's native retirement.
+        unsigned existing=0; bool consumed=true;
+        for(auto it=a.generations.lower_bound(Key(id,0));it!=a.generations.end() && it->first.first==id;++it) {
+            ++existing; consumed=consumed && it->second->consumed;
+        }
+        require(existing<=1 && consumed); behind.push_back(existing==1);
         if(h.generation==UINT64_MAX) { a.accepting=false; throw std::runtime_error("generation identity exhausted"); }
         total=ipc::add(total,ipc::add(ipc::charge(b),h.generationBytes)); require(ipc::add(a.bytes,total)<=a.byteLimit);
         require(ipc::add(8+48,ipc::responseBytes(b))<=ipc::DataBytes);
@@ -85,7 +96,7 @@ std::vector<ipc::Identity> Scheduler::admit(const std::vector<uint64_t>& ids, co
             if(b.valueType==ValueType::ObjectId)require(values[index].objectId().size()<=b.capacity);
         }
     }
-    std::map<uint64_t,std::unique_ptr<Generation>> candidates;
+    std::map<Key,std::unique_ptr<Generation>> candidates;
     std::vector<ipc::Identity> admitted; admitted.reserve(ids.size());
     auto admission=a.nextAdmission;
     for(size_t index=0;index<ids.size();++index) {
@@ -94,22 +105,23 @@ std::vector<ipc::Identity> Scheduler::admit(const std::vector<uint64_t>& ids, co
         auto g=std::unique_ptr<Generation>(new Generation);
         g->command.definition=h.definition; g->command.id.binding=id; g->command.id.generation=h.generation+1;
         g->command.id.admission=admission++; g->command.deadline=deadline; g->command.operation=operation;
-        g->q=ipc::add(ipc::charge(b),h.generationBytes); require(ipc::add(8+48,ipc::responseBytes(b))<=ipc::DataBytes);
+        g->q=ipc::add(ipc::charge(b),h.generationBytes); g->behind=behind[index]; require(ipc::add(8+48,ipc::responseBytes(b))<=ipc::DataBytes);
         if(operation==Operation::Set) {
             auto encoded=ipc::encodeValue(values[index]); ipc::Reader check(encoded);
             ipc::decodeValue(check,b,true); check.end();
             require(ipc::add(8+48,encoded.size())<=ipc::DataBytes); g->command.value=std::move(encoded);
         }
-        admitted.push_back(g->command.id); candidates.emplace(id,std::move(g));
+        admitted.push_back(g->command.id); candidates.emplace(key(g->command.id),std::move(g));
     }
     require(ipc::add(a.count,ids.size())<=a.countLimit && ipc::add(a.bytes,total)<=a.byteLimit);
     // Allocate queue publication before changing any visible generation or counter.
-    auto queue=a.queue; for(auto id:ids)queue.push_back(id);
-    std::vector<uint64_t> inserted; inserted.reserve(ids.size());
+    auto queue=a.queue; for(const auto& id:admitted)queue.push_back(key(id));
+    std::vector<Key> inserted; inserted.reserve(ids.size());
     try {
         for(auto& entry:candidates) { a.generations.emplace(entry.first,std::move(entry.second)); inserted.push_back(entry.first); }
     } catch(...) { for(auto id:inserted)a.generations.erase(id); throw; }
     a.queue.swap(queue); a.count+=ids.size(); a.bytes+=total; a.nextAdmission=admission;
+    a.behindAdmitted+=std::count(behind.begin(),behind.end(),true);
     for(auto id:ids)++handles.at(id).generation;
     return admitted;
 }
@@ -127,7 +139,12 @@ QueueSnapshot Scheduler::snapshot(uint64_t address) const
         const auto& g=*e.second;
         if(g.selected) { if(!g.consumed)++r.undelivered; else if(!g.retired)++r.retirementPending; }
         else if(g.active)++r.active; else ++r.queued;
+        if(!g.selected && !g.active && e.first.second>1) {
+            const auto previous=a.generations.find(Key(e.first.first,e.first.second-1));
+            if(previous!=a.generations.end() && previous->second->consumed && !previous->second->retired)++r.behindRetirement;
+        }
     }
+    r.behindAdmitted=a.behindAdmitted; r.behindNeverSent=a.behindNeverSent;
     return r;
 }
 std::vector<uint64_t> Scheduler::addresses() const
@@ -146,18 +163,18 @@ Dispatch Scheduler::dispatch(uint64_t address, uint64_t nowUs)
     if(a.nextBatch==UINT64_MAX) { a.accepting=false; return d; }
     const auto first=a.queue.front(); const auto& initial=*a.generations.at(first);
     if(initial.command.deadline<=nowUs)return d;
-    const auto maximum=std::min<unsigned>(handles.at(first).binding->profile().maxVarbinds,ipc::MaxMembers);
+    const auto maximum=std::min<unsigned>(handles.at(first.first).binding->profile().maxVarbinds,ipc::MaxMembers);
     uint64_t commandBytes=8,resultBytes=8;
     for(auto id:a.queue) {
         const auto& g=*a.generations.at(id);
-        if(g.command.deadline<=nowUs || !compatible(first,id,initial,g) || d.commands.size()>=maximum)break;
+        if(g.command.deadline<=nowUs || !compatible(first.first,id.first,initial,g) || d.commands.size()>=maximum)break;
         const auto request=ipc::add(commandBytes,ipc::add(48,g.command.value.size()));
-        const auto response=ipc::add(resultBytes,ipc::add(48,ipc::responseBytes(handles.at(id).binding->definition())));
+        const auto response=ipc::add(resultBytes,ipc::add(48,ipc::responseBytes(handles.at(id.first).binding->definition())));
         if(request>ipc::DataBytes || response>ipc::DataBytes)break;
         d.commands.push_back(g.command); commandBytes=request; resultBytes=response;
     }
-    require(!d.commands.empty()); std::vector<uint64_t> active; active.reserve(d.commands.size());
-    for(const auto& c:d.commands)active.push_back(c.id.binding);
+    require(!d.commands.empty()); std::vector<Key> active; active.reserve(d.commands.size());
+    for(const auto& c:d.commands)active.push_back(key(c.id));
     d.batch=next(a.nextBatch); a.batch=d.batch; a.active=std::move(active);
     for(auto id:a.active) { a.generations.at(id)->active=true; require(a.queue.front()==id); a.queue.pop_front(); }
     return d;
@@ -172,9 +189,9 @@ void Scheduler::select(Generation& g, ipc::Outcome outcome)
     if(g.selected)return;
     g.result.id=g.command.id; g.result.outcome=outcome; g.selected=true;
 }
-void Scheduler::collect(Address& a, uint64_t binding)
+void Scheduler::collect(Address& a, const Key& id)
 {
-    auto it=a.generations.find(binding); if(it==a.generations.end())return;
+    auto it=a.generations.find(id); if(it==a.generations.end())return;
     const auto& g=*it->second;
     if(g.consumed && g.retired) { require(a.count && a.bytes>=g.q); --a.count; a.bytes-=g.q; a.generations.erase(it); }
 }
@@ -199,7 +216,7 @@ bool Scheduler::complete(uint64_t address, uint64_t batch, std::vector<ipc::Resu
         } else require(r.value.empty());
     }
     for(auto& r:results) {
-        auto& g=*a.generations.at(r.id.binding); if(g.selected)continue;
+        auto& g=*a.generations.at(key(r.id)); if(g.selected)continue;
         if(nowUs>=g.command.deadline)select(g,ipc::Outcome::Deadline);
         else { g.result=std::move(r); g.selected=true; }
     }
@@ -218,6 +235,7 @@ bool Scheduler::expire(uint64_t address, uint64_t nowUs)
     for(auto it=a.queue.begin();it!=a.queue.end();) {
         auto id=*it; auto& g=*a.generations.at(id);
         if(g.command.deadline>nowUs) { ++it; continue; }
+        if(!g.selected && g.behind)++a.behindNeverSent;
         select(g,ipc::Outcome::Deadline); std::vector<uint8_t>().swap(g.command.value); g.retired=true; it=a.queue.erase(it); collect(a,id);
     }
     for(auto id:a.active) { auto& g=*a.generations.at(id); if(nowUs>=g.command.deadline) { select(g,ipc::Outcome::Deadline); contain=true; } }
@@ -231,7 +249,7 @@ void Scheduler::workerLost(uint64_t address, ipc::Outcome reason)
 void Scheduler::reaped(uint64_t address)
 {
     std::lock_guard<std::mutex> guard(mutex); auto& a=queues.at(address);
-    std::deque<uint64_t> recovered;
+    std::deque<Key> recovered;
     for(auto id:a.active) {
         auto& g=*a.generations.at(id);
         if(!g.selected && !g.sent && accepting) { g.active=false; recovered.push_back(id); }
@@ -252,19 +270,20 @@ void Scheduler::stop()
 }
 void Scheduler::closeAdmission(uint64_t address)
 { std::lock_guard<std::mutex> guard(mutex); queues.at(address).accepting=false; }
-TerminalView Scheduler::take(uint64_t binding)
+TerminalView Scheduler::take(const ipc::Identity& terminal)
 {
-    std::lock_guard<std::mutex> guard(mutex); auto& a=queues.at(handles.at(binding).address);
-    auto it=a.generations.find(binding); TerminalView v;
-    if(it==a.generations.end() || !it->second->selected || it->second->borrowed || it->second->consumed)return v;
-    auto& g=*it->second; g.borrowed=true; v.id=g.command.id; v.result=&g.result; return v;
+    std::lock_guard<std::mutex> guard(mutex); auto& a=queues.at(handles.at(terminal.binding).address);
+    auto it=a.generations.find(key(terminal)); TerminalView v;
+    if(it==a.generations.end() || !(it->second->command.id==terminal) || !it->second->selected ||
+       it->second->borrowed || it->second->consumed)return v;
+    auto& g=*it->second; g.borrowed=true; v.id=g.command.id; v.result=&g.result; v.sent=g.sent; return v;
 }
 void Scheduler::release(const ipc::Identity& terminal)
 {
     std::lock_guard<std::mutex> guard(mutex); auto& a=queues.at(handles.at(terminal.binding).address);
-    auto it=a.generations.find(terminal.binding); require(it!=a.generations.end()); auto& g=*it->second;
+    auto it=a.generations.find(key(terminal)); require(it!=a.generations.end()); auto& g=*it->second;
     require(g.command.id==terminal && g.selected && g.borrowed && !g.consumed);
-    std::vector<uint8_t>().swap(g.result.value); g.consumed=true; g.borrowed=false; collect(a,terminal.binding);
+    std::vector<uint8_t>().swap(g.result.value); g.consumed=true; g.borrowed=false; collect(a,key(terminal));
 }
 bool Scheduler::settled() const
 { std::lock_guard<std::mutex> guard(mutex); return std::all_of(queues.begin(),queues.end(),[](const std::pair<const uint64_t,Address>& a) { return a.second.count==0 && a.second.batch==0; }); }

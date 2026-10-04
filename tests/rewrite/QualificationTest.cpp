@@ -5,8 +5,10 @@
 #include <cerrno>
 #include <csignal>
 #include <cstdio>
+#include <deque>
 #include <fcntl.h>
 #include <functional>
+#include <mutex>
 #include <poll.h>
 #include <set>
 #include <thread>
@@ -29,6 +31,21 @@ struct Fixture {
     std::map<std::string,std::vector<uint64_t>> handles;
     std::map<uint64_t,const BindingDefinition*> specs;
     std::vector<SupervisionEvent> observed;
+    std::mutex admittedMutex;
+    std::map<uint64_t,std::deque<ipc::Identity>> admitted;
+    // Records each admitted identity per handle so terminals are taken by exact identity in FIFO order.
+    std::vector<ipc::Identity> admit(const std::vector<uint64_t>& ids,const std::vector<Value>& values,unsigned budgetMs,uint64_t nowUs) {
+        auto result=scheduler->admit(ids,values,budgetMs,nowUs);
+        std::lock_guard<std::mutex> guard(admittedMutex);
+        for(const auto& id:result)admitted[id.binding].push_back(id);
+        return result;
+    }
+    TerminalView take(uint64_t handle) {
+        std::lock_guard<std::mutex> guard(admittedMutex);
+        auto it=admitted.find(handle); if(it==admitted.end() || it->second.empty())return TerminalView();
+        const auto view=scheduler->take(it->second.front()); if(view.result)it->second.pop_front();
+        return view;
+    }
     Fixture(char** argv) {
         config.load(argv[1],argv[2]); const auto frozen=config.snapshot();
         scheduler=std::make_shared<Scheduler>(frozen.configuration,frozen.revision,1);
@@ -61,7 +78,7 @@ struct Fixture {
             owner->requestStop(); const auto end=ipc::add(monotonicUs(),2500000);
             do {
                 tick();
-                for(const auto& entry:specs) { const auto view=scheduler->take(entry.first); if(view.result)scheduler->release(view.id); }
+                for(const auto& entry:specs) { const auto view=take(entry.first); if(view.result)scheduler->release(view.id); }
                 if(owner->reconcile())return;
             } while(monotonicUs()<end);
         } catch(...) {}
@@ -97,7 +114,7 @@ struct Fixture {
     }
     Value read(uint64_t handle,ipc::Outcome outcome=ipc::Outcome::Complete,int64_t integer=INT64_MIN,uint16_t native=0) {
         TerminalView view;
-        until([&]{view=scheduler->take(handle); return view.result;});
+        until([&]{view=take(handle); return view.result;});
         check(view.result->outcome==outcome || (outcome==ipc::Outcome::ChannelFailure && view.result->outcome==ipc::Outcome::WorkerFailure),"unexpected terminal outcome");
         if(native)check(view.result->nativeOutcome==native,"unexpected native outcome");
         auto value=Value::integer(0);
@@ -149,20 +166,20 @@ void typed(Fixture& f)
         if(definition.second.operation==Operation::Get)reads.push_back(handle);
         else { sets.push_back(handle); values.push_back(expected(definition.second,profile)); }
     }
-    f.scheduler->admit(reads,{},10000,monotonicUs());
+    f.admit(reads,{},10000,monotonicUs());
     for(const auto handle:reads) {
         const auto& definition=*f.specs.at(handle); const auto& profile=config->profiles.at(config->endpoints.at(definition.endpoint).profile);
         const auto value=f.read(handle);
         check(ipc::encodeValue(value)==ipc::encodeValue(expected(definition,profile)),"typed owned value mismatch");
     }
     f.settle();
-    f.scheduler->admit(sets,values,10000,monotonicUs());
+    f.admit(sets,values,10000,monotonicUs());
     for(auto& value:values)value=Value::integer(987);
     for(const auto handle:sets) {
         const auto& definition=*f.specs.at(handle); const auto& profile=config->profiles.at(config->endpoints.at(definition.endpoint).profile);
         const auto value=f.read(handle); check(ipc::encodeValue(value)==ipc::encodeValue(expected(definition,profile)),"caller mutation reached SET");
     }
-    f.settle(); f.scheduler->admit(reads,{},10000,monotonicUs());
+    f.settle(); f.admit(reads,{},10000,monotonicUs());
     for(const auto handle:reads) {
         const auto& definition=*f.specs.at(handle); const auto& profile=config->profiles.at(config->endpoints.at(definition.endpoint).profile);
         check(ipc::encodeValue(f.read(handle))==ipc::encodeValue(expected(definition,profile)),"real SET readback mismatch");
@@ -172,9 +189,9 @@ void typed(Fixture& f)
 void fifo(Fixture& f)
 {
     const auto ids=f.handles.at("Address4Read"); const auto origin=monotonicUs();
-    f.scheduler->admit({ids[0]},{},5000,origin);
-    f.scheduler->admit({ids[1]},{},5000,ipc::add(origin,1));
-    f.scheduler->admit({ids[2],ids[3]},{},5000,ipc::add(origin,2));
+    f.admit({ids[0]},{},5000,origin);
+    f.admit({ids[1]},{},5000,ipc::add(origin,1));
+    f.admit({ids[2],ids[3]},{},5000,ipc::add(origin,2));
     for(auto handle:ids)f.read(handle,ipc::Outcome::Complete,-123);
     f.settle();
     check(std::count_if(f.observed.begin(),f.observed.end(),[](const SupervisionEvent& e){return e.address==1 && e.code==13;})==3,"unequal deadlines batched");
@@ -182,23 +199,23 @@ void fifo(Fixture& f)
 void deadline(Fixture& f)
 {
     const auto a=f.handles.at("Address4Read"),b=f.handles.at("Address6Read"); f.signal(1,SIGSTOP);
-    f.scheduler->admit({a[0],a[1]},{},100,monotonicUs());
-    f.scheduler->admit({b[0],b[1]},{},5000,monotonicUs());
+    f.admit({a[0],a[1]},{},100,monotonicUs());
+    f.admit({b[0],b[1]},{},5000,monotonicUs());
     for(unsigned i=0;i<2;++i)f.read(a[i],ipc::Outcome::Deadline);
     auto pending=f.scheduler->snapshot(1); check(pending.count==2 && pending.retirementPending==2,"early consumption released live Q");
     f.scheduler->limits("127.0.0.1",1,1);
-    rejects([&]{f.scheduler->admit({a[2]},{},5000,monotonicUs());});
+    rejects([&]{f.admit({a[2]},{},5000,monotonicUs());});
     check(f.scheduler->snapshot(1).bytes==pending.bytes,"limit decrease released live Q");
     for(unsigned i=0;i<2;++i)f.read(b[i],ipc::Outcome::Complete,-123);
     check(f.worker(1).pid>0 && f.worker(2).ready,"blocked address starved peer or reaped early");
     f.until([&]{return f.scheduler->snapshot(1).count==0;},2500);
     check(std::any_of(f.observed.begin(),f.observed.end(),[](const SupervisionEvent& e){return e.address==1 && e.code==9;}),"blocked worker KILL absent");
-    f.scheduler->limits("127.0.0.1",2,9344); f.scheduler->admit({a[0]},{},5000,monotonicUs());
+    f.scheduler->limits("127.0.0.1",2,9344); f.admit({a[0]},{},5000,monotonicUs());
     f.read(a[0],ipc::Outcome::Complete,-123); f.settle();
 }
 void unsent(Fixture& f)
 {
-    const auto ids=f.handles.at("Address4Read"); const auto accepted=f.scheduler->admit({ids[0]},{},5000,monotonicUs());
+    const auto ids=f.handles.at("Address4Read"); const auto accepted=f.admit({ids[0]},{},5000,monotonicUs());
     // Launch queues Bootstrap only. Killing before another step preserves zero Batch bytes.
     f.tick(); f.signal(1,SIGKILL);
     f.read(ids[0],ipc::Outcome::Complete,-123); f.settle();
@@ -207,16 +224,16 @@ void unsent(Fixture& f)
 void ambiguous(Fixture& f,const char* marker)
 {
     const auto id=f.handles.at("Address4Set").front(); const auto read=f.handles.at("Address4Read").front();
-    f.scheduler->admit({id},{Value::integer(777)},5000,monotonicUs());
+    f.admit({id},{Value::integer(777)},5000,monotonicUs());
     f.until([&]{return std::any_of(f.observed.begin(),f.observed.end(),[](const SupervisionEvent& e){return e.address==1 && e.code==14;});});
     std::printf("{\"event\":\"await_loss\",\"pid\":%lld}\n",(long long)f.worker(1).pid);
     const auto end=ipc::add(monotonicUs(),5000000);
     while(access(marker,F_OK)!=0 && monotonicUs()<end) { f.tick(); }
     check(access(marker,F_OK)==0,"actual SET loss coordination absent");
-    const auto view=f.scheduler->take(id);
+    const auto view=f.take(id);
     if(!view.result)f.read(id,ipc::Outcome::WorkerFailure);
     else { check(view.result->outcome==ipc::Outcome::WorkerFailure,"ambiguous SET wrong outcome"); f.scheduler->release(view.id); }
-    f.scheduler->admit({read},{},5000,monotonicUs()); f.read(read,ipc::Outcome::Complete,777); f.settle();
+    f.admit({read},{},5000,monotonicUs()); f.read(read,ipc::Outcome::Complete,777); f.settle();
 }
 void crashes(Fixture& f)
 {
@@ -224,10 +241,10 @@ void crashes(Fixture& f)
         f.until([&]{return f.worker(1).pid>0;}); f.signal(1,SIGKILL);
         f.until([&]{return f.worker(1).reaps==i+1;});
     }
-    const auto id=f.handles.at("Address4Read").front(); f.scheduler->admit({id},{},100,monotonicUs());
+    const auto id=f.handles.at("Address4Read").front(); f.admit({id},{},100,monotonicUs());
     f.read(id,ipc::Outcome::Deadline); f.settle();
     check(f.worker(1).spawnAttempts==4 && f.worker(1).pid==0,"launch rate exhausted incorrectly");
-    const auto peer=f.handles.at("Address6Read").front(); f.scheduler->admit({peer},{},5000,monotonicUs());
+    const auto peer=f.handles.at("Address6Read").front(); f.admit({peer},{},5000,monotonicUs());
     f.read(peer,ipc::Outcome::Complete,-123); f.settle();
     std::vector<uint64_t> launches,reaps;
     for(const auto& e:f.observed)if(e.address==1) { if(e.code==2)launches.push_back(e.at); if(e.code==7)reaps.push_back(e.at); }
@@ -237,9 +254,9 @@ void crashes(Fixture& f)
 void nativeDeadline(Fixture& f)
 {
     const auto a=f.handles.at("Address4Read"),b=f.handles.at("Address6Read");
-    f.scheduler->admit({a[0],a[1]},{},100,monotonicUs());
-    f.scheduler->admit({a[2]},{},50,monotonicUs());
-    f.scheduler->admit({b[0],b[1]},{},5000,monotonicUs());
+    f.admit({a[0],a[1]},{},100,monotonicUs());
+    f.admit({a[2]},{},50,monotonicUs());
+    f.admit({b[0],b[1]},{},5000,monotonicUs());
     f.read(a[2],ipc::Outcome::Deadline);
     f.until([&]{return f.scheduler->snapshot(1).undelivered==2;});
     check(f.scheduler->snapshot(1).count==2,"unconsumed deadline released Q");
@@ -253,16 +270,16 @@ void nativeDeadline(Fixture& f)
 void ipcFault(Fixture& f)
 {
     const auto a=f.handles.at(f.handles.count("Address4Set") ? "Address4Set":"Address4Read").front(),b=f.handles.at("Address6Read").front();
-    f.scheduler->admit({a},f.handles.count("Address4Set") ? std::vector<Value>{Value::integer(777)}:std::vector<Value>{},5000,monotonicUs());
-    f.scheduler->admit({b},{},5000,monotonicUs());
+    f.admit({a},f.handles.count("Address4Set") ? std::vector<Value>{Value::integer(777)}:std::vector<Value>{},5000,monotonicUs());
+    f.admit({b},{},5000,monotonicUs());
     f.read(a,ipc::Outcome::ChannelFailure); f.read(b,ipc::Outcome::Complete,-123); f.settle();
 }
 void fullChannel(Fixture& f)
 {
     const auto a=f.handles.at("Address4Set").front(),b=f.handles.at("Address6Read").front();
     f.scheduler->limits("127.0.0.1",2,ipc::MaxBytes);
-    f.scheduler->admit({a},{Value::octets(std::vector<uint8_t>(1048576,255))},100,monotonicUs());
-    f.scheduler->admit({b},{},5000,monotonicUs());
+    f.admit({a},{Value::octets(std::vector<uint8_t>(1048576,255))},100,monotonicUs());
+    f.admit({b},{},5000,monotonicUs());
     f.read(a,ipc::Outcome::Deadline);
     check(f.scheduler->snapshot(1).count==1 && f.scheduler->snapshot(1).retirementPending==1,"full IPC released live Q");
     f.read(b,ipc::Outcome::Complete,-123); f.settle();
@@ -270,7 +287,7 @@ void fullChannel(Fixture& f)
 void bootstrapFault(Fixture& f)
 {
     const auto a=f.handles.at("Address4Read").front(),b=f.handles.at("Address6Read").front();
-    f.scheduler->admit({a},{},500,monotonicUs()); f.scheduler->admit({b},{},5000,monotonicUs());
+    f.admit({a},{},500,monotonicUs()); f.admit({b},{},5000,monotonicUs());
     f.read(a,ipc::Outcome::Deadline); f.read(b,ipc::Outcome::Complete,-123); f.settle();
     check(f.worker(1).reaps==1,"rejected bootstrap worker not reaped");
     check(std::none_of(f.observed.begin(),f.observed.end(),[](const SupervisionEvent& e){return e.address==1 && (e.code==3 || e.code==13);}),"mismatched product dispatched application work");
@@ -278,9 +295,9 @@ void bootstrapFault(Fixture& f)
 void securityConflict(Fixture& f)
 {
     const auto good=f.handles.at("GoodRead").front(),bad=f.handles.at("BadRead").front();
-    f.scheduler->admit({good},{},5000,monotonicUs()); f.read(good,ipc::Outcome::Complete,-123); f.settle();
-    f.scheduler->admit({bad},{},5000,monotonicUs()); f.read(bad,ipc::Outcome::NativeFailure,INT64_MIN,7); f.settle();
-    f.scheduler->admit({good},{},5000,monotonicUs()); f.read(good,ipc::Outcome::Complete,-123); f.settle();
+    f.admit({good},{},5000,monotonicUs()); f.read(good,ipc::Outcome::Complete,-123); f.settle();
+    f.admit({bad},{},5000,monotonicUs()); f.read(bad,ipc::Outcome::NativeFailure,INT64_MIN,7); f.settle();
+    f.admit({good},{},5000,monotonicUs()); f.read(good,ipc::Outcome::Complete,-123); f.settle();
     check(f.worker(1).epoch==1 && f.worker(1).spawnAttempts==1,"security conflict restarted healthy worker");
 }
 void liveRace(Fixture& f)
@@ -295,7 +312,7 @@ void liveRace(Fixture& f)
     for(const auto handle:handles)threads.emplace_back([&,handle]{
         unsigned count=0;
         while(count<32 && !halt) {
-            try { f.scheduler->admit({handle},{},5000,monotonicUs()); ++count; ++accepted; }
+            try { f.admit({handle},{},5000,monotonicUs()); ++count; ++accepted; }
             catch(const std::runtime_error&) { ++rejected; }
             poll(nullptr,0,1);
         }
@@ -313,7 +330,7 @@ void liveRace(Fixture& f)
     while(consumed.size()<64 && monotonicUs()<end) {
         f.tick();
         for(const auto handle:handles) {
-            const auto view=f.scheduler->take(handle); if(!view.result)continue;
+            const auto view=f.take(handle); if(!view.result)continue;
             check(view.result->outcome==ipc::Outcome::Complete,"concurrent traffic terminal failed");
             check(consumed.insert({view.id.binding,view.id.generation}).second,"duplicate concurrent consumption");
             ipc::Reader reader(view.result->value); check(reader.oid()==f.specs.at(handle)->oid,"concurrent response OID mismatch");

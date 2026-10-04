@@ -32,13 +32,13 @@ std::vector<ipc::Result> results(const Dispatch& d)
     }
     return v;
 }
-void consume(Scheduler& s, uint64_t id, ipc::Outcome expected)
+void consume(Scheduler& s, const ipc::Identity& id, ipc::Outcome expected)
 { auto terminal=s.take(id); check(terminal.result && terminal.result->outcome==expected); s.release(terminal.id); rejects([&]{s.release(terminal.id);}); }
 void jointRelease()
 {
     Scheduler s(configuration(),1,1); auto a=handle(s,"Read0"); s.limits("127.0.0.1",1,4608);
-    s.admit({a},{},1,1000); auto d=s.dispatch(1,1000); check(d.commands.size()==1); s.transmitted(1,d.batch);
-    check(s.expire(1,2000)); consume(s,a,ipc::Outcome::Deadline);
+    const auto first=s.admit({a},{},1,1000).front(); auto d=s.dispatch(1,1000); check(d.commands.size()==1); s.transmitted(1,d.batch);
+    check(s.expire(1,2000)); consume(s,first,ipc::Outcome::Deadline);
     auto held=s.snapshot(1); check(held.count==1 && held.bytes==4608 && held.retirementPending==1);
     rejects([&]{s.admit({a},{},100,2001);});
     s.limits("::ffff:127.0.0.1",1,1); check(s.snapshot(1).bytes==4608);
@@ -46,21 +46,21 @@ void jointRelease()
     check(!s.retired(1,d.batch,bad)); check(s.snapshot(1).count==1);
     check(s.retired(1,d.batch,ids)); check(s.settled());
     check(!s.retired(1,d.batch,ids)); s.limits("127.0.0.1",1,4608);
-    s.admit({a},{},100,3000); d=s.dispatch(1,3000); check(s.complete(1,d.batch,results(d),3001));
+    const auto second=s.admit({a},{},100,3000).front(); d=s.dispatch(1,3000); check(s.complete(1,d.batch,results(d),3001));
     check(s.retired(1,d.batch,identities(d))); check(s.snapshot(1).count==1 && s.snapshot(1).undelivered==1);
-    consume(s,a,ipc::Outcome::Complete); check(s.settled());
+    consume(s,second,ipc::Outcome::Complete); check(s.settled());
 }
 void fifo()
 {
     Scheduler s(configuration(),1,1); auto a=handle(s,"Read0"),b=handle(s,"Read1"),peer=handle(s,"Read2");
-    s.admit({a,b},{},100,1000); auto d=s.dispatch(1,1000); check(d.commands.size()==2 && d.commands[0].id.binding==a && d.commands[1].id.binding==b);
+    auto ab=s.admit({a,b},{},100,1000); auto d=s.dispatch(1,1000); check(d.commands.size()==2 && d.commands[0].id.binding==a && d.commands[1].id.binding==b);
     check(s.dispatch(1,1000).commands.empty()); s.transmitted(1,d.batch);
     auto response=results(d); auto bad=response; ++bad[1].id.generation; check(!s.complete(1,d.batch,std::move(bad),1001)); check(s.snapshot(1).undelivered==0);
     auto malformed=response; malformed[1].value.push_back(0); rejects([&]{s.complete(1,d.batch,std::move(malformed),1001);}); check(s.snapshot(1).undelivered==0);
-    check(s.complete(1,d.batch,std::move(response),1001)); check(s.retired(1,d.batch,identities(d))); consume(s,a,ipc::Outcome::Complete); consume(s,b,ipc::Outcome::Complete);
-    s.admit({a},{},100,2000); s.admit({b},{},100,2001); s.admit({peer},{},100,2000);
+    check(s.complete(1,d.batch,std::move(response),1001)); check(s.retired(1,d.batch,identities(d))); consume(s,ab[0],ipc::Outcome::Complete); consume(s,ab[1],ipc::Outcome::Complete);
+    const auto a2=s.admit({a},{},100,2000).front(),b2=s.admit({b},{},100,2001).front(),p2=s.admit({peer},{},100,2000).front();
     d=s.dispatch(1,2001); check(d.commands.size()==1 && d.commands[0].id.binding==a); check(s.dispatch(2,2001).commands.size()==1);
-    s.stop(); s.reaped(1); s.reaped(2); consume(s,a,ipc::Outcome::Stopping); consume(s,b,ipc::Outcome::Stopping); consume(s,peer,ipc::Outcome::Stopping); check(s.settled());
+    s.stop(); s.reaped(1); s.reaped(2); consume(s,a2,ipc::Outcome::Stopping); consume(s,b2,ipc::Outcome::Stopping); consume(s,p2,ipc::Outcome::Stopping); check(s.settled());
 }
 void bounds()
 {
@@ -72,17 +72,17 @@ void bounds()
     rejects([&]{s.limits("127.0.0.1",1,67108865);}); rejects([&]{s.limits("127.0.0.99",1,1);});
     check(s.snapshot(1).countLimit==2 && s.snapshot(1).byteLimit==9216);
     s.limits("127.0.0.1",1,1); check(s.snapshot(1).count==2);
-    check(!s.expire(1,100001)); consume(s,a,ipc::Outcome::Deadline); consume(s,b,ipc::Outcome::Deadline); check(s.settled());
+    check(!s.expire(1,100001)); consume(s,ids[0],ipc::Outcome::Deadline); consume(s,ids[1],ipc::Outcome::Deadline); check(s.settled());
     rejects([&]{s.admit({a},{},0,1);}); rejects([&]{s.admit({a},{},600001,1);}); rejects([&]{s.admit({a},{},1,UINT64_MAX);});
 }
 void recovery()
 {
-    Scheduler s(configuration(),1,1); auto a=handle(s,"Read0"),b=handle(s,"Read1"); s.admit({a,b},{},100,1000);
+    Scheduler s(configuration(),1,1); auto a=handle(s,"Read0"),b=handle(s,"Read1"); const auto ids=s.admit({a,b},{},100,1000);
     auto first=s.dispatch(1,1000); s.workerLost(1,ipc::Outcome::WorkerFailure); check(s.snapshot(1).undelivered==0);
     s.reaped(1); auto recovered=s.dispatch(1,1001); check(identities(first)==identities(recovered) && recovered.commands[0].deadline==101000);
     s.transmitted(1,recovered.batch); s.workerLost(1,ipc::Outcome::ChannelFailure);
-    consume(s,a,ipc::Outcome::ChannelFailure); check(s.snapshot(1).count==2); s.reaped(1); check(s.snapshot(1).count==1);
-    consume(s,b,ipc::Outcome::ChannelFailure); check(s.settled() && s.dispatch(1,1002).commands.empty());
+    consume(s,ids[0],ipc::Outcome::ChannelFailure); check(s.snapshot(1).count==2); s.reaped(1); check(s.snapshot(1).count==1);
+    consume(s,ids[1],ipc::Outcome::ChannelFailure); check(s.settled() && s.dispatch(1,1002).commands.empty());
 }
 void frameBounds()
 {
@@ -94,19 +94,19 @@ void frameBounds()
     rejects([&]{s.admit({a},{Value::octets(std::vector<uint8_t>(1048577,255))},100,1000);});
     check(s.snapshot(1).count==0 && s.snapshot(1).bytes==0);
     auto payload=Value::octets(std::vector<uint8_t>(1048576,255));
-    s.admit({a,b},{payload,payload},100,1000);
+    const auto ids=s.admit({a,b},{payload,payload},100,1000);
     auto first=s.dispatch(1,1000); check(first.commands.size()==1);
     check(ipc::encodeCommands(first.commands).size()==1048640 && s.snapshot(1).count==2);
     s.workerLost(1,ipc::Outcome::ChannelFailure); s.reaped(1);
-    s.stop(); consume(s,a,ipc::Outcome::Stopping); consume(s,b,ipc::Outcome::Stopping); check(s.settled());
+    s.stop(); consume(s,ids[0],ipc::Outcome::Stopping); consume(s,ids[1],ipc::Outcome::Stopping); check(s.settled());
 }
 void aliasesAndRace()
 {
     Scheduler s(configuration(),1,1); auto a=handle(s,"Read0"),b=handle(s,"Read0"); check(a!=b);
-    s.limits("127.0.0.1",2,9216); s.admit({a,b},{},100,1000); auto d=s.dispatch(1,1000); check(d.commands.size()==2 && d.commands[0].definition==d.commands[1].definition);
-    check(s.complete(1,d.batch,results(d),1001)); check(s.retired(1,d.batch,identities(d))); consume(s,a,ipc::Outcome::Complete); consume(s,b,ipc::Outcome::Complete);
+    s.limits("127.0.0.1",2,9216); const auto ids=s.admit({a,b},{},100,1000); auto d=s.dispatch(1,1000); check(d.commands.size()==2 && d.commands[0].definition==d.commands[1].definition);
+    check(s.complete(1,d.batch,results(d),1001)); check(s.retired(1,d.batch,identities(d))); consume(s,ids[0],ipc::Outcome::Complete); consume(s,ids[1],ipc::Outcome::Complete);
     std::thread setter([&]{for(unsigned i=0;i<100;++i)s.limits("127.0.0.1",2,9216);});
-    std::thread admission([&]{for(unsigned i=0;i<100;++i) {s.admit({a},{},1,1000); s.expire(1,2000); auto v=s.take(a); if(!v.result)throw std::runtime_error("missing terminal"); s.release(v.id);}});
+    std::thread admission([&]{for(unsigned i=0;i<100;++i) {const auto id=s.admit({a},{},1,1000).front(); s.expire(1,2000); auto v=s.take(id); if(!v.result)throw std::runtime_error("missing terminal"); s.release(v.id);}});
     setter.join(); admission.join(); check(s.settled());
 }
 // Count and byte limits leave headroom so only the per-handle rule decides admission: a handle whose
@@ -115,23 +115,25 @@ void aliasesAndRace()
 void admissionBehindRetirement()
 {
     Scheduler s(configuration(),1,1); auto a=handle(s,"Read0"),b=handle(s,"Read1"); s.limits("127.0.0.1",8,65536);
-    s.admit({a},{},100,1000); auto d=s.dispatch(1,1000); s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),1001));
-    consume(s,a,ipc::Outcome::Complete);
+    const auto initial=s.admit({a},{},100,1000).front(); auto d=s.dispatch(1,1000); s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),1001));
+    consume(s,initial,ipc::Outcome::Complete);
     const auto first=s.snapshot(1); check(first.count==1 && first.retirementPending==1);
-    bool admitted=true; try { s.admit({a},{},100,1002); } catch(const std::exception&) { admitted=false; }
+    bool admitted=true; ipc::Identity next; try { next=s.admit({a},{},100,1002).front(); } catch(const std::exception&) { admitted=false; }
     std::printf("{\"event\":\"admission_behind_retirement\",\"admitted\":%s}\n",admitted?"true":"false");
     check(admitted);
     const auto both=s.snapshot(1);
-    check(both.count==2 && both.bytes==2*first.bytes && both.retirementPending==1 && both.queued==1);
+    check(both.count==2 && both.bytes==2*first.bytes && both.retirementPending==1 && both.queued==1 &&
+          both.behindRetirement==1 && both.behindAdmitted==1);
+    check(s.take(initial).result==nullptr && s.take(next).result==nullptr);
     check(s.dispatch(1,1002).commands.empty());
     rejects([&]{s.admit({a},{},100,1003);});
     check(s.retired(1,d.batch,identities(d)));
     d=s.dispatch(1,1004); check(d.commands.size()==1 && d.commands[0].id.binding==a && d.commands[0].id.generation==2);
     s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),1005)); check(s.retired(1,d.batch,identities(d)));
-    consume(s,a,ipc::Outcome::Complete); check(s.settled());
-    s.admit({b},{},100,2000); d=s.dispatch(1,2000); s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),2001));
+    consume(s,next,ipc::Outcome::Complete); check(s.settled());
+    const auto other=s.admit({b},{},100,2000).front(); d=s.dispatch(1,2000); s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),2001));
     rejects([&]{s.admit({b},{},100,2002);});
-    auto borrowed=s.take(b); check(borrowed.result!=nullptr); rejects([&]{s.admit({b},{},100,2003);});
+    auto borrowed=s.take(other); check(borrowed.result!=nullptr && borrowed.sent); rejects([&]{s.admit({b},{},100,2003);});
     s.release(borrowed.id); check(s.retired(1,d.batch,identities(d))); check(s.settled());
 }
 }

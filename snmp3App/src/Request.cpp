@@ -103,7 +103,7 @@ void Requests::service()
         if(!context.active || context.callbackState==CallbackState::Queued ||
            context.callbackState==CallbackState::Running || context.callbackState==CallbackState::Inert)continue;
         if(!context.terminal.result) {
-            context.terminal=context.owner->take(context.handle);
+            context.terminal=context.owner->take(context.identity);
             if(!context.terminal.result)continue;
             require(context.terminal.id==context.identity);
             context.callbackState=CallbackState::Pending;

@@ -45,9 +45,9 @@ void events(Runtime& runtime)
                     (unsigned long long)e.batch,(long long)e.pid,(long long)e.detail);
     }
 }
-void consume(Runtime& runtime,const std::vector<uint64_t>& handles)
+void consume(Runtime& runtime,const std::vector<ipc::Identity>& identities)
 {
-    auto scheduler=runtime.schedulerOwner(); std::set<uint64_t> pending(handles.begin(),handles.end());
+    auto scheduler=runtime.schedulerOwner(); std::vector<ipc::Identity> pending(identities.begin(),identities.end());
     const auto end=ipc::add(monotonicUs(),6000000);
     while(!pending.empty() && monotonicUs()<end) {
         events(runtime);
@@ -103,17 +103,18 @@ int main(int argc,char** argv)
             testdbGetFieldEqual("Runtime_PiniProbe.VAL",DBR_LONG,42);
             testdbGetFieldEqual("Runtime_PiniProbe.PACT",DBR_LONG,0);
             check(hooks==cycle+1 && runtime.snapshot().activation==cycle+1);
-            for(const auto& group:groups)runtime.admit(group.second,{},5000);
-            consume(runtime,all);
+            std::vector<ipc::Identity> admitted;
+            for(const auto& group:groups)for(const auto& id:runtime.admit(group.second,{},5000))admitted.push_back(id);
+            consume(runtime,admitted);
             auto owner=runtime.schedulerOwner(); const auto original=owner->snapshot(1);
             for(const auto& bad:{"4294967298,9344","0,9344","2,18446744073709551616","-1,9344"})
                 command("snmp3QueueLimit("+quoted(first.address)+","+bad+")",false);
             check(owner->snapshot(1).countLimit==original.countLimit && owner->snapshot(1).byteLimit==original.byteLimit);
             command("snmp3QueueLimit("+quoted(first.address)+",1,1)");
             rejects([&]{runtime.admit(groups.at(1),{},5000);}); check(owner->snapshot(1).count==0);
-            command(limit); runtime.admit(groups.at(1),{},5000); consume(runtime,groups.at(1));
+            command(limit); consume(runtime,runtime.admit(groups.at(1),{},5000));
             if(cycle==0) {
-                runtime.admit({all.front()},{},5000);
+                const auto held=runtime.admit({all.front()},{},5000).front();
                 const auto end=ipc::add(monotonicUs(),6000000);
                 while(owner->snapshot(1).undelivered!=1 && monotonicUs()<end) { events(runtime); epicsThreadSleep(0.001); }
                 check(owner->snapshot(1).undelivered==1);
@@ -123,13 +124,13 @@ int main(int argc,char** argv)
                             (unsigned long long)owner->snapshot(1).count,(unsigned long long)owner->snapshot(1).bytes,incomplete.joined);
                 check(!runtime.start() && runtime.snapshot().created==incomplete.created);
                 runtime.stop(); check(runtime.snapshot().state==State::IncompleteStopped);
-                const auto view=owner->take(all.front()); check(view.result && view.result->outcome==ipc::Outcome::Complete);
+                const auto view=owner->take(held); check(view.result && view.result->outcome==ipc::Outcome::Complete);
                 owner->release(view.id); runtime.stop(); check(runtime.snapshot().state==State::Stopped && owner->settled());
                 std::printf("{\"event\":\"reconciled_stop\",\"joined\":%lu}\n",runtime.snapshot().joined);
             } else {
                 events(runtime); const auto child=children.at(1); const auto sent=sends[1];
                 check(child>0 && ::kill(child,SIGSTOP)==0);
-                runtime.admit({groups.at(1).front()},{},5000);
+                const auto stopped=runtime.admit({groups.at(1).front()},{},5000).front();
                 const auto end=ipc::add(monotonicUs(),6000000);
                 while(sends[1]==sent && monotonicUs()<end) { events(runtime); epicsThreadSleep(0.001); }
                 check(sends[1]>sent);
@@ -137,7 +138,7 @@ int main(int argc,char** argv)
                 std::thread secondStop([&]{runtime.stop();});
                 bool consumed=false,retained=false;
                 while(!consumed && monotonicUs()<end) {
-                    const auto view=owner->take(groups.at(1).front());
+                    const auto view=owner->take(stopped);
                     if(view.result) {
                         consumed=view.result->outcome==ipc::Outcome::Stopping;
                         owner->release(view.id);

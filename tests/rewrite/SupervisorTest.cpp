@@ -44,9 +44,9 @@ int main(int argc,char** argv)
         qualification.sanitizers=true;
 #endif
         owner.reset(new Supervisor(scheduler,argv[3],qualification));
-        std::set<uint64_t> pending;
+        std::vector<ipc::Identity> pending;
         for(const auto& group:groups) {
-            scheduler->admit(group.second,{},5000,monotonicUs()); pending.insert(group.second.begin(),group.second.end());
+            for(const auto& id:scheduler->admit(group.second,{},5000,monotonicUs()))pending.push_back(id);
             check(scheduler->snapshot(group.first).count==group.second.size());
         }
         const auto end=ipc::add(monotonicUs(),6000000);
@@ -56,7 +56,7 @@ int main(int argc,char** argv)
                 const auto terminal=scheduler->take(*it); if(!terminal.result) { ++it; continue; }
                 check(terminal.result->outcome==ipc::Outcome::Complete && terminal.result->nativeOutcome==1);
                 {
-                    const auto& definition=frozen.configuration->bindings.at(specs.at(*it));
+                    const auto& definition=frozen.configuration->bindings.at(specs.at(it->binding));
                     ipc::Reader reader(terminal.result->value); check(reader.oid()==definition.oid);
                     const auto value=ipc::decodeValue(reader,definition,false); reader.end(); check(value.integer()==-123);
                     std::printf("{\"event\":\"consumed\",\"binding\":%llu,\"generation\":%llu,\"admission\":%llu,\"value\":%lld}\n",
