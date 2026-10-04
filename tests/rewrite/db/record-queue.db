@@ -1,0 +1,11 @@
+record(ao, "$(P)QueueAo") {
+    field(DESC, "Deadline and near-deadline queue trial")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=$(BINDING) deadline_ms=$(BUDGET)")
+    field(FLNK, "$(P)QueueCompleted")
+}
+
+record(calc, "$(P)QueueCompleted") {
+    field(DESC, "Base queue trial FLNK count")
+    field(CALC, "VAL+1")
+}

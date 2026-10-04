@@ -7,13 +7,26 @@ import time
 from pathlib import Path
 from test_native import ROOT, ARCH, Runner, digest, write_json
 
+# Deadline-queue and near-deadline trials run one snmp3RecordTest process each.
+DEADLINE_SAMPLE_BUDGET_MS = 1000
+DEADLINE_TRIALS = 3
+NATIVE_TIMEOUT_MS = 10000
+NEAR_DELAY_MS = 300
+NEAR_MARGINS_MS = (14, 16, 18, 20, 22)
+NEAR_REPEATS = 2
+NEAR_TRIALS = len(NEAR_MARGINS_MS) * NEAR_REPEATS
+QUEUE_CASES = ("deadline-queue", "near-deadline", "stop-queued")
+STOP_BUDGET_MS = 300
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--products", type=Path)
     parser.add_argument("--sanitizers", action="store_true")
-    parser.add_argument("--case", choices=("baseline", "shutdown", "queued-shutdown", "edges", "alarms", "active", "policy", "numeric"), default="baseline")
+    parser.add_argument("--case", choices=("baseline", "shutdown", "queued-shutdown", "edges", "alarms", "active", "policy", "numeric",
+                                                   "active-unforced", "deadline-queue", "near-deadline",
+                                                   "accounting", "stop-queued"), default="baseline")
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(mode=0o700)
@@ -51,7 +64,7 @@ def main():
             prefix = "Timeout" if args.case == "alarms" else "Policy"
             configuration["bindings"] += [dict(binding, id=prefix + binding["id"], endpoint="Dropped")
                                            for binding in list(configuration["bindings"])]
-        if args.case == "active":
+        if args.case in ("active", "active-unforced", "accounting"):
             delayed, _ = runner.fault("active-response-delay", 4, peer, "delay", delay_ms=750)
             dropped, _ = runner.fault("active-response-drop", 4, peer, "drop-all")
             runner.env["SNMP3_RECORD_DELAY_TRACE"] = str(output / "active-response-delay.stdout")
@@ -87,39 +100,117 @@ def main():
             configuration["bindings"] += [{"id": "Matrix" + name + "Read", "endpoint": "Local",
                 "oid": "1.3.6.1.4.1.53864.4." + str(index) + ".0", "operation": "get",
                 "valueType": tag, "capacity": 1} for name, index, tag in fixed]
+        if args.case in ("deadline-queue", "stop-queued"):
+            dropped, _ = runner.fault("queue-response-drop", 4, peer, "drop-all")
+            runner.env["SNMP3_RECORD_DELAY_TRACE"] = str(output / "queue-response-drop.stdout")
+            configuration["profiles"].append(dict(configuration["profiles"][0], id="Slow", timeoutMs=NATIVE_TIMEOUT_MS))
+            configuration["endpoints"].append({"id": "QueueDropped", "address": "127.0.0.1",
+                                               "port": int(dropped.rsplit(":", 1)[1]), "profile": "Slow"})
+            configuration["bindings"].append({"id": "QueueFloatWrite", "endpoint": "QueueDropped",
+                                              "oid": "1.3.6.1.4.1.53864.4.9.0", "operation": "set",
+                                              "valueType": "opaqueFloat", "capacity": 1})
+            runner.env["SNMP3_RECORD_QUEUE_BINDING"] = "QueueFloatWrite"
+        if args.case == "near-deadline":
+            delayed, _ = runner.fault("near-response-delay", 4, peer, "delay", delay_ms=NEAR_DELAY_MS)
+            runner.env["SNMP3_RECORD_DELAY_TRACE"] = str(output / "near-response-delay.stdout")
+            configuration["profiles"].append(dict(configuration["profiles"][0], id="Near", timeoutMs=5 * NEAR_DELAY_MS))
+            configuration["endpoints"].append({"id": "NearDelayed", "address": "127.0.0.1",
+                                               "port": int(delayed.rsplit(":", 1)[1]), "profile": "Near"})
+            configuration["bindings"].append({"id": "NearFloatWrite", "endpoint": "NearDelayed",
+                                              "oid": "1.3.6.1.4.1.53864.4.9.0", "operation": "set",
+                                              "valueType": "opaqueFloat", "capacity": 1})
+            runner.env["SNMP3_RECORD_QUEUE_BINDING"] = "NearFloatWrite"
         config = output / "records.json"
         write_json(config, configuration)
         fixtures = [ROOT / "tests/rewrite/db/records.db", ROOT / "tests/rewrite/db/record-output.db"]
         argv = [str(runner.products / "snmp3RecordTest"), str(config),
                 str(runner.products / "snmp3NativeProbe"), str(runner.products / "snmp3Worker"),
                 str(ROOT / "dbd/snmp3RecordTest.dbd"), *map(str, fixtures), str(output / "workers.stderr"), args.case]
-        started = time.monotonic_ns()
-        with (output / "records.stdout").open("xb") as stdout, (output / "records.stderr").open("xb") as stderr:
-            child = subprocess.Popen(argv, stdout=stdout, stderr=stderr, env=runner.env)
-            forced = False
-            try:
-                code = child.wait(timeout=180 if args.case == "numeric" else 30)
-            except subprocess.TimeoutExpired:
-                forced = True
-                child.kill()
-                code = child.wait(timeout=10)
-        libraries = runner.loader_identity(output / "records.stderr")
-        write_json(output / "records.receipt.json", {"argv": argv, "returncode": code,
-                   "pid": child.pid, "child_reaped": child.returncode is not None,
-                   "forced_cleanup": forced, "elapsed_ns": time.monotonic_ns() - started,
-                   "loaded_libraries": libraries, "product_sha256": digest(Path(argv[0]))})
-        runner.check("records:return", code == 0 and not forced)
-        events = [json.loads(line) for line in (output / "records.stdout").read_text().splitlines()
-                  if line.startswith("{")]
+        def execute(tag, extra=None):
+            # One actual snmp3RecordTest process; its stdout events and receipt are kept under the tag.
+            environment = dict(runner.env, **(extra or {}))
+            started = time.monotonic_ns()
+            with (output / (tag + ".stdout")).open("xb") as stdout, (output / (tag + ".stderr")).open("xb") as stderr:
+                child = subprocess.Popen(argv, stdout=stdout, stderr=stderr, env=environment)
+                forced = False
+                try:
+                    code = child.wait(timeout=180 if args.case in ("numeric",) + QUEUE_CASES else 30)
+                except subprocess.TimeoutExpired:
+                    forced = True
+                    child.kill()
+                    code = child.wait(timeout=10)
+            libraries = runner.loader_identity(output / (tag + ".stderr"))
+            write_json(output / (tag + ".receipt.json"), {"argv": argv, "returncode": code,
+                       "environment": {key: extra[key] for key in sorted(extra or {})},
+                       "pid": child.pid, "child_reaped": child.returncode is not None,
+                       "forced_cleanup": forced, "elapsed_ns": time.monotonic_ns() - started,
+                       "loaded_libraries": libraries, "product_sha256": digest(Path(argv[0]))})
+            runner.check(tag + ":return", code == 0 and not forced)
+            return libraries, [json.loads(line) for line in (output / (tag + ".stdout")).read_text().splitlines()
+                               if line.startswith("{")]
+
+        def proxy_sets(name):
+            path = output / (name + ".stdout")
+            return len([line for line in path.read_text().splitlines() if '"event": "fault_request"' in line and
+                        '"command": 163' in line]) if path.exists() else 0
+
+        if args.case == "deadline-queue":
+            events, samples = [], []
+            for trial in range(1, DEADLINE_TRIALS + 1):
+                before = proxy_sets("queue-response-drop")
+                libraries, trial_events = execute(f"records-sample-{trial}", {"SNMP3_RECORD_BUDGET_MS": str(DEADLINE_SAMPLE_BUDGET_MS),
+                                                                              "SNMP3_RECORD_TRIAL": f"sample-{trial}"})
+                for event in trial_events:
+                    if event.get("event") == "deadline_queue":
+                        event["proxy_sets"] = proxy_sets("queue-response-drop") - before
+                        interval = event["admission_to_ready_us"] or event["deadline_to_ready_us"]
+                        if interval:
+                            samples.append(interval)
+                events += trial_events
+            runner.check("deadline-threshold-sampled", len(samples) == DEADLINE_TRIALS)
+            low, high = (min(samples), max(samples)) if samples else (0, 0)
+            threshold = {"event": "deadline_threshold", "trials": DEADLINE_TRIALS, "samples_us": samples,
+                         "minimum_us": low, "maximum_us": high}
+            events.append(threshold)
+            budgets = (("below", max(1, low // 2000)), ("above", max(1, high * 2 // 1000)))
+            for label, budget in budgets:
+                before = proxy_sets("queue-response-drop")
+                libraries, trial_events = execute(f"records-{label}", {"SNMP3_RECORD_BUDGET_MS": str(budget),
+                                                                       "SNMP3_RECORD_TRIAL": label})
+                for event in trial_events:
+                    if event.get("event") == "deadline_queue":
+                        event["proxy_sets"] = proxy_sets("queue-response-drop") - before
+                        event["budget_ms"] = budget
+                events += trial_events
+        elif args.case == "near-deadline":
+            events = []
+            for repeat in range(1, NEAR_REPEATS + 1):
+                for margin in NEAR_MARGINS_MS:
+                    libraries, trial_events = execute(f"records-near-{margin}ms-{repeat}",
+                                                      {"SNMP3_RECORD_BUDGET_MS": str(NEAR_DELAY_MS + margin)})
+                    for event in trial_events:
+                        if event.get("event") == "near_deadline":
+                            event["margin_ms"] = margin
+                    events += trial_events
+        elif args.case == "stop-queued":
+            before = proxy_sets("queue-response-drop")
+            libraries, events = execute("records", {"SNMP3_RECORD_BUDGET_MS": str(STOP_BUDGET_MS)})
+            for event in events:
+                if event.get("event") == "stop_queued":
+                    event["proxy_sets"] = proxy_sets("queue-response-drop") - before
+        else:
+            libraries, events = execute("records")
         summary = next((event for event in events if event.get("event") == "record_summary"), {})
-        runner.check("actual-eleven-record-path", summary.get("records") == 11 and summary.get("checks", 0) > 100)
-        completions = [event for event in events if event.get("event") == "record_completed"]
-        runner.check("actual-record-identities", bool(completions) and all(event["activation"] == 1 and
-                     event["revision"] == 1 and event["handle"] > 0 for event in completions))
-        runner.check("actual-callback-pressure", any(event.get("event") == "callback_pressure" and
-                     event.get("enqueue_failures", 0) > 0 and event.get("completed_once") for event in events))
-        runner.check("actual-GET-and-SET-pressure", {event.get("record") for event in events if
-                     event.get("event") == "callback_pressure"} == {"Records_Longin", "Records_Ao"})
+        # Queue cases skip the baseline and pressure phases; their records are checked per trial below.
+        if args.case not in QUEUE_CASES:
+            runner.check("actual-eleven-record-path", summary.get("records") == 11 and summary.get("checks", 0) > 100)
+            completions = [event for event in events if event.get("event") == "record_completed"]
+            runner.check("actual-record-identities", bool(completions) and all(event["activation"] == 1 and
+                         event["revision"] == 1 and event["handle"] > 0 for event in completions))
+            runner.check("actual-callback-pressure", any(event.get("event") == "callback_pressure" and
+                         event.get("enqueue_failures", 0) > 0 and event.get("completed_once") for event in events))
+            runner.check("actual-GET-and-SET-pressure", {event.get("record") for event in events if
+                         event.get("event") == "callback_pressure"} == {"Records_Longin", "Records_Ao"})
         if args.case == "shutdown":
             runner.check("actual-blocked-shutdown", any(event.get("event") == "blocked_shutdown" and
                          event.get("waited_for_entered") and event.get("restart_rejected") for event in events))
@@ -235,6 +326,60 @@ def main():
             runner.check("actual-numeric-SET-actions", len([event for event in
                          agent_events if event.get("event") == "agent_handler" and
                          event.get("mode") == 2]) == summary_numeric.get("accepted_outputs", -1) + summary_numeric.get("stimuli", -1) + 6)
+        if args.case == "active-unforced":
+            trials = [event for event in events if event.get("event") == "active_unforced"]
+            runner.check("unforced-five-outputs-ran", len(trials) == 5)
+            for event in trials:
+                same = (float(event["wire"]) == float(event["latest"])) if event["record"].endswith("Ao") else event["wire"] == event["latest"]
+                runner.check(event["record"] + ":unforced-latest-admitted-and-sent",
+                             event["generation"] == 2 and event["completions_delta"] == 2 and
+                             event["sevr"] == "NO_ALARM" and event["pact"] == 0 and same)
+            exercised = len([event for event in trials if event["branch_exercised"]])
+            gaps = [event["retired_us"] - event["result_us"] for event in trials if event["result_us"] and event["retired_us"]]
+            events.append({"event": "unforced_summary", "trials": len(trials), "branch_exercised": exercised,
+                           "branch_status": "run" if exercised else "not run", "result_to_retired_us": gaps})
+        if args.case == "deadline-queue":
+            trials = {event["trial"]: event for event in events if event.get("event") == "deadline_queue"}
+            summaries = [event for event in events if event.get("event") == "record_summary"]
+            runner.check("deadline-trials-completed", len(summaries) == DEADLINE_TRIALS + 2)
+            below, above = trials.get("below", {}), trials.get("above", {})
+            runner.check("below-threshold-queued-generation-not-sent",
+                         below.get("generation") == 2 and not below.get("second_dispatched") and
+                         below.get("proxy_sets") == 1 and below.get("stat") == "COMM" and below.get("sevr") == "INVALID")
+            runner.check("below-threshold-never-sent-message", below.get("amsg") == "deadline before send")
+            runner.check("above-threshold-queued-generation-sent-after-ready",
+                         above.get("generation") == 2 and above.get("second_dispatched") and
+                         above.get("proxy_sets") == 2 and above.get("stat") == "COMM" and above.get("sevr") == "INVALID")
+        if args.case == "near-deadline":
+            trials = [event for event in events if event.get("event") == "near_deadline"]
+            runner.check("near-deadline-trials-completed", len(trials) == NEAR_TRIALS)
+            contained = len([event for event in trials if event["contained_after_result"]])
+            events.append({"event": "near_deadline_summary", "trials": len(trials), "contained_after_result": contained,
+                           "status": "observed" if contained else "not observed"})
+        if args.case == "accounting":
+            windows = [event for event in events if event.get("event") == "accounting_window"]
+            observed = [event for event in windows if event["observed"]]
+            runner.check("two-generation-window-observed", bool(observed) and all(
+                         event["peak_count"] == 2 and event["peak_bytes"] == 2 * event["single_bytes"] and
+                         event["retirement_pending"] == 1 and event["queued"] == 1 for event in observed))
+            runner.check("two-generation-trials-latest-sent", len(windows) == 3 and all(
+                         event["generations"] == 2 and event["sevr"] == "NO_ALARM" for event in windows))
+            limit = next((event for event in events if event.get("event") == "accounting_limit"), {})
+            runner.check("count-limit-rejects-reprocess-synchronously", limit.get("limited_generations") == 1 and
+                         limit.get("limited_stat") == "WRITE" and limit.get("limited_sevr") == "INVALID" and
+                         limit.get("limited_pact") == 0)
+            runner.check("raised-limit-admits-explicit-request", limit.get("explicit_sevr") == "NO_ALARM" and
+                         limit.get("explicit_completions") == 1)
+            events.append({"event": "accounting_summary", "trials": len(windows), "window_observed": len(observed)})
+        if args.case == "stop-queued":
+            stop = next((event for event in events if event.get("event") == "stop_queued"), {})
+            runner.check("stop-with-retirement-pending-and-queued-successor",
+                         stop.get("queued_successor") and stop.get("held_retirement_pending") == 1 and stop.get("held_queued") == 1)
+            runner.check("queued-successor-completes-stopping-once",
+                         stop.get("generation") == 2 and stop.get("pact") == 0 and stop.get("sevr") == "INVALID" and
+                         stop.get("flnk_delta") == 2 and stop.get("completions_delta") == 2 and stop.get("proxy_sets") == 1)
+            runner.check("drain-succeeds-before-predecessor-reap",
+                         stop.get("drain_failed") is False and stop.get("settled") is True)
         runner.check("IOC-native-free", bool(libraries) and not any("netsnmp" in path for path in libraries))
         write_json(output / "record-observations.json", events)
     except Exception as error:
@@ -251,8 +396,10 @@ def main():
         inputs += [ROOT / "tests/rewrite/db/record-edges.db", ROOT / "tests/rewrite/db/record-order.db"]
     if args.case == "alarms":
         inputs += [ROOT / "tests/rewrite/db/record-alarms.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
-    if args.case == "active":
+    if args.case in ("active", "active-unforced"):
         inputs += [ROOT / "tests/rewrite/db/record-active.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
+    if args.case in QUEUE_CASES:
+        inputs += [ROOT / "tests/rewrite/db/record-queue.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case == "policy":
         inputs += [ROOT / "tests/rewrite/db/record-policy.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case == "numeric":

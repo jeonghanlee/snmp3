@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <functional>
 #include <thread>
+#include <string>
 
 using namespace snmp3;
 namespace {
@@ -108,9 +109,39 @@ void aliasesAndRace()
     std::thread admission([&]{for(unsigned i=0;i<100;++i) {s.admit({a},{},1,1000); s.expire(1,2000); auto v=s.take(a); if(!v.result)throw std::runtime_error("missing terminal"); s.release(v.id);}});
     setter.join(); admission.join(); check(s.settled());
 }
-}
-int main()
+// Count and byte limits leave headroom so only the per-handle rule decides admission: a handle whose
+// previous generation is consumed and awaits only retirement admits one new generation, which queues
+// behind that retirement; an unconsumed or borrowed predecessor and a third generation are rejected.
+void admissionBehindRetirement()
 {
-    try { jointRelease(); fifo(); bounds(); recovery(); frameBounds(); aliasesAndRace(); std::printf("Scheduler checks: %u\n",checks); return 0; }
+    Scheduler s(configuration(),1,1); auto a=handle(s,"Read0"),b=handle(s,"Read1"); s.limits("127.0.0.1",8,65536);
+    s.admit({a},{},100,1000); auto d=s.dispatch(1,1000); s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),1001));
+    consume(s,a,ipc::Outcome::Complete);
+    const auto first=s.snapshot(1); check(first.count==1 && first.retirementPending==1);
+    bool admitted=true; try { s.admit({a},{},100,1002); } catch(const std::exception&) { admitted=false; }
+    std::printf("{\"event\":\"admission_behind_retirement\",\"admitted\":%s}\n",admitted?"true":"false");
+    check(admitted);
+    const auto both=s.snapshot(1);
+    check(both.count==2 && both.bytes==2*first.bytes && both.retirementPending==1 && both.queued==1);
+    check(s.dispatch(1,1002).commands.empty());
+    rejects([&]{s.admit({a},{},100,1003);});
+    check(s.retired(1,d.batch,identities(d)));
+    d=s.dispatch(1,1004); check(d.commands.size()==1 && d.commands[0].id.binding==a && d.commands[0].id.generation==2);
+    s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),1005)); check(s.retired(1,d.batch,identities(d)));
+    consume(s,a,ipc::Outcome::Complete); check(s.settled());
+    s.admit({b},{},100,2000); d=s.dispatch(1,2000); s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),2001));
+    rejects([&]{s.admit({b},{},100,2002);});
+    auto borrowed=s.take(b); check(borrowed.result!=nullptr); rejects([&]{s.admit({b},{},100,2003);});
+    s.release(borrowed.id); check(s.retired(1,d.batch,identities(d))); check(s.settled());
+}
+}
+
+int main(int argc,char** argv)
+{
+    try {
+        if(argc==2 && std::string(argv[1])=="admission-behind-retirement") { admissionBehindRetirement(); std::printf("Scheduler checks: %u\n",checks); return 0; }
+        jointRelease(); fifo(); bounds(); recovery(); frameBounds(); aliasesAndRace(); admissionBehindRetirement();
+        std::printf("Scheduler checks: %u\n",checks); return 0;
+    }
     catch(const std::exception& e) { std::fprintf(stderr,"Scheduler failure after %u checks: %s\n",checks,e.what()); return 1; }
 }

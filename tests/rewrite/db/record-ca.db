@@ -56,3 +56,63 @@ record(stringout, "$(P)ShortOut") {
     field(DTYP, "snmp3")
     field(OUT, "@binding=TextWrite deadline_ms=5000")
 }
+
+record(ao, "$(P)ActiveAo") {
+    field(DESC, "Delayed floating SET with active CA put")
+    field(DTYP, "snmp3")
+    field(PREC, "3")
+    field(OUT, "@binding=ActiveFloatWrite deadline_ms=5000")
+    field(FLNK, "$(P)ActiveCompleted")
+}
+
+record(longout, "$(P)ActiveLongout") {
+    field(DESC, "Delayed signed SET with active CA put")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=ActiveIntegerWrite deadline_ms=5000")
+    field(FLNK, "$(P)ActiveCompleted")
+}
+
+record(int64out, "$(P)ActiveInt64out") {
+    field(DESC, "Delayed wide SET with active CA put")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=ActiveCounter64Write deadline_ms=5000")
+    field(FLNK, "$(P)ActiveCompleted")
+}
+
+record(stringout, "$(P)ActiveStringout") {
+    field(DESC, "Delayed short SET with active CA put")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=ActiveOctetsWrite deadline_ms=5000")
+    field(FLNK, "$(P)ActiveCompleted")
+}
+
+record(lso, "$(P)ActiveLso") {
+    field(DESC, "Delayed long SET with active CA put")
+    field(DTYP, "snmp3")
+    field(SIZV, "256")
+    field(OUT, "@binding=ActiveOctetsWrite deadline_ms=5000")
+    field(FLNK, "$(P)ActiveCompleted")
+}
+
+record(calc, "$(P)ActiveCompleted") {
+    field(DESC, "Base active CA output FLNK count")
+    field(CALC, "VAL+1")
+}
+
+record(longin, "$(P)IntegerIn") {
+    field(DESC, "Native signed 32-bit CA readback")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=IntegerRead deadline_ms=5000")
+}
+
+record(int64in, "$(P)SignedWideIn") {
+    field(DESC, "Native signed integer as int64 CA")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=IntegerRead deadline_ms=5000")
+}
+
+record(longout, "$(P)SignedOut") {
+    field(DESC, "Native signed 32-bit SET from CA")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=IntegerWrite deadline_ms=5000")
+}

@@ -110,6 +110,34 @@ Var value(unsigned index, unsigned context)
     return Var(result);
 }
 
+// Records the value a SET stored: decimal for integer, counter and floating types, and
+// length plus a bounded hex prefix for octets. No credential or configuration content is printed.
+void recordStored(const Cell& cell)
+{
+    constexpr size_t PrefixBytes = 32;
+    const auto& v = *cell.value;
+    std::printf("{\"event\":\"agent_set_value\",\"index\":%u,\"context\":%u,\"type\":%u,", cell.index, cell.context, v.type);
+    switch (v.type) {
+    case ASN_INTEGER:
+        std::printf("\"value\":\"%ld\"", *v.val.integer); break;
+    case ASN_COUNTER: case ASN_GAUGE: case ASN_TIMETICKS:
+        std::printf("\"value\":\"%lu\"", static_cast<unsigned long>(*v.val.integer) & 0xffffffffUL); break;
+    case ASN_COUNTER64:
+        std::printf("\"value\":\"%llu\"", (static_cast<unsigned long long>(v.val.counter64->high) << 32) |
+                                           (v.val.counter64->low & 0xffffffffUL)); break;
+    case ASN_OPAQUE_FLOAT:
+        std::printf("\"value\":\"%.9g\"", static_cast<double>(*v.val.floatVal)); break;
+    case ASN_OPAQUE_DOUBLE:
+        std::printf("\"value\":\"%.17g\"", *v.val.doubleVal); break;
+    default: {
+        std::printf("\"length\":%zu,\"prefix_hex\":\"", v.val_len);
+        for (size_t i = 0; i < v.val_len && i < PrefixBytes; ++i) std::printf("%02x", v.val.string[i]);
+        std::printf("\"");
+    }
+    }
+    std::printf("}\n");
+}
+
 int handle(netsnmp_mib_handler*, netsnmp_handler_registration* registration,
            netsnmp_agent_request_info* info, netsnmp_request_info* requests)
 {
@@ -144,6 +172,9 @@ int handle(netsnmp_mib_handler*, netsnmp_handler_registration* registration,
             if (cell.undo) cell.value = std::move(cell.undo);
             break;
         case MODE_SET_COMMIT:
+            cell.undo.reset();
+            recordStored(cell);
+            break;
         case MODE_SET_FREE:
             cell.undo.reset();
             break;

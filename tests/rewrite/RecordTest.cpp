@@ -35,6 +35,7 @@
 #include <thread>
 #include <fstream>
 #include <cstdlib>
+#include <signal.h>
 
 using namespace snmp3;
 extern "C" int snmp3RecordTest_registerRecordDeviceDriver(dbBase*);
@@ -45,6 +46,11 @@ bool alarms=false;
 bool active=false;
 bool policy=false;
 bool numeric=false;
+bool activeUnforced=false;
+bool deadlineQueue=false;
+bool nearDeadline=false;
+bool accounting=false;
+bool stopQueued=false;
 struct RecordLock {
     dbCommon* value;
     explicit RecordLock(dbCommon* record) : value(record) { dbScanLock(value); }
@@ -155,7 +161,7 @@ void outputs()
 void baseline()
 {
     std::printf("{\"event\":\"record_contexts\",\"count\":%zu}\n",Requests::instance().snapshot().contexts);
-    check(Requests::instance().snapshot().contexts==(edges?33u:alarms?24u:active?19u:policy?24u:numeric?160u:12u),"eleven DSET kinds and aliases were not initialized");
+    check(Requests::instance().snapshot().contexts==(edges?33u:alarms?24u:(active || activeUnforced || accounting)?19u:policy?24u:numeric?160u:12u),"eleven DSET kinds and aliases were not initialized");
     check(!typed<waveformRecord>("Records_Waveform").busy,"initial waveform BUSY was not normalized");
     process("Records_Ai"); check(typed<aiRecord>("Records_Ai").val==-123,"ai input mismatch");
     process("Records_Longin"); check(typed<longinRecord>("Records_Longin").val==-123,"longin input mismatch");
@@ -1003,6 +1009,286 @@ void activeOutputs()
     check(typed<aiRecord>("Records_FloatRead").val==1.75,"response-lost native retry SET was not applied by the actual agent");
     std::printf("{\"event\":\"native_retry\",\"generations\":1}\n");
 }
+
+// Supervision timeline of one trial: Result (4), Retired (5), containment (6), reap (7), launch (2),
+// Ready (3) and dispatch (13), with their monotonic times, printed for the receipt.
+std::string timeline(const std::vector<SupervisionEvent>& events)
+{
+    std::string text="[";
+    for(const auto& event:events) {
+        if(text.size()>1)text+=",";
+        text+="{\"code\":"+std::to_string(event.code)+",\"at\":"+std::to_string(event.at)+
+              ",\"epoch\":"+std::to_string(event.epoch)+",\"batch\":"+std::to_string(event.batch)+"}";
+    }
+    return text+"]";
+}
+uint64_t firstAt(const std::vector<SupervisionEvent>& events,uint32_t code,uint64_t after=0,uint64_t epoch=0)
+{
+    for(const auto& event:events)
+        if(event.code==code && event.at>=after && (!epoch || event.epoch==epoch))return event.at;
+    return 0;
+}
+// Polls the record under its lock until the predicate holds, noting the first time the context
+// carries the given generation; returns that time or 0.
+template<typename Predicate> uint64_t pollGeneration(dbCommon* rec,uint64_t generation,Predicate done,uint64_t budget)
+{
+    auto* context=static_cast<RecordContext*>(rec->dpvt); uint64_t admittedAt=0;
+    until([&]{
+        RecordLock lock(rec);
+        if(!admittedAt && context->identity.generation>=generation)admittedAt=monotonicUs();
+        return done();
+    },budget);
+    return admittedAt;
+}
+std::string readbackText(RecordKind kind,const char* readback)
+{
+    char text[64];
+    switch(kind) {
+    case RecordKind::Ao: std::snprintf(text,sizeof(text),"%.9g",typed<aiRecord>(readback).val); return text;
+    case RecordKind::Longout: std::snprintf(text,sizeof(text),"%.0f",typed<aiRecord>(readback).val); return text;
+    case RecordKind::Int64out:
+        std::snprintf(text,sizeof(text),"%llu",(unsigned long long)*static_cast<epicsUInt64*>(typed<waveformRecord>(readback).bptr)); return text;
+    default: return typed<lsiRecord>(readback).val;
+    }
+}
+// Each output receives a second write while its first SET is held by the outer UDP delay, with no
+// hold on the Base callback consumer, so Base reprocesses the record in production order. The
+// outcome, the Result-to-Retired gap of the first generation and whether the second generation was
+// admitted before that retirement are printed per trial.
+void activeUnforcedOutputs()
+{
+    for(const char* kind:{"Ao","Longout","Int64out","Stringout","Lso"}) {
+        const std::string name=std::string("Records_Active")+kind;
+        auto* rec=record(name.c_str());
+        auto* context=static_cast<RecordContext*>(rec->dpvt);
+        const auto before=Requests::instance().snapshot().completions;
+        const auto packets=delayedSets();
+        Runtime::instance().takeSupervisionEvents();
+        std::string first,latest;
+        {
+            RecordLock lock(rec); rec->udf=FALSE;
+            switch(context->definition.kind) {
+            case RecordKind::Ao: reinterpret_cast<aoRecord*>(rec)->val=1.5; first="1.5"; latest="2.5"; break;
+            case RecordKind::Longout: reinterpret_cast<longoutRecord*>(rec)->val=31; first="31"; latest="32"; break;
+            case RecordKind::Int64out: reinterpret_cast<int64outRecord*>(rec)->val=INT64_C(9007199254740993);
+                first="9007199254740993"; latest="9007199254740995"; break;
+            case RecordKind::Stringout: std::strcpy(reinterpret_cast<stringoutRecord*>(rec)->val,"first-short");
+                first="first-short"; latest="latest-text"; break;
+            case RecordKind::Lso: {
+                auto& value=*reinterpret_cast<lsoRecord*>(rec);
+                std::memset(value.val,'F',200); value.val[200]=0; value.len=201; first=std::string(200,'F'); latest="latest-text"; break;
+            }
+            default: check(false,"unexpected unforced output record");
+            }
+            dbProcess(rec); check(rec->pact && context->identity.generation==1,"unforced first SET was not admitted");
+        }
+        check(until([&]{return delayedSets()>packets;}),"unforced delayed SET packet not observed");
+        const std::string field=name+".VAL";
+        const double floating=2.5; const epicsInt32 integer=32; const epicsInt64 wide=INT64_C(9007199254740995);
+        switch(context->definition.kind) {
+        case RecordKind::Ao: put(field.c_str(),DBR_DOUBLE,&floating); break;
+        case RecordKind::Longout: put(field.c_str(),DBR_LONG,&integer); break;
+        case RecordKind::Int64out: put(field.c_str(),DBR_INT64,&wide); break;
+        default: put(field.c_str(),DBR_STRING,"latest-text"); break;
+        }
+        const auto admittedAt=pollGeneration(rec,2,[&]{
+            return Requests::instance().snapshot().completions>=before+1 && !rec->pact && !rec->rpro &&
+                   ((context->identity.generation>=2 && Requests::instance().snapshot().completions>=before+2) ||
+                    rec->stat==WRITE_ALARM);
+        },8000000);
+        check(until([&]{return context->owner->settled();}),"unforced trial retained native ownership");
+        const auto events=Runtime::instance().takeSupervisionEvents();
+        const auto resultAt=firstAt(events,4),retiredAt=firstAt(events,5,resultAt);
+        const auto delta=Requests::instance().snapshot().completions-before;
+        const char* readback=context->definition.kind==RecordKind::Ao?"Records_FloatRead":
+                             context->definition.kind==RecordKind::Longout?"Records_Ai":
+                             context->definition.kind==RecordKind::Int64out?"Records_Waveform":"Records_Lsi";
+        process(readback);
+        RecordLock lock(rec);
+        std::printf("{\"event\":\"active_unforced\",\"record\":\"%s\",\"generation\":%llu,\"completions_delta\":%llu,"
+                    "\"stat\":\"%s\",\"sevr\":\"%s\",\"pact\":%u,\"wire\":\"%s\",\"first\":\"%s\",\"latest\":\"%s\","
+                    "\"result_us\":%llu,\"retired_us\":%llu,\"admitted_us\":%llu,\"branch_exercised\":%s,\"timeline\":%s}\n",
+                    name.c_str(),(unsigned long long)context->identity.generation,(unsigned long long)delta,
+                    epicsAlarmConditionStrings[rec->stat],epicsAlarmSeverityStrings[rec->sevr],rec->pact,readbackText(context->definition.kind,readback).c_str(),first.c_str(),latest.c_str(),
+                    (unsigned long long)resultAt,(unsigned long long)retiredAt,(unsigned long long)admittedAt,
+                    admittedAt && retiredAt && admittedAt<retiredAt?"true":"false",timeline(events).c_str());
+    }
+}
+// One deadline trial on the outer-UDP drop-all path: the first SET expires at the record budget
+// while a second write waits for Base reprocessing. Prints the Deadline-to-Ready interval of the
+// relaunched worker, the second generation's admission time and whether it was dispatched.
+void deadlineTrial(const char* label)
+{
+    auto* rec=record("Records_QueueAo");
+    auto* context=static_cast<RecordContext*>(rec->dpvt);
+    check(context!=nullptr,"deadline-queue record has no binding");
+    const auto before=Requests::instance().snapshot().completions;
+    const auto packets=delayedSets();
+    Runtime::instance().takeSupervisionEvents();
+    { RecordLock lock(rec); rec->udf=FALSE; reinterpret_cast<aoRecord*>(rec)->val=1.5; dbProcess(rec);
+      check(rec->pact,"deadline-queue first SET was not admitted"); }
+    check(until([&]{return delayedSets()>packets;}),"deadline-queue SET packet not observed");
+    const double latest=2.5; put("Records_QueueAo.VAL",DBR_DOUBLE,&latest);
+    const auto admittedAt=pollGeneration(rec,2,[&]{
+        return Requests::instance().snapshot().completions>=before+1 && !rec->pact && !rec->rpro &&
+               ((context->identity.generation>=2 && Requests::instance().snapshot().completions>=before+2) ||
+                rec->stat==WRITE_ALARM);
+    },30000000);
+    check(until([&]{return context->owner->settled();},30000000),"deadline-queue trial retained native ownership");
+    std::vector<SupervisionEvent> events;
+    until([&]{ for(auto& e:Runtime::instance().takeSupervisionEvents())events.push_back(e);
+               return firstAt(events,3,firstAt(events,6))!=0; },10000000);
+    const auto deadlineAt=firstAt(events,6),readyAt=firstAt(events,3,deadlineAt);
+    const auto secondEpoch=[&]{ for(const auto& e:events)if(e.code==3 && e.at>=deadlineAt)return e.epoch; return uint64_t(0); }();
+    const auto dispatchedAt=secondEpoch?firstAt(events,13,readyAt,secondEpoch):0;
+    RecordLock lock(rec);
+    std::printf("{\"event\":\"deadline_queue\",\"trial\":\"%s\",\"generation\":%llu,\"completions_delta\":%llu,"
+                "\"stat\":\"%s\",\"sevr\":\"%s\",\"amsg\":\"%s\",\"deadline_us\":%llu,\"ready_us\":%llu,\"admitted_us\":%llu,"
+                "\"deadline_to_ready_us\":%llu,\"admission_to_ready_us\":%llu,\"second_dispatched\":%s,\"timeline\":%s}\n",
+                label,(unsigned long long)context->identity.generation,
+                (unsigned long long)(Requests::instance().snapshot().completions-before),epicsAlarmConditionStrings[rec->stat],epicsAlarmSeverityStrings[rec->sevr],rec->amsg,
+                (unsigned long long)deadlineAt,(unsigned long long)readyAt,(unsigned long long)admittedAt,
+                (unsigned long long)(readyAt>deadlineAt?readyAt-deadlineAt:0),
+                (unsigned long long)(admittedAt && readyAt>admittedAt?readyAt-admittedAt:0),
+                dispatchedAt && admittedAt && dispatchedAt>admittedAt?"true":"false",timeline(events).c_str());
+}
+// One near-deadline trial: the outer UDP delay places the response just before the record budget,
+// so the result is selected inside the last service tick; prints whether the worker was contained
+// after its result had already been selected.
+void nearDeadlineTrial()
+{
+    auto* rec=record("Records_QueueAo");
+    auto* context=static_cast<RecordContext*>(rec->dpvt);
+    check(context!=nullptr,"near-deadline record has no binding");
+    Runtime::instance().takeSupervisionEvents();
+    { RecordLock lock(rec); rec->udf=FALSE; reinterpret_cast<aoRecord*>(rec)->val=1.5; dbProcess(rec);
+      check(rec->pact,"near-deadline SET was not admitted"); }
+    check(until([&]{RecordLock lock(rec); return !rec->pact;},30000000),"near-deadline record did not complete");
+    check(until([&]{return context->owner->settled();},30000000),"near-deadline trial retained native ownership");
+    std::vector<SupervisionEvent> events;
+    until([&]{ for(auto& e:Runtime::instance().takeSupervisionEvents())events.push_back(e); return firstAt(events,5)!=0 || firstAt(events,7)!=0; },3000000);
+    for(auto& e:Runtime::instance().takeSupervisionEvents())events.push_back(e);
+    // Counted only when the result was accepted in an earlier service step than the containment
+    // and the record completed successfully, i.e. the request had already succeeded.
+    const auto resultAt=firstAt(events,4),containedAt=resultAt?firstAt(events,6,resultAt+1):0;
+    RecordLock lock(rec);
+    const bool afterSuccess=containedAt && rec->sevr==NO_ALARM;
+    std::printf("{\"event\":\"near_deadline\",\"stat\":\"%s\",\"sevr\":\"%s\",\"result_us\":%llu,\"contained_us\":%llu,"
+                "\"contained_after_result\":%s,\"timeline\":%s}\n",epicsAlarmConditionStrings[rec->stat],epicsAlarmSeverityStrings[rec->sevr],
+                (unsigned long long)resultAt,(unsigned long long)containedAt,afterSuccess?"true":"false",timeline(events).c_str());
+}
+
+// Settles a record after a write while active: the first generation completed and Base's reprocess
+// either admitted a second generation and completed it, or was rejected synchronously.
+bool settledAfterReprocess(dbCommon* rec,uint64_t before)
+{
+    auto* context=static_cast<RecordContext*>(rec->dpvt);
+    return Requests::instance().snapshot().completions>=before+1 && !rec->pact && !rec->rpro &&
+           ((context->identity.generation>=2 && Requests::instance().snapshot().completions>=before+2) ||
+            rec->sevr==INVALID_ALARM);
+}
+// Two-generation reservation accounting: while the second generation waits behind the first one's
+// retirement the address holds both charges; with a count limit of one, Base's reprocess is rejected
+// synchronously and a later explicit request is admitted once the limit is raised.
+void accountingTrials()
+{
+    constexpr unsigned Trials=3;
+    auto* rec=record("Records_ActiveAo");
+    auto* context=static_cast<RecordContext*>(rec->dpvt);
+    auto scheduler=Runtime::instance().schedulerOwner();
+    for(unsigned trial=1;trial<=Trials;++trial) {
+        const auto before=Requests::instance().snapshot().completions,base=context->identity.generation;
+        const auto packets=delayedSets();
+        { RecordLock lock(rec); rec->udf=FALSE; reinterpret_cast<aoRecord*>(rec)->val=1.5; dbProcess(rec);
+          check(rec->pact,"accounting first SET was not admitted"); }
+        check(until([&]{return delayedSets()>packets;}),"accounting SET packet not observed");
+        const auto single=scheduler->snapshot(1);
+        const double latest=2.5; put("Records_ActiveAo.VAL",DBR_DOUBLE,&latest);
+        QueueSnapshot peak; bool window=false;
+        until([&]{
+            const auto q=scheduler->snapshot(1);
+            if(!window && q.count==2 && q.retirementPending==1 && q.queued==1) { peak=q; window=true; }
+            RecordLock lock(rec); return settledAfterReprocess(rec,before);
+        },8000000);
+        check(until([&]{return context->owner->settled();}),"accounting trial retained native ownership");
+        RecordLock lock(rec);
+        std::printf("{\"event\":\"accounting_window\",\"trial\":%u,\"observed\":%s,\"single_count\":%llu,\"single_bytes\":%llu,"
+                    "\"peak_count\":%llu,\"peak_bytes\":%llu,\"retirement_pending\":%llu,\"queued\":%llu,\"generations\":%llu,"
+                    "\"stat\":\"%s\",\"sevr\":\"%s\"}\n",trial,window?"true":"false",
+                    (unsigned long long)single.count,(unsigned long long)single.bytes,(unsigned long long)peak.count,
+                    (unsigned long long)peak.bytes,(unsigned long long)peak.retirementPending,(unsigned long long)peak.queued,
+                    (unsigned long long)(context->identity.generation-base),
+                    epicsAlarmConditionStrings[rec->stat],epicsAlarmSeverityStrings[rec->sevr]);
+    }
+    Runtime::instance().queueLimit("127.0.0.1",1,ipc::DefaultBytes);
+    const auto before=Requests::instance().snapshot().completions,base=context->identity.generation;
+    const auto packets=delayedSets();
+    { RecordLock lock(rec); rec->udf=FALSE; reinterpret_cast<aoRecord*>(rec)->val=1.5; dbProcess(rec);
+      check(rec->pact,"limited first SET was not admitted"); }
+    check(until([&]{return delayedSets()>packets;}),"limited SET packet not observed");
+    const double latest=2.5; put("Records_ActiveAo.VAL",DBR_DOUBLE,&latest);
+    check(until([&]{RecordLock lock(rec); return settledAfterReprocess(rec,before);}),"limited reprocess did not settle");
+    std::string limited;
+    { RecordLock lock(rec);
+      limited=std::string("\"limited_generations\":")+std::to_string(context->identity.generation-base)+
+              ",\"limited_stat\":\""+epicsAlarmConditionStrings[rec->stat]+"\",\"limited_sevr\":\""+
+              epicsAlarmSeverityStrings[rec->sevr]+"\",\"limited_pact\":"+std::to_string(rec->pact); }
+    Runtime::instance().queueLimit("127.0.0.1",ipc::DefaultCount,ipc::DefaultBytes);
+    check(until([&]{return context->owner->settled();}),"limited trial retained native ownership");
+    const auto explicitBefore=Requests::instance().snapshot().completions;
+    { RecordLock lock(rec); dbProcess(rec); check(rec->pact,"explicit request after raised limit was not admitted"); }
+    check(until([&]{RecordLock lock(rec); return !rec->pact && Requests::instance().snapshot().completions>=explicitBefore+1;}),
+          "explicit request did not complete");
+    check(until([&]{return context->owner->settled();}),"explicit request retained native ownership");
+    RecordLock lock(rec);
+    std::printf("{\"event\":\"accounting_limit\",%s,\"explicit_sevr\":\"%s\",\"explicit_completions\":%llu}\n",limited.c_str(),
+                epicsAlarmSeverityStrings[rec->sevr],(unsigned long long)(Requests::instance().snapshot().completions-explicitBefore));
+}
+// Stop while a first generation is Deadline-selected, consumed and unreaped (its worker stopped at the
+// worker-signal boundary) and a second generation waits behind that retirement: the successor must
+// complete Stopping through Base with FLNK once and drain must succeed before the predecessor is reaped.
+void stopWithQueuedSuccessor()
+{
+    auto* rec=record("Records_QueueAo");
+    auto* context=static_cast<RecordContext*>(rec->dpvt);
+    auto scheduler=Runtime::instance().schedulerOwner();
+    const auto before=Requests::instance().snapshot().completions;
+    const auto packets=delayedSets();
+    std::vector<SupervisionEvent> events;
+    Runtime::instance().takeSupervisionEvents();
+    { RecordLock lock(rec); rec->udf=FALSE; reinterpret_cast<aoRecord*>(rec)->val=1.5; dbProcess(rec);
+      check(rec->pact,"stop trial first SET was not admitted"); }
+    check(until([&]{return delayedSets()>packets;}),"stop trial SET packet not observed");
+    int64_t worker=0;
+    check(until([&]{ for(auto& e:Runtime::instance().takeSupervisionEvents()) { events.push_back(e); if(e.code==13 && e.pid>0)worker=e.pid; }
+                     return worker>0; }),"stop trial worker identity not observed");
+    check(::kill(pid_t(worker),SIGSTOP)==0,"stop trial worker could not be stopped");
+    const double latest=2.5; put("Records_QueueAo.VAL",DBR_DOUBLE,&latest);
+    const auto links=typed<calcRecord>("Records_QueueCompleted").val;
+    check(until([&]{return Requests::instance().snapshot().completions>=before+1;},30000000),"stop trial first generation did not complete");
+    until([&]{ RecordLock lock(rec); return (context->identity.generation>=2 && rec->pact) || (!rec->pact && !rec->rpro); },3000000);
+    const auto held=scheduler->snapshot(1);
+    bool queuedSuccessor=false;
+    { RecordLock lock(rec); queuedSuccessor=context->identity.generation>=2 && rec->pact; }
+    const auto stopAt=monotonicUs();
+    Runtime::instance().stop();
+    const auto stoppedAt=monotonicUs();
+    for(auto& e:Runtime::instance().takeSupervisionEvents())events.push_back(e);
+    const auto records=Requests::instance().snapshot();
+    const auto runtime=Runtime::instance().snapshot();
+    const auto after=scheduler->snapshot(1);
+    RecordLock lock(rec);
+    std::printf("{\"event\":\"stop_queued\",\"queued_successor\":%s,\"held_retirement_pending\":%llu,\"held_queued\":%llu,"
+                "\"generation\":%llu,\"stat\":\"%s\",\"sevr\":\"%s\",\"pact\":%u,\"flnk_delta\":%.0f,\"completions_delta\":%llu,"
+                "\"drain_failed\":%s,\"state\":%d,\"stop_at_us\":%llu,\"stop_duration_us\":%llu,\"reap_at_us\":%llu,\"retirement_pending_after\":%llu,"
+                "\"settled\":%s,\"timeline\":%s}\n",queuedSuccessor?"true":"false",
+                (unsigned long long)held.retirementPending,(unsigned long long)held.queued,
+                (unsigned long long)context->identity.generation,epicsAlarmConditionStrings[rec->stat],
+                epicsAlarmSeverityStrings[rec->sevr],rec->pact,typed<calcRecord>("Records_QueueCompleted").val-links,
+                (unsigned long long)(records.completions-before),records.drainFailed?"true":"false",int(runtime.state),
+                (unsigned long long)stopAt,(unsigned long long)(stoppedAt-stopAt),(unsigned long long)firstAt(events,7),
+                (unsigned long long)after.retirementPending,scheduler->settled()?"true":"false",timeline(events).c_str());
+}
 }
 
 namespace {
@@ -1317,6 +1603,11 @@ int main(int argc,char** argv)
         active=std::strcmp(argv[8],"active")==0;
         policy=std::strcmp(argv[8],"policy")==0;
         numeric=std::strcmp(argv[8],"numeric")==0;
+        activeUnforced=std::strcmp(argv[8],"active-unforced")==0;
+        deadlineQueue=std::strcmp(argv[8],"deadline-queue")==0;
+        nearDeadline=std::strcmp(argv[8],"near-deadline")==0;
+        accounting=std::strcmp(argv[8],"accounting")==0;
+        stopQueued=std::strcmp(argv[8],"stop-queued")==0;
         if(edges) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
             testdbReadDatabase((root+"record-edges.db").c_str(),nullptr,"P=Records_");
@@ -1326,13 +1617,21 @@ int main(int argc,char** argv)
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
             testdbReadDatabase((root+"record-alarms.db").c_str(),nullptr,"P=Records_");
         }
-        if(active) {
+        if(active || activeUnforced || accounting) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
             testdbReadDatabase((root+"record-active.db").c_str(),nullptr,"P=Records_");
         }
         if(policy) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
             testdbReadDatabase((root+"record-policy.db").c_str(),nullptr,"P=Records_");
+        }
+        if(deadlineQueue || nearDeadline || stopQueued) {
+            const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
+            const char* budget=std::getenv("SNMP3_RECORD_BUDGET_MS");
+            const char* binding=std::getenv("SNMP3_RECORD_QUEUE_BINDING");
+            check(budget && binding,"queue record budget or binding absent");
+            const std::string macros=std::string("P=Records_,BUDGET=")+budget+",BINDING="+binding;
+            testdbReadDatabase((root+"record-queue.db").c_str(),nullptr,macros.c_str());
         }
         check(Requests::instance().snapshot().contexts==0,"loading DB performed device initialization");
         if(numeric) {
@@ -1341,12 +1640,17 @@ int main(int argc,char** argv)
         }
         testIocInitOk();
         if(edges)inputEdges();
-        baseline(); pressure("Records_Longin"); pressure("Records_Ao");
+        if(!deadlineQueue && !nearDeadline && !stopQueued) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
         if(edges) { capacityAndOrder(); simulation(); outputEdges(); maxPayloadQueue(); }
         if(alarms)nativeTimeouts();
         if(active)activeOutputs();
         if(policy) { outputPolicies(); inputSourceSwitch(); }
         if(numeric)numericMatrix();
+        if(activeUnforced)activeUnforcedOutputs();
+        if(deadlineQueue)deadlineTrial(std::getenv("SNMP3_RECORD_TRIAL")?std::getenv("SNMP3_RECORD_TRIAL"):"unnamed");
+        if(nearDeadline)nearDeadlineTrial();
+        if(accounting)accountingTrials();
+        if(stopQueued)stopWithQueuedSuccessor();
         Runtime::instance().report();
         const bool blocked=std::strcmp(argv[8],"shutdown")==0;
         const bool abandoned=std::strcmp(argv[8],"queued-shutdown")==0;
