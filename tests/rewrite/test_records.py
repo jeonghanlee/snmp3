@@ -354,8 +354,10 @@ def main():
             trials = [event for event in events if event.get("event") == "near_deadline"]
             runner.check("near-deadline-trials-completed", len(trials) == NEAR_TRIALS)
             contained = len([event for event in trials if event["contained_after_result"]])
+            exercised = len([event for event in trials if event["grace_exercised"]])
             events.append({"event": "near_deadline_summary", "trials": len(trials), "contained_after_result": contained,
-                           "status": "observed" if contained else "not observed"})
+                           "status": "observed" if contained else "not observed", "grace_exercised": exercised,
+                           "grace_status": "run" if exercised else "not run"})
         if args.case == "accounting":
             windows = [event for event in events if event.get("event") == "accounting_window"]
             observed = [event for event in windows if event["observed"]]

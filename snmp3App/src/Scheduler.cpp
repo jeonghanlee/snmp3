@@ -16,6 +16,9 @@ uint64_t Scheduler::fixedGenerationBytes()
            2*sizeof(Value)+4*sizeof(std::shared_ptr<const Binding>)+1024+256;
 }
 namespace {
+// A member whose request already succeeded or failed natively is contained only when its Retired
+// frame is still missing this long after the deadline.
+constexpr uint64_t RetireGraceUs=1000000;
 void require(bool v) { if(!v)throw std::runtime_error("scheduler request rejected"); }
 uint64_t next(uint64_t& value)
 {
@@ -238,7 +241,12 @@ bool Scheduler::expire(uint64_t address, uint64_t nowUs)
         if(!g.selected && g.behind)++a.behindNeverSent;
         select(g,ipc::Outcome::Deadline); std::vector<uint8_t>().swap(g.command.value); g.retired=true; it=a.queue.erase(it); collect(a,id);
     }
-    for(auto id:a.active) { auto& g=*a.generations.at(id); if(nowUs>=g.command.deadline) { select(g,ipc::Outcome::Deadline); contain=true; } }
+    for(auto id:a.active) {
+        auto& g=*a.generations.at(id);
+        const bool answered=g.selected && (g.result.outcome==ipc::Outcome::Complete || g.result.outcome==ipc::Outcome::NativeFailure);
+        if(answered) { if(nowUs>=ipc::add(g.command.deadline,RetireGraceUs))contain=true; continue; }
+        if(nowUs>=g.command.deadline) { select(g,ipc::Outcome::Deadline); contain=true; }
+    }
     return contain;
 }
 void Scheduler::workerLost(uint64_t address, ipc::Outcome reason)

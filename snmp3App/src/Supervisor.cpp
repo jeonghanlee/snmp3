@@ -215,7 +215,7 @@ void Supervisor::input(Address& a,uint64_t now)
             } catch(const ipc::StaleIdentity&) { event(a,now,16); }
         } else if(h.kind==ipc::Kind::Retired) {
             const auto members=ipc::decodeRetired(bytes);
-            if(scheduler->retired(a.status.address,h.batch,members)) { event(a,now,5); a.reservations.clear(); a.members.clear(); a.status.batch=0; }
+            if(scheduler->retired(a.status.address,h.batch,members)) { event(a,now,5); a.reservations.clear(); a.members.clear(); a.status.batch=0; a.failures=0; }
         } else if(h.kind==ipc::Kind::Closed) { require(a.origin); a.closed=true; event(a,now,10); }
         else { ipc::Reader fault(bytes); const auto category=fault.u32(),detail=fault.u32(); fault.end(); require(category>=1 && category<=5); event(a,now,12,detail); contain(a,now,ipc::Outcome::WorkerFailure); }
     }

@@ -136,13 +136,26 @@ void admissionBehindRetirement()
     auto borrowed=s.take(other); check(borrowed.result!=nullptr && borrowed.sent); rejects([&]{s.admit({b},{},100,2003);});
     s.release(borrowed.id); check(s.retired(1,d.batch,identities(d))); check(s.settled());
 }
+// A member answered before its deadline is not contained until its Retired frame is still missing
+// one grace interval after the deadline; an unanswered member is contained at the deadline.
+void containmentGrace()
+{
+    Scheduler s(configuration(),1,1); auto a=handle(s,"Read0");
+    const auto id=s.admit({a},{},100,1000).front(); auto d=s.dispatch(1,1000); s.transmitted(1,d.batch);
+    check(s.complete(1,d.batch,results(d),100999));
+    check(!s.expire(1,101000) && !s.expire(1,1100999) && s.expire(1,1101000));
+    check(s.retired(1,d.batch,identities(d))); consume(s,id,ipc::Outcome::Complete); check(s.settled());
+    const auto late=s.admit({a},{},100,2000000).front(); d=s.dispatch(1,2000000); s.transmitted(1,d.batch);
+    check(s.expire(1,2100000)); check(s.complete(1,d.batch,results(d),2100001));
+    check(s.retired(1,d.batch,identities(d))); consume(s,late,ipc::Outcome::Deadline); check(s.settled());
+}
 }
 
 int main(int argc,char** argv)
 {
     try {
         if(argc==2 && std::string(argv[1])=="admission-behind-retirement") { admissionBehindRetirement(); std::printf("Scheduler checks: %u\n",checks); return 0; }
-        jointRelease(); fifo(); bounds(); recovery(); frameBounds(); aliasesAndRace(); admissionBehindRetirement();
+        jointRelease(); fifo(); bounds(); recovery(); frameBounds(); aliasesAndRace(); admissionBehindRetirement(); containmentGrace();
         std::printf("Scheduler checks: %u\n",checks); return 0;
     }
     catch(const std::exception& e) { std::fprintf(stderr,"Scheduler failure after %u checks: %s\n",checks,e.what()); return 1; }

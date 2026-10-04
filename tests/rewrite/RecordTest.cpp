@@ -1161,8 +1161,10 @@ void nearDeadlineTrial()
     auto* context=static_cast<RecordContext*>(rec->dpvt);
     check(context!=nullptr,"near-deadline record has no binding");
     Runtime::instance().takeSupervisionEvents();
-    { RecordLock lock(rec); rec->udf=FALSE; reinterpret_cast<aoRecord*>(rec)->val=1.5; dbProcess(rec);
-      check(rec->pact,"near-deadline SET was not admitted"); }
+    uint64_t admittedAt=0;
+    { RecordLock lock(rec); rec->udf=FALSE; reinterpret_cast<aoRecord*>(rec)->val=1.5;
+      admittedAt=monotonicUs(); dbProcess(rec); check(rec->pact,"near-deadline SET was not admitted"); }
+    const auto deadlineAt=ipc::add(admittedAt,ipc::multiply(context->definition.budgetMs,1000));
     check(until([&]{RecordLock lock(rec); return !rec->pact;},30000000),"near-deadline record did not complete");
     check(until([&]{return context->owner->settled();},30000000),"near-deadline trial retained native ownership");
     std::vector<SupervisionEvent> events;
@@ -1171,11 +1173,18 @@ void nearDeadlineTrial()
     // Counted only when the result was accepted in an earlier service step than the containment
     // and the record completed successfully, i.e. the request had already succeeded.
     const auto resultAt=firstAt(events,4),containedAt=resultAt?firstAt(events,6,resultAt+1):0;
+    const auto retiredAt=resultAt?firstAt(events,5,resultAt):0;
     RecordLock lock(rec);
     const bool afterSuccess=containedAt && rec->sevr==NO_ALARM;
+    // The grace window was exercised when the result arrived before the deadline but its Retired
+    // frame (or the containment) came at or after it.
+    const auto settledAt=containedAt && (!retiredAt || containedAt<retiredAt)?containedAt:retiredAt;
+    const bool graceExercised=resultAt && resultAt<deadlineAt && settledAt>=deadlineAt && rec->sevr==NO_ALARM;
     std::printf("{\"event\":\"near_deadline\",\"stat\":\"%s\",\"sevr\":\"%s\",\"result_us\":%llu,\"contained_us\":%llu,"
+                "\"deadline_us\":%llu,\"retired_us\":%llu,\"grace_exercised\":%s,"
                 "\"contained_after_result\":%s,\"timeline\":%s}\n",epicsAlarmConditionStrings[rec->stat],epicsAlarmSeverityStrings[rec->sevr],
-                (unsigned long long)resultAt,(unsigned long long)containedAt,afterSuccess?"true":"false",timeline(events).c_str());
+                (unsigned long long)resultAt,(unsigned long long)containedAt,(unsigned long long)deadlineAt,
+                (unsigned long long)retiredAt,graceExercised?"true":"false",afterSuccess?"true":"false",timeline(events).c_str());
 }
 
 // Settles a record after a write while active: the first generation completed and Base's reprocess
