@@ -1,7 +1,10 @@
 #include "Scheduler.h"
 #include <cstdio>
+#include <algorithm>
 #include <functional>
 #include <thread>
+#include <utility>
+#include <vector>
 #include <string>
 
 using namespace snmp3;
@@ -149,13 +152,65 @@ void containmentGrace()
     check(s.expire(1,2100000)); check(s.complete(1,d.batch,results(d),2100001));
     check(s.retired(1,d.batch,identities(d))); consume(s,late,ipc::Outcome::Deadline); check(s.settled());
 }
+// With a consumed, retirement-pending predecessor and a queued successor on one handle, expire, stop
+// and reaped must each act on the right generation: the successor expires or stops as never-sent work
+// while the predecessor still waits for retirement, and a reap retires only the predecessor.
+struct TwoGenerations {
+    Scheduler s{configuration(),1,1}; uint64_t a=0; ipc::Identity first,second; Dispatch d;
+    TwoGenerations(unsigned successorBudgetMs) {
+        a=handle(s,"Read0"); s.limits("127.0.0.1",8,65536);
+        first=s.admit({a},{},100,1000).front(); d=s.dispatch(1,1000); s.transmitted(1,d.batch);
+        check(s.complete(1,d.batch,results(d),1001)); consume(s,first,ipc::Outcome::Complete);
+        second=s.admit({a},{},successorBudgetMs,1002).front();
+        const auto q=s.snapshot(1); check(q.count==2 && q.retirementPending==1 && q.queued==1);
+    }
+};
+void twoGenerationLifecycle()
+{
+    {
+        TwoGenerations t(1);
+        check(!t.s.expire(1,2002));
+        auto q=t.s.snapshot(1); check(q.retirementPending==1 && q.undelivered==1 && q.queued==0 && q.behindNeverSent==1);
+        auto view=t.s.take(t.second); check(view.result && view.result->outcome==ipc::Outcome::Deadline && !view.sent);
+        t.s.release(view.id); check(t.s.snapshot(1).count==1 && t.s.dispatch(1,2003).commands.empty());
+        check(t.s.retired(1,t.d.batch,identities(t.d))); check(t.s.settled());
+    }
+    {
+        TwoGenerations t(5000);
+        t.s.stop();
+        auto view=t.s.take(t.second); check(view.result && view.result->outcome==ipc::Outcome::Stopping && !view.sent);
+        t.s.release(view.id); check(t.s.snapshot(1).count==1 && t.s.snapshot(1).retirementPending==1);
+        t.s.reaped(1); check(t.s.settled());
+    }
+    {
+        TwoGenerations t(5000);
+        t.s.reaped(1);
+        auto q=t.s.snapshot(1); check(q.count==1 && q.queued==1 && q.retirementPending==0);
+        auto d=t.s.dispatch(1,1003); check(d.commands.size()==1 && d.commands[0].id==t.second);
+        t.s.transmitted(1,d.batch); check(t.s.complete(1,d.batch,results(d),1004)); check(t.s.retired(1,d.batch,identities(d)));
+        consume(t.s,t.second,ipc::Outcome::Complete); check(t.s.settled());
+    }
+}
 }
 
 int main(int argc,char** argv)
 {
+    // One ordered list drives both modes: with no argument every cell runs in order; with exactly one
+    // argument only that named cell runs, so a defective-code control can name the cell it must fail.
+    const std::vector<std::pair<std::string,void(*)()>> cells={
+        {"joint-release",jointRelease},{"fifo",fifo},{"bounds",bounds},{"recovery",recovery},
+        {"frame-bounds",frameBounds},{"aliases-and-race",aliasesAndRace},
+        {"admission-behind-retirement",admissionBehindRetirement},{"containment-grace",containmentGrace},
+        {"two-generation-lifecycle",twoGenerationLifecycle}};
+    if(argc>2) { std::fprintf(stderr,"Usage: snmp3SchedulerTest [cell]\n"); return 2; }
     try {
-        if(argc==2 && std::string(argv[1])=="admission-behind-retirement") { admissionBehindRetirement(); std::printf("Scheduler checks: %u\n",checks); return 0; }
-        jointRelease(); fifo(); bounds(); recovery(); frameBounds(); aliasesAndRace(); admissionBehindRetirement(); containmentGrace();
+        if(argc==2) {
+            const auto cell=std::find_if(cells.begin(),cells.end(),[&](const std::pair<std::string,void(*)()>& c){return c.first==argv[1];});
+            if(cell==cells.end()) { std::fprintf(stderr,"Unknown Scheduler cell: %s\n",argv[1]); return 2; }
+            cell->second();
+        } else {
+            for(const auto& cell:cells)cell.second();
+        }
         std::printf("Scheduler checks: %u\n",checks); return 0;
     }
     catch(const std::exception& e) { std::fprintf(stderr,"Scheduler failure after %u checks: %s\n",checks,e.what()); return 1; }
