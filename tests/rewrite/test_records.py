@@ -134,6 +134,8 @@ def main():
                          event.get("flnk_source_pact") == 1 and event.get("target_completions") == 1 for event in events))
             runner.check("actual-six-input-simulation", len([event for event in events if
                          event.get("event") == "simulation_bypass" and event.get("terminal_released")]) == 6)
+            runner.check("actual-normal-mode-native-publication", len([event for event in events if
+                         event.get("event") == "simulation_bypass" and event.get("normal_native_published")]) == 4)
             runner.check("actual-output-edges", any(event.get("event") == "output_edges" and
                          event.get("rounding_modes") == 4 and event.get("wire_bit_fixtures") == 36 and
                          event.get("invalid_set_rejected") for event in events))
@@ -201,7 +203,14 @@ def main():
                          event["supervisory_ignores_dol"] and event["closed_loop_data_bytes"] == 200 and
                          event["source_data_bytes"] == 300 and event["base_prepared_data_bytes"] == 255 and
                          event["wire_readback_exact"] for event in events))
+            switches = [event for event in events if event.get("event") == "input_source_switch"]
+            runner.check("actual-six-input-failing-source-switch", len({event["record"] for event in switches}) == 6 and all(
+                         event["native_failure_alarm"] and event["siol_selected"] and event["terminal_released_once"] and
+                         not event["native_publication"] and event["normal_failure_preserved"] and
+                         not event["ownerless_admission"] for event in switches))
             fault_events = [json.loads(line) for line in (output / "record-response-drop.stdout").read_text().splitlines()]
+            runner.check("actual-policy-GET-count", len([event for event in fault_events if
+                         event.get("event") == "fault_request" and event.get("command") == 160]) == 12)
             runner.check("actual-policy-SET-count", len([event for event in fault_events if
                          event.get("event") == "fault_request" and event.get("command") == 163]) == 38)
         if args.case == "numeric":

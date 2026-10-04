@@ -113,3 +113,70 @@ record(longout, "$(P)BadOopt5") {
     field(OUT, "@binding=IntegerWrite deadline_ms=5000")
     field(OOPT, "Transition To Non-zero")
 }
+
+record(ai, "$(P)SwitchAi") {
+    field(DESC, "Input source switch on native failure")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=PolicyIntegerRead deadline_ms=5000")
+    field(SIOL, "$(P)SwitchNumber.VAL NPP")
+    field(FLNK, "$(P)SwitchCompleted")
+}
+
+record(longin, "$(P)SwitchLongin") {
+    field(DESC, "Input source switch on native failure")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=PolicyIntegerRead deadline_ms=5000")
+    field(SIOL, "$(P)SwitchNumber.VAL NPP")
+    field(FLNK, "$(P)SwitchCompleted")
+}
+
+record(int64in, "$(P)SwitchInt64in") {
+    field(DESC, "Input source switch on native failure")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=PolicyCounter32Read deadline_ms=5000")
+    field(SIOL, "$(P)SwitchNumber.VAL NPP")
+    field(FLNK, "$(P)SwitchCompleted")
+}
+
+record(stringin, "$(P)SwitchStringin") {
+    field(DESC, "Input source switch on native failure")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=PolicyOidRead deadline_ms=5000")
+    field(SIOL, "$(P)SwitchString.VAL NPP")
+    field(FLNK, "$(P)SwitchCompleted")
+}
+
+record(lsi, "$(P)SwitchLsi") {
+    field(DESC, "Input source switch on native failure")
+    field(DTYP, "snmp3")
+    field(SIZV, "256")
+    field(INP, "@binding=PolicyOctetsRead deadline_ms=5000")
+    field(SIOL, "$(P)SwitchString.VAL NPP")
+    field(FLNK, "$(P)SwitchCompleted")
+}
+
+record(waveform, "$(P)SwitchWaveform") {
+    field(DESC, "Input source switch on native failure")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "1")
+    field(INP, "@binding=PolicyCounter64Read deadline_ms=5000")
+    field(SIOL, "$(P)SwitchNumber.VAL NPP")
+    field(FLNK, "$(P)SwitchCompleted")
+}
+
+record(longin, "$(P)SwitchNumber") {
+    field(DESC, "Distinct Base simulation number")
+    field(INP, "85")
+    field(PINI, "YES")
+}
+
+record(stringin, "$(P)SwitchString") {
+    field(DESC, "Distinct Base simulation text")
+    field(VAL, "simulated")
+}
+
+record(calc, "$(P)SwitchCompleted") {
+    field(DESC, "Base input source switch FLNK count")
+    field(CALC, "VAL+1")
+}

@@ -155,7 +155,7 @@ void outputs()
 void baseline()
 {
     std::printf("{\"event\":\"record_contexts\",\"count\":%zu}\n",Requests::instance().snapshot().contexts);
-    check(Requests::instance().snapshot().contexts==(edges?33u:alarms?24u:active?19u:policy?18u:numeric?160u:12u),"eleven DSET kinds and aliases were not initialized");
+    check(Requests::instance().snapshot().contexts==(edges?33u:alarms?24u:active?19u:policy?24u:numeric?160u:12u),"eleven DSET kinds and aliases were not initialized");
     check(!typed<waveformRecord>("Records_Waveform").busy,"initial waveform BUSY was not normalized");
     process("Records_Ai"); check(typed<aiRecord>("Records_Ai").val==-123,"ai input mismatch");
     process("Records_Longin"); check(typed<longinRecord>("Records_Longin").val==-123,"longin input mismatch");
@@ -342,7 +342,20 @@ void simulation()
         const double synchronous=-1;
         put((root+".SDLY").c_str(),DBR_DOUBLE,&synchronous);
         put((root+".SIMM").c_str(),DBR_USHORT,&no);
-        std::printf("{\"event\":\"simulation_bypass\",\"record\":\"%s\",\"published\":false,\"terminal_released\":true}\n",name);
+        // Normal mode resumes native publication; text fixtures retain their native rejection and SIOL value.
+        process(name,!text);
+        if(root=="Records_Ai")check(typed<aiRecord>(name).val==17,"ai normal mode did not publish native input");
+        else if(root=="Records_Longin")check(typed<longinRecord>(name).val==17,"longin normal mode did not publish native input");
+        else if(root=="Records_Int64in")check(typed<int64inRecord>(name).val==UINT32_MAX,"int64in normal mode did not publish native input");
+        else if(root=="Records_Text")check(std::strcmp(typed<stringinRecord>(name).val,"simulated")==0 &&
+                                           rec->stat==READ_ALARM,"stringin normal-mode rejection replaced SIOL value");
+        else if(root=="Records_SmallLsi")check(std::strcmp(typed<lsiRecord>(name).val,"simulated")==0 &&
+                                               rec->stat==READ_ALARM,"lsi normal-mode rejection replaced SIOL value");
+        else check(*static_cast<epicsUInt64*>(typed<waveformRecord>(name).bptr)==UINT64_C(9007199254740993) &&
+                   typed<waveformRecord>(name).nord==1,"waveform normal mode did not publish native input");
+        check(context->published==!text && context->nativeSuccess==!text,"normal mode native publication state mismatch");
+        std::printf("{\"event\":\"simulation_bypass\",\"record\":\"%s\",\"published\":false,\"terminal_released\":true,\"normal_native_published\":%s}\n",
+                    name,text?"false":"true");
     }
     const epicsUInt16 raw=2;
     put("Records_Ai.SIMM",DBR_USHORT,&raw);
@@ -763,6 +776,98 @@ void outputPolicies()
           std::string(typed<lsiRecord>(fixture.readback).val)==std::string(255,'T'),
           "lso Base pre-DSET DOL capacity boundary mismatch");
     std::printf("{\"event\":\"output_dol\",\"supervisory_ignores_dol\":true,\"closed_loop_data_bytes\":200,\"source_data_bytes\":300,\"base_prepared_data_bytes\":255,\"wire_readback_exact\":true}\n");
+}
+bool simulatedInput(dbCommon* rec)
+{
+    switch(static_cast<RecordContext*>(rec->dpvt)->definition.kind) {
+    case RecordKind::Ai: return reinterpret_cast<aiRecord*>(rec)->val==85;
+    case RecordKind::Longin: return reinterpret_cast<longinRecord*>(rec)->val==85;
+    case RecordKind::Int64in: return reinterpret_cast<int64inRecord*>(rec)->val==85;
+    case RecordKind::Stringin: return std::strcmp(reinterpret_cast<stringinRecord*>(rec)->val,"simulated")==0;
+    case RecordKind::Lsi: return std::strcmp(reinterpret_cast<lsiRecord*>(rec)->val,"simulated")==0 &&
+                                 reinterpret_cast<lsiRecord*>(rec)->len==10;
+    case RecordKind::Waveform: return reinterpret_cast<waveformRecord*>(rec)->nord==1 &&
+                                      *static_cast<epicsUInt64*>(reinterpret_cast<waveformRecord*>(rec)->bptr)==85;
+    default: return false;
+    }
+}
+void inputSourceSwitch()
+{
+    // Each input observes SIMM selecting SIOL while an actual native timeout terminal waits in the Base
+    // queue, a return to normal mode with a further native failure, and a SIMM change while a Base SDLY
+    // callback is pending, which enters completion DSET without a module generation.
+    const epicsUInt16 yes=1,no=0;
+    const double delay=0.01,synchronous=-1;
+    const auto flnk=[]{ return typed<calcRecord>("Records_SwitchCompleted").val; };
+    for(const char* kind:{"Ai","Longin","Int64in","Stringin","Lsi","Waveform"}) {
+        const std::string root=std::string("Records_Switch")+kind;
+        const char* name=root.c_str();
+        auto* rec=record(name);
+        auto* context=static_cast<RecordContext*>(rec->dpvt);
+        const bool waveform=context->definition.kind==RecordKind::Waveform;
+        const auto before=Requests::instance().snapshot().completions;
+        const auto links=flnk();
+        {
+            QueueBlocker blocker; blocker.queued=callbackRequest(&blocker.callback)==0;
+            check(blocker.queued && blocker.entered.wait(3.0),"source switch callback blocker did not enter");
+            { RecordLock lock(rec); dbProcess(rec); check(rec->pact && context->active,"source switch GET did not admit"); }
+            check(until([]{return Requests::instance().snapshot().queued==1;}),"source switch terminal did not enter Base queue");
+            {
+                RecordLock lock(rec);
+                check(context->terminal.result && context->terminal.result->outcome==ipc::Outcome::NativeFailure &&
+                      context->terminal.result->nativeOutcome==2,"source switch fixture did not produce actual native timeout");
+            }
+            put((root+".SIMM").c_str(),DBR_USHORT,&yes);
+            if(waveform) { RecordLock lock(rec); typed<waveformRecord>(name).busy=TRUE; }
+            blocker.release.trigger();
+            check(until([&]{RecordLock lock(rec); return !rec->pact && !context->active;}),"failing source switch lost completion");
+        }
+        unsigned udf=0;
+        const auto generation=context->identity.generation;
+        {
+            RecordLock lock(rec);
+            check(Requests::instance().snapshot().completions==before+1 && !context->terminal.result,
+                  "failing source switch duplicated or retained terminal");
+            check(!context->published && !context->nativeSuccess,"failing source switch counted native publication");
+            check(rec->stat==COMM_ALARM && rec->sevr==INVALID_ALARM,"source switch hid the native communication failure");
+            check(simulatedInput(rec),"source switch did not select Base SIOL input");
+            if(waveform)check(!typed<waveformRecord>(name).busy,"source switch left waveform BUSY set");
+            udf=rec->udf;
+        }
+        check(flnk()==links+1,"failing source switch lost or duplicated Base FLNK");
+        check(until([&]{return context->owner->settled();}),"failing source switch retained native ownership");
+        put((root+".SIMM").c_str(),DBR_USHORT,&no);
+        process(name,false,false,2);
+        {
+            RecordLock lock(rec);
+            check(rec->stat==COMM_ALARM && simulatedInput(rec) && !context->published && !context->nativeSuccess &&
+                  context->identity.generation==generation+1,"normal mode failure replaced SIOL value or native state");
+        }
+        check(flnk()==links+2,"normal mode native failure lost or duplicated Base FLNK");
+        put((root+".SDLY").c_str(),DBR_DOUBLE,&delay);
+        put((root+".SIMM").c_str(),DBR_USHORT,&yes);
+        const auto identity=context->identity;
+        const auto delayed=Requests::instance().snapshot().completions;
+        {
+            QueueBlocker blocker; blocker.queued=callbackRequest(&blocker.callback)==0;
+            check(blocker.queued && blocker.entered.wait(3.0),"delayed simulation callback blocker did not enter");
+            { RecordLock lock(rec); dbProcess(rec); check(rec->pact && !context->active,"Base SDLY did not start simulation"); }
+            put((root+".SIMM").c_str(),DBR_USHORT,&no);
+            blocker.release.trigger();
+            check(until([&]{RecordLock lock(rec); return !rec->pact;}),"Base delayed callback did not finish after mode change");
+        }
+        {
+            RecordLock lock(rec);
+            check(context->identity==identity && !context->active && Requests::instance().snapshot().completions==delayed,
+                  "ownerless delayed completion admitted or consumed native work");
+            check(rec->stat==READ_ALARM && rec->sevr==INVALID_ALARM,"ownerless delayed completion hid missing ownership");
+            check(simulatedInput(rec) && !context->published && !context->nativeSuccess,"ownerless delayed completion published input");
+        }
+        check(flnk()==links+3,"ownerless delayed completion lost or duplicated Base FLNK");
+        put((root+".SDLY").c_str(),DBR_DOUBLE,&synchronous);
+        std::printf("{\"event\":\"input_source_switch\",\"record\":\"%s\",\"native_failure_alarm\":true,\"siol_selected\":true,\"terminal_released_once\":true,\"native_publication\":false,\"siol_udf\":%u,\"normal_failure_preserved\":true,\"ownerless_admission\":false}\n",
+                    name,udf);
+    }
 }
 unsigned delayedSets()
 {
@@ -1240,7 +1345,7 @@ int main(int argc,char** argv)
         if(edges) { capacityAndOrder(); simulation(); outputEdges(); maxPayloadQueue(); }
         if(alarms)nativeTimeouts();
         if(active)activeOutputs();
-        if(policy)outputPolicies();
+        if(policy) { outputPolicies(); inputSourceSwitch(); }
         if(numeric)numericMatrix();
         Runtime::instance().report();
         const bool blocked=std::strcmp(argv[8],"shutdown")==0;
