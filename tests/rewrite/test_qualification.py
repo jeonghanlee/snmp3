@@ -16,7 +16,8 @@ from test_native import ROOT, Runner, USER, VALUE_TYPES, digest, write_json
 CASES = ("typed", "fifo", "deadline", "unsent", "ambiguous", "crashes", "high-fd", "live-race",
          "native-expiry", "discovery-expiry", "ipc-partial", "ipc-coalesced", "ipc-stale",
          "ipc-malformed", "ipc-truncated", "ipc-partial-timeout", "ipc-full-channel", "ipc-bad-set",
-         "ipc-oversize", "ipc-bootstrap-mismatch", "ipc-bootstrap-secret", "ipc-ready-executable", "ipc-ready-library", "security-conflict", "immutable")
+         "ipc-oversize", "ipc-bootstrap-mismatch", "ipc-bootstrap-secret", "ipc-ready-executable", "ipc-ready-library", "security-conflict", "immutable",
+         "behind-retirement", "ipc-stale-behind")
 
 
 def loss_hook(runner, agent_name, marker):
@@ -207,6 +208,14 @@ def execute(output, case, family, products=None, sanitizers=False):
                 handlers = [json.loads(line) for line in (output / (name + ".stdout")).read_text().splitlines()
                             if '"event":"agent_handler"' in line]
                 runner.check(name + ":32-real-native-requests", len(handlers) == 32)
+        if case == "behind-retirement":
+            behind = next((e for e in events if e.get("event") == "behind_retirement"), {})
+            runner.check("successor-dispatched-after-reap-relaunch-ready",
+                         behind.get("epoch") == 2 and 0 < behind.get("admitted_at", 0) < behind.get("reap_at", 0) <
+                         behind.get("launch_at", 0) < behind.get("ready_at", 0) <= behind.get("dispatch_at", 0))
+            runner.check("short-successor-expired-unsent", behind.get("short_sent") is False)
+            runner.check("backoff-restarted-after-matched-retired",
+                         0 < behind.get("second_backoff_us", 0) < 400000 and behind.get("first_backoff_us", 0) < 400000)
         if case in ("native-expiry", "discovery-expiry"):
             packets = [json.loads(line) for line in (output / "native-response-drop.stdout").read_text().splitlines()]
             requests = [e for e in packets if e.get("event") == "fault_request"]
@@ -221,8 +230,24 @@ def execute(output, case, family, products=None, sanitizers=False):
                         "ipc-full-channel": "full_channel_reader_stopped", "ipc-bad-set": "unsupported_actual_set_tag",
                         "ipc-oversize": "oversized_actual_header", "ipc-bootstrap-mismatch": "bootstrap_mismatch_actual_frame",
                         "ipc-bootstrap-secret": "bootstrap_secret_actual_frame",
-                        "ipc-ready-executable": "ready_identity_actual_frame", "ipc-ready-library": "ready_identity_actual_frame"}[case]
+                        "ipc-ready-executable": "ready_identity_actual_frame", "ipc-ready-library": "ready_identity_actual_frame",
+                        "ipc-stale-behind": "stale_actual_frame"}[case]
             runner.check("real-IPC-outer-fault-observed", any(e.get("event") == required for e in proxy))
+            if case == "ipc-stale-behind":
+                runner.check("forged-successor-result-rejected", any(e.get("code") == 16 for e in observed))
+                admitted = [e for e in events if e.get("event") == "stale_behind_admitted"]
+                forged = sorted(e["monotonic_ns"] for e in proxy if e.get("event") == "stale_actual_frame" and
+                                e.get("direction") == 1 and e.get("kind") == 5)
+                # A trial exercises the fault when a forged Retired with the successor's identity was
+                # injected after that successor's admission and before the next admission.
+                exercised = 0
+                for index, entry in enumerate(admitted):
+                    upper = admitted[index + 1]["at_ns"] if index + 1 < len(admitted) else float("inf")
+                    exercised += any(entry["at_ns"] <= time_ns < upper for time_ns in forged)
+                runner.check("every-successor-completed-once", len(admitted) == 5)
+                write_json(output / "stale-behind.json", {"trials": len(admitted), "exercised": exercised,
+                           "status": "run" if exercised else "not run",
+                           "queued_behind_at_admission": sum(1 for e in admitted if e["behind"])})
             if case == "ipc-stale":
                 runner.check("old-generation-result-rejected", any(e.get("code") == 16 for e in observed))
                 runner.check("old-admission-batch-delivered-to-real-worker", any(e.get("field") == "admission" for e in proxy))

@@ -343,6 +343,70 @@ void liveRace(Fixture& f)
     f.settle();
     std::printf("{\"event\":\"live_race\",\"accepted\":%u,\"consumed\":%zu,\"rejected\":%u}\n",accepted.load(),consumed.size(),rejected.load());
 }
+
+uint64_t eventAt(const std::vector<SupervisionEvent>& events,uint32_t code,uint64_t after,uint64_t epoch=0)
+{
+    for(const auto& e:events)if(e.address==1 && e.code==code && e.at>=after && (!epoch || e.epoch==epoch))return e.at;
+    return 0;
+}
+// A consumed Deadline generation whose worker is stopped stays retirement-pending; a new generation of
+// the same handle is admitted behind it and dispatched only after reap, relaunch and Ready. A second,
+// short-budget successor expires in the queue unsent. The second containment relaunches after the
+// first backoff step because the successful batch in between reset the failure count.
+void behindRetirement(Fixture& f)
+{
+    const auto a=f.handles.at("Address4Read");
+    const auto phaseOne=monotonicUs();
+    f.signal(1,SIGSTOP);
+    f.admit({a[0]},{},100,monotonicUs()); f.read(a[0],ipc::Outcome::Deadline);
+    const auto queued=f.admit({a[0]},{},5000,monotonicUs()).front(); const auto admittedAt=monotonicUs();
+    const auto held=f.scheduler->snapshot(1);
+    check(queued.generation==2 && held.count==2 && held.retirementPending==1 && held.queued==1 && held.behindRetirement==1,
+          "successor not held behind retirement");
+    f.read(a[0],ipc::Outcome::Complete,-123);
+    const auto reapAt=eventAt(f.observed,7,admittedAt),launchAt=eventAt(f.observed,2,reapAt),
+               epoch=f.worker(1).epoch,readyAt=eventAt(f.observed,3,launchAt,epoch),dispatchAt=eventAt(f.observed,13,readyAt,epoch);
+    check(reapAt && launchAt && readyAt && dispatchAt && epoch==2,"successor dispatched before reap, relaunch and Ready");
+    f.until([&]{const auto q=f.scheduler->snapshot(1); return q.count==0 && f.worker(1).ready;});
+    check(eventAt(f.observed,5,dispatchAt,epoch)!=0,"successor batch was not retired before the second phase");
+    const auto phaseTwo=monotonicUs();
+    f.signal(1,SIGSTOP);
+    f.admit({a[1]},{},100,monotonicUs()); f.read(a[1],ipc::Outcome::Deadline);
+    const auto shortQueued=f.admit({a[1]},{},200,monotonicUs()).front();
+    TerminalView view; f.until([&]{view=f.take(a[1]); return view.result!=nullptr;},3000);
+    check(view.id==shortQueued && view.result->outcome==ipc::Outcome::Deadline && !view.sent,"short-budget successor was sent or not expired");
+    f.scheduler->release(view.id);
+    const auto counters=f.scheduler->snapshot(1);
+    std::printf("{\"event\":\"behind_counters\",\"admitted\":%llu,\"never_sent\":%llu}\n",
+                (unsigned long long)counters.behindAdmitted,(unsigned long long)counters.behindNeverSent);
+    check(counters.behindNeverSent==1 && counters.behindAdmitted==2,"behind-retirement counters mismatch");
+    f.until([&]{const auto reap=eventAt(f.observed,7,phaseTwo); return reap && eventAt(f.observed,2,reap);},4000);
+    const auto secondReap=eventAt(f.observed,7,phaseTwo),secondLaunch=eventAt(f.observed,2,secondReap);
+    const auto firstReap=eventAt(f.observed,7,phaseOne),firstLaunch=eventAt(f.observed,2,firstReap);
+    f.ready(); f.settle();
+    std::printf("{\"event\":\"behind_retirement\",\"admitted_at\":%llu,\"reap_at\":%llu,\"launch_at\":%llu,\"ready_at\":%llu,"
+                "\"dispatch_at\":%llu,\"epoch\":%llu,\"short_sent\":%s,\"first_backoff_us\":%llu,\"second_backoff_us\":%llu}\n",
+                (unsigned long long)admittedAt,(unsigned long long)reapAt,(unsigned long long)launchAt,(unsigned long long)readyAt,
+                (unsigned long long)dispatchAt,(unsigned long long)epoch,view.sent?"true":"false",
+                (unsigned long long)(firstLaunch-firstReap),(unsigned long long)(secondLaunch-secondReap));
+}
+// Repeated same-handle generations under the stale-frame IPC fault: each successor is admitted as soon
+// as its predecessor is consumed, so a forged Result or Retired carrying the successor's identity can
+// arrive while that successor is really queued. Every generation must still complete exactly once.
+void staleBehind(Fixture& f)
+{
+    const auto a=f.handles.at("Address4Read").front();
+    constexpr unsigned Trials=5;
+    f.admit({a},{},5000,monotonicUs());
+    for(unsigned trial=0;trial<Trials;++trial) {
+        f.read(a,ipc::Outcome::Complete,-123);
+        const auto next=f.admit({a},{},5000,monotonicUs()).front();
+        const auto queuedNow=f.scheduler->snapshot(1).behindRetirement;
+        std::printf("{\"event\":\"stale_behind_admitted\",\"generation\":%llu,\"at_ns\":%llu,\"behind\":%llu}\n",
+                    (unsigned long long)next.generation,(unsigned long long)monotonicUs()*1000ULL,(unsigned long long)queuedNow);
+    }
+    f.read(a,ipc::Outcome::Complete,-123); f.settle();
+}
 }
 int main(int argc,char** argv)
 {
@@ -371,6 +435,8 @@ int main(int argc,char** argv)
                 else if(mode=="live-race")liveRace(f);
                 else if(mode=="fifo" || mode=="high-fd" || mode=="ipc-partial" || mode=="ipc-coalesced" || mode=="ipc-stale")fifo(f);
                 else if(mode=="deadline")deadline(f);
+                else if(mode=="behind-retirement")behindRetirement(f);
+                else if(mode=="ipc-stale-behind")staleBehind(f);
                 else if(mode=="native-expiry" || mode=="discovery-expiry")nativeDeadline(f);
                 else if(mode=="ipc-full-channel")fullChannel(f);
                 else if(mode=="ipc-malformed" || mode=="ipc-truncated" || mode=="ipc-partial-timeout" || mode=="ipc-bad-set" || mode=="ipc-oversize")ipcFault(f);

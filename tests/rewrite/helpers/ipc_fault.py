@@ -12,7 +12,7 @@ import time
 RUNNING = True
 HEADER = struct.Struct("!IHHII6Q")
 MAX_FRAME = 16777216 + HEADER.size
-MODES = ("partial", "coalesced", "stale", "malformed", "truncated", "partial-timeout",
+MODES = ("partial", "coalesced", "stale", "stale-behind", "malformed", "truncated", "partial-timeout",
          "full-channel", "bad-set", "oversize", "bootstrap-mismatch", "bootstrap-secret", "ready-executable", "ready-library")
 
 
@@ -166,7 +166,7 @@ class Forwarder:
             self.held = None
             emit("coalesced_actual_frames", count=2)
             return
-        if self.mode == "stale":
+        if self.mode in ("stale", "stale-behind"):
             variants = []
             if direction == 1 and kind == 4:
                 for index in (5, 6, 9):
