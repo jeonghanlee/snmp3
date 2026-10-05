@@ -53,6 +53,7 @@ bool accounting=false;
 bool stopQueued=false;
 bool rebuild=false;
 bool stopInflight=false;
+bool stopEnqueueFailed=false;
 int64_t firstActivationWorker=0;
 struct RecordLock {
     dbCommon* value;
@@ -1337,15 +1338,13 @@ void stopWithQueuedSuccessor()
 
 // Admits all eleven record kinds on one unanswered address, waits until a batch is on the worker channel, then stops the
 // runtime: every record, whether sent or still queued, must complete once with a communication alarm, and every FLNK must run once.
-void stopInFlight()
+const char* StopKinds[]={"Ai","Longin","Int64in","Stringin","Lsi","Waveform","Ao","Longout","Int64out","Stringout","Lso"};
+// Admits the eleven Timeout records of record-stop.db on their unanswered address and waits until a batch is on the
+// worker channel, collecting the supervision events seen so far.
+void admitStopRecords(std::vector<SupervisionEvent>& events)
 {
-    const char* kinds[]={"Ai","Longin","Int64in","Stringin","Lsi","Waveform","Ao","Longout","Int64out","Stringout","Lso"};
-    auto scheduler=Runtime::instance().schedulerOwner();
-    const auto before=Requests::instance().snapshot().completions;
-    const auto links=typed<calcRecord>("Records_StopCompleted").val;
     Runtime::instance().takeSupervisionEvents();
-    std::vector<SupervisionEvent> events;
-    for(const char* kind:kinds) {
+    for(const char* kind:StopKinds) {
         const std::string name=std::string("Records_Timeout")+kind;
         auto* rec=record(name.c_str());
         auto* context=static_cast<RecordContext*>(rec->dpvt);
@@ -1356,22 +1355,17 @@ void stopInFlight()
             std::strcpy(value.val,"stopping"); value.len=9;
         }
         dbProcess(rec);
-        check(rec->pact,(std::string("stop in-flight record was not admitted: ")+name).c_str());
+        check(rec->pact,(std::string("stop record was not admitted: ")+name).c_str());
     }
     check(until([&]{ for(auto& e:Runtime::instance().takeSupervisionEvents())events.push_back(e);
-                     return firstAt(events,14)!=0; }),"stop in-flight batch was not sent to the worker");
-    const auto held=scheduler->snapshot(1);
-    const auto pending=Requests::instance().snapshot();
-    const auto stopAt=monotonicUs();
-    Runtime::instance().stop();
-    const auto stoppedAt=monotonicUs();
-    for(auto& e:Runtime::instance().takeSupervisionEvents())events.push_back(e);
-    const auto records=Requests::instance().snapshot();
-    const auto runtime=Runtime::instance().snapshot();
-    const auto after=scheduler->snapshot(1);
-    unsigned stopped=0,idle=0,busy=0;
+                     return firstAt(events,14)!=0; }),"stop batch was not sent to the worker");
+}
+// Reads every Timeout record under its lock and renders the per-record JSON rows with the summed counts.
+std::string stopRecordRows(unsigned& stopped,unsigned& idle,unsigned& busy)
+{
+    stopped=idle=busy=0;
     std::string detail="[";
-    for(const char* kind:kinds) {
+    for(const char* kind:StopKinds) {
         const std::string name=std::string("Records_Timeout")+kind;
         auto* rec=record(name.c_str());
         auto* context=static_cast<RecordContext*>(rec->dpvt);
@@ -1385,7 +1379,26 @@ void stopInFlight()
                 "\",\"sevr\":\""+epicsAlarmSeverityStrings[rec->sevr]+"\",\"busy\":"+std::to_string(waveBusy)+
                 ",\"published\":"+(context->published?"true":"false")+",\"generation\":"+std::to_string(context->identity.generation)+"}";
     }
-    detail+="]";
+    return detail+"]";
+}
+void stopInFlight()
+{
+    auto scheduler=Runtime::instance().schedulerOwner();
+    const auto before=Requests::instance().snapshot().completions;
+    const auto links=typed<calcRecord>("Records_StopCompleted").val;
+    std::vector<SupervisionEvent> events;
+    admitStopRecords(events);
+    const auto held=scheduler->snapshot(1);
+    const auto pending=Requests::instance().snapshot();
+    const auto stopAt=monotonicUs();
+    Runtime::instance().stop();
+    const auto stoppedAt=monotonicUs();
+    for(auto& e:Runtime::instance().takeSupervisionEvents())events.push_back(e);
+    const auto records=Requests::instance().snapshot();
+    const auto runtime=Runtime::instance().snapshot();
+    const auto after=scheduler->snapshot(1);
+    unsigned stopped=0,idle=0,busy=0;
+    const std::string detail=stopRecordRows(stopped,idle,busy);
     std::printf("{\"event\":\"stop_inflight\",\"records\":%s,\"stopped\":%u,\"idle\":%u,\"waveform_busy\":%u,"
                 "\"flnk_delta\":%.0f,\"completions_delta\":%llu,\"drain_failed\":%s,\"state\":%d,"
                 "\"pending_at_stop\":%llu,\"held_queued\":%llu,\"held_retirement_pending\":%llu,\"retirement_pending_after\":%llu,"
@@ -1396,6 +1409,70 @@ void stopInFlight()
                 (unsigned long long)after.retirementPending,scheduler->settled()?"true":"false",
                 (unsigned long long)stopAt,(unsigned long long)(stoppedAt-stopAt),(unsigned long long)firstAt(events,7),
                 timeline(events).c_str());
+}
+
+// Fills the low-priority Base callback queue before the records are admitted, so every completion enqueue fails and
+// the stop must retry them. Released while the runtime thread still runs ("within"), or after that thread has reached
+// its stop bound and only the record drain retries ("late"), each record completes once with FLNK; released after the
+// drain budget has expired ("after"), the drain fails, the records stay active and the isolated cleanup finalizes them once.
+void stopWithEnqueueFailures()
+{
+    const char* mode=std::getenv("SNMP3_RECORD_RELEASE");
+    check(mode && (std::strcmp(mode,"within")==0 || std::strcmp(mode,"late")==0 || std::strcmp(mode,"after")==0),
+          "stop release mode absent");
+    const bool expire=std::strcmp(mode,"after")==0,late=std::strcmp(mode,"late")==0;
+    auto scheduler=Runtime::instance().schedulerOwner();
+    const auto before=Requests::instance().snapshot();
+    const auto links=typed<calcRecord>("Records_StopCompleted").val;
+    QueueBlocker blocker; epicsCallback fillers[8]{};
+    blocker.queued=callbackRequest(&blocker.callback)==0;
+    check(blocker.queued && blocker.entered.wait(3.0),"stop queue blocker did not enter");
+    for(auto& filler:fillers) {
+        callbackSetCallback(&QueueBlocker::count,&filler);
+        callbackSetUser(&blocker,&filler); callbackSetPriority(priorityLow,&filler);
+        check(callbackRequest(&filler)==0,"stop callback queue fill failed");
+    }
+    std::vector<SupervisionEvent> events;
+    admitStopRecords(events);
+    std::atomic<bool> finished{false}; uint64_t stoppedAt=0;
+    const auto stopAt=monotonicUs();
+    std::thread stopper([&]{ Runtime::instance().stop(); stoppedAt=monotonicUs(); finished=true; });
+    // Every terminal has been taken and refused by the full queue; the drain keeps retrying them.
+    const bool retrying=until([&]{ const auto v=Requests::instance().snapshot();
+                                   return v.active==11 && v.pending==11 && v.queued==0 && v.entered==0 &&
+                                          v.enqueueFailures>=before.enqueueFailures+11; },3000000);
+    const auto held=Requests::instance().snapshot();
+    // After the drain budget expires the stop must return on its own, before the queue is released.
+    bool expired=false,returned=false;
+    if(expire) {
+        expired=until([]{ return Requests::instance().snapshot().drainFailed; },5000000);
+        returned=until([&]{ return finished.load(); },3000000);
+    }
+    // The supervisor stop bound is 2 s and the record drain budget 2 s after it; 2.5 s lies inside the drain alone.
+    if(late)until([&]{ return monotonicUs()>=ipc::add(stopAt,2500000); },3000000);
+    const bool stopping=!finished;
+    const auto releaseAt=monotonicUs();
+    blocker.release.trigger(); stopper.join();
+    check(until([&]{ return blocker.noops==8; }),"stop queue fillers did not drain");
+    for(auto& e:Runtime::instance().takeSupervisionEvents())events.push_back(e);
+    const auto records=Requests::instance().snapshot();
+    const auto runtime=Runtime::instance().snapshot();
+    const bool restart=expire?Runtime::instance().start():false;
+    unsigned stopped=0,idle=0,busy=0;
+    const std::string detail=stopRecordRows(stopped,idle,busy);
+    std::printf("{\"event\":\"stop_enqueue_failed\",\"mode\":\"%s\",\"retrying\":%s,\"still_stopping_at_release\":%s,\"expired_before_release\":%s,\"returned_before_release\":%s,"
+                "\"held_active\":%llu,\"held_pending\":%llu,\"held_queued\":%llu,\"enqueue_failures_delta\":%llu,"
+                "\"records\":%s,\"stopped\":%u,\"idle\":%u,\"waveform_busy\":%u,\"flnk_delta\":%.0f,\"completions_delta\":%llu,"
+                "\"active_after\":%llu,\"drain_failed\":%s,\"state\":%d,\"restart_accepted\":%s,\"settled\":%s,"
+                "\"stop_at_us\":%llu,\"release_at_us\":%llu,\"stop_duration_us\":%llu,\"reap_at_us\":%llu,\"timeline\":%s}\n",
+                mode,retrying?"true":"false",stopping?"true":"false",expired?"true":"false",returned?"true":"false",
+                (unsigned long long)held.active,(unsigned long long)held.pending,(unsigned long long)held.queued,
+                (unsigned long long)(records.enqueueFailures-before.enqueueFailures),
+                detail.c_str(),stopped,idle,busy,typed<calcRecord>("Records_StopCompleted").val-links,
+                (unsigned long long)(records.completions-before.completions),(unsigned long long)records.active,
+                records.drainFailed?"true":"false",int(runtime.state),restart?"true":"false",scheduler->settled()?"true":"false",
+                (unsigned long long)stopAt,(unsigned long long)releaseAt,(unsigned long long)(stoppedAt-stopAt),
+                (unsigned long long)firstAt(events,7),timeline(events).c_str());
 }
 }
 
@@ -1752,14 +1829,15 @@ int main(int argc,char** argv)
         stopQueued=std::strcmp(argv[8],"stop-queued")==0;
         rebuild=std::strcmp(argv[8],"rebuild")==0;
         stopInflight=std::strcmp(argv[8],"stop-inflight")==0;
+        stopEnqueueFailed=std::strcmp(argv[8],"stop-enqueue-failed")==0;
         if(edges) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
             testdbReadDatabase((root+"record-edges.db").c_str(),nullptr,"P=Records_");
             testdbReadDatabase((root+"record-order.db").c_str(),nullptr,"P=Records_");
         }
-        if(alarms || stopInflight) {
+        if(alarms || stopInflight || stopEnqueueFailed) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
-            testdbReadDatabase((root+(stopInflight?"record-stop.db":"record-alarms.db")).c_str(),nullptr,"P=Records_");
+            testdbReadDatabase((root+(alarms?"record-alarms.db":"record-stop.db")).c_str(),nullptr,"P=Records_");
         }
         if(active || activeUnforced || accounting) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
@@ -1784,7 +1862,7 @@ int main(int argc,char** argv)
         }
         testIocInitOk();
         if(edges)inputEdges();
-        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild && !stopInflight) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
+        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild && !stopInflight && !stopEnqueueFailed) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
         if(edges) { capacityAndOrder(); simulation(); outputEdges(); maxPayloadQueue(); }
         if(alarms)nativeTimeouts();
         if(active)activeOutputs();
@@ -1796,14 +1874,20 @@ int main(int argc,char** argv)
         if(accounting)accountingTrials();
         if(stopQueued || rebuild)stopWithQueuedSuccessor();
         if(stopInflight)stopInFlight();
+        if(stopEnqueueFailed)stopWithEnqueueFailures();
         Runtime::instance().report();
         const bool blocked=std::strcmp(argv[8],"shutdown")==0;
-        const bool abandoned=std::strcmp(argv[8],"queued-shutdown")==0;
-        if(blocked)blockedShutdown(); else if(abandoned)queuedShutdown(); else testIocShutdownOk();
+        const bool abandoned=std::strcmp(argv[8],"queued-shutdown")==0 ||
+                             (stopEnqueueFailed && std::strcmp(std::getenv("SNMP3_RECORD_RELEASE"),"after")==0);
+        if(blocked)blockedShutdown(); else if(abandoned && !stopEnqueueFailed)queuedShutdown(); else testIocShutdownOk();
         check(Requests::instance().snapshot().contexts==0,"isolated queue cleanup retained detached contexts");
         check(Runtime::instance().snapshot().state==((blocked || abandoned)?State::IncompleteStopped:State::Stopped),"record runtime stop outcome mismatch");
         testdbCleanup();
         if(rebuild)secondActivation(argv);
+        if(stopEnqueueFailed)
+            std::printf("{\"event\":\"stop_enqueue_failed_cleanup\",\"completions\":%llu,\"contexts\":%llu}\n",
+                        (unsigned long long)Requests::instance().snapshot().completions,
+                        (unsigned long long)Requests::instance().snapshot().contexts);
         check(testDone()==0,"Base test harness failed");
         std::printf("{\"event\":\"record_summary\",\"checks\":%u,\"records\":11}\n",checks);
         epicsExit(0);

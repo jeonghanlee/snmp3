@@ -50,7 +50,7 @@ BINDING_LOOKUP = [(EXPIRE_QUEUED, "auto id=*it; auto& g=*a.generations.lower_bou
 D7_SOURCES = {"report-never-sent-miscounted": "Runtime.cpp", "rebuild-reuses-scheduler": "Runtime.cpp",
               "never-sent-message-always": "DeviceSupport.cpp", "never-sent-message-absent": "DeviceSupport.cpp",
               "never-sent-message-any-outcome": "DeviceSupport.cpp", "never-sent-message-not-reset": "Request.cpp",
-              "waveform-busy-held": "DeviceSupport.cpp"}
+              "waveform-busy-held": "DeviceSupport.cpp", "drain-without-retry": "Request.cpp"}
 D7_CONTROLS = {
     "per-handle-bound": ("component", "admission-behind-retirement", None,
                          [("require(existing<=1 && consumed); behind.push_back(existing==1);",
@@ -119,6 +119,8 @@ D7_CONTROLS = {
     "waveform-busy-held": ("record", "stop-inflight", "stop-inflight-waveform-busy-clear",
                            [("if(definition.kind==RecordKind::Waveform)as<waveformRecord>(context.record).busy=FALSE;",
                              "if(definition.kind==RecordKind::Waveform)as<waveformRecord>(context.record).busy=TRUE;")]),
+    "drain-without-retry": ("record", "stop-enqueue-failed", "release-after-stop-bound-completes-every-record-once",
+                            [("    do {\n        service();\n", "    do {\n")]),
     "storage-validation": ("component", "forged-retirement", None,
                            [("for(size_t i=0;i<ids.size();++i)if(!(a.generations.at(a.active[i])->command.id==ids[i]))return false;",
                              "for(size_t i=0;i<ids.size();++i)if(!a.generations.count(key(ids[i])))return false;")]),
@@ -156,7 +158,7 @@ def run_cell(kind, cell, products, output, sanitizers=True):
     forced = any(json.loads(receipt.read_text()).get("forced_cleanup")
                  for receipt in sorted((output / "run").glob("records*.receipt.json")))
     observations = output / "run" / "record-observations.json"
-    stop_events = {"stop-queued": "stop_queued", "stop-inflight": "stop_inflight"}
+    stop_events = {"stop-queued": "stop_queued", "stop-inflight": "stop_inflight", "stop-enqueue-failed": "stop_enqueue_failed"}
     observed = kind != "record" or cell not in stop_events or (observations.exists() and any(
         event.get("event") == stop_events[cell] for event in json.loads(observations.read_text())))
     return {"argv": argv, "returncode": code, "pid": child.pid, "child_reaped": True, "failed_checks": failed,

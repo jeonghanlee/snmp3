@@ -18,6 +18,9 @@ NEAR_REPEATS = 2
 NEAR_TRIALS = len(NEAR_MARGINS_MS) * NEAR_REPEATS
 QUEUE_CASES = ("deadline-queue", "near-deadline", "stop-queued", "rebuild")
 STOP_BUDGET_MS = 300
+# Shipped stop limits: the supervisor stop bound and the record drain budget that follows it.
+STOP_BOUND_MS = 2000
+DRAIN_BUDGET_MS = 2000
 
 
 def queue_counter_lines(path):
@@ -47,7 +50,7 @@ def main():
     parser.add_argument("--sanitizers", action="store_true")
     parser.add_argument("--case", choices=("baseline", "shutdown", "queued-shutdown", "edges", "alarms", "active", "policy", "numeric",
                                                    "active-unforced", "deadline-queue", "near-deadline",
-                                                   "accounting", "stop-queued", "rebuild", "stop-inflight"), default="baseline")
+                                                   "accounting", "stop-queued", "rebuild", "stop-inflight", "stop-enqueue-failed"), default="baseline")
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(mode=0o700)
@@ -78,7 +81,7 @@ def main():
                          "oid": "1.3.6.1.4.1.53864.4." + str(index) + ".0",
                          "operation": operation, "valueType": tag, "capacity": capacity}
                          for name, index, operation, tag, capacity in specs]}
-        if args.case in ("alarms", "policy", "stop-inflight"):
+        if args.case in ("alarms", "policy", "stop-inflight", "stop-enqueue-failed"):
             dropped, _ = runner.fault("record-response-drop", 4, peer, "drop-all")
             configuration["endpoints"].append({"id": "Dropped", "address": "127.0.0.1",
                                                "port": int(dropped.rsplit(":", 1)[1]), "profile": "Local"})
@@ -222,6 +225,12 @@ def main():
                         if event.get("event") == "near_deadline":
                             event["margin_ms"] = margin
                     events += trial_events
+        elif args.case == "stop-enqueue-failed":
+            # One process per release mode: inside the drain budget, then after it has expired.
+            events = []
+            for mode in ("within", "late", "after"):
+                libraries, trial_events = execute("records-" + mode, {"SNMP3_RECORD_RELEASE": mode})
+                events += trial_events
         elif args.case in ("stop-queued", "rebuild"):
             before = proxy_sets("queue-response-drop")
             libraries, events = execute("records", {"SNMP3_RECORD_BUDGET_MS": str(STOP_BUDGET_MS)})
@@ -232,7 +241,7 @@ def main():
             libraries, events = execute("records")
         summary = next((event for event in events if event.get("event") == "record_summary"), {})
         # Queue cases skip the baseline and pressure phases; their records are checked per trial below.
-        if args.case not in QUEUE_CASES + ("stop-inflight",):
+        if args.case not in QUEUE_CASES + ("stop-inflight", "stop-enqueue-failed"):
             runner.check("actual-eleven-record-path", summary.get("records") == 11 and summary.get("checks", 0) > 100)
             completions = [event for event in events if event.get("event") == "record_completed"]
             runner.check("actual-record-identities", bool(completions) and all(event["activation"] == 1 and
@@ -457,6 +466,44 @@ def main():
             runner.check("stop-inflight-drain-succeeds-and-worker-reaped",
                          stop.get("drain_failed") is False and stop.get("state") == 4 and stop.get("settled") is True and
                          stop.get("reap_at_us", 0) > 0 and stop.get("retirement_pending_after") == 0)
+        if args.case == "stop-enqueue-failed":
+            stops = {event["mode"]: event for event in events if event.get("event") == "stop_enqueue_failed"}
+            cleanups = [event for event in events if event.get("event") == "stop_enqueue_failed_cleanup"]
+            within, late, after = stops.get("within", {}), stops.get("late", {}), stops.get("after", {})
+            runner.check("enqueue-failed-stop-retries-every-refused-completion",
+                         all(stop.get("retrying") and stop.get("held_active") == 11 and stop.get("held_pending") == 11 and
+                             stop.get("held_queued") == 0 and stop.get("enqueue_failures_delta", 0) >= 11
+                             for stop in (within, late, after)) and len(stops) == 3)
+            rows = within.get("records", [])
+            # A stop shorter than the supervisor bound proves the runtime thread was still running at the release:
+            # it leaves its bound early only once every borrowed terminal has been released by a completion.
+            runner.check("release-within-budget-completes-every-record-once",
+                         within.get("still_stopping_at_release") is True and within.get("drain_failed") is False and
+                         0 < within.get("stop_duration_us", 0) < STOP_BOUND_MS * 1000 and
+                         within.get("state") == 4 and within.get("completions_delta") == 11 and
+                         within.get("flnk_delta") == 11 and within.get("stopped") == 11 and within.get("idle") == 11 and
+                         within.get("waveform_busy") == 0 and len(rows) == 11 and
+                         all(row["pact"] == 0 and row["sevr"] == "INVALID" and row["published"] is False for row in rows))
+            rows = late.get("records", [])
+            # The release lands after the supervisor stop bound and before the drain budget ends, so only the drain
+            # can still enqueue the refused completions.
+            held_us = late.get("release_at_us", 0) - late.get("stop_at_us", 0)
+            runner.check("release-after-stop-bound-completes-every-record-once",
+                         late.get("still_stopping_at_release") is True and late.get("drain_failed") is False and
+                         STOP_BOUND_MS * 1000 < held_us < (STOP_BOUND_MS + DRAIN_BUDGET_MS) * 1000 and
+                         late.get("state") == 4 and late.get("completions_delta") == 11 and late.get("flnk_delta") == 11 and
+                         late.get("stopped") == 11 and late.get("idle") == 11 and len(rows) == 11 and
+                         all(row["pact"] == 0 and row["sevr"] == "INVALID" for row in rows))
+            rows = after.get("records", [])
+            runner.check("release-after-expiry-fails-drain-and-retains-records",
+                         after.get("expired_before_release") is True and after.get("returned_before_release") is True and
+                         after.get("drain_failed") is True and after.get("state") == 5 and
+                         after.get("restart_accepted") is False and after.get("completions_delta") == 0 and
+                         after.get("flnk_delta") == 0 and after.get("active_after") == 11 and after.get("idle") == 0 and
+                         len(rows) == 11 and all(row["pact"] == 1 for row in rows))
+            runner.check("retained-records-finalized-once-at-cleanup",
+                         len(cleanups) == 3 and all(event.get("contexts") == 0 and event.get("completions") == 11
+                                                    for event in cleanups) and after.get("completions_delta") == 0)
         if args.case in ("stop-queued", "rebuild"):
             stop = next((event for event in events if event.get("event") == "stop_queued"), {})
             # Product checks apply only when the harness observed the reprocess before stopping. A missing event
@@ -499,7 +546,7 @@ def main():
         inputs += [ROOT / "tests/rewrite/db/record-edges.db", ROOT / "tests/rewrite/db/record-order.db"]
     if args.case == "alarms":
         inputs += [ROOT / "tests/rewrite/db/record-alarms.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
-    if args.case == "stop-inflight":
+    if args.case in ("stop-inflight", "stop-enqueue-failed"):
         inputs += [ROOT / "tests/rewrite/db/record-stop.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case in ("active", "active-unforced"):
         inputs += [ROOT / "tests/rewrite/db/record-active.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]

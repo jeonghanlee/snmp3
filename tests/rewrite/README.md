@@ -260,6 +260,7 @@ python3 tests/rewrite/test_records.py --case deadline-queue --output work/r6-dea
 python3 tests/rewrite/test_records.py --case near-deadline --output work/r6-near-deadline
 python3 tests/rewrite/test_records.py --case rebuild --output work/r6-rebuild
 python3 tests/rewrite/test_records.py --case stop-inflight --output work/r6-stop-inflight
+python3 tests/rewrite/test_records.py --case stop-enqueue-failed --output work/r6-stop-enqueue
 ```
 
 | Case | Shipped fixtures and observed boundary |
@@ -279,6 +280,7 @@ python3 tests/rewrite/test_records.py --case stop-inflight --output work/r6-stop
 | near-deadline | record-queue.db and an outer UDP response delay of 300 ms; ten fresh processes with record budgets of 314 to 322 ms place the response just before the deadline and report whether the worker was contained after its result had been selected |
 | rebuild | record-queue.db and actual outer UDP drop-all; the stop-queued state (a stopped worker, a retirement-pending predecessor and a queued Base RPRO successor) is stopped and cleaned up in isolation, then the same process loads the databases again and starts a second activation; the second activation runs the complete baseline on a new worker, the first activation's worker is gone, and the report counters start again at zero |
 | stop-inflight | record-stop.db (the eleven Timeout records of the alarms case, each with a FLNK to one counter) and actual outer UDP drop-all; all eleven records are admitted on one address, the case waits until a batch is on the worker channel and stops the runtime; one generation is sent and the others are queued, and every record completes once as a communication alarm with INVALID severity, no native publication, PACT and waveform BUSY clear and exactly one FLNK each, the drain succeeds and the worker is reaped |
+| stop-enqueue-failed | record-stop.db and actual outer UDP drop-all, three processes; the low-priority Base callback queue is filled by an external blocker before the eleven records are admitted, so every completion enqueue is refused and the stop retries them; released while the runtime thread still runs, or after its 2 s stop bound while only the record drain retries, every record completes once with a communication alarm and one FLNK and the drain succeeds; released after the drain budget has expired, the drain fails, the stop returns without waiting for the queue, the records stay active with PACT set, restart is refused and the isolated cleanup finalizes the eleven completions once without FLNK |
 
 The pressure cases fill the actual Base low-priority queue with external
 callbacks. Failed module enqueue retains the terminal, full reservation and
@@ -389,12 +391,12 @@ BUILD_RECEIPT=work/r6-sanitizer-build/sanitizer-build.json
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --output work/r6-controls
 ```
 
-The D7 controls alter one shipped support source (`Scheduler.cpp`; `DeviceSupport.cpp` or `Request.cpp` for the never-sent message and waveform BUSY controls; `Runtime.cpp` for the report and restart controls) and run their named
+The D7 controls alter one shipped support source (`Scheduler.cpp`; `DeviceSupport.cpp` or `Request.cpp` for the never-sent message, waveform BUSY and drain retry controls; `Runtime.cpp` for the report and restart controls) and run their named
 component, qualification or record cell against the same build. Each control
 directory keeps `cell/cell.stdout` and `cell/cell.stderr`; qualification and
 record cells also keep their run output under `cell/run/`. A record cell whose
-trial was killed at its child bound, or a stop-queued or stop-inflight cell
-without its `stop_queued` or `stop_inflight` event, qualifies neither a reference nor a control:
+trial was killed at its child bound, or a stop-queued, stop-inflight or stop-enqueue-failed cell
+without its `stop_queued`, `stop_inflight` or `stop_enqueue_failed` event, qualifies neither a reference nor a control:
 
 ```bash
 D7="per-handle-bound early-release uncharged-successor binding-lookup-component binding-lookup-qualification"
@@ -404,7 +406,7 @@ D7="$D7 grace-native-failure grace-all-outcomes never-sent-overcount behind-flag
 D7="$D7 grace-channel-failure grace-worker-failure grace-stopping"
 D7="$D7 never-sent-message-always never-sent-message-absent"
 D7="$D7 never-sent-message-any-outcome never-sent-message-not-reset report-never-sent-miscounted"
-D7="$D7 queued-deadline-extended rebuild-reuses-scheduler stop-queued-not-selected waveform-busy-held"
+D7="$D7 queued-deadline-extended rebuild-reuses-scheduler stop-queued-not-selected waveform-busy-held drain-without-retry"
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --d7-controls $D7 --output work/r6-d7-controls
 ```
 
@@ -421,7 +423,7 @@ into these groups:
 | Queue report | report-never-sent-miscounted |
 | Queued deadline | queued-deadline-restart, queued-deadline-extended |
 | Restart | rebuild-reuses-scheduler |
-| Stop in flight | stop-queued-not-selected, waveform-busy-held |
+| Stop in flight | stop-queued-not-selected, waveform-busy-held, drain-without-retry |
 
 The shipped controls cover communication-alarm classification, integer
 precision, text capacity, binary32 tie selection, ambient-rounding dependence,
