@@ -18,6 +18,41 @@ Both keys are mandatory and frozen at initialization. The
 defines supported records, conversion and live-field behavior. See the
 [worker reference](snmp-worker-supervision.md) for queue and lifecycle ownership.
 
+The `deadline_ms` budget covers queueing, worker relaunch, IPC and native
+service from the admission of each request, and a request queued behind another
+keeps the deadline of its own admission. A request ends at the earlier of its
+native outcome and its deadline: the native service time of a lost response is
+set by the profile's `timeoutMs` and `retries`, and a `deadline_ms` below it ends
+the request as a Deadline instead of a native timeout.
+
+Also allow for the time a worker needs to come back after a lost request. After
+a Deadline or worker loss the address worker is contained, reaped and relaunched,
+and a request queued behind the lost one is dispatched only if its own budget
+lasts until the new worker is Ready. For a production (ordinary) build that time
+is about 0.4 s (362 to 403 ms over the recorded runs), including the first 250 ms
+restart backoff step; an instrumented (ASan/UBSan qualification) build needs about
+0.7 s (710 to 745 ms); a worker that does not react to its closed channel needs
+about 1.8 s on an ordinary build and longer on an instrumented one. Each further consecutive
+failure, without a matching Retired frame in between, lengthens the backoff to
+500, 1000, 2000 and then 4000 ms (see the
+[worker reference](snmp-worker-supervision.md)), so a budget must also cover the
+backoff step in effect. In the measurement, a budget of 1000 ms dispatched the
+queued request in each of three runs of the deadline-queue case on both build
+types, covering only the first backoff step and leaving about 260 ms to spare on
+instrumented builds. A smaller budget lets the queued request expire unsent, which
+the record reports as COMM/INVALID with AMSG `deadline before send`.
+
+A plain put to a Passive record, or a write to PROC, made while a request is
+pending is held as RPRO and reaches the device after that request ends, up to
+about twice the budget after the put when the request ends in a Deadline. A
+Channel Access put-callback is held by Base until the record completes, then
+sends its own request, so a single put-callback completes within the same bound
+and each further put-callback queued on the same record adds up to one budget;
+read the outcome from the record's STAT, SEVR and AMSG fields. The measurements
+are in the [record contract](snmp-rewrite-contract.md#deadline-path). Queue limits
+must cover two generations of each record handle that can hold a successor; the
+[worker reference](snmp-worker-supervision.md) gives the sizing rule.
+
 ## Strict JSON and root fields
 
 The parser uses YAJL bundled with EPICS Base 7.0.10. It explicitly disables

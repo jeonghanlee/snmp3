@@ -43,6 +43,15 @@ the exact identity, stages checked data/alarm and calls the real rset process.
 Only matching DSET completion publishes staged native input. Base selects
 simulation, processes monitors/FLNK and clears PACT; the wrapper releases the
 terminal before dropping the record lock. Native retirement remains separate.
+A record that has cleared PACT can admit its next request while the previous
+request's native retirement is pending; the new request queues behind that
+retirement in the per-address FIFO and keeps the deadline of its own admission,
+so a Base reprocess carries the latest value without a DSET wait or retry. When
+a request reaches its deadline before it is transmitted, the entered callback's
+prepare step stages AMSG `deadline before send` and the callback applies it
+through Base's alarm message call before the record process.
+`snmp3RuntimeReport` prints the address queue counters, including the
+generations admitted behind a retirement.
 
 The native worker holds no record pointers. Transport owners and schedulers
 write no record fields. Profiles and contexts retain distinct sessions within

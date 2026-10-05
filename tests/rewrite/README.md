@@ -254,6 +254,10 @@ python3 tests/rewrite/test_records.py --case numeric --output work/r6-numeric
 python3 tests/rewrite/test_records.py --case shutdown --output work/r6-shutdown
 python3 tests/rewrite/test_records.py --case queued-shutdown --output work/r6-queued
 python3 tests/rewrite/test_records.py --case stop-queued --output work/r6-stop-queued
+python3 tests/rewrite/test_records.py --case active-unforced --output work/r6-unforced
+python3 tests/rewrite/test_records.py --case accounting --output work/r6-accounting
+python3 tests/rewrite/test_records.py --case deadline-queue --output work/r6-deadline-queue
+python3 tests/rewrite/test_records.py --case near-deadline --output work/r6-near-deadline
 ```
 
 | Case | Shipped fixtures and observed boundary |
@@ -267,6 +271,10 @@ python3 tests/rewrite/test_records.py --case stop-queued --output work/r6-stop-q
 | shutdown | An actual module callback has entered but waits for a held Base record lock; drain expiry closes the gate, shutdown waits for the lease to finish and restart is refused |
 | queued-shutdown | An external callback holds the actual Base queue; a module completion remains queued after gate closure/detach and retains its storage until actual isolated queue cleanup |
 | stop-queued | record-queue.db and actual outer UDP response dropping; a stopped worker leaves a Deadline-selected predecessor retirement-pending while a Base RPRO successor is queued behind it, then `Runtime::stop`, the operation behind `snmp3Stop`, completes the successor once and reaps the predecessor; the `stop_queued` event in `record-observations.json` records the wait rule of the [supervision document](../../docs/snmp-worker-supervision.md) |
+| active-unforced | record-active.db; no external callback holds the Base consumer, so each of the five outputs is rewritten while its first SET is delayed 750 ms and the reprocess is admitted behind the first request's native retirement; two generations, two completions, the latest value on the wire and NO_ALARM; the case reports in how many trials the queued-behind-retirement branch ran and the Result-to-Retired gap |
+| accounting | record-active.db; three trials of the unheld rewrite observe the window with one consumed generation awaiting retirement and one queued (count 2, charged bytes twice a single generation); a count limit of 1 rejects the reprocess synchronously as WRITE/INVALID with PACT cleared, and raising the limit admits an explicit request |
+| deadline-queue | record-queue.db and actual outer UDP drop-all; three sampling trials with a 1000 ms budget measure reap, relaunch and Ready after a Deadline, one below-threshold and one above-threshold budget trial follow, and a follow-up SET after the unsent generation is observed; each trial records the put-to-dispatch interval, the AMSG, the alarm and the report counters, and the case reports the threshold as the range over every relaunch it measured |
+| near-deadline | record-queue.db and an outer UDP response delay of 300 ms; ten fresh processes with record budgets of 314 to 322 ms place the response just before the deadline and report whether the worker was contained after its result had been selected |
 
 The pressure cases fill the actual Base low-priority queue with external
 callbacks. Failed module enqueue retains the terminal, full reservation and
@@ -287,8 +295,10 @@ of SET and a following GET, so admission is available for RPRO. FIFO GET observe
 the first captured payload; a separate GET after RPRO observes the latest value.
 Response-drop metadata distinguishes new request IDs on explicit retries from
 the same request ID on configured native retries. A separate GET confirms agent
-application despite lost successful SET responses. CA writes and retained-native
-ownership admission rejection remain outside this executed subset.
+application despite lost successful SET responses. Channel Access writes are
+covered by the separate production runner below. The unforced and accounting
+cases do not hold the Base consumer, so the reprocess is admitted behind the previous
+request's native retirement instead of being rejected.
 
 The policy case holds only the external Base callback consumer while an actual
 SET times out. Live IVOA, SIMM and OOPT changes exercise unchanged Base branches
@@ -347,6 +357,13 @@ all child exit/reap and loaded-library identities are recorded. The sanitizer
 builder includes a separate production snmp3Ioc for this path. Base caget/caput
 and Base/system/vendor dependencies remain uninstrumented.
 
+For each of the five active outputs the runner also writes a first and then a
+latest value while the first SET response is held by the outer UDP proxy, once
+with plain puts (RPRO) and once with put-callbacks that Base defers until the
+pending request completes. It observes two SETs on the wire, the agent storing
+the first and then the latest value, the record idle without alarm, and the
+put-callback completing only after the second SET.
+
 Actual decimal CA STRING access preserves 2^53+1 and INT64_MAX through
 int64out SET/int64in GET; UINT64 waveform reads UINT64_MAX exactly. lso/lsi
 VAL$ CHAR arrays qualify 0/39/40/200/255 data bytes and LEN, while ordinary
@@ -354,7 +371,7 @@ CA STRING exposes 39 data bytes. caput rejects an oversized 300-byte VAL$
 write before put; the requested value and later native GET remain unchanged.
 This differs from Base DOL reducing a long source before DSET entry in the
 policy case. PINI input, Base FLNK and normal non-isolated exit also run.
-Active CA changes and in-flight non-isolated shutdown require separate cases.
+Other reprocess routes (scan, PROC) and in-flight non-isolated shutdown require separate cases.
 
 Real-path negative controls build defective copies of the production support
 in private directories. They reuse the compiler arguments from an identified
@@ -368,7 +385,7 @@ BUILD_RECEIPT=work/r6-sanitizer-build/sanitizer-build.json
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --output work/r6-controls
 ```
 
-The D7 controls alter one shipped support source (`Scheduler.cpp`, or `DeviceSupport.cpp` or `Request.cpp` for the never-sent message controls) and run their named
+The D7 controls alter one shipped support source (`Scheduler.cpp`; `DeviceSupport.cpp` or `Request.cpp` for the never-sent message controls; `Runtime.cpp` for the report control) and run their named
 component, qualification or record cell against the same build. Each control
 directory keeps `cell/cell.stdout` and `cell/cell.stderr`; qualification and
 record cells also keep their run output under `cell/run/`. A record cell whose
@@ -386,6 +403,19 @@ D7="$D7 never-sent-message-any-outcome never-sent-message-not-reset report-never
 D7="$D7 queued-deadline-extended"
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --d7-controls $D7 --output work/r6-d7-controls
 ```
+
+Each D7 control runs its named component, qualification or record case, which
+must pass on the unmodified products and fail on the control. The controls fall
+into these groups:
+
+| Group | Controls |
+| --- | --- |
+| Scheduler admission and ownership | per-handle-bound, early-release, uncharged-successor, storage-validation, binding-lookup-component, binding-lookup-qualification, binding-lookup-record, stop-one-generation |
+| Containment grace | grace-native-failure, grace-all-outcomes, grace-channel-failure, grace-worker-failure, grace-stopping |
+| Counting and identity | never-sent-overcount, behind-flag-always, take-without-identity |
+| Never-sent message | never-sent-message-always, never-sent-message-absent, never-sent-message-any-outcome, never-sent-message-not-reset |
+| Queue report | report-never-sent-miscounted |
+| Queued deadline | queued-deadline-restart, queued-deadline-extended |
 
 The shipped controls cover communication-alarm classification, integer
 precision, text capacity, binary32 tie selection, ambient-rounding dependence,

@@ -98,6 +98,92 @@ Checked input remains staged until Base selects DSET completion rather than
 simulation. The callback finalizes its terminal even when simulation or an
 output policy skips DSET. A failed callbackRequest retains the borrowed result
 and reservation and is retried without native replay or deadline reset.
+
+### Latest write
+
+A write to an output record whose request is pending takes one of two Base
+routes. A plain put to a Passive record sets RPRO, which is one flag: after the
+pending request completes, Base clears it and reprocesses the record once, so
+several puts during one pending request give one reprocess that sends only the
+latest value. A put-callback is held by Base until the record's processing
+completes and then puts and processes normally, so each put-callback sends its
+own SET. The pending request keeps the payload it captured at admission; it is
+never rewritten or replayed. In both routes the new request is admitted behind
+the previous request's native retirement and keeps the deadline of its own
+admission; the DSET neither waits for the retirement nor retries.
+
+A put-callback completes when Base finishes the record's completion processing,
+after the request's final outcome has been applied to the record. The outcome is
+carried by the record's STAT, SEVR and AMSG fields. A SET completion does not
+show device readback; a separate GET does.
+
+### Simulation
+
+Base input simulation is a separate value source. A record whose SIMM selects
+simulation reads SIOL before admission and sends no native request. A SIMM
+change while a request is in flight can make Base bypass the DSET read at
+completion. The module never forces SIMM off. Whatever Base selects, the
+completion wrapper releases the terminal once, preserves requested values and
+errors, and leaves FLNK and PACT to Base.
+
+### Deadline path
+
+`deadline_ms` bounds a request from its admission: queueing, relaunch, IPC and
+native service share one budget. A request that reaches its deadline before it
+is transmitted is reported COMM/INVALID with AMSG `deadline before send`; a
+request that was sent keeps an empty AMSG. A successor admitted behind a
+retirement keeps the deadline of its own admission. When its predecessor ends in
+a Deadline, the worker is contained, reaped and relaunched, and the successor is
+dispatched only if its budget outlasts reap, restart backoff, relaunch and Ready;
+otherwise it expires unsent.
+
+With an outer UDP drop-all fault, the time from containment to a Ready worker
+was about 0.4 s on ordinary builds (362 to 403 ms over the recorded runs) and
+about 0.7 s on instrumented builds (710 to 745 ms), including the first 250 ms
+restart backoff step. Each further consecutive failure of the worker, that is a
+failure without a matching Retired frame in between, lengthens the backoff to
+500, 1000, 2000 and then 4000 ms (see the
+[worker reference](snmp-worker-supervision.md)). A worker that does not react to
+its closed channel, stopped by a process signal in the measured case, took 1.83 to
+1.85 s from containment to Ready on an ordinary build, and longer on an
+instrumented build. The qualification `deadline` case measures it: run
+`python3 tests/rewrite/test_qualification.py --cases deadline --output <new directory>`
+(see the [verification reference](../tests/rewrite/README.md)); it prints the
+supervision events, and the time is the difference between the containment event
+(code 6) and the Ready event (code 3) of the next epoch.
+
+After the operator's put, the successor is dispatched at most two budgets plus
+the callback delay later: at a budget of 1000 ms it was dispatched 1370 to
+1392 ms after the put on ordinary builds and 1718 to 1732 ms on instrumented
+builds. A value written while a request that ends in a Deadline is pending
+therefore reaches the device up to about twice the budget after the put. A
+put-callback waits for the pending request to end and then for its own request,
+so a single put-callback completes within the same bound; each further
+put-callback queued on the same record adds up to one budget. The relaunch and put-to-dispatch runs are
+recorded in the work register, M6 Verification Results T9.
+
+### Coverage
+
+The qualification candidate covers the cases listed in the
+[record verification reference](../tests/rewrite/README.md#record-verification);
+each case is one named test run against the real record, scheduler, worker and
+agent path. Verified: all five outputs and a plain put or a put-callback while
+the first SET response is held on the production Channel Access path; for the
+six inputs, SIOL before admission and after a queued native completion, SIMM
+selecting SIOL while a native timeout terminal waits in the Base queue, a return
+to normal mode with a further native failure, and a SIMM change while a Base SDLY
+callback is pending; for the five outputs, the three IVOA branches, live
+simulation after a native timeout, and synchronous or delayed simulation before
+admission.
+
+Not yet verified, as recorded in the work register: other record, failure and
+deadline chains, fanout and delayed or duplicate external responses; reprocess
+routes other than a plain put and a put-callback, such as scan and PROC; a SIMM
+change while a Base SDLY callback is pending on an output record; other
+Stopping, waveform and downstream shutdown states; and reuse of an isolated database after queue cleanup, including after a
+stop that retained a retirement-pending and a queued generation. Passing the
+verified cases does not advertise record support.
+
 These contracts require the complete qualification matrix before advertisement.
 
 ## Implemented Startup Configuration Contract
