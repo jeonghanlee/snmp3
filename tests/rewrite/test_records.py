@@ -196,6 +196,15 @@ def main():
                         event["proxy_sets"] = proxy_sets("queue-response-drop") - before
                         event["budget_ms"] = budget
                 events += trial_events
+            # Every relaunch the case measured, sampling and budget trials alike, bounds the documented threshold.
+            relaunches = list(samples)
+            for event in events:
+                if event.get("event") == "deadline_queue" and event.get("trial") in ("below", "above"):
+                    interval = event["admission_to_ready_us"] or event["deadline_to_ready_us"]
+                    if interval:
+                        relaunches.append(interval)
+            events.append({"event": "deadline_threshold_all", "trials": len(relaunches), "samples_us": relaunches,
+                           "minimum_us": min(relaunches) if relaunches else 0, "maximum_us": max(relaunches) if relaunches else 0})
         elif args.case == "near-deadline":
             events = []
             for repeat in range(1, NEAR_REPEATS + 1):
@@ -367,6 +376,27 @@ def main():
             runner.check("queue-report-counters",
                          queue_counters(output / "records-below.stdout") == (0, 1, 1) and
                          queue_counters(output / "records-above.stdout") == (0, 1, 0))
+            all_relaunches = next((event for event in events if event.get("event") == "deadline_threshold_all"), {})
+            listed = all_relaunches.get("samples_us", [])
+            measured = [event["admission_to_ready_us"] or event["deadline_to_ready_us"]
+                        for event in events if event.get("event") == "deadline_queue"]
+            runner.check("threshold-over-every-relaunch",
+                         all_relaunches.get("trials") == DEADLINE_TRIALS + 2 and
+                         sorted(listed) == sorted(measured) and bool(listed) and
+                         all_relaunches.get("minimum_us") == min(listed) and
+                         all_relaunches.get("maximum_us") == max(listed) and
+                         below.get("budget_ms", 0) * 1000 < all_relaunches.get("minimum_us", 0) and
+                         above.get("budget_ms", 0) * 1000 > all_relaunches.get("maximum_us", 0))
+            # A successor keeps the deadline of its own admission, so after the operator's put it can be dispatched at
+            # most two budgets later, plus the callback delay between the predecessor's deadline and its completion.
+            dispatched = [event for event in trials.values() if event.get("second_dispatched")]
+            runner.check("put-to-dispatch-within-late-application-bound",
+                         len(dispatched) >= 1 and all(
+                             event["first_admitted_us"] < event["put_at_us"] and
+                             event["put_to_dispatch_us"] == event["dispatched_us"] - event["put_at_us"] and
+                             0 < event["put_to_dispatch_us"] <= 2 * event["budget_ms"] * 1000 +
+                             max(0, event["admitted_us"] - (event["first_admitted_us"] + event["budget_ms"] * 1000))
+                             for event in dispatched))
             runner.check("followup-after-never-sent-has-no-stale-message",
                          below.get("followup_generation") == 3 and below.get("followup_stat") == "COMM" and
                          below.get("followup_amsg") == "")

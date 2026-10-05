@@ -383,6 +383,7 @@ D7="$D7 grace-native-failure grace-all-outcomes never-sent-overcount behind-flag
 D7="$D7 grace-channel-failure grace-worker-failure grace-stopping"
 D7="$D7 never-sent-message-always never-sent-message-absent"
 D7="$D7 never-sent-message-any-outcome never-sent-message-not-reset report-never-sent-miscounted"
+D7="$D7 queued-deadline-extended"
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --d7-controls $D7 --output work/r6-d7-controls
 ```
 

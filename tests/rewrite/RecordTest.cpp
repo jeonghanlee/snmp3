@@ -1125,10 +1125,11 @@ void deadlineTrial(const char* label)
     const auto before=Requests::instance().snapshot().completions;
     const auto packets=delayedSets();
     Runtime::instance().takeSupervisionEvents();
+    const auto firstAdmittedAt=monotonicUs();
     { RecordLock lock(rec); rec->udf=FALSE; reinterpret_cast<aoRecord*>(rec)->val=1.5; dbProcess(rec);
       check(rec->pact,"deadline-queue first SET was not admitted"); }
     check(until([&]{return delayedSets()>packets;}),"deadline-queue SET packet not observed");
-    const double latest=2.5; put("Records_QueueAo.VAL",DBR_DOUBLE,&latest);
+    const double latest=2.5; const auto putAt=monotonicUs(); put("Records_QueueAo.VAL",DBR_DOUBLE,&latest);
     const auto admittedAt=pollGeneration(rec,2,[&]{
         return Requests::instance().snapshot().completions>=before+1 && !rec->pact && !rec->rpro &&
                ((context->identity.generation>=2 && Requests::instance().snapshot().completions>=before+2) ||
@@ -1159,12 +1160,16 @@ void deadlineTrial(const char* label)
     std::printf("{\"event\":\"deadline_queue\",\"trial\":\"%s\",\"generation\":%llu,\"completions_delta\":%llu,"
                 "\"stat\":\"%s\",\"sevr\":\"%s\",\"amsg\":\"%s\",\"followup_generation\":%llu,\"followup_stat\":\"%s\","
                 "\"followup_amsg\":\"%s\",\"deadline_us\":%llu,\"ready_us\":%llu,\"admitted_us\":%llu,"
-                "\"deadline_to_ready_us\":%llu,\"admission_to_ready_us\":%llu,\"second_dispatched\":%s,\"timeline\":%s}\n",
+                "\"deadline_to_ready_us\":%llu,\"admission_to_ready_us\":%llu,\"second_dispatched\":%s,"
+                "\"budget_ms\":%u,\"first_admitted_us\":%llu,\"put_at_us\":%llu,\"dispatched_us\":%llu,\"put_to_dispatch_us\":%llu,"
+                "\"timeline\":%s}\n",
                 label,generation,completions,stat.c_str(),sevr.c_str(),amsg.c_str(),followGeneration,followStat.c_str(),followAmsg.c_str(),
                 (unsigned long long)deadlineAt,(unsigned long long)readyAt,(unsigned long long)admittedAt,
                 (unsigned long long)(readyAt>deadlineAt?readyAt-deadlineAt:0),
                 (unsigned long long)(admittedAt && readyAt>admittedAt?readyAt-admittedAt:0),
-                dispatchedAt && admittedAt && dispatchedAt>admittedAt?"true":"false",timeline(events).c_str());
+                dispatchedAt && admittedAt && dispatchedAt>admittedAt?"true":"false",
+                context->definition.budgetMs,(unsigned long long)firstAdmittedAt,(unsigned long long)putAt,(unsigned long long)dispatchedAt,
+                (unsigned long long)(dispatchedAt>putAt?dispatchedAt-putAt:0),timeline(events).c_str());
 }
 // One near-deadline trial: the outer UDP delay places the response just before the record budget,
 // so the result is selected inside the last service tick; prints whether the worker was contained
