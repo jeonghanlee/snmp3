@@ -19,6 +19,10 @@ QUEUE_CASES = ("deadline-queue", "near-deadline", "stop-queued")
 STOP_BUDGET_MS = 300
 
 
+class InconclusiveWait(Exception):
+    """A stop-queued trial that stopped without an observed Base reprocess cannot judge the product."""
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", required=True, type=Path)
@@ -375,6 +379,12 @@ def main():
             events.append({"event": "accounting_summary", "trials": len(windows), "window_observed": len(observed)})
         if args.case == "stop-queued":
             stop = next((event for event in events if event.get("event") == "stop_queued"), {})
+            # Product checks apply only when the harness observed the reprocess before stopping. A missing event
+            # without a trial failure line means the stop under test itself failed, which the checks judge.
+            before_wait = "record test failed after" in (output / "records.stderr").read_text(errors="replace")
+            if stop.get("wait_exit") not in ("queued", "rejected") and (stop or before_wait):
+                write_json(output / "record-observations.json", events)
+                raise InconclusiveWait()
             runner.check("stop-with-retirement-pending-and-queued-successor",
                          stop.get("queued_successor") and stop.get("held_retirement_pending") == 1 and stop.get("held_queued") == 1)
             runner.check("queued-successor-completes-stopping-once",
@@ -411,7 +421,7 @@ def main():
     passed = not aborted and bool(runner.checks) and all(check["passed"] for check in runner.checks)
     write_json(output / "results.json", {"passed": passed, "aborted": aborted, "checks": runner.checks,
                "inputs": {str(path): digest(path) for path in inputs}, "loaded_libraries": runner.identities,
-               "scope": "Initial eleven-record integration and isolated shutdown; does not close the full T1-T14 matrix"})
+               "scope": f"Record case {args.case}; qualifies this invocation only and does not close the full T1-T14 matrix"})
     print(("PASS: " if passed else "FAIL: ") + str(output / "results.json"))
     return 0 if passed else 1
 

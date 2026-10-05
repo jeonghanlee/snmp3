@@ -1275,7 +1275,16 @@ void stopWithQueuedSuccessor()
     const double latest=2.5; put("Records_QueueAo.VAL",DBR_DOUBLE,&latest);
     const auto links=typed<calcRecord>("Records_QueueCompleted").val;
     check(until([&]{return Requests::instance().snapshot().completions>=before+1;},30000000),"stop trial first generation did not complete");
-    until([&]{ RecordLock lock(rec); return (context->identity.generation>=2 && rec->pact) || (!rec->pact && !rec->rpro); },3000000);
+    // Base clears RPRO before scanOnce runs the reprocess, so the wait ends only on an observed reprocess:
+    // a queued successor holds PACT, or a rejected one has completed its own FLNK.
+    const char* waitExit="timeout"; unsigned waitRpro=0,waitPact=0; uint64_t waitGeneration=0; double waitLinks=0;
+    until([&]{ RecordLock lock(rec);
+               waitRpro=rec->rpro; waitPact=rec->pact; waitGeneration=context->identity.generation;
+               waitLinks=typed<calcRecord>("Records_QueueCompleted").val-links;
+               if(context->identity.generation>=2 && rec->pact)waitExit="queued";
+               else if(waitLinks>=2)waitExit="rejected";
+               else return false;
+               return true; },3000000);
     const auto held=scheduler->snapshot(1);
     bool queuedSuccessor=false;
     { RecordLock lock(rec); queuedSuccessor=context->identity.generation>=2 && rec->pact; }
@@ -1290,13 +1299,17 @@ void stopWithQueuedSuccessor()
     std::printf("{\"event\":\"stop_queued\",\"queued_successor\":%s,\"held_retirement_pending\":%llu,\"held_queued\":%llu,"
                 "\"generation\":%llu,\"stat\":\"%s\",\"sevr\":\"%s\",\"pact\":%u,\"flnk_delta\":%.0f,\"completions_delta\":%llu,"
                 "\"drain_failed\":%s,\"state\":%d,\"stop_at_us\":%llu,\"stop_duration_us\":%llu,\"reap_at_us\":%llu,\"retirement_pending_after\":%llu,"
-                "\"settled\":%s,\"timeline\":%s}\n",queuedSuccessor?"true":"false",
+                "\"settled\":%s,\"wait_exit\":\"%s\",\"wait_rpro\":%u,\"wait_pact\":%u,\"wait_generation\":%llu,"
+                "\"wait_flnk_delta\":%.0f,\"timeline\":%s}\n",
+                queuedSuccessor?"true":"false",
                 (unsigned long long)held.retirementPending,(unsigned long long)held.queued,
                 (unsigned long long)context->identity.generation,epicsAlarmConditionStrings[rec->stat],
                 epicsAlarmSeverityStrings[rec->sevr],rec->pact,typed<calcRecord>("Records_QueueCompleted").val-links,
                 (unsigned long long)(records.completions-before),records.drainFailed?"true":"false",int(runtime.state),
                 (unsigned long long)stopAt,(unsigned long long)(stoppedAt-stopAt),(unsigned long long)firstAt(events,7),
-                (unsigned long long)after.retirementPending,scheduler->settled()?"true":"false",timeline(events).c_str());
+                (unsigned long long)after.retirementPending,scheduler->settled()?"true":"false",
+                waitExit,waitRpro,waitPact,(unsigned long long)waitGeneration,waitLinks,timeline(events).c_str());
+    check(std::strcmp(waitExit,"timeout")!=0,"stop trial reprocess was not observed before stop");
 }
 }
 

@@ -253,6 +253,7 @@ python3 tests/rewrite/test_records.py --case policy --output work/r6-policy
 python3 tests/rewrite/test_records.py --case numeric --output work/r6-numeric
 python3 tests/rewrite/test_records.py --case shutdown --output work/r6-shutdown
 python3 tests/rewrite/test_records.py --case queued-shutdown --output work/r6-queued
+python3 tests/rewrite/test_records.py --case stop-queued --output work/r6-stop-queued
 ```
 
 | Case | Shipped fixtures and observed boundary |
@@ -265,6 +266,7 @@ python3 tests/rewrite/test_records.py --case queued-shutdown --output work/r6-qu
 | numeric | record-numeric.db; all 68 advertised numeric GET pairs, including 48 native-tag/waveform-FTVL pairs; all 20 numeric SET pairs; range/precision boundaries, previous data and NORD preservation after valid input, complete Counter64 range, nonfinite input and rejected SET with separate native GET |
 | shutdown | An actual module callback has entered but waits for a held Base record lock; drain expiry closes the gate, shutdown waits for the lease to finish and restart is refused |
 | queued-shutdown | An external callback holds the actual Base queue; a module completion remains queued after gate closure/detach and retains its storage until actual isolated queue cleanup |
+| stop-queued | record-queue.db and actual outer UDP response dropping; a stopped worker leaves a Deadline-selected predecessor retirement-pending while a Base RPRO successor is queued behind it, then `Runtime::stop`, the operation behind `snmp3Stop`, completes the successor once and reaps the predecessor; the `stop_queued` event in `record-observations.json` records the wait rule of the [supervision document](../../docs/snmp-worker-supervision.md) |
 
 The pressure cases fill the actual Base low-priority queue with external
 callbacks. Failed module enqueue retains the terminal, full reservation and
@@ -364,6 +366,19 @@ failure, timeout, forced kill or unrelated failure does not qualify a control.
 ```bash
 BUILD_RECEIPT=work/r6-sanitizer-build/sanitizer-build.json
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --output work/r6-controls
+```
+
+The D7 controls alter the shipped `Scheduler.cpp` and run their named
+component, qualification or record cell against the same build. Each control
+directory keeps `cell/cell.stdout` and `cell/cell.stderr`; qualification and
+record cells also keep their run output under `cell/run/`. A record cell whose
+trial was killed at its child bound, or a stop-queued cell without its
+`stop_queued` event, qualifies neither a reference nor a control:
+
+```bash
+D7="per-handle-bound early-release binding-lookup-component binding-lookup-qualification binding-lookup-record"
+D7="$D7 queued-deadline-restart stop-one-generation storage-validation"
+python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --d7-controls $D7 --output work/r6-d7-controls
 ```
 
 The shipped controls cover communication-alarm classification, integer

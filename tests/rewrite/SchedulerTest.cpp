@@ -191,6 +191,19 @@ void twoGenerationLifecycle()
         consume(t.s,t.second,ipc::Outcome::Complete); check(t.s.settled());
     }
 }
+// A Retired frame carrying the queued successor's identity, presented while the predecessor's batch
+// is still active, must be rejected: validation is membership in the active batch, not presence in
+// generation storage. The real frame then retires only the predecessor.
+void forgedRetirement()
+{
+    TwoGenerations t(5000);
+    check(!t.s.retired(1,t.d.batch,{t.second}));
+    auto q=t.s.snapshot(1); check(q.count==2 && q.retirementPending==1 && q.queued==1 && t.s.dispatch(1,1003).commands.empty());
+    check(t.s.retired(1,t.d.batch,identities(t.d)));
+    auto d=t.s.dispatch(1,1004); check(d.commands.size()==1 && d.commands[0].id==t.second);
+    t.s.transmitted(1,d.batch); check(t.s.complete(1,d.batch,results(d),1005)); check(t.s.retired(1,d.batch,identities(d)));
+    consume(t.s,t.second,ipc::Outcome::Complete); check(t.s.settled());
+}
 }
 
 int main(int argc,char** argv)
@@ -201,7 +214,7 @@ int main(int argc,char** argv)
         {"joint-release",jointRelease},{"fifo",fifo},{"bounds",bounds},{"recovery",recovery},
         {"frame-bounds",frameBounds},{"aliases-and-race",aliasesAndRace},
         {"admission-behind-retirement",admissionBehindRetirement},{"containment-grace",containmentGrace},
-        {"two-generation-lifecycle",twoGenerationLifecycle}};
+        {"two-generation-lifecycle",twoGenerationLifecycle},{"forged-retirement",forgedRetirement}};
     if(argc>2) { std::fprintf(stderr,"Usage: snmp3SchedulerTest [cell]\n"); return 2; }
     try {
         if(argc==2) {

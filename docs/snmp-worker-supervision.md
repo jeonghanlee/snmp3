@@ -275,6 +275,39 @@ cannot establish sanitizer success. Test-only outer IPC forwarding mutates real
 frames while retaining the selected actual worker and full native path; Runtime
 rejects transport overrides and exposes no production selector for them.
 
+A record cell that stops the runtime behind a Base reprocess must first observe
+that reprocess. Base `recGblFwdLink` clears RPRO and hands the record to
+`scanOnce`, so between the predecessor's completion and the reprocess the record
+shows neither PACT nor RPRO. The stop-queued cell therefore counts FLNK of
+`Records_QueueCompleted` from before the predecessor completes and waits up to
+3 s until either a queued successor holds PACT (`wait_exit` `queued`) or the
+counter has risen by 2, so a rejected reprocess has completed its own FLNK
+(`rejected`); otherwise it records `timeout`.
+
+The [Record Verification](../tests/rewrite/README.md#record-verification) section
+gives the commands for this case and for the D7 controls. A run writes its
+`stop_queued` event to `record-observations.json` and its trial output to
+`records.stderr` in the run's output directory, or in `<control>/cell/run/` and
+`reference-record-stop-queued/run/` under a D7 control output. The event carries
+`wait_exit` and the record state when the wait ended: `wait_rpro`, `wait_pact`,
+`wait_generation` and `wait_flnk_delta`; a passing run shows `queued`, 0, 1, 2
+and 1. Its `pact` and `generation` are read after the stop has drained the
+record and do not describe the wait.
+
+A run whose event shows `timeout` is inconclusive, as is a run without the event
+whose `records.stderr` has a `record test failed after N checks` line: that
+trial stopped before the wait, and the line names the failed step. For such a
+run `test_records.py` writes the events, skips the product checks and reports
+`aborted`, and the D7 controls count it neither as a passing reference nor as a
+detected defect. Rerun it; if a timeout recurs, the `wait_` fields show whether
+the reprocess was never scheduled (RPRO still set), is still pending (neither
+PACT nor RPRO) or held PACT without a new generation. A run without the event
+and without that line ended without its failure report, usually inside the stop
+under test; `records.stderr` and `records.receipt.json` show where it ended. Its
+product checks are judged and fail. A trial that exceeds the 180 s child bound
+is killed, shows `forced_cleanup` in `records.receipt.json` and is judged the
+same way. The D7 controls count neither kind of run as a detected defect.
+
 Receipts retain sources/headers/products/libraries, argv without secrets,
 monotonic identity/events, terminal consumption, native observations, FD/PID
 cleanup and every child wait. Generated secret sentinels must be absent from
