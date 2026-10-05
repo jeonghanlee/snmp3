@@ -47,7 +47,7 @@ def main():
     parser.add_argument("--sanitizers", action="store_true")
     parser.add_argument("--case", choices=("baseline", "shutdown", "queued-shutdown", "edges", "alarms", "active", "policy", "numeric",
                                                    "active-unforced", "deadline-queue", "near-deadline",
-                                                   "accounting", "stop-queued", "rebuild"), default="baseline")
+                                                   "accounting", "stop-queued", "rebuild", "stop-inflight"), default="baseline")
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(mode=0o700)
@@ -78,11 +78,11 @@ def main():
                          "oid": "1.3.6.1.4.1.53864.4." + str(index) + ".0",
                          "operation": operation, "valueType": tag, "capacity": capacity}
                          for name, index, operation, tag, capacity in specs]}
-        if args.case in ("alarms", "policy"):
+        if args.case in ("alarms", "policy", "stop-inflight"):
             dropped, _ = runner.fault("record-response-drop", 4, peer, "drop-all")
             configuration["endpoints"].append({"id": "Dropped", "address": "127.0.0.1",
                                                "port": int(dropped.rsplit(":", 1)[1]), "profile": "Local"})
-            prefix = "Timeout" if args.case == "alarms" else "Policy"
+            prefix = "Policy" if args.case == "policy" else "Timeout"
             configuration["bindings"] += [dict(binding, id=prefix + binding["id"], endpoint="Dropped")
                                            for binding in list(configuration["bindings"])]
         if args.case in ("active", "active-unforced", "accounting"):
@@ -232,7 +232,7 @@ def main():
             libraries, events = execute("records")
         summary = next((event for event in events if event.get("event") == "record_summary"), {})
         # Queue cases skip the baseline and pressure phases; their records are checked per trial below.
-        if args.case not in QUEUE_CASES:
+        if args.case not in QUEUE_CASES + ("stop-inflight",):
             runner.check("actual-eleven-record-path", summary.get("records") == 11 and summary.get("checks", 0) > 100)
             completions = [event for event in events if event.get("event") == "record_completed"]
             runner.check("actual-record-identities", bool(completions) and all(event["activation"] == 1 and
@@ -437,6 +437,26 @@ def main():
             runner.check("raised-limit-admits-explicit-request", limit.get("explicit_sevr") == "NO_ALARM" and
                          limit.get("explicit_completions") == 1)
             events.append({"event": "accounting_summary", "trials": len(windows), "window_observed": len(observed)})
+        if args.case == "stop-inflight":
+            stop = next((event for event in events if event.get("event") == "stop_inflight"), {})
+            rows = stop.get("records", [])
+            runner.check("stop-inflight-every-record-completes-with-alarm",
+                         len(rows) == 11 and stop.get("stopped") == 11 and stop.get("idle") == 11 and
+                         all(row["pact"] == 0 and row["stat"] == "COMM" and row["sevr"] == "INVALID" and
+                             row["published"] is False for row in rows))
+            runner.check("stop-inflight-waveform-busy-clear", stop.get("waveform_busy") == 0 and
+                         any(row["record"].endswith("Waveform") and row["busy"] == 0 for row in rows))
+            runner.check("stop-inflight-completion-and-FLNK-once-each",
+                         stop.get("completions_delta") == 11 and stop.get("flnk_delta") == 11)
+            codes = [item["code"] for item in stop.get("timeline", [])]
+            # One generation is on the worker channel and ten wait in the queue; no native result precedes the stop.
+            runner.check("stop-inflight-one-sent-and-ten-queued-at-stop",
+                         14 in codes and stop.get("pending_at_stop") == 11 and stop.get("held_queued") == 10 and
+                         not any(item["code"] == 4 and item["at"] < stop.get("stop_at_us", 0)
+                                 for item in stop.get("timeline", [])))
+            runner.check("stop-inflight-drain-succeeds-and-worker-reaped",
+                         stop.get("drain_failed") is False and stop.get("state") == 4 and stop.get("settled") is True and
+                         stop.get("reap_at_us", 0) > 0 and stop.get("retirement_pending_after") == 0)
         if args.case in ("stop-queued", "rebuild"):
             stop = next((event for event in events if event.get("event") == "stop_queued"), {})
             # Product checks apply only when the harness observed the reprocess before stopping. A missing event
@@ -479,6 +499,8 @@ def main():
         inputs += [ROOT / "tests/rewrite/db/record-edges.db", ROOT / "tests/rewrite/db/record-order.db"]
     if args.case == "alarms":
         inputs += [ROOT / "tests/rewrite/db/record-alarms.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
+    if args.case == "stop-inflight":
+        inputs += [ROOT / "tests/rewrite/db/record-stop.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case in ("active", "active-unforced"):
         inputs += [ROOT / "tests/rewrite/db/record-active.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case in QUEUE_CASES:

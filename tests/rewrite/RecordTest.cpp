@@ -52,6 +52,7 @@ bool nearDeadline=false;
 bool accounting=false;
 bool stopQueued=false;
 bool rebuild=false;
+bool stopInflight=false;
 int64_t firstActivationWorker=0;
 struct RecordLock {
     dbCommon* value;
@@ -1333,6 +1334,69 @@ void stopWithQueuedSuccessor()
                 waitExit,waitRpro,waitPact,(unsigned long long)waitGeneration,waitLinks,timeline(events).c_str());
     check(std::strcmp(waitExit,"timeout")!=0,"stop trial reprocess was not observed before stop");
 }
+
+// Admits all eleven record kinds on one unanswered address, waits until a batch is on the worker channel, then stops the
+// runtime: every record, whether sent or still queued, must complete once with a communication alarm, and every FLNK must run once.
+void stopInFlight()
+{
+    const char* kinds[]={"Ai","Longin","Int64in","Stringin","Lsi","Waveform","Ao","Longout","Int64out","Stringout","Lso"};
+    auto scheduler=Runtime::instance().schedulerOwner();
+    const auto before=Requests::instance().snapshot().completions;
+    const auto links=typed<calcRecord>("Records_StopCompleted").val;
+    Runtime::instance().takeSupervisionEvents();
+    std::vector<SupervisionEvent> events;
+    for(const char* kind:kinds) {
+        const std::string name=std::string("Records_Timeout")+kind;
+        auto* rec=record(name.c_str());
+        auto* context=static_cast<RecordContext*>(rec->dpvt);
+        RecordLock lock(rec);
+        rec->udf=context->definition.kind<=RecordKind::Waveform;
+        if(context->definition.kind==RecordKind::Lso) {
+            auto& value=*reinterpret_cast<lsoRecord*>(rec);
+            std::strcpy(value.val,"stopping"); value.len=9;
+        }
+        dbProcess(rec);
+        check(rec->pact,(std::string("stop in-flight record was not admitted: ")+name).c_str());
+    }
+    check(until([&]{ for(auto& e:Runtime::instance().takeSupervisionEvents())events.push_back(e);
+                     return firstAt(events,14)!=0; }),"stop in-flight batch was not sent to the worker");
+    const auto held=scheduler->snapshot(1);
+    const auto pending=Requests::instance().snapshot();
+    const auto stopAt=monotonicUs();
+    Runtime::instance().stop();
+    const auto stoppedAt=monotonicUs();
+    for(auto& e:Runtime::instance().takeSupervisionEvents())events.push_back(e);
+    const auto records=Requests::instance().snapshot();
+    const auto runtime=Runtime::instance().snapshot();
+    const auto after=scheduler->snapshot(1);
+    unsigned stopped=0,idle=0,busy=0;
+    std::string detail="[";
+    for(const char* kind:kinds) {
+        const std::string name=std::string("Records_Timeout")+kind;
+        auto* rec=record(name.c_str());
+        auto* context=static_cast<RecordContext*>(rec->dpvt);
+        RecordLock lock(rec);
+        const bool wave=context->definition.kind==RecordKind::Waveform;
+        const unsigned waveBusy=wave?typed<waveformRecord>(name.c_str()).busy:0;
+        stopped+=rec->stat==COMM_ALARM && rec->sevr==INVALID_ALARM;
+        idle+=!rec->pact; busy+=waveBusy;
+        if(detail.size()>1)detail+=",";
+        detail+="{\"record\":\""+name+"\",\"pact\":"+std::to_string(rec->pact)+",\"stat\":\""+epicsAlarmConditionStrings[rec->stat]+
+                "\",\"sevr\":\""+epicsAlarmSeverityStrings[rec->sevr]+"\",\"busy\":"+std::to_string(waveBusy)+
+                ",\"published\":"+(context->published?"true":"false")+",\"generation\":"+std::to_string(context->identity.generation)+"}";
+    }
+    detail+="]";
+    std::printf("{\"event\":\"stop_inflight\",\"records\":%s,\"stopped\":%u,\"idle\":%u,\"waveform_busy\":%u,"
+                "\"flnk_delta\":%.0f,\"completions_delta\":%llu,\"drain_failed\":%s,\"state\":%d,"
+                "\"pending_at_stop\":%llu,\"held_queued\":%llu,\"held_retirement_pending\":%llu,\"retirement_pending_after\":%llu,"
+                "\"settled\":%s,\"stop_at_us\":%llu,\"stop_duration_us\":%llu,\"reap_at_us\":%llu,\"timeline\":%s}\n",
+                detail.c_str(),stopped,idle,busy,typed<calcRecord>("Records_StopCompleted").val-links,
+                (unsigned long long)(records.completions-before),records.drainFailed?"true":"false",int(runtime.state),
+                (unsigned long long)pending.active,(unsigned long long)held.queued,(unsigned long long)held.retirementPending,
+                (unsigned long long)after.retirementPending,scheduler->settled()?"true":"false",
+                (unsigned long long)stopAt,(unsigned long long)(stoppedAt-stopAt),(unsigned long long)firstAt(events,7),
+                timeline(events).c_str());
+}
 }
 
 namespace {
@@ -1687,14 +1751,15 @@ int main(int argc,char** argv)
         accounting=std::strcmp(argv[8],"accounting")==0;
         stopQueued=std::strcmp(argv[8],"stop-queued")==0;
         rebuild=std::strcmp(argv[8],"rebuild")==0;
+        stopInflight=std::strcmp(argv[8],"stop-inflight")==0;
         if(edges) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
             testdbReadDatabase((root+"record-edges.db").c_str(),nullptr,"P=Records_");
             testdbReadDatabase((root+"record-order.db").c_str(),nullptr,"P=Records_");
         }
-        if(alarms) {
+        if(alarms || stopInflight) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
-            testdbReadDatabase((root+"record-alarms.db").c_str(),nullptr,"P=Records_");
+            testdbReadDatabase((root+(stopInflight?"record-stop.db":"record-alarms.db")).c_str(),nullptr,"P=Records_");
         }
         if(active || activeUnforced || accounting) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
@@ -1719,7 +1784,7 @@ int main(int argc,char** argv)
         }
         testIocInitOk();
         if(edges)inputEdges();
-        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
+        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild && !stopInflight) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
         if(edges) { capacityAndOrder(); simulation(); outputEdges(); maxPayloadQueue(); }
         if(alarms)nativeTimeouts();
         if(active)activeOutputs();
@@ -1730,6 +1795,7 @@ int main(int argc,char** argv)
         if(nearDeadline)nearDeadlineTrial();
         if(accounting)accountingTrials();
         if(stopQueued || rebuild)stopWithQueuedSuccessor();
+        if(stopInflight)stopInFlight();
         Runtime::instance().report();
         const bool blocked=std::strcmp(argv[8],"shutdown")==0;
         const bool abandoned=std::strcmp(argv[8],"queued-shutdown")==0;

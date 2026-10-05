@@ -1,0 +1,86 @@
+record(ai, "$(P)TimeoutAi") {
+    field(FLNK, "$(P)StopCompleted")
+    field(DESC, "Exact numeric SNMP input")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=TimeoutIntegerRead deadline_ms=5000")
+}
+
+record(longin, "$(P)TimeoutLongin") {
+    field(FLNK, "$(P)StopCompleted")
+    field(DESC, "Signed 32-bit SNMP input")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=TimeoutIntegerRead deadline_ms=5000")
+}
+
+record(int64in, "$(P)TimeoutInt64in") {
+    field(FLNK, "$(P)StopCompleted")
+    field(DESC, "Exact unsigned 32-bit SNMP input")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=TimeoutCounter32Read deadline_ms=5000")
+}
+
+record(stringin, "$(P)TimeoutStringin") {
+    field(FLNK, "$(P)StopCompleted")
+    field(DESC, "Formatted SNMP OID input")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=TimeoutOidRead deadline_ms=5000")
+}
+
+record(lsi, "$(P)TimeoutLsi") {
+    field(FLNK, "$(P)StopCompleted")
+    field(DESC, "Bounded SNMP octet text input")
+    field(DTYP, "snmp3")
+    field(SIZV, "256")
+    field(INP, "@binding=TimeoutOctetsRead deadline_ms=5000")
+}
+
+record(waveform, "$(P)TimeoutWaveform") {
+    field(FLNK, "$(P)StopCompleted")
+    field(DESC, "Exact unsigned 64-bit SNMP input")
+    field(DTYP, "snmp3")
+    field(FTVL, "UINT64")
+    field(NELM, "1")
+    field(BUSY, "1")
+    field(INP, "@binding=TimeoutCounter64Read deadline_ms=5000")
+}
+
+record(ao, "$(P)TimeoutAo") {
+    field(FLNK, "$(P)StopCompleted")
+    field(DESC, "Binary32 SNMP output rounding")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=TimeoutFloatWrite deadline_ms=5000")
+}
+
+record(longout, "$(P)TimeoutLongout") {
+    field(FLNK, "$(P)StopCompleted")
+    field(DESC, "Signed 32-bit SNMP output")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=TimeoutIntegerWrite deadline_ms=5000")
+}
+
+record(int64out, "$(P)TimeoutInt64out") {
+    field(FLNK, "$(P)StopCompleted")
+    field(DESC, "Exact signed 64-bit SNMP output")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=TimeoutCounter64Write deadline_ms=5000")
+}
+
+record(stringout, "$(P)TimeoutStringout") {
+    field(FLNK, "$(P)StopCompleted")
+    field(DESC, "Short SNMP octet output")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=TimeoutOctetsWrite deadline_ms=5000")
+}
+
+record(lso, "$(P)TimeoutLso") {
+    field(FLNK, "$(P)StopCompleted")
+    field(DESC, "Long SNMP octet output")
+    field(DTYP, "snmp3")
+    field(SIZV, "256")
+    field(OUT, "@binding=TimeoutOctetsWrite deadline_ms=5000")
+}
+
+record(calc, "$(P)StopCompleted") {
+    field(DESC, "Count of stopped completions")
+    field(CALC, "VAL+1")
+}

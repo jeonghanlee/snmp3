@@ -49,7 +49,8 @@ BINDING_LOOKUP = [(EXPIRE_QUEUED, "auto id=*it; auto& g=*a.generations.lower_bou
 # Controls that alter a source file other than Scheduler.cpp.
 D7_SOURCES = {"report-never-sent-miscounted": "Runtime.cpp", "rebuild-reuses-scheduler": "Runtime.cpp",
               "never-sent-message-always": "DeviceSupport.cpp", "never-sent-message-absent": "DeviceSupport.cpp",
-              "never-sent-message-any-outcome": "DeviceSupport.cpp", "never-sent-message-not-reset": "Request.cpp"}
+              "never-sent-message-any-outcome": "DeviceSupport.cpp", "never-sent-message-not-reset": "Request.cpp",
+              "waveform-busy-held": "DeviceSupport.cpp"}
 D7_CONTROLS = {
     "per-handle-bound": ("component", "admission-behind-retirement", None,
                          [("require(existing<=1 && consumed); behind.push_back(existing==1);",
@@ -112,6 +113,12 @@ D7_CONTROLS = {
                                    "if(scheduler && scheduler->configurationRevision()==config.revision)return;")]),
     "never-sent-message-absent": ("record", "deadline-queue", "below-threshold-never-sent-message",
                                   [('if(result.outcome==ipc::Outcome::Deadline && !context.terminal.sent)context.message="deadline before send";', "")]),
+    "stop-queued-not-selected": ("record", "stop-inflight", "stop-inflight-every-record-completes-with-alarm",
+                                 [("for(auto id:a.queue) { auto& g=*a.generations.at(id); select(g,ipc::Outcome::Stopping);",
+                                   "for(auto id:a.queue) { auto& g=*a.generations.at(id);")]),
+    "waveform-busy-held": ("record", "stop-inflight", "stop-inflight-waveform-busy-clear",
+                           [("if(definition.kind==RecordKind::Waveform)as<waveformRecord>(context.record).busy=FALSE;",
+                             "if(definition.kind==RecordKind::Waveform)as<waveformRecord>(context.record).busy=TRUE;")]),
     "storage-validation": ("component", "forged-retirement", None,
                            [("for(size_t i=0;i<ids.size();++i)if(!(a.generations.at(a.active[i])->command.id==ids[i]))return false;",
                              "for(size_t i=0;i<ids.size();++i)if(!a.generations.count(key(ids[i])))return false;")]),
@@ -145,19 +152,20 @@ def run_cell(kind, cell, products, output, sanitizers=True):
             nested_data = json.loads(nested.read_text())
             failed += [check["name"] for check in nested_data.get("checks", []) if not check["passed"]]
             aborted = aborted or bool(nested_data.get("aborted"))
-    # A record cell counts only when every trial process exited by itself and stop-queued printed its event.
+    # A record cell counts only when every trial process exited by itself and a stop cell printed its event.
     forced = any(json.loads(receipt.read_text()).get("forced_cleanup")
                  for receipt in sorted((output / "run").glob("records*.receipt.json")))
     observations = output / "run" / "record-observations.json"
-    observed = kind != "record" or cell != "stop-queued" or (observations.exists() and any(
-        event.get("event") == "stop_queued" for event in json.loads(observations.read_text())))
+    stop_events = {"stop-queued": "stop_queued", "stop-inflight": "stop_inflight"}
+    observed = kind != "record" or cell not in stop_events or (observations.exists() and any(
+        event.get("event") == stop_events[cell] for event in json.loads(observations.read_text())))
     return {"argv": argv, "returncode": code, "pid": child.pid, "child_reaped": True, "failed_checks": failed,
             "aborted": aborted, "forced_cleanup": forced, "observed": observed,
             "stderr_tail": (output / "cell.stderr").read_text()[-400:]}
 
 
 def detected(outcome, check):
-    # A control is detected when its cell fails without aborting, forced cleanup or a missing stop-queued event;
+    # A control is detected when its cell fails without aborting, forced cleanup or a missing stop event;
     # a named check must be among the failed checks.
     return (outcome["returncode"] != 0 and not outcome["aborted"] and not outcome["forced_cleanup"] and
             outcome["observed"] and (check is None or check in outcome["failed_checks"]))
