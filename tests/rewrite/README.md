@@ -368,7 +368,7 @@ BUILD_RECEIPT=work/r6-sanitizer-build/sanitizer-build.json
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --output work/r6-controls
 ```
 
-The D7 controls alter the shipped `Scheduler.cpp` and run their named
+The D7 controls alter one shipped support source (`Scheduler.cpp`, or `DeviceSupport.cpp` or `Request.cpp` for the never-sent message controls) and run their named
 component, qualification or record cell against the same build. Each control
 directory keeps `cell/cell.stdout` and `cell/cell.stderr`; qualification and
 record cells also keep their run output under `cell/run/`. A record cell whose
@@ -381,6 +381,8 @@ D7="$D7 binding-lookup-record"
 D7="$D7 queued-deadline-restart stop-one-generation storage-validation"
 D7="$D7 grace-native-failure grace-all-outcomes never-sent-overcount behind-flag-always take-without-identity"
 D7="$D7 grace-channel-failure grace-worker-failure grace-stopping"
+D7="$D7 never-sent-message-always never-sent-message-absent"
+D7="$D7 never-sent-message-any-outcome never-sent-message-not-reset"
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --d7-controls $D7 --output work/r6-d7-controls
 ```
 

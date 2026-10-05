@@ -48,6 +48,7 @@ struct RecordContext {
     CallbackState callbackState=CallbackState::Idle;
     bool active=false, published=false, nativeSuccess=false;
     unsigned alarm=0;
+    const char* message=nullptr;
     unsigned storageType=0;
     void* storage=nullptr;
     std::unique_ptr<Value> staged;

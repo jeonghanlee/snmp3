@@ -83,6 +83,7 @@ void prepare(RecordContext& context,const ipc::Result& result)
                              result.nativeOutcome==NativeSendFailure || result.nativeOutcome==NativeCancelled;
         context.alarm=result.outcome==ipc::Outcome::NativeFailure && !transport ?
                       (input(definition.kind)?READ_ALARM:WRITE_ALARM):COMM_ALARM;
+        if(result.outcome==ipc::Outcome::Deadline && !context.terminal.sent)context.message="deadline before send";
         return;
     }
     if(result.nativeOutcome!=NativeComplete) { context.alarm=input(definition.kind)?READ_ALARM:WRITE_ALARM; return; }

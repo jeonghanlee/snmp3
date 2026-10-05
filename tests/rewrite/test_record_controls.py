@@ -46,6 +46,9 @@ EXPIRE_QUEUED = "auto id=*it; auto& g=*a.generations.at(id);"
 STOP_QUEUED = "for(auto id:a.queue) { auto& g=*a.generations.at(id); select(g,ipc::Outcome::Stopping);"
 BINDING_LOOKUP = [(EXPIRE_QUEUED, "auto id=*it; auto& g=*a.generations.lower_bound(Key(id.first,0))->second;"),
                   (STOP_QUEUED, "for(auto id:a.queue) { auto& g=*a.generations.lower_bound(Key(id.first,0))->second; select(g,ipc::Outcome::Stopping);")]
+# Controls that alter a source file other than Scheduler.cpp.
+D7_SOURCES = {"never-sent-message-always": "DeviceSupport.cpp", "never-sent-message-absent": "DeviceSupport.cpp",
+              "never-sent-message-any-outcome": "DeviceSupport.cpp", "never-sent-message-not-reset": "Request.cpp"}
 D7_CONTROLS = {
     "per-handle-bound": ("component", "admission-behind-retirement", None,
                          [("require(existing<=1 && consumed); behind.push_back(existing==1);",
@@ -90,6 +93,16 @@ D7_CONTROLS = {
     "take-without-identity": ("component", "take-identity", None,
                               [("if(it==a.generations.end() || !(it->second->command.id==terminal) || !it->second->selected ||",
                                 "if(it==a.generations.end() || !it->second->selected ||")]),
+    "never-sent-message-always": ("record", "deadline-queue", "sent-deadline-without-never-sent-message",
+                                 [('if(result.outcome==ipc::Outcome::Deadline && !context.terminal.sent)context.message="deadline before send";',
+                                   'if(result.outcome==ipc::Outcome::Deadline)context.message="deadline before send";')]),
+    "never-sent-message-any-outcome": ("record", "stop-queued", "stopping-successor-has-no-never-sent-message",
+                                      [('if(result.outcome==ipc::Outcome::Deadline && !context.terminal.sent)context.message="deadline before send";',
+                                        'if(!context.terminal.sent)context.message="deadline before send";')]),
+    "never-sent-message-not-reset": ("record", "deadline-queue", "followup-after-never-sent-has-no-stale-message",
+                                    [("context.alarm=0; context.message=nullptr;", "context.alarm=0;")]),
+    "never-sent-message-absent": ("record", "deadline-queue", "below-threshold-never-sent-message",
+                                  [('if(result.outcome==ipc::Outcome::Deadline && !context.terminal.sent)context.message="deadline before send";', "")]),
     "storage-validation": ("component", "forged-retirement", None,
                            [("for(size_t i=0;i<ids.size();++i)if(!(a.generations.at(a.active[i])->command.id==ids[i]))return false;",
                              "for(size_t i=0;i<ids.size();++i)if(!a.generations.count(key(ids[i])))return false;")]),
@@ -203,13 +216,13 @@ def main_d7(args, jobs, output):
         item.mkdir(mode=0o700)
         products = item / "products"
         products.mkdir(mode=0o700)
-        source = ROOT / "snmp3App/src/Scheduler.cpp"
+        source = ROOT / "snmp3App/src" / D7_SOURCES.get(name, "Scheduler.cpp")
         text = source.read_text()
         for old, new in edits:
             if text.count(old) != 1:
                 raise RuntimeError("control source anchor is not unique")
             text = text.replace(old, new)
-        replacement = item / "Scheduler.cpp"
+        replacement = item / source.name
         replacement.write_text(text)
         write_json(item / "mutation.json", {"control": name, "source": str(source), "original_sha256": digest(source),
                    "mutated_sha256": digest(replacement), "edits": edits, "cell": [kind, cell], "check": check})

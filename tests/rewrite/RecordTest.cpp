@@ -1141,12 +1141,26 @@ void deadlineTrial(const char* label)
     const auto deadlineAt=firstAt(events,6),readyAt=firstAt(events,3,deadlineAt);
     const auto secondEpoch=[&]{ for(const auto& e:events)if(e.code==3 && e.at>=deadlineAt)return e.epoch; return uint64_t(0); }();
     const auto dispatchedAt=secondEpoch?firstAt(events,13,readyAt,secondEpoch):0;
-    RecordLock lock(rec);
+    unsigned long long generation=0,completions=0; std::string stat,sevr,amsg;
+    { RecordLock lock(rec); generation=context->identity.generation; completions=Requests::instance().snapshot().completions-before;
+      stat=epicsAlarmConditionStrings[rec->stat]; sevr=epicsAlarmSeverityStrings[rec->sevr]; amsg=rec->amsg; }
+    // After a never-sent generation, one more SET on the Ready worker must not inherit its message.
+    unsigned long long followGeneration=0; std::string followStat,followAmsg;
+    if(std::strcmp(label,"below")==0) {
+        const auto base=Requests::instance().snapshot().completions;
+        { RecordLock lock(rec); reinterpret_cast<aoRecord*>(rec)->val=3.5; dbProcess(rec);
+          check(rec->pact,"deadline-queue follow-up SET was not admitted"); }
+        check(until([&]{ RecordLock lock(rec); return !rec->pact && Requests::instance().snapshot().completions>=base+1; },30000000),
+              "deadline-queue follow-up did not complete");
+        check(until([&]{return context->owner->settled();},30000000),"deadline-queue follow-up retained native ownership");
+        RecordLock lock(rec); followGeneration=context->identity.generation;
+        followStat=epicsAlarmConditionStrings[rec->stat]; followAmsg=rec->amsg;
+    }
     std::printf("{\"event\":\"deadline_queue\",\"trial\":\"%s\",\"generation\":%llu,\"completions_delta\":%llu,"
-                "\"stat\":\"%s\",\"sevr\":\"%s\",\"amsg\":\"%s\",\"deadline_us\":%llu,\"ready_us\":%llu,\"admitted_us\":%llu,"
+                "\"stat\":\"%s\",\"sevr\":\"%s\",\"amsg\":\"%s\",\"followup_generation\":%llu,\"followup_stat\":\"%s\","
+                "\"followup_amsg\":\"%s\",\"deadline_us\":%llu,\"ready_us\":%llu,\"admitted_us\":%llu,"
                 "\"deadline_to_ready_us\":%llu,\"admission_to_ready_us\":%llu,\"second_dispatched\":%s,\"timeline\":%s}\n",
-                label,(unsigned long long)context->identity.generation,
-                (unsigned long long)(Requests::instance().snapshot().completions-before),epicsAlarmConditionStrings[rec->stat],epicsAlarmSeverityStrings[rec->sevr],rec->amsg,
+                label,generation,completions,stat.c_str(),sevr.c_str(),amsg.c_str(),followGeneration,followStat.c_str(),followAmsg.c_str(),
                 (unsigned long long)deadlineAt,(unsigned long long)readyAt,(unsigned long long)admittedAt,
                 (unsigned long long)(readyAt>deadlineAt?readyAt-deadlineAt:0),
                 (unsigned long long)(admittedAt && readyAt>admittedAt?readyAt-admittedAt:0),
@@ -1299,7 +1313,7 @@ void stopWithQueuedSuccessor()
     std::printf("{\"event\":\"stop_queued\",\"queued_successor\":%s,\"held_retirement_pending\":%llu,\"held_queued\":%llu,"
                 "\"generation\":%llu,\"stat\":\"%s\",\"sevr\":\"%s\",\"pact\":%u,\"flnk_delta\":%.0f,\"completions_delta\":%llu,"
                 "\"drain_failed\":%s,\"state\":%d,\"stop_at_us\":%llu,\"stop_duration_us\":%llu,\"reap_at_us\":%llu,\"retirement_pending_after\":%llu,"
-                "\"settled\":%s,\"wait_exit\":\"%s\",\"wait_rpro\":%u,\"wait_pact\":%u,\"wait_generation\":%llu,"
+                "\"settled\":%s,\"amsg\":\"%s\",\"wait_exit\":\"%s\",\"wait_rpro\":%u,\"wait_pact\":%u,\"wait_generation\":%llu,"
                 "\"wait_flnk_delta\":%.0f,\"timeline\":%s}\n",
                 queuedSuccessor?"true":"false",
                 (unsigned long long)held.retirementPending,(unsigned long long)held.queued,
@@ -1307,7 +1321,7 @@ void stopWithQueuedSuccessor()
                 epicsAlarmSeverityStrings[rec->sevr],rec->pact,typed<calcRecord>("Records_QueueCompleted").val-links,
                 (unsigned long long)(records.completions-before),records.drainFailed?"true":"false",int(runtime.state),
                 (unsigned long long)stopAt,(unsigned long long)(stoppedAt-stopAt),(unsigned long long)firstAt(events,7),
-                (unsigned long long)after.retirementPending,scheduler->settled()?"true":"false",
+                (unsigned long long)after.retirementPending,scheduler->settled()?"true":"false",rec->amsg,
                 waitExit,waitRpro,waitPact,(unsigned long long)waitGeneration,waitLinks,timeline(events).c_str());
     check(std::strcmp(waitExit,"timeout")!=0,"stop trial reprocess was not observed before stop");
 }

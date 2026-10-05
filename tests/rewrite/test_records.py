@@ -347,10 +347,18 @@ def main():
             summaries = [event for event in events if event.get("event") == "record_summary"]
             runner.check("deadline-trials-completed", len(summaries) == DEADLINE_TRIALS + 2)
             below, above = trials.get("below", {}), trials.get("above", {})
+            # The proxy sees the first SET and the follow-up SET; the queued second generation is never sent.
             runner.check("below-threshold-queued-generation-not-sent",
                          below.get("generation") == 2 and not below.get("second_dispatched") and
-                         below.get("proxy_sets") == 1 and below.get("stat") == "COMM" and below.get("sevr") == "INVALID")
+                         below.get("proxy_sets") == 2 and below.get("stat") == "COMM" and below.get("sevr") == "INVALID")
             runner.check("below-threshold-never-sent-message", below.get("amsg") == "deadline before send")
+            runner.check("followup-after-never-sent-has-no-stale-message",
+                         below.get("followup_generation") == 3 and below.get("followup_stat") == "COMM" and
+                         below.get("followup_amsg") == "")
+            runner.check("sent-deadline-without-never-sent-message",
+                         len([event for event in trials.values() if event.get("second_dispatched")]) >= 1 and
+                         all(event.get("amsg") != "deadline before send" for event in trials.values()
+                             if event.get("second_dispatched")))
             runner.check("above-threshold-queued-generation-sent-after-ready",
                          above.get("generation") == 2 and above.get("second_dispatched") and
                          above.get("proxy_sets") == 2 and above.get("stat") == "COMM" and above.get("sevr") == "INVALID")
@@ -390,6 +398,7 @@ def main():
             runner.check("queued-successor-completes-stopping-once",
                          stop.get("generation") == 2 and stop.get("pact") == 0 and stop.get("sevr") == "INVALID" and
                          stop.get("flnk_delta") == 2 and stop.get("completions_delta") == 2 and stop.get("proxy_sets") == 1)
+            runner.check("stopping-successor-has-no-never-sent-message", stop.get("amsg") == "")
             runner.check("drain-succeeds-before-predecessor-reap",
                          stop.get("drain_failed") is False and stop.get("settled") is True)
         runner.check("IOC-native-free", bool(libraries) and not any("netsnmp" in path for path in libraries))
