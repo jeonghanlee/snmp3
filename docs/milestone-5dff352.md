@@ -902,7 +902,79 @@ The D7-D9 revisions of the M5 and M6 Implementation Plans (2026-10-03) need owne
 
 | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
+| M10 | Negative-control harness outcome classification | Carry-forward | Open | No | none | Owner scope decision recorded and each listed outcome either classified by an executed run or kept by decision; [detail](#m10---negative-control-harness-outcome-classification) |
 
 ### Backlog Details
 
-No unassigned work is recorded in this generation. The eight rewrite checkpoints and mdBook work are assigned under Milestone.
+The eight rewrite checkpoints and mdBook work are assigned under Milestone.
+
+#### M10 - Negative-control harness outcome classification
+
+Origin: 5dff352 / M10
+Identity History: none
+GitHub Issue: none
+Status: Open (unresolved scope; held for discussion by owner direction of 2026-10-04)
+
+##### Summary
+
+`tests/rewrite/test_record_controls.py` qualifies a D7 control only when its
+reference passes and the defective run fails without aborting; a record run
+killed at its child bound or a stop-queued run without its `stop_queued` event
+qualifies neither. Several outcomes outside that rule are not yet classified or
+have never run on the real path.
+
+##### Scope
+
+- Whether qualification cells apply the same forced-cleanup rule as record
+  cells. In the D7 runs of 2026-10-04 (for example
+  `work/r6-p010-controls-20261004-162208/`), the defective
+  `binding-lookup-qualification` copy shows `forced_cleanup` true in the IPv4
+  run's `behind-retirement-4/qualification.receipt.json` while its reference
+  shows false.
+- The 900 s bound in `run_cell` raises and ends the whole D7 run instead of
+  recording that cell's outcome.
+- The stop-queued `rejected`, `timeout`, inconclusive, forced-kill and
+  missing-event outcomes have been checked by code reading only; a sanitizer
+  abort after the `stop_queued` event is judged on the product checks alone.
+- The trial failure line is reported only in `records.stderr` among loader
+  diagnostics; the recorded `stderr_tail` comes from the harness stderr.
+
+Out of scope: the D7 product changes and the stop-queued wait rule recorded in
+`docs/snmp-worker-supervision.md`.
+
+##### Completion Criteria
+
+- An owner decision fixes which outcomes qualify, abort or are judged.
+- An owner decision fixes whether the trial failure line is surfaced in the
+  control results.
+- Each outcome kept active is classified by an executed real-path run, or its
+  absence is recorded by decision.
+
+##### Dependencies And Decisions
+
+- none
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Discuss the scope items with the owner and record the decision.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Negative-control harness | Run the decided outcomes through `test_record_controls.py --d7-controls` on an identified sanitizer build | Linux host, sanitizer products | Each decided outcome is classified as recorded |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Linux host, sanitizer products | Pending | none |
+
+##### Closure Evidence
+
+- none
