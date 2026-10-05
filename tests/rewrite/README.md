@@ -376,7 +376,8 @@ trial was killed at its child bound, or a stop-queued cell without its
 `stop_queued` event, qualifies neither a reference nor a control:
 
 ```bash
-D7="per-handle-bound early-release binding-lookup-component binding-lookup-qualification binding-lookup-record"
+D7="per-handle-bound early-release uncharged-successor binding-lookup-component binding-lookup-qualification"
+D7="$D7 binding-lookup-record"
 D7="$D7 queued-deadline-restart stop-one-generation storage-validation"
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --d7-controls $D7 --output work/r6-d7-controls
 ```
