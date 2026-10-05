@@ -99,8 +99,11 @@ process. Isolated Base database reuse does not unfreeze Config.
 ## Admission, FIFO and terminal ownership
 
 Register each consumer's immutable binding separately. Alias handles for the
-same definition have separate generation and terminal identities. A handle has
-at most one unretired generation. An atomic call targets one address and captures
+same definition have separate generation and terminal identities. A handle holds
+at most two generations: one whose terminal is consumed and awaits only native
+retirement, and one new generation. A new generation is admitted only when every
+existing generation of the handle is consumed and at most one exists; otherwise
+admission is rejected. An atomic call targets one address and captures
 one monotonic origin and a positive integer budget of 1-600000 ms. Its uint64
 deadline includes queueing, bootstrap, IPC, discovery and native service.
 
@@ -126,8 +129,21 @@ Both orders, retirement before consumption and consumption before retirement,
 preserve the charge until their joint transition. Stale/duplicate frames cannot
 change current ownership or select a second terminal.
 
+A generation admitted behind a retirement-pending predecessor waits in the
+per-address FIFO. Dispatch keeps at most one active batch per address, so it is
+not sent before the predecessor's Retired frame or exact reap. It keeps the
+deadline of its own admission, so waiting consumes its budget, and it keeps its
+own count and Q. If its deadline passes before dispatch, it is selected
+Deadline as never-sent work. Stop selects Stopping for it, and a reap retires
+only the predecessor. Every Scheduler structure and lookup is keyed by binding
+and generation, so the two generations of one handle never share state.
+
 Reports classify `queued`, `active`, `undelivered` and `retirementPending`;
-`count` and `bytes` include all of them. A borrowed terminal remains undelivered
+`count` and `bytes` include all of them. The scheduler snapshot also counts
+`behindRetirement` (queued generations whose predecessor is consumed but not
+retired), `behindAdmitted` (generations ever admitted behind a predecessor) and
+`behindNeverSent` (such generations that reached Deadline before dispatch);
+`snmp3RuntimeReport` does not print these three. A borrowed terminal remains undelivered
 until release. `retirementPending` means its terminal was consumed but its native
 or channel ownership has not ended. Worker reports identify address, epoch, PID,
 ready/closing, active batch, launches, reaps and forced signals.
@@ -160,8 +176,15 @@ capacity)` for pre-admission capture. Base-owned lsi/lso/waveform buffers are
 separate. The callback borrows scheduler storage; it creates no accumulating
 second result queue. Servicing visits at most 128 contexts per iteration.
 
-A nine-arc Integer GET charges 4608 bytes, admitting 227 under the default
-1048576-byte limit. The ten-arc Integer GET fixture charges 4672. A 128-arc,
+Each handle can hold two charged generations, so the count and byte limits of an
+address must cover two generations of each handle that can hold a successor;
+admission that exceeds either limit is rejected and
+changes nothing. After a failed or incomplete stop, ownership retained in
+IncompleteStopped is up to two charged generations per handle: the consumed
+predecessor awaiting retirement or reap and its successor.
+
+A nine-arc Integer GET charges 4608 bytes, admitting 227 distinct handles under
+the default 1048576-byte limit. The ten-arc Integer GET fixture charges 4672. A 128-arc,
 capacity-1048576 Octets GET charges 4202688 and SET charges 8397056; increase
 the byte limit before admitting either. Pending-byte limits are module-owned
 reservation bounds, not process RSS bounds. Vendor PDUs, allocator overhead,
@@ -213,13 +236,17 @@ to discard pinned USM material.
 | Partial non-bootstrap frame | 1000 ms from first byte; request deadline can be earlier |
 | Bootstrap/Ready | 5000 ms from spawn; admission expiry remains independent |
 | Stop graceful close / TERM / KILL-reap observation | +1000 / +1500 / +2000 ms from one origin |
-| Restart backoff | 250, 500, 1000, 2000, 4000 ms, then 4000 ms |
+| Retired grace after deadline | 1000 ms for a member already selected Complete or NativeFailure |
+| Restart backoff | 250, 500, 1000, 2000, 4000 ms, then 4000 ms; a matched Retired restarts the series |
 | Restart rate | Four attempts/address in trailing 60000 ms, including initial attempt |
 | Global spawn | At most one attempt/loop; round-robin addresses |
 
 Due deadlines are handled before optional I/O/spawn. Expiry selects one Deadline
 per still-nonterminal member of the equal-deadline active batch and starts
-containment. No next batch uses that slot before Retired or exact reap. Peer
+containment. A member already selected Complete or NativeFailure keeps that
+outcome and starts containment only when its Retired frame is still missing 1000
+ms after its deadline. A matched Retired frame resets the address's consecutive
+failure count; the four-attempt rate cap is unchanged. No next batch uses that slot before Retired or exact reap. Peer
 addresses remain independently serviced. A new epoch follows actual old PID reap.
 Normal native close and forced termination are separate observations. These
 timers assume runnable OS threads; an unreaped process is retained as incomplete

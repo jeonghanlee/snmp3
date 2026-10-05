@@ -1,6 +1,7 @@
 # ADR: Address workers, exact-deadline FIFO and joint retirement
 
 Date: 2026-10-01
+Amended: 2026-10-03 (per-handle generations behind retirement; containment of answered requests)
 Status: accepted for the verified R5 component and IOC supervision boundary
 Source Session: standalone author work in `/home/jeonglee/gitsrc/snmp3`
 Source Decisions: User-approved `work/plan-r5-20260930-02.md`, SHA256
@@ -14,7 +15,9 @@ Native discovery/open can block. Device slowness or native failure must not stal
 the IOC or another address. Accepted requests own bounded data and must have
 admission-based deadlines. Consumption can precede actual native unwind, while
 native retirement can precede consumption; either condition alone is insufficient
-to release storage. Missing SET acknowledgement does not establish no side effect.
+to release storage. Missing SET acknowledgement does not establish no side effect. Retirement
+trails a terminal by about one worker poll, so a Base reprocess requested by a
+put during that interval met a handle that still held its previous generation.
 
 ## Decision
 
@@ -35,13 +38,24 @@ deadlines. Retain one count/full Q per generation until unique terminal consumpt
 AND matching actual retirement or closed-channel/exact old PID reap. No early
 reservation transfer or extra uncharged completion queue is allowed.
 
+Admit one new generation for a handle whose previous generation is consumed and
+awaits only native retirement, and queue it behind that retirement in the
+per-address single-batch FIFO. The new generation keeps the deadline of its own
+admission and its own count and full Q. A handle therefore holds at most two
+generations, and every Scheduler structure and lookup is keyed by binding and
+generation. Stop and expiry treat the queued generation as never-sent work, and a
+reap retires only the predecessor.
+
 The first successfully transmitted Batch byte makes the entire batch ambiguous.
 Only proven zero-byte requests can survive replacement with their original
 identity/deadline. Do not replay ambiguous GET or SET. Net-SNMP retains ownership
 of protocol retries and process-pinned USM compatibility.
 
 Contain expired/failed workers locally, retain the dispatch slot through native
-unwind or reap, and restart with a new epoch only after old PID wait. Apply the
+unwind or reap, and restart with a new epoch only after old PID wait. A member
+already selected Complete or NativeFailure triggers containment only when its
+Retired frame is still missing 1000 ms after its deadline, and a matched Retired
+frame resets the address's consecutive failure count. Apply the
 fixed backoff/rate and address fairness rules. Request-level security conflicts
 do not restart healthy workers to change pinned material.
 
@@ -53,7 +67,11 @@ the [worker reference](../snmp-worker-supervision.md).
 
 ## Consequences
 
-Slow/blocked native work can require forced process termination. A Deadline
+A handle can retain two charged generations, and so can a failed or incomplete
+stop, so address limits must cover two generations per handle that can hold a
+successor. A queued generation spends its budget while it waits for the
+predecessor's retirement. Slow/blocked native work can require forced process
+termination. A Deadline
 terminal does not prove its request retired. Limits can temporarily be below
 retained accepted totals after an operator decrease. Memory ceilings describe
 module-owned requested storage, not native heap or total RSS. Config and pinned
@@ -69,7 +87,13 @@ constant-input Base record fixture.
 
 SEQPACKET requires large values to fit atomic messages. STREAM with explicit
 bounded framing supports partial writes without enlarging accepted reservations.
-Parallel native batches per address would complicate FIFO/expiry/native unwind.
+Keeping the rejection of a put during retirement would leave the record in an
+alarm state and report a put callback as successful although the latest value
+was never sent. Delivering record completion only after native retirement would
+still reject the reprocess after a Deadline completion and would need an
+exemption for Stopping. Keeping PACT set and retrying admission from module
+servicing would add a PACT state with no owner, which breaks drain and deadline
+rules. Parallel native batches per address would complicate FIFO/expiry/native unwind.
 Batching different deadlines would require cancellation that the actual native
 API does not provide. Releasing Q at consumption would leave live worker/native
 copies uncharged. Replaying after missing acknowledgement can duplicate SET
