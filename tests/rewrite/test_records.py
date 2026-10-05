@@ -2,6 +2,7 @@
 """Exercise actual record/DSET/callback/worker/native paths with a loopback SNMP agent."""
 import argparse
 import json
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -17,6 +18,15 @@ NEAR_REPEATS = 2
 NEAR_TRIALS = len(NEAR_MARGINS_MS) * NEAR_REPEATS
 QUEUE_CASES = ("deadline-queue", "near-deadline", "stop-queued")
 STOP_BUDGET_MS = 300
+
+
+def queue_counters(path):
+    # The first `snmp3 queue:` report line of a record test process: the three counters of admissions behind a retirement.
+    for line in path.read_text().splitlines():
+        match = re.search(r"^snmp3 queue: .* behindRetirement=(\d+) behindAdmitted=(\d+) behindNeverSent=(\d+)$", line)
+        if match:
+            return tuple(int(value) for value in match.groups())
+    return None
 
 
 class InconclusiveWait(Exception):
@@ -352,6 +362,11 @@ def main():
                          below.get("generation") == 2 and not below.get("second_dispatched") and
                          below.get("proxy_sets") == 2 and below.get("stat") == "COMM" and below.get("sevr") == "INVALID")
             runner.check("below-threshold-never-sent-message", below.get("amsg") == "deadline before send")
+            # (behindRetirement, behindAdmitted, behindNeverSent): the queued generation was admitted behind its
+            # predecessor in both trials and expired unsent only below the threshold.
+            runner.check("queue-report-counters",
+                         queue_counters(output / "records-below.stdout") == (0, 1, 1) and
+                         queue_counters(output / "records-above.stdout") == (0, 1, 0))
             runner.check("followup-after-never-sent-has-no-stale-message",
                          below.get("followup_generation") == 3 and below.get("followup_stat") == "COMM" and
                          below.get("followup_amsg") == "")
@@ -399,6 +414,7 @@ def main():
                          stop.get("generation") == 2 and stop.get("pact") == 0 and stop.get("sevr") == "INVALID" and
                          stop.get("flnk_delta") == 2 and stop.get("completions_delta") == 2 and stop.get("proxy_sets") == 1)
             runner.check("stopping-successor-has-no-never-sent-message", stop.get("amsg") == "")
+            runner.check("queue-report-counters", queue_counters(output / "records.stdout") == (0, 1, 0))
             runner.check("drain-succeeds-before-predecessor-reap",
                          stop.get("drain_failed") is False and stop.get("settled") is True)
         runner.check("IOC-native-free", bool(libraries) and not any("netsnmp" in path for path in libraries))

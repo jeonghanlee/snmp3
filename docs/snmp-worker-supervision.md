@@ -139,15 +139,17 @@ only the predecessor. Every Scheduler structure and lookup is keyed by binding
 and generation, so the two generations of one handle never share state.
 
 Reports classify `queued`, `active`, `undelivered` and `retirementPending`;
-`count` and `bytes` include all of them. The scheduler snapshot also counts
+`count` and `bytes` include all of them. The `snmp3 queue:` line of
+`snmp3RuntimeReport` ends with three more numbers for the address:
 `behindRetirement` (queued generations whose predecessor is consumed but not
-retired), `behindAdmitted` (generations ever admitted behind a predecessor) and
-`behindNeverSent` (such generations that reached Deadline before dispatch);
-`snmp3RuntimeReport` does not print these three. A borrowed terminal remains undelivered
-until release. `retirementPending` means its terminal was consumed but its native
-or channel ownership has not ended. The two generations of one handle can sit in
-two classes at once: the consumed predecessor in `retirementPending` and the
-queued successor in `queued`, so `count` is 2. Worker reports identify address, epoch, PID,
+retired, a current count), `behindAdmitted` (generations admitted behind a
+predecessor) and `behindNeverSent` (such generations that reached Deadline
+before dispatch). The last two only grow while the scheduler lives. A borrowed
+terminal remains undelivered until release. `retirementPending` means its
+terminal was consumed but its native or channel ownership has not ended. The two
+generations of one handle can sit in two classes at once: the consumed
+predecessor in `retirementPending` and the queued successor in `queued`, so
+`count` is 2. Worker reports identify address, epoch, PID,
 ready/closing, active batch, launches, reaps and forced signals.
 
 ## Charge and storage limits

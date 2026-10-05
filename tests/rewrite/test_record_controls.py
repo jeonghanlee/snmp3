@@ -47,7 +47,8 @@ STOP_QUEUED = "for(auto id:a.queue) { auto& g=*a.generations.at(id); select(g,ip
 BINDING_LOOKUP = [(EXPIRE_QUEUED, "auto id=*it; auto& g=*a.generations.lower_bound(Key(id.first,0))->second;"),
                   (STOP_QUEUED, "for(auto id:a.queue) { auto& g=*a.generations.lower_bound(Key(id.first,0))->second; select(g,ipc::Outcome::Stopping);")]
 # Controls that alter a source file other than Scheduler.cpp.
-D7_SOURCES = {"never-sent-message-always": "DeviceSupport.cpp", "never-sent-message-absent": "DeviceSupport.cpp",
+D7_SOURCES = {"report-never-sent-miscounted": "Runtime.cpp",
+              "never-sent-message-always": "DeviceSupport.cpp", "never-sent-message-absent": "DeviceSupport.cpp",
               "never-sent-message-any-outcome": "DeviceSupport.cpp", "never-sent-message-not-reset": "Request.cpp"}
 D7_CONTROLS = {
     "per-handle-bound": ("component", "admission-behind-retirement", None,
@@ -101,6 +102,8 @@ D7_CONTROLS = {
                                         'if(!context.terminal.sent)context.message="deadline before send";')]),
     "never-sent-message-not-reset": ("record", "deadline-queue", "followup-after-never-sent-has-no-stale-message",
                                     [("context.alarm=0; context.message=nullptr;", "context.alarm=0;")]),
+    "report-never-sent-miscounted": ("record", "deadline-queue", "queue-report-counters",
+                                    [("(unsigned long long)queue.behindNeverSent);", "(unsigned long long)queue.behindAdmitted);")]),
     "never-sent-message-absent": ("record", "deadline-queue", "below-threshold-never-sent-message",
                                   [('if(result.outcome==ipc::Outcome::Deadline && !context.terminal.sent)context.message="deadline before send";', "")]),
     "storage-validation": ("component", "forged-retirement", None,

@@ -213,11 +213,14 @@ void Runtime::report()
     auto owner=schedulerOwner();
     if(owner)for(const auto id:owner->addresses()) {
         const auto queue=owner->snapshot(id);
-        std::printf("snmp3 queue: address=%llu count=%llu bytes=%llu countLimit=%llu byteLimit=%llu queued=%llu active=%llu undelivered=%llu retirementPending=%llu\n",
+        std::printf("snmp3 queue: address=%llu count=%llu bytes=%llu countLimit=%llu byteLimit=%llu queued=%llu active=%llu undelivered=%llu retirementPending=%llu "
+                    "behindRetirement=%llu behindAdmitted=%llu behindNeverSent=%llu\n",
                     (unsigned long long)id,(unsigned long long)queue.count,(unsigned long long)queue.bytes,
                     (unsigned long long)queue.countLimit,(unsigned long long)queue.byteLimit,
                     (unsigned long long)queue.queued,(unsigned long long)queue.active,
-                    (unsigned long long)queue.undelivered,(unsigned long long)queue.retirementPending);
+                    (unsigned long long)queue.undelivered,(unsigned long long)queue.retirementPending,
+                    (unsigned long long)queue.behindRetirement,(unsigned long long)queue.behindAdmitted,
+                    (unsigned long long)queue.behindNeverSent);
     }
     if(supervisor)for(const auto& worker:supervisor->snapshots())
         std::printf("snmp3 worker: address=%llu epoch=%llu pid=%lld ready=%u closing=%u batch=%llu launches=%llu reaps=%llu forced=%llu\n",
