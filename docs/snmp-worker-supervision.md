@@ -145,7 +145,9 @@ retired), `behindAdmitted` (generations ever admitted behind a predecessor) and
 `behindNeverSent` (such generations that reached Deadline before dispatch);
 `snmp3RuntimeReport` does not print these three. A borrowed terminal remains undelivered
 until release. `retirementPending` means its terminal was consumed but its native
-or channel ownership has not ended. Worker reports identify address, epoch, PID,
+or channel ownership has not ended. The two generations of one handle can sit in
+two classes at once: the consumed predecessor in `retirementPending` and the
+queued successor in `queued`, so `count` is 2. Worker reports identify address, epoch, PID,
 ready/closing, active batch, launches, reaps and forced signals.
 
 ## Charge and storage limits
@@ -179,9 +181,10 @@ second result queue. Servicing visits at most 128 contexts per iteration.
 Each handle can hold two charged generations, so the count and byte limits of an
 address must cover two generations of each handle that can hold a successor;
 admission that exceeds either limit is rejected and
-changes nothing. After a failed or incomplete stop, ownership retained in
-IncompleteStopped is up to two charged generations per handle: the consumed
-predecessor awaiting retirement or reap and its successor.
+changes nothing. The count limit is at most 16384, so at most 8192 handles of one
+address can hold a successor at the same time. After a failed or incomplete stop,
+ownership retained in IncompleteStopped is up to two charged generations per
+handle: the consumed predecessor awaiting retirement or reap and its successor.
 
 A nine-arc Integer GET charges 4608 bytes, admitting 227 distinct handles under
 the default 1048576-byte limit. The ten-arc Integer GET fixture charges 4672. A 128-arc,

@@ -1,7 +1,8 @@
 # ADR: Address workers, exact-deadline FIFO and joint retirement
 
 Date: 2026-10-01
-Amended: 2026-10-03 (per-handle generations behind retirement; containment of answered requests)
+Amended: 2026-10-03 (per-handle generations behind retirement; containment of answered requests;
+register decisions D7 and D9 and gate G5 in `docs/milestone-5dff352.md`)
 Status: accepted for the verified R5 component and IOC supervision boundary
 Source Session: standalone author work in `/home/jeonglee/gitsrc/snmp3`
 Source Decisions: User-approved `work/plan-r5-20260930-02.md`, SHA256
