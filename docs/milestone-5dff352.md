@@ -9,7 +9,7 @@ Remote tracker: none associated with this register
 Recorded date: 2026-10-01
 Source baseline: `5dff352b9e86abfca74a74c4adc4fc8c1e48079f`
 
-Next session entry point: `docs/milestone-5dff352.md`, M6 step 8 (record path AMSG, report counters, documentation), then the instrumented matrices. M5 steps 4-6 are done; their T1-T7 cells pass on the revised products, including the instrumented T4 and T5 runs of `1100605`; all fourteen D7 controls of T7 and M6 T14 pass with the product sources of `bd4dc0c` and the harness carried by the commit that adds the last five. G5 recorded acceptance and implementation authorization of the D7-D9 revisions on 2026-10-03 for the text carried by `c065755d7677e168c6fadae560012b7d9b1dfc47`. Results recorded below qualify only their recorded versions; full M6 acceptance, record advertisement and closure remain pending.
+Next session entry point: `docs/milestone-5dff352.md`, M6 step 8 (record path AMSG, report counters, documentation), then the M6 matrices on ordinary and instrumented products. M5 is Complete as of 2026-10-05 (see its Closure Evidence); all fourteen D7 controls of M5 T7 and M6 T14 pass with the product sources of `bd4dc0c` and the harness of `75abe64`. G5 recorded acceptance and implementation authorization of the D7-D9 revisions on 2026-10-03 for the text carried by `c065755d7677e168c6fadae560012b7d9b1dfc47`. Results recorded below qualify only their recorded versions; full M6 acceptance, record advertisement and closure remain pending.
 
 ## Scope
 
@@ -17,7 +17,7 @@ This register owns the R1-R8 rewrite checkpoints and the assigned mdBook documen
 
 Out of scope: changing implementation or installed dependencies through this documentation update, operating equipment, publishing a site, or changing Git history or remote state.
 
-Complete means the identified checkpoint scope and its qualified verification are complete. It does not close later integration requirements. R6 implementation was authorized on 2026-10-01 (G1) for a plan now superseded by the D7-D9 revision; G5 accepted and authorized that revision on 2026-10-03, and M5 and M6 implementation proceeds under it. R7-R8 and mdBook implementation have not started. Their Blocked status records the missing detailed-plan acceptance and separate implementation authorization; planning may proceed before those gates close. Ready is an execution dependency indicator, not implementation authorization.
+Complete means the identified checkpoint scope and its qualified verification are complete. It does not close later integration requirements. R6 implementation was authorized on 2026-10-01 (G1) for a plan now superseded by the D7-D9 revision; G5 accepted and authorized that revision on 2026-10-03; M5 implementation under it completed on 2026-10-05 and M6 implementation proceeds under it. R7-R8 and mdBook implementation have not started. Their Blocked status records the missing detailed-plan acceptance and separate implementation authorization; planning may proceed before those gates close. Ready is an execution dependency indicator, not implementation authorization.
 
 Implemented source and executable fixtures are carried by `49d5c62feca95f12a13910b73b60667455773b7c`; architecture/operator documents by `81cdcddd4fb431cba55e5a7999c9f7c923a670e6`; Python cache exclusions by the source baseline above. The current identity is snmp3.
 
@@ -37,7 +37,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | M2 | R2: Base lifecycle and thread ownership | Milestone | Complete | No | M1 | Real pre-PINI start, stop, join and isolated reuse; [detail](#m2---r2-base-lifecycle) |
 | M3 | R3: immutable configuration, Binding and Value | Milestone | Complete | No | M2 | Qualified configuration/security/ownership matrix with explicit NOT RUN; [detail](#m3---r3-immutable-configuration) |
 | M4 | R4: native SNMP adapter | Milestone | Complete | No | M3 | Actual GET/SET, security, response and native lifetime tests; [detail](#m4---r4-native-snmp-adapter) |
-| M5 | R5: address queues, IPC and worker supervision | Milestone | In progress | No | M3, M4, D3, D7, D9, D10, G5 | Actual isolated worker, deadline, recovery and IOC qualification, including the D7 per-handle bound and D9 containment/backoff rules; [detail](#m5---r5-address-worker-supervision) |
+| M5 | R5: address queues, IPC and worker supervision | Milestone | Complete | No | M3, M4, D3, D7, D9, D10, G5 | Actual isolated worker, deadline, recovery and IOC qualification, including the D7 per-handle bound and D9 containment/backoff rules; [detail](#m5---r5-address-worker-supervision) |
 | M6 | R6: record DSET, conversion, completion and FLNK | Milestone | In progress | No | M1, M2, M3, M4, M5, D5, D6, D7, D8, G1, G5 | Real record/wire order, values, alarms and shutdown verified; [detail](#m6---r6-record-integration) |
 | M7 | R7: APC startup/DB migration and comparison | Milestone | Blocked | No | M6, D1, G2 | Actual v2c/v3, CA/PVA, comparator and nested startup error observations; [detail](#m7---r7-apc-migration-and-comparison) |
 | M8 | R8: integrated two-OS and resource qualification | Milestone | Blocked | No | M6, M7, G3 | Full identified-source matrix and measured resource acceptance; [detail](#m8---r8-integrated-qualification) |
@@ -281,7 +281,7 @@ Superseded Plan Artifacts: none
 Origin: 5dff352 / M5
 Identity History: none
 GitHub Issue: none associated with this register
-Status: In progress (reopened by D7, 2026-10-03)
+Status: Complete (reopened by D7 on 2026-10-03; completed 2026-10-05)
 
 ##### Summary
 
@@ -307,7 +307,7 @@ Out of scope: record-driven admission/conversion/completion, APC deployment and 
 - Blocked by G5 from 2026-10-03 until G5 completed on 2026-10-03; resumed as Not started, and moved to In progress on 2026-10-03 when step 4 started. Steps 4-5 committed on 2026-10-04 (`98bfdfc`, `0b60abf`); qualification cases for T6 in `e99331c`. SchedulerTest cells cited by T5 and T7: `admission-behind-retirement` introduced in `7ffdf5a` with its current body from `98bfdfc`; `containment-grace` in `0b60abf`; `two-generation-lifecycle` and named-cell selection in `0c60fc4`; `forged-retirement` in `bd4dc0c`. The D7 control harness in `tests/rewrite/test_record_controls.py` was introduced in `bd4dc0c`, and its `uncharged-successor` control was added in `1b6333f` (harness SHA256 `274956d3...`, nine controls). The SchedulerTest cells `grace-outcomes`, `behind-classification` and `take-identity` and the controls `grace-native-failure`, `grace-all-outcomes`, `never-sent-overcount`, `behind-flag-always` and `take-without-identity` are added by the commit that carries this entry.
 - T7 retargeting decision, 2026-10-04: the storage-lookup control runs against the SchedulerTest cell `forged-retirement` instead of the qualification case `ipc-stale-behind`, because that case injects the forged frame immediately before the real one and cannot expose the lookup.
 - D10 (2026-10-05) amends plan item 4 and T5: the charged generation node is tied to the container's element type by a compile-time assertion in `Scheduler.cpp`, and no independent InventoryTest node-size comparison is added, so the plan wording follows the shipped mechanism.
-- Reclosure also needs the current-product executions of M6 step 7, recorded under T5 (SchedulerTest admission cell) and T6 (near-deadline baseline) on 2026-10-03/04.
+- The reclosure condition on the current-product executions of M6 step 7 was met on 2026-10-03/04 and is recorded under T5 (SchedulerTest admission cell) and T6 (near-deadline baseline).
 
 ##### Implementation Plan
 
@@ -352,6 +352,7 @@ Superseded Plan Artifacts: original R5 draft replaced by the approved corrected 
 - Accepted runtime/tests are committed in `49d5c62`; worker/operator/decision documents in `81cdcdd`. That evidence established the R5 component boundary for steps 1-3 and preserves the explicit verification limits above.
 - Reopened 2026-10-03 by D7; closure requires steps 4-6, T5-T7 and re-run T1-T4 on the revised products. Steps 4-6 are done and T1-T7 pass on the revised products, T4 and T5 including the instrumented products of `1100605`.
 - Third-person review of the D7/D9 product code (`98bfdfc`, `0b60abf`), 2026-10-04: no product-code defect and no regression of the R5 invariants; its three findings about what the tests pin were resolved on 2026-10-05 by the added SchedulerTest cells and D7 controls (T5, T7) and D10.
+- Closed 2026-10-05: the deliverable (steps 1-6), T1-T7 on the revised products including the instrumented T4 and T5, the third-person review and G5 are complete. Landing: after `git fetch` at 2026-10-05 00:15 (local time), `origin/feature/snmp-base-7.0.10-rewrite` equals `HEAD` `75abe64`, and the committed M5 product, test and document paths show no difference from it. Carrying commits: product `98bfdfc`, `0b60abf`; qualification cases `e99331c`; Scheduler cells `0c60fc4`, `bd4dc0c`, `75abe64`; control harness `bd4dc0c`, `1b6333f`, `75abe64`; documents `1100605`; this closure record is carried by the commit that adds it.
 
 #### M6 - R6 Record Integration
 
@@ -745,7 +746,7 @@ Out of scope: implementing or publishing the book through this register update, 
 
 ##### Dependencies And Decisions
 
-- M1-M5 provide current product documentation; D4 assigns this milestone. It need not wait for M6-M8, except that M5's reclosure under D7 needs the current-product executions of M6 step 7; later implemented behavior updates the maintained chapters.
+- M1-M5 provide current product documentation; D4 assigns this milestone. It need not wait for M6-M8, except that M5's reclosure under D7 needed the current-product executions of M6 step 7, which were recorded on 2026-10-03/04 and completed M5 on 2026-10-05; later implemented behavior updates the maintained chapters.
 - G4 remains Open; resume as Not started after layout/toolchain/build scope and implementation are approved. Publication is not authorized by this assignment.
 
 ##### Implementation Plan
@@ -885,7 +886,7 @@ Status: Complete
 
 ##### Summary
 
-The D7-D9 revisions of the M5 and M6 Implementation Plans (2026-10-03) need owner acceptance and separate implementation authorization before M5 steps 4-6, M6 steps 7-8 or any remaining M6 T1-T14 work proceeds. This gate does not establish product verification.
+The D7-D9 revisions of the M5 and M6 Implementation Plans (2026-10-03) needed owner acceptance and separate implementation authorization before M5 steps 4-6, M6 steps 7-8 or any remaining M6 T1-T14 work proceeded; both were recorded on 2026-10-03. This gate does not establish product verification.
 
 ##### Completion Criteria
 
