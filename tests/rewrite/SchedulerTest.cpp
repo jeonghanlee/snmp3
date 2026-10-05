@@ -204,6 +204,48 @@ void forgedRetirement()
     t.s.transmitted(1,d.batch); check(t.s.complete(1,d.batch,results(d),1005)); check(t.s.retired(1,d.batch,identities(d)));
     consume(t.s,t.second,ipc::Outcome::Complete); check(t.s.settled());
 }
+// Containment grace applies to a member answered Complete or NativeFailure before its deadline; a result that
+// arrives after the deadline is selected Deadline and its worker is contained without any grace.
+void graceOutcomes()
+{
+    Scheduler s(configuration(),1,1); auto a=handle(s,"Read0");
+    const auto answered=s.admit({a},{},100,1000).front(); auto d=s.dispatch(1,1000); s.transmitted(1,d.batch);
+    auto failure=results(d); failure[0].outcome=ipc::Outcome::NativeFailure; failure[0].nativeOutcome=2; failure[0].value.clear();
+    check(s.complete(1,d.batch,failure,100999));
+    check(!s.expire(1,101000) && !s.expire(1,1100999) && s.expire(1,1101000));
+    check(s.retired(1,d.batch,identities(d))); consume(s,answered,ipc::Outcome::NativeFailure); check(s.settled());
+    const auto late=s.admit({a},{},100,2000000).front(); d=s.dispatch(1,2000000); s.transmitted(1,d.batch);
+    check(s.complete(1,d.batch,results(d),2100000) && s.expire(1,2100000));
+    check(s.retired(1,d.batch,identities(d))); consume(s,late,ipc::Outcome::Deadline); check(s.settled());
+}
+// The never-sent counters follow only generations admitted behind a retirement: a first-generation request
+// that expires in the queue is not counted, and the same expiry behind a predecessor is.
+void behindClassification()
+{
+    Scheduler s(configuration(),1,1); auto a=handle(s,"Read0"),b=handle(s,"Read1"); s.limits("127.0.0.1",8,65536);
+    const auto plain=s.admit({b},{},1,1000).front();
+    auto q=s.snapshot(1); check(q.behindAdmitted==0 && q.behindRetirement==0 && q.behindNeverSent==0);
+    check(!s.expire(1,2000));
+    q=s.snapshot(1); check(q.behindAdmitted==0 && q.behindRetirement==0 && q.behindNeverSent==0);
+    consume(s,plain,ipc::Outcome::Deadline);
+    const auto first=s.admit({a},{},100,3000).front(); auto d=s.dispatch(1,3000); s.transmitted(1,d.batch);
+    check(s.complete(1,d.batch,results(d),3001)); consume(s,first,ipc::Outcome::Complete);
+    const auto second=s.admit({a},{},1,3002).front();
+    q=s.snapshot(1); check(q.behindAdmitted==1 && q.behindRetirement==1 && q.behindNeverSent==0);
+    check(!s.expire(1,4002));
+    q=s.snapshot(1); check(q.behindAdmitted==1 && q.behindNeverSent==1);
+    check(s.retired(1,d.batch,identities(d))); consume(s,second,ipc::Outcome::Deadline); check(s.settled());
+}
+// A terminal is borrowed only by the exact identity that was issued, including its admission number.
+void takeIdentity()
+{
+    Scheduler s(configuration(),1,1); auto a=handle(s,"Read0");
+    const auto id=s.admit({a},{},100,1000).front(); auto d=s.dispatch(1,1000); s.transmitted(1,d.batch);
+    check(s.complete(1,d.batch,results(d),1001));
+    auto foreign=id; foreign.admission+=100; check(s.take(foreign).result==nullptr);
+    auto next=id; next.generation+=1; check(s.take(next).result==nullptr);
+    consume(s,id,ipc::Outcome::Complete); check(s.retired(1,d.batch,identities(d))); check(s.settled());
+}
 }
 
 int main(int argc,char** argv)
@@ -214,7 +256,8 @@ int main(int argc,char** argv)
         {"joint-release",jointRelease},{"fifo",fifo},{"bounds",bounds},{"recovery",recovery},
         {"frame-bounds",frameBounds},{"aliases-and-race",aliasesAndRace},
         {"admission-behind-retirement",admissionBehindRetirement},{"containment-grace",containmentGrace},
-        {"two-generation-lifecycle",twoGenerationLifecycle},{"forged-retirement",forgedRetirement}};
+        {"two-generation-lifecycle",twoGenerationLifecycle},{"forged-retirement",forgedRetirement},
+        {"grace-outcomes",graceOutcomes},{"behind-classification",behindClassification},{"take-identity",takeIdentity}};
     if(argc>2) { std::fprintf(stderr,"Usage: snmp3SchedulerTest [cell]\n"); return 2; }
     try {
         if(argc==2) {

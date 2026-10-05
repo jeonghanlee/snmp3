@@ -379,6 +379,7 @@ trial was killed at its child bound, or a stop-queued cell without its
 D7="per-handle-bound early-release uncharged-successor binding-lookup-component binding-lookup-qualification"
 D7="$D7 binding-lookup-record"
 D7="$D7 queued-deadline-restart stop-one-generation storage-validation"
+D7="$D7 grace-native-failure grace-all-outcomes never-sent-overcount behind-flag-always take-without-identity"
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --d7-controls $D7 --output work/r6-d7-controls
 ```
 
