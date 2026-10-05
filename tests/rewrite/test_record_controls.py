@@ -47,7 +47,7 @@ STOP_QUEUED = "for(auto id:a.queue) { auto& g=*a.generations.at(id); select(g,ip
 BINDING_LOOKUP = [(EXPIRE_QUEUED, "auto id=*it; auto& g=*a.generations.lower_bound(Key(id.first,0))->second;"),
                   (STOP_QUEUED, "for(auto id:a.queue) { auto& g=*a.generations.lower_bound(Key(id.first,0))->second; select(g,ipc::Outcome::Stopping);")]
 # Controls that alter a source file other than Scheduler.cpp.
-D7_SOURCES = {"report-never-sent-miscounted": "Runtime.cpp",
+D7_SOURCES = {"report-never-sent-miscounted": "Runtime.cpp", "rebuild-reuses-scheduler": "Runtime.cpp",
               "never-sent-message-always": "DeviceSupport.cpp", "never-sent-message-absent": "DeviceSupport.cpp",
               "never-sent-message-any-outcome": "DeviceSupport.cpp", "never-sent-message-not-reset": "Request.cpp"}
 D7_CONTROLS = {
@@ -107,6 +107,9 @@ D7_CONTROLS = {
     "queued-deadline-extended": ("record", "deadline-queue", "put-to-dispatch-within-late-application-bound",
                                  [("g->command.deadline=deadline;",
                                    "g->command.deadline=behind[index]?ipc::add(deadline,5000000):deadline;")]),
+    "rebuild-reuses-scheduler": ("record", "rebuild", "rebuild-second-activation-new-worker",
+                                 [("if(scheduler && scheduler->activationId()==activation && scheduler->configurationRevision()==config.revision)return;",
+                                   "if(scheduler && scheduler->configurationRevision()==config.revision)return;")]),
     "never-sent-message-absent": ("record", "deadline-queue", "below-threshold-never-sent-message",
                                   [('if(result.outcome==ipc::Outcome::Deadline && !context.terminal.sent)context.message="deadline before send";', "")]),
     "storage-validation": ("component", "forged-retirement", None,

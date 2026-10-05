@@ -16,17 +16,24 @@ NEAR_DELAY_MS = 300
 NEAR_MARGINS_MS = (14, 16, 18, 20, 22)
 NEAR_REPEATS = 2
 NEAR_TRIALS = len(NEAR_MARGINS_MS) * NEAR_REPEATS
-QUEUE_CASES = ("deadline-queue", "near-deadline", "stop-queued")
+QUEUE_CASES = ("deadline-queue", "near-deadline", "stop-queued", "rebuild")
 STOP_BUDGET_MS = 300
 
 
-def queue_counters(path):
-    # The first `snmp3 queue:` report line of a record test process: the three counters of admissions behind a retirement.
+def queue_counter_lines(path):
+    # Every `snmp3 queue:` report line of a record test process: the three counters of admissions behind a retirement.
+    found = []
     for line in path.read_text().splitlines():
         match = re.search(r"^snmp3 queue: .* behindRetirement=(\d+) behindAdmitted=(\d+) behindNeverSent=(\d+)$", line)
         if match:
-            return tuple(int(value) for value in match.groups())
-    return None
+            found.append(tuple(int(value) for value in match.groups()))
+    return found
+
+
+def queue_counters(path):
+    # The first report line of a record test process.
+    found = queue_counter_lines(path)
+    return found[0] if found else None
 
 
 class InconclusiveWait(Exception):
@@ -40,7 +47,7 @@ def main():
     parser.add_argument("--sanitizers", action="store_true")
     parser.add_argument("--case", choices=("baseline", "shutdown", "queued-shutdown", "edges", "alarms", "active", "policy", "numeric",
                                                    "active-unforced", "deadline-queue", "near-deadline",
-                                                   "accounting", "stop-queued"), default="baseline")
+                                                   "accounting", "stop-queued", "rebuild"), default="baseline")
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(mode=0o700)
@@ -114,7 +121,7 @@ def main():
             configuration["bindings"] += [{"id": "Matrix" + name + "Read", "endpoint": "Local",
                 "oid": "1.3.6.1.4.1.53864.4." + str(index) + ".0", "operation": "get",
                 "valueType": tag, "capacity": 1} for name, index, tag in fixed]
-        if args.case in ("deadline-queue", "stop-queued"):
+        if args.case in ("deadline-queue", "stop-queued", "rebuild"):
             dropped, _ = runner.fault("queue-response-drop", 4, peer, "drop-all")
             runner.env["SNMP3_RECORD_DELAY_TRACE"] = str(output / "queue-response-drop.stdout")
             configuration["profiles"].append(dict(configuration["profiles"][0], id="Slow", timeoutMs=NATIVE_TIMEOUT_MS))
@@ -215,7 +222,7 @@ def main():
                         if event.get("event") == "near_deadline":
                             event["margin_ms"] = margin
                     events += trial_events
-        elif args.case == "stop-queued":
+        elif args.case in ("stop-queued", "rebuild"):
             before = proxy_sets("queue-response-drop")
             libraries, events = execute("records", {"SNMP3_RECORD_BUDGET_MS": str(STOP_BUDGET_MS)})
             for event in events:
@@ -430,7 +437,7 @@ def main():
             runner.check("raised-limit-admits-explicit-request", limit.get("explicit_sevr") == "NO_ALARM" and
                          limit.get("explicit_completions") == 1)
             events.append({"event": "accounting_summary", "trials": len(windows), "window_observed": len(observed)})
-        if args.case == "stop-queued":
+        if args.case in ("stop-queued", "rebuild"):
             stop = next((event for event in events if event.get("event") == "stop_queued"), {})
             # Product checks apply only when the harness observed the reprocess before stopping. A missing event
             # without a trial failure line means the stop under test itself failed, which the checks judge.
@@ -447,6 +454,15 @@ def main():
             runner.check("queue-report-counters", queue_counters(output / "records.stdout") == (0, 1, 0))
             runner.check("drain-succeeds-before-predecessor-reap",
                          stop.get("drain_failed") is False and stop.get("settled") is True)
+        if args.case == "rebuild":
+            rebuilt = next((event for event in events if event.get("event") == "rebuild"), {})
+            counters = queue_counter_lines(output / "records.stdout")
+            runner.check("rebuild-second-activation-new-worker",
+                         rebuilt.get("second_activation") == rebuilt.get("first_activation", 0) + 1 and
+                         rebuilt.get("first_worker_gone") is True and rebuilt.get("second_worker", 0) > 0 and
+                         rebuilt.get("second_worker") != rebuilt.get("first_worker"))
+            runner.check("rebuild-new-scheduler-counters",
+                         len(counters) >= 2 and counters[0] == (0, 1, 0) and counters[-1] == (0, 0, 0))
         runner.check("IOC-native-free", bool(libraries) and not any("netsnmp" in path for path in libraries))
         write_json(output / "record-observations.json", events)
     except Exception as error:

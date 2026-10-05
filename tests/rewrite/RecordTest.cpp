@@ -51,6 +51,8 @@ bool deadlineQueue=false;
 bool nearDeadline=false;
 bool accounting=false;
 bool stopQueued=false;
+bool rebuild=false;
+int64_t firstActivationWorker=0;
 struct RecordLock {
     dbCommon* value;
     explicit RecordLock(dbCommon* record) : value(record) { dbScanLock(value); }
@@ -1290,6 +1292,7 @@ void stopWithQueuedSuccessor()
     int64_t worker=0;
     check(until([&]{ for(auto& e:Runtime::instance().takeSupervisionEvents()) { events.push_back(e); if(e.code==13 && e.pid>0)worker=e.pid; }
                      return worker>0; }),"stop trial worker identity not observed");
+    firstActivationWorker=worker;
     check(::kill(pid_t(worker),SIGSTOP)==0,"stop trial worker could not be stopped");
     const double latest=2.5; put("Records_QueueAo.VAL",DBR_DOUBLE,&latest);
     const auto links=typed<calcRecord>("Records_QueueCompleted").val;
@@ -1620,6 +1623,40 @@ void numericMatrix()
                 "\"accepted_outputs\":%u,\"rejected_outputs\":%u,\"stimuli\":%u,\"failed_after_good\":%u}\n",
                 numericAcceptedOutputs,numericRejectedOutputs,numericStimuli,numericFailedAfterGood);
 }
+// After an isolated cleanup of an activation whose stop left a retirement-pending predecessor and a queued
+// successor, the same process builds a second activation: a new scheduler and worker serve a complete
+// record matrix, and the first activation's worker is gone.
+void secondActivation(char** argv)
+{
+    const auto first=Runtime::instance().snapshot();
+    testdbPrepare(); testdbReadDatabase(argv[4],nullptr,nullptr);
+    check(snmp3RecordTest_registerRecordDeviceDriver(pdbbase)==0,"second record registrar failed");
+    command("snmp3WorkerPath("+quoted(argv[3])+")");
+    testdbReadDatabase(argv[5],nullptr,"P=Records_");
+    testdbReadDatabase(argv[6],nullptr,"P=Records_");
+    check(Requests::instance().snapshot().contexts==0,"second load performed device initialization");
+    Runtime::instance().takeSupervisionEvents();
+    testIocInitOk();
+    const auto second=Runtime::instance().snapshot();
+    check(second.activation==first.activation+1 && second.state==State::Running && second.admission,
+          "second activation did not start");
+    baseline();
+    std::vector<SupervisionEvent> events=Runtime::instance().takeSupervisionEvents();
+    int64_t worker=0;
+    for(const auto& e:events)if(e.code==13 && e.pid>0) { worker=e.pid; break; }
+    check(worker>0 && worker!=firstActivationWorker,"second activation did not use a new worker");
+    const bool firstGone=::kill(pid_t(firstActivationWorker),0)!=0 && errno==ESRCH;
+    check(firstGone,"first activation worker was not reaped");
+    std::printf("{\"event\":\"rebuild\",\"first_activation\":%lu,\"second_activation\":%lu,\"first_worker\":%lld,"
+                "\"second_worker\":%lld,\"first_worker_gone\":%s,\"second_state\":%d}\n",
+                first.activation,second.activation,(long long)firstActivationWorker,(long long)worker,
+                firstGone?"true":"false",int(second.state));
+    Runtime::instance().report();
+    testIocShutdownOk();
+    check(Requests::instance().snapshot().contexts==0,"second isolated queue cleanup retained detached contexts");
+    check(Runtime::instance().snapshot().state==State::Stopped,"second activation stop outcome mismatch");
+    testdbCleanup();
+}
 }
 
 int main(int argc,char** argv)
@@ -1649,6 +1686,7 @@ int main(int argc,char** argv)
         nearDeadline=std::strcmp(argv[8],"near-deadline")==0;
         accounting=std::strcmp(argv[8],"accounting")==0;
         stopQueued=std::strcmp(argv[8],"stop-queued")==0;
+        rebuild=std::strcmp(argv[8],"rebuild")==0;
         if(edges) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
             testdbReadDatabase((root+"record-edges.db").c_str(),nullptr,"P=Records_");
@@ -1666,7 +1704,7 @@ int main(int argc,char** argv)
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
             testdbReadDatabase((root+"record-policy.db").c_str(),nullptr,"P=Records_");
         }
-        if(deadlineQueue || nearDeadline || stopQueued) {
+        if(deadlineQueue || nearDeadline || stopQueued || rebuild) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
             const char* budget=std::getenv("SNMP3_RECORD_BUDGET_MS");
             const char* binding=std::getenv("SNMP3_RECORD_QUEUE_BINDING");
@@ -1681,7 +1719,7 @@ int main(int argc,char** argv)
         }
         testIocInitOk();
         if(edges)inputEdges();
-        if(!deadlineQueue && !nearDeadline && !stopQueued) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
+        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
         if(edges) { capacityAndOrder(); simulation(); outputEdges(); maxPayloadQueue(); }
         if(alarms)nativeTimeouts();
         if(active)activeOutputs();
@@ -1691,14 +1729,16 @@ int main(int argc,char** argv)
         if(deadlineQueue)deadlineTrial(std::getenv("SNMP3_RECORD_TRIAL")?std::getenv("SNMP3_RECORD_TRIAL"):"unnamed");
         if(nearDeadline)nearDeadlineTrial();
         if(accounting)accountingTrials();
-        if(stopQueued)stopWithQueuedSuccessor();
+        if(stopQueued || rebuild)stopWithQueuedSuccessor();
         Runtime::instance().report();
         const bool blocked=std::strcmp(argv[8],"shutdown")==0;
         const bool abandoned=std::strcmp(argv[8],"queued-shutdown")==0;
         if(blocked)blockedShutdown(); else if(abandoned)queuedShutdown(); else testIocShutdownOk();
         check(Requests::instance().snapshot().contexts==0,"isolated queue cleanup retained detached contexts");
         check(Runtime::instance().snapshot().state==((blocked || abandoned)?State::IncompleteStopped:State::Stopped),"record runtime stop outcome mismatch");
-        testdbCleanup(); check(testDone()==0,"Base test harness failed");
+        testdbCleanup();
+        if(rebuild)secondActivation(argv);
+        check(testDone()==0,"Base test harness failed");
         std::printf("{\"event\":\"record_summary\",\"checks\":%u,\"records\":11}\n",checks);
         epicsExit(0);
     } catch(const std::exception& error) {
