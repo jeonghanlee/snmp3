@@ -218,6 +218,19 @@ void graceOutcomes()
     check(s.complete(1,d.batch,results(d),2100000) && s.expire(1,2100000));
     check(s.retired(1,d.batch,identities(d))); consume(s,late,ipc::Outcome::Deadline); check(s.settled());
 }
+// Only members answered Complete or NativeFailure receive the grace; a member selected ChannelFailure,
+// WorkerFailure or Stopping is contained as soon as its deadline is reached.
+void graceExclusion()
+{
+    const ipc::Outcome reasons[]={ipc::Outcome::ChannelFailure,ipc::Outcome::WorkerFailure,ipc::Outcome::Stopping};
+    for(const auto reason:reasons) {
+        Scheduler s(configuration(),1,1); auto a=handle(s,"Read0");
+        const auto id=s.admit({a},{},100,1000).front(); auto d=s.dispatch(1,1000); s.transmitted(1,d.batch);
+        if(reason==ipc::Outcome::Stopping)s.stop(); else s.workerLost(1,reason);
+        check(!s.expire(1,100999) && s.expire(1,101000));
+        check(s.retired(1,d.batch,identities(d))); consume(s,id,reason); check(s.settled());
+    }
+}
 // The never-sent counters follow only generations admitted behind a retirement: a first-generation request
 // that expires in the queue is not counted, and the same expiry behind a predecessor is.
 void behindClassification()
@@ -257,7 +270,7 @@ int main(int argc,char** argv)
         {"frame-bounds",frameBounds},{"aliases-and-race",aliasesAndRace},
         {"admission-behind-retirement",admissionBehindRetirement},{"containment-grace",containmentGrace},
         {"two-generation-lifecycle",twoGenerationLifecycle},{"forged-retirement",forgedRetirement},
-        {"grace-outcomes",graceOutcomes},{"behind-classification",behindClassification},{"take-identity",takeIdentity}};
+        {"grace-outcomes",graceOutcomes},{"grace-exclusion",graceExclusion},{"behind-classification",behindClassification},{"take-identity",takeIdentity}};
     if(argc>2) { std::fprintf(stderr,"Usage: snmp3SchedulerTest [cell]\n"); return 2; }
     try {
         if(argc==2) {

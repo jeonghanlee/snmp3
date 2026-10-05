@@ -380,6 +380,7 @@ D7="per-handle-bound early-release uncharged-successor binding-lookup-component 
 D7="$D7 binding-lookup-record"
 D7="$D7 queued-deadline-restart stop-one-generation storage-validation"
 D7="$D7 grace-native-failure grace-all-outcomes never-sent-overcount behind-flag-always take-without-identity"
+D7="$D7 grace-channel-failure grace-worker-failure grace-stopping"
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --d7-controls $D7 --output work/r6-d7-controls
 ```
 
