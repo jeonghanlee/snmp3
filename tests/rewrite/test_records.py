@@ -50,7 +50,7 @@ def main():
     parser.add_argument("--sanitizers", action="store_true")
     parser.add_argument("--case", choices=("baseline", "shutdown", "queued-shutdown", "edges", "alarms", "active", "policy", "numeric",
                                                    "active-unforced", "deadline-queue", "near-deadline",
-                                                   "accounting", "stop-queued", "rebuild", "stop-inflight", "stop-enqueue-failed"), default="baseline")
+                                                   "accounting", "stop-queued", "rebuild", "stop-inflight", "stop-enqueue-failed", "stop-downstream"), default="baseline")
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(mode=0o700)
@@ -81,7 +81,7 @@ def main():
                          "oid": "1.3.6.1.4.1.53864.4." + str(index) + ".0",
                          "operation": operation, "valueType": tag, "capacity": capacity}
                          for name, index, operation, tag, capacity in specs]}
-        if args.case in ("alarms", "policy", "stop-inflight", "stop-enqueue-failed"):
+        if args.case in ("alarms", "policy", "stop-inflight", "stop-enqueue-failed", "stop-downstream"):
             dropped, _ = runner.fault("record-response-drop", 4, peer, "drop-all")
             configuration["endpoints"].append({"id": "Dropped", "address": "127.0.0.1",
                                                "port": int(dropped.rsplit(":", 1)[1]), "profile": "Local"})
@@ -231,6 +231,12 @@ def main():
             for mode in ("within", "late", "after"):
                 libraries, trial_events = execute("records-" + mode, {"SNMP3_RECORD_RELEASE": mode})
                 events += trial_events
+        elif args.case == "stop-downstream":
+            # One process holding the downstream lock across the runtime stop, one holding it through the IOC shutdown.
+            events = []
+            for mode in ("stop", "shutdown"):
+                libraries, trial_events = execute("records-" + mode, {"SNMP3_RECORD_RELEASE": mode})
+                events += trial_events
         elif args.case in ("stop-queued", "rebuild"):
             before = proxy_sets("queue-response-drop")
             libraries, events = execute("records", {"SNMP3_RECORD_BUDGET_MS": str(STOP_BUDGET_MS)})
@@ -241,7 +247,7 @@ def main():
             libraries, events = execute("records")
         summary = next((event for event in events if event.get("event") == "record_summary"), {})
         # Queue cases skip the baseline and pressure phases; their records are checked per trial below.
-        if args.case not in QUEUE_CASES + ("stop-inflight", "stop-enqueue-failed"):
+        if args.case not in QUEUE_CASES + ("stop-inflight", "stop-enqueue-failed", "stop-downstream"):
             runner.check("actual-eleven-record-path", summary.get("records") == 11 and summary.get("checks", 0) > 100)
             completions = [event for event in events if event.get("event") == "record_completed"]
             runner.check("actual-record-identities", bool(completions) and all(event["activation"] == 1 and
@@ -504,6 +510,31 @@ def main():
             runner.check("retained-records-finalized-once-at-cleanup",
                          len(cleanups) == 3 and all(event.get("contexts") == 0 and event.get("completions") == 11
                                                     for event in cleanups) and after.get("completions_delta") == 0)
+        if args.case == "stop-downstream":
+            stops = {event["mode"]: event for event in events if event.get("event") == "stop_downstream"}
+            stop, shutdown = stops.get("stop", {}), stops.get("shutdown", {})
+            runner.check("downstream-link-is-external-and-connected",
+                         len(stops) == 2 and all(event.get("link_connected") and event.get("separate_lockset")
+                                                 for event in stops.values()))
+            rows = stop.get("records", [])
+            # The lock is held past the drain budget; the stop neither waits for it nor fails its drain.
+            runner.check("held-downstream-does-not-hold-the-stop",
+                         stop.get("still_running_at_release") is False and stop.get("state_while_held") == 4 and
+                         stop.get("drain_failed_while_held") is False and stop.get("completions_while_held") == 11 and
+                         0 < stop.get("stop_duration_us", 0) < STOP_BOUND_MS * 1000 and
+                         stop.get("release_at_us", 0) - stop.get("stop_at_us", 0) > DRAIN_BUDGET_MS * 1000 and
+                         stop.get("stopped") == 11 and stop.get("idle") == 11 and len(rows) == 11 and
+                         all(row["pact"] == 0 and row["sevr"] == "INVALID" for row in rows))
+            # Eleven processings, one per link: a repeated FLNK on one link would be absorbed by Base, which keeps one
+            # pending put per CA link, so once-per-record is proven by the completion count and the stop-inflight case.
+            runner.check("eleven-downstream-processings-after-release",
+                         stop.get("external_while_held") == 0 and stop.get("external_after_release") == 11)
+            # Through the IOC shutdown the snmp3 stop completes first; Base then waits for the downstream lock.
+            runner.check("shutdown-snmp3-stop-completes-before-held-downstream",
+                         shutdown.get("still_running_at_release") is True and shutdown.get("state_while_held") == 4 and
+                         shutdown.get("drain_failed_while_held") is False and shutdown.get("completions_while_held") == 11 and
+                         shutdown.get("reap_at_us", 0) > 0 and shutdown.get("external_while_held") == 0 and
+                         shutdown.get("stop_duration_us", 0) > DRAIN_BUDGET_MS * 1000)
         if args.case in ("stop-queued", "rebuild"):
             stop = next((event for event in events if event.get("event") == "stop_queued"), {})
             # Product checks apply only when the harness observed the reprocess before stopping. A missing event
@@ -546,7 +577,7 @@ def main():
         inputs += [ROOT / "tests/rewrite/db/record-edges.db", ROOT / "tests/rewrite/db/record-order.db"]
     if args.case == "alarms":
         inputs += [ROOT / "tests/rewrite/db/record-alarms.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
-    if args.case in ("stop-inflight", "stop-enqueue-failed"):
+    if args.case in ("stop-inflight", "stop-enqueue-failed", "stop-downstream"):
         inputs += [ROOT / "tests/rewrite/db/record-stop.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case in ("active", "active-unforced"):
         inputs += [ROOT / "tests/rewrite/db/record-active.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]

@@ -261,6 +261,7 @@ python3 tests/rewrite/test_records.py --case near-deadline --output work/r6-near
 python3 tests/rewrite/test_records.py --case rebuild --output work/r6-rebuild
 python3 tests/rewrite/test_records.py --case stop-inflight --output work/r6-stop-inflight
 python3 tests/rewrite/test_records.py --case stop-enqueue-failed --output work/r6-stop-enqueue
+python3 tests/rewrite/test_records.py --case stop-downstream --output work/r6-stop-downstream
 ```
 
 | Case | Shipped fixtures and observed boundary |
@@ -281,6 +282,7 @@ python3 tests/rewrite/test_records.py --case stop-enqueue-failed --output work/r
 | rebuild | record-queue.db and actual outer UDP drop-all; the stop-queued state (a stopped worker, a retirement-pending predecessor and a queued Base RPRO successor) is stopped and cleaned up in isolation, then the same process loads the databases again and starts a second activation; the second activation runs the complete baseline on a new worker, the first activation's worker is gone, and the report counters start again at zero |
 | stop-inflight | record-stop.db (the eleven Timeout records of the alarms case, each with a FLNK to one counter) and actual outer UDP drop-all; all eleven records are admitted on one address, the case waits until a batch is on the worker channel and stops the runtime; one generation is sent and the others are queued, and every record completes once as a communication alarm with INVALID severity, no native publication, PACT and waveform BUSY clear and exactly one FLNK each, the drain succeeds and the worker is reaped |
 | stop-enqueue-failed | record-stop.db and actual outer UDP drop-all, three processes; the low-priority Base callback queue is filled by an external blocker before the eleven records are admitted, so every completion enqueue is refused and the stop retries them; released while the runtime thread still runs, or after its 2 s stop bound while only the record drain retries, every record completes once with a communication alarm and one FLNK and the drain succeeds; released after the drain budget has expired, the drain fails, the stop returns without waiting for the queue, the records stay active with PACT set, restart is refused and the isolated cleanup finalizes the eleven completions once without FLNK |
+| stop-downstream | record-stop.db with every FLNK pointed through a Channel Access link at a record in another lockset, and actual outer UDP drop-all, two processes; the downstream record's lock is held past the drain budget while the runtime stops: the stop completes with every record completed once, the drain succeeded and the worker reaped, no downstream processing while held, and eleven downstream processings (one per link; Base keeps one pending put per CA link) on Base's CA link thread after the release; held through the IOC shutdown instead, the snmp3 stop completes first and Base's CA link shutdown waits for the lock; the downstream count after that release is reported, not asserted |
 
 The pressure cases fill the actual Base low-priority queue with external
 callbacks. Failed module enqueue retains the terminal, full reservation and
@@ -395,8 +397,8 @@ The D7 controls alter one shipped support source (`Scheduler.cpp`; `DeviceSuppor
 component, qualification or record cell against the same build. Each control
 directory keeps `cell/cell.stdout` and `cell/cell.stderr`; qualification and
 record cells also keep their run output under `cell/run/`. A record cell whose
-trial was killed at its child bound, or a stop-queued, stop-inflight or stop-enqueue-failed cell
-without its `stop_queued`, `stop_inflight` or `stop_enqueue_failed` event, qualifies neither a reference nor a control:
+trial was killed at its child bound, or a stop-queued, stop-inflight, stop-enqueue-failed or stop-downstream cell
+without its `stop_queued`, `stop_inflight`, `stop_enqueue_failed` or `stop_downstream` event, qualifies neither a reference nor a control:
 
 ```bash
 D7="per-handle-bound early-release uncharged-successor binding-lookup-component binding-lookup-qualification"

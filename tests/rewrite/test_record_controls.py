@@ -158,7 +158,8 @@ def run_cell(kind, cell, products, output, sanitizers=True):
     forced = any(json.loads(receipt.read_text()).get("forced_cleanup")
                  for receipt in sorted((output / "run").glob("records*.receipt.json")))
     observations = output / "run" / "record-observations.json"
-    stop_events = {"stop-queued": "stop_queued", "stop-inflight": "stop_inflight", "stop-enqueue-failed": "stop_enqueue_failed"}
+    stop_events = {"stop-queued": "stop_queued", "stop-inflight": "stop_inflight", "stop-enqueue-failed": "stop_enqueue_failed",
+                   "stop-downstream": "stop_downstream"}
     observed = kind != "record" or cell not in stop_events or (observations.exists() and any(
         event.get("event") == stop_events[cell] for event in json.loads(observations.read_text())))
     return {"argv": argv, "returncode": code, "pid": child.pid, "child_reaped": True, "failed_checks": failed,

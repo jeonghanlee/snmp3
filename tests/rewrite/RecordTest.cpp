@@ -6,6 +6,7 @@
 #include <dbBase.h>
 #include <dbCommon.h>
 #include <dbLock.h>
+#include <dbLink.h>
 #include <dbUnitTest.h>
 #include <epicsExit.h>
 #include <epicsUnitTest.h>
@@ -54,10 +55,11 @@ bool stopQueued=false;
 bool rebuild=false;
 bool stopInflight=false;
 bool stopEnqueueFailed=false;
+bool stopDownstream=false;
 int64_t firstActivationWorker=0;
 struct RecordLock {
     dbCommon* value;
-    explicit RecordLock(dbCommon* record) : value(record) { dbScanLock(value); }
+    explicit RecordLock(dbCommon* record) : value(record) { if(value)dbScanLock(value); }
     ~RecordLock() { if(value)dbScanUnlock(value); }
     void unlock() { dbScanUnlock(value); value=nullptr; }
 };
@@ -1360,8 +1362,9 @@ void admitStopRecords(std::vector<SupervisionEvent>& events)
     check(until([&]{ for(auto& e:Runtime::instance().takeSupervisionEvents())events.push_back(e);
                      return firstAt(events,14)!=0; }),"stop batch was not sent to the worker");
 }
-// Reads every Timeout record under its lock and renders the per-record JSON rows with the summed counts.
-std::string stopRecordRows(unsigned& stopped,unsigned& idle,unsigned& busy)
+// Reads every Timeout record under its lock and renders the per-record JSON rows with the summed counts. Once the
+// IOC shutdown has freed the locksets and detached the contexts, the records are read unlocked and without a context.
+std::string stopRecordRows(unsigned& stopped,unsigned& idle,unsigned& busy,bool locked=true)
 {
     stopped=idle=busy=0;
     std::string detail="[";
@@ -1369,15 +1372,16 @@ std::string stopRecordRows(unsigned& stopped,unsigned& idle,unsigned& busy)
         const std::string name=std::string("Records_Timeout")+kind;
         auto* rec=record(name.c_str());
         auto* context=static_cast<RecordContext*>(rec->dpvt);
-        RecordLock lock(rec);
-        const bool wave=context->definition.kind==RecordKind::Waveform;
+        RecordLock lock(locked?rec:nullptr);
+        const bool wave=std::strcmp(kind,"Waveform")==0;
         const unsigned waveBusy=wave?typed<waveformRecord>(name.c_str()).busy:0;
         stopped+=rec->stat==COMM_ALARM && rec->sevr==INVALID_ALARM;
         idle+=!rec->pact; busy+=waveBusy;
         if(detail.size()>1)detail+=",";
         detail+="{\"record\":\""+name+"\",\"pact\":"+std::to_string(rec->pact)+",\"stat\":\""+epicsAlarmConditionStrings[rec->stat]+
                 "\",\"sevr\":\""+epicsAlarmSeverityStrings[rec->sevr]+"\",\"busy\":"+std::to_string(waveBusy)+
-                ",\"published\":"+(context->published?"true":"false")+",\"generation\":"+std::to_string(context->identity.generation)+"}";
+                ",\"published\":"+(context && context->published?"true":"false")+
+                ",\"generation\":"+std::to_string(context?context->identity.generation:0)+"}";
     }
     return detail+"]";
 }
@@ -1473,6 +1477,57 @@ void stopWithEnqueueFailures()
                 records.drainFailed?"true":"false",int(runtime.state),restart?"true":"false",scheduler->settled()?"true":"false",
                 (unsigned long long)stopAt,(unsigned long long)releaseAt,(unsigned long long)(stoppedAt-stopAt),
                 (unsigned long long)firstAt(events,7),timeline(events).c_str());
+}
+
+// Points every Timeout record's FLNK at a record in another lockset through a Channel Access link and holds that
+// downstream record's lock: the stop must complete without waiting for the downstream processing, which Base runs on
+// its CA link thread once the lock is released. With the lock held through the IOC shutdown, the snmp3 stop still
+// completes first; the Base CA link shutdown then waits for the lock, and the pending puts are reported as observed.
+void stopWithHeldDownstream()
+{
+    const char* mode=std::getenv("SNMP3_RECORD_RELEASE");
+    check(mode && (std::strcmp(mode,"stop")==0 || std::strcmp(mode,"shutdown")==0),"downstream release mode absent");
+    const bool throughShutdown=std::strcmp(mode,"shutdown")==0;
+    auto scheduler=Runtime::instance().schedulerOwner();
+    const auto before=Requests::instance().snapshot().completions;
+    auto* external=record("Records_StopExternal");
+    auto* first=record("Records_TimeoutAi");
+    bool connected=false;
+    until([&]{ RecordLock lock(first); connected=dbIsLinkConnected(&first->flnk)!=0; return connected; },5000000);
+    const bool separateLockset=dbLockGetLockId(first)!=dbLockGetLockId(external);
+    RecordLock held(external);
+    std::vector<SupervisionEvent> events;
+    admitStopRecords(events);
+    const auto stopAt=monotonicUs();
+    std::atomic<bool> finished{false}; uint64_t stoppedAt=0;
+    std::thread stopper([&]{ if(throughShutdown)testIocShutdownOk(); else Runtime::instance().stop(); stoppedAt=monotonicUs(); finished=true; });
+    // Hold the downstream lock past the record drain budget; the stop must not depend on it.
+    until([&]{ return monotonicUs()>=ipc::add(stopAt,2500000); },3000000);
+    const bool stillRunning=!finished;
+    const auto runtimeHeld=Runtime::instance().snapshot();
+    const auto recordsHeld=Requests::instance().snapshot();
+    for(auto& e:Runtime::instance().takeSupervisionEvents())events.push_back(e);
+    const double externalHeld=reinterpret_cast<calcRecord*>(external)->val;
+    const auto releaseAt=monotonicUs();
+    held.unlock(); stopper.join();
+    // After the IOC shutdown the locksets are gone and nothing else writes the records, so they are read unlocked.
+    double externalAfter=0;
+    until([&]{ RecordLock lock(throughShutdown?nullptr:external); externalAfter=reinterpret_cast<calcRecord*>(external)->val;
+               return externalAfter>=11; },throughShutdown?100000:3000000);
+    const auto records=Requests::instance().snapshot();
+    const auto runtime=Runtime::instance().snapshot();
+    unsigned stopped=0,idle=0,busy=0;
+    const std::string detail=stopRecordRows(stopped,idle,busy,!throughShutdown);
+    std::printf("{\"event\":\"stop_downstream\",\"mode\":\"%s\",\"link_connected\":%s,\"separate_lockset\":%s,"
+                "\"still_running_at_release\":%s,\"state_while_held\":%d,\"completions_while_held\":%llu,\"drain_failed_while_held\":%s,"
+                "\"external_while_held\":%.0f,\"external_after_release\":%.0f,\"records\":%s,\"stopped\":%u,\"idle\":%u,\"waveform_busy\":%u,"
+                "\"completions_delta\":%llu,\"drain_failed\":%s,\"state\":%d,\"settled\":%s,\"stop_at_us\":%llu,\"release_at_us\":%llu,"
+                "\"stop_duration_us\":%llu,\"reap_at_us\":%llu,\"timeline\":%s}\n",
+                mode,connected?"true":"false",separateLockset?"true":"false",stillRunning?"true":"false",int(runtimeHeld.state),
+                (unsigned long long)(recordsHeld.completions-before),recordsHeld.drainFailed?"true":"false",externalHeld,externalAfter,
+                detail.c_str(),stopped,idle,busy,(unsigned long long)(records.completions-before),records.drainFailed?"true":"false",
+                int(runtime.state),scheduler->settled()?"true":"false",(unsigned long long)stopAt,(unsigned long long)releaseAt,
+                (unsigned long long)(stoppedAt-stopAt),(unsigned long long)firstAt(events,7),timeline(events).c_str());
 }
 }
 
@@ -1830,14 +1885,16 @@ int main(int argc,char** argv)
         rebuild=std::strcmp(argv[8],"rebuild")==0;
         stopInflight=std::strcmp(argv[8],"stop-inflight")==0;
         stopEnqueueFailed=std::strcmp(argv[8],"stop-enqueue-failed")==0;
+        stopDownstream=std::strcmp(argv[8],"stop-downstream")==0;
         if(edges) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
             testdbReadDatabase((root+"record-edges.db").c_str(),nullptr,"P=Records_");
             testdbReadDatabase((root+"record-order.db").c_str(),nullptr,"P=Records_");
         }
-        if(alarms || stopInflight || stopEnqueueFailed) {
+        if(alarms || stopInflight || stopEnqueueFailed || stopDownstream) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
-            testdbReadDatabase((root+(alarms?"record-alarms.db":"record-stop.db")).c_str(),nullptr,"P=Records_");
+            testdbReadDatabase((root+(alarms?"record-alarms.db":"record-stop.db")).c_str(),nullptr,
+                               stopDownstream?"P=Records_,FLNK=Records_StopExternal.PROC CA":"P=Records_");
         }
         if(active || activeUnforced || accounting) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
@@ -1862,7 +1919,7 @@ int main(int argc,char** argv)
         }
         testIocInitOk();
         if(edges)inputEdges();
-        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild && !stopInflight && !stopEnqueueFailed) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
+        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild && !stopInflight && !stopEnqueueFailed && !stopDownstream) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
         if(edges) { capacityAndOrder(); simulation(); outputEdges(); maxPayloadQueue(); }
         if(alarms)nativeTimeouts();
         if(active)activeOutputs();
@@ -1875,11 +1932,13 @@ int main(int argc,char** argv)
         if(stopQueued || rebuild)stopWithQueuedSuccessor();
         if(stopInflight)stopInFlight();
         if(stopEnqueueFailed)stopWithEnqueueFailures();
+        if(stopDownstream)stopWithHeldDownstream();
         Runtime::instance().report();
         const bool blocked=std::strcmp(argv[8],"shutdown")==0;
         const bool abandoned=std::strcmp(argv[8],"queued-shutdown")==0 ||
                              (stopEnqueueFailed && std::strcmp(std::getenv("SNMP3_RECORD_RELEASE"),"after")==0);
-        if(blocked)blockedShutdown(); else if(abandoned && !stopEnqueueFailed)queuedShutdown(); else testIocShutdownOk();
+        const bool shutdownDone=stopDownstream && std::strcmp(std::getenv("SNMP3_RECORD_RELEASE"),"shutdown")==0;
+        if(blocked)blockedShutdown(); else if(abandoned && !stopEnqueueFailed)queuedShutdown(); else if(!shutdownDone)testIocShutdownOk();
         check(Requests::instance().snapshot().contexts==0,"isolated queue cleanup retained detached contexts");
         check(Runtime::instance().snapshot().state==((blocked || abandoned)?State::IncompleteStopped:State::Stopped),"record runtime stop outcome mismatch");
         testdbCleanup();
