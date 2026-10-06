@@ -262,6 +262,7 @@ python3 tests/rewrite/test_records.py --case rebuild --output work/r6-rebuild
 python3 tests/rewrite/test_records.py --case stop-inflight --output work/r6-stop-inflight
 python3 tests/rewrite/test_records.py --case stop-enqueue-failed --output work/r6-stop-enqueue
 python3 tests/rewrite/test_records.py --case stop-downstream --output work/r6-stop-downstream
+python3 tests/rewrite/test_records.py --case live-detach --output work/r6-live-detach
 ```
 
 | Case | Shipped fixtures and observed boundary |
@@ -283,6 +284,7 @@ python3 tests/rewrite/test_records.py --case stop-downstream --output work/r6-st
 | stop-inflight | record-stop.db (the eleven Timeout records of the alarms case, each with a FLNK to one counter) and actual outer UDP drop-all; all eleven records are admitted on one address, the case waits until a batch is on the worker channel and stops the runtime; one generation is sent and the others are queued, and every record completes once as a communication alarm with INVALID severity, no native publication, PACT and waveform BUSY clear and exactly one FLNK each, the drain succeeds and the worker is reaped |
 | stop-enqueue-failed | record-stop.db and actual outer UDP drop-all, three processes; the low-priority Base callback queue is filled by an external blocker before the eleven records are admitted, so every completion enqueue is refused and the stop retries them; released while the runtime thread still runs, or after its 2 s stop bound while only the record drain retries, every record completes once with a communication alarm and one FLNK and the drain succeeds; released after the drain budget has expired, the drain fails, the stop returns without waiting for the queue, the records stay active with PACT set, restart is refused and the isolated cleanup finalizes the eleven completions once without FLNK |
 | stop-downstream | record-stop.db with every FLNK pointed through a Channel Access link at a record in another lockset, and actual outer UDP drop-all, two processes; the downstream record's lock is held past the drain budget while the runtime stops: the stop completes with every record completed once, the drain succeeded and the worker reaped, no downstream processing while held, and eleven downstream processings (one per link; Base keeps one pending put per CA link) on Base's CA link thread after the release; held through the IOC shutdown instead, the snmp3 stop completes first and Base's CA link shutdown waits for the lock; the downstream count after that release is reported, not asserted |
+| live-detach | record-stop.db and actual outer UDP drop-all, two processes; an input and an output record are replaced through Base's own link put while their requests are in flight, after they complete, after the operator stop, and, in the second process, during the record drain of a stop whose completions the full Base callback queue refuses: Base refuses every attempt, each record keeps its context and binding, and each in-flight request completes once with a communication alarm |
 
 The pressure cases fill the actual Base low-priority queue with external
 callbacks. Failed module enqueue retains the terminal, full reservation and
@@ -393,12 +395,12 @@ BUILD_RECEIPT=work/r6-sanitizer-build/sanitizer-build.json
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --output work/r6-controls
 ```
 
-The D7 controls alter one shipped support source (`Scheduler.cpp`; `DeviceSupport.cpp` or `Request.cpp` for the never-sent message, waveform BUSY and drain retry controls; `Runtime.cpp` for the report and restart controls) and run their named
+The D7 controls alter one shipped support source (`Scheduler.cpp`; `DeviceSupport.cpp` or `Request.cpp` for the never-sent message, waveform BUSY, drain retry and detach controls; `Runtime.cpp` for the report, restart and operator-stop detach controls) and run their named
 component, qualification or record cell against the same build. Each control
 directory keeps `cell/cell.stdout` and `cell/cell.stderr`; qualification and
 record cells also keep their run output under `cell/run/`. A record cell whose
-trial was killed at its child bound, or a stop-queued, stop-inflight, stop-enqueue-failed or stop-downstream cell
-without its `stop_queued`, `stop_inflight`, `stop_enqueue_failed` or `stop_downstream` event, qualifies neither a reference nor a control:
+trial was killed at its child bound, or a stop-queued, stop-inflight, stop-enqueue-failed, stop-downstream or live-detach
+cell without its `stop_queued`, `stop_inflight`, `stop_enqueue_failed`, `stop_downstream` or `live_detach` event, qualifies neither a reference nor a control:
 
 ```bash
 D7="per-handle-bound early-release uncharged-successor binding-lookup-component binding-lookup-qualification"
@@ -408,7 +410,10 @@ D7="$D7 grace-native-failure grace-all-outcomes never-sent-overcount behind-flag
 D7="$D7 grace-channel-failure grace-worker-failure grace-stopping"
 D7="$D7 never-sent-message-always never-sent-message-absent"
 D7="$D7 never-sent-message-any-outcome never-sent-message-not-reset report-never-sent-miscounted"
-D7="$D7 queued-deadline-extended rebuild-reuses-scheduler stop-queued-not-selected waveform-busy-held drain-without-retry"
+D7="$D7 queued-deadline-extended rebuild-reuses-scheduler stop-queued-not-selected waveform-busy-held drain-without-retry detach-always-allowed"
+D7="$D7 detach-allowed-when-idle stop-permits-detach detach-allowed-while-pending refused-detach-raises-alarm refused-detach-perturbs-active-handle"
+D7="$D7 entry-reported-open-after-stop detach-reported-allowed-after-stop drain-always-failed refused-detach-toggles-active-handle refused-detach-toggles-idle-handle refused-detach-perturbs-stopped-handle refused-detach-perturbs-pending-handle completion-counted-twice"
+D7="$D7 retried-completion-leaves-record-active refusal-releases-record refusal-releases-record-with-alarm"
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --d7-controls $D7 --output work/r6-d7-controls
 ```
 
@@ -426,6 +431,7 @@ into these groups:
 | Queued deadline | queued-deadline-restart, queued-deadline-extended |
 | Restart | rebuild-reuses-scheduler |
 | Stop in flight | stop-queued-not-selected, waveform-busy-held, drain-without-retry |
+| Live detach | detach-always-allowed, detach-allowed-when-idle, detach-allowed-while-pending, stop-permits-detach, refused-detach-raises-alarm, refused-detach-perturbs-active-handle, entry-reported-open-after-stop, detach-reported-allowed-after-stop, drain-always-failed, refused-detach-toggles-active-handle, refused-detach-toggles-idle-handle, refused-detach-perturbs-stopped-handle, refused-detach-perturbs-pending-handle, completion-counted-twice, retried-completion-leaves-record-active, refusal-releases-record, refusal-releases-record-with-alarm |
 
 The shipped controls cover communication-alarm classification, integer
 precision, text capacity, binary32 tie selection, ambient-rounding dependence,

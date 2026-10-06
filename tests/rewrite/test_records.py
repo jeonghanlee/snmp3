@@ -20,6 +20,8 @@ QUEUE_CASES = ("deadline-queue", "near-deadline", "stop-queued", "rebuild")
 STOP_BUDGET_MS = 300
 # Shipped stop limits: the supervisor stop bound and the record drain budget that follows it.
 STOP_BOUND_MS = 2000
+# Base alarm condition COMM (9) and severity INVALID (3) as the live-detach event encodes them: stat * 10 + sevr.
+COMM_INVALID = 93
 DRAIN_BUDGET_MS = 2000
 
 
@@ -50,7 +52,7 @@ def main():
     parser.add_argument("--sanitizers", action="store_true")
     parser.add_argument("--case", choices=("baseline", "shutdown", "queued-shutdown", "edges", "alarms", "active", "policy", "numeric",
                                                    "active-unforced", "deadline-queue", "near-deadline",
-                                                   "accounting", "stop-queued", "rebuild", "stop-inflight", "stop-enqueue-failed", "stop-downstream"), default="baseline")
+                                                   "accounting", "stop-queued", "rebuild", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach"), default="baseline")
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(mode=0o700)
@@ -81,7 +83,7 @@ def main():
                          "oid": "1.3.6.1.4.1.53864.4." + str(index) + ".0",
                          "operation": operation, "valueType": tag, "capacity": capacity}
                          for name, index, operation, tag, capacity in specs]}
-        if args.case in ("alarms", "policy", "stop-inflight", "stop-enqueue-failed", "stop-downstream"):
+        if args.case in ("alarms", "policy", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach"):
             dropped, _ = runner.fault("record-response-drop", 4, peer, "drop-all")
             configuration["endpoints"].append({"id": "Dropped", "address": "127.0.0.1",
                                                "port": int(dropped.rsplit(":", 1)[1]), "profile": "Local"})
@@ -231,6 +233,12 @@ def main():
             for mode in ("within", "late", "after"):
                 libraries, trial_events = execute("records-" + mode, {"SNMP3_RECORD_RELEASE": mode})
                 events += trial_events
+        elif args.case == "live-detach":
+            # One process replacing links while requests run, one during the record drain of a stop with a full queue.
+            events = []
+            for phase in ("live", "drain"):
+                libraries, trial_events = execute("records-" + phase, {"SNMP3_RECORD_PHASE": phase})
+                events += trial_events
         elif args.case == "stop-downstream":
             # One process holding the downstream lock across the runtime stop, one holding it through the IOC shutdown.
             events = []
@@ -247,7 +255,7 @@ def main():
             libraries, events = execute("records")
         summary = next((event for event in events if event.get("event") == "record_summary"), {})
         # Queue cases skip the baseline and pressure phases; their records are checked per trial below.
-        if args.case not in QUEUE_CASES + ("stop-inflight", "stop-enqueue-failed", "stop-downstream"):
+        if args.case not in QUEUE_CASES + ("stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach"):
             runner.check("actual-eleven-record-path", summary.get("records") == 11 and summary.get("checks", 0) > 100)
             completions = [event for event in events if event.get("event") == "record_completed"]
             runner.check("actual-record-identities", bool(completions) and all(event["activation"] == 1 and
@@ -510,6 +518,38 @@ def main():
             runner.check("retained-records-finalized-once-at-cleanup",
                          len(cleanups) == 3 and all(event.get("contexts") == 0 and event.get("completions") == 11
                                                     for event in cleanups) and after.get("completions_delta") == 0)
+        if args.case == "live-detach":
+            cells = {event["phase"]: event for event in events if event.get("event") == "live_detach"}
+            live, drain = cells.get("live", {}), cells.get("drain", {})
+            # Scenario preconditions, which no product defect can make the only false term, so no control isolates
+            # them: both phases ran (len(cells) == 2), and in the drain phase the stop was still running with both
+            # completions pending when the probe landed (still_stopping_at_attempt, pending_during). Every other term
+            # is a product property with a shipped control, except the five refused terms, which are redundant:
+            # Base clears dpvt before add_record whenever it accepts a link put and snmp3 never restores it, so
+            # whenever the paired intact term holds the refused term holds, and no defect makes a refused term the
+            # only false term of its check. active_before (read after the in-flight probe) is decided by
+            # refusal-releases-record in the live phase and by refusal-releases-record-with-alarm in the drain phase,
+            # where the first control also changes the alarms; the drain phase's open_after is decided by
+            # retried-completion-leaves-record-active.
+            # The drain in_flight_intact term is decided by refused-detach-toggles-active-handle within the drain
+            # check; the live in-flight check fails under the same control, because the product sees the same state
+            # at both in-flight probes.
+            runner.check("live-replacement-refused-while-request-in-flight",
+                         len(cells) == 2 and live.get("active_before") == 2 and
+                         live.get("in_flight_refused") is True and live.get("in_flight_intact") is True)
+            runner.check("in-flight-request-completes-once-after-refusal",
+                         live.get("open_after") == 0 and live.get("completions_delta") == 2 and
+                         live.get("alarms") == [COMM_INVALID, COMM_INVALID])
+            runner.check("live-replacement-refused-idle-and-after-operator-stop",
+                         live.get("idle_refused") is True and live.get("idle_intact") is True and
+                         live.get("stopped_refused") is True and live.get("stopped_intact") is True and
+                         live.get("entry_open") is False and live.get("detach_allowed") is False)
+            runner.check("live-replacement-refused-during-record-drain",
+                         drain.get("active_before") == 2 and drain.get("in_flight_refused") is True and
+                         drain.get("in_flight_intact") is True and drain.get("still_stopping_at_attempt") is True and drain.get("pending_during") == 2 and
+                         drain.get("during_drain_refused") is True and drain.get("during_drain_intact") is True and
+                         drain.get("open_after") == 0 and drain.get("completions_delta") == 2 and
+                         drain.get("alarms") == [COMM_INVALID, COMM_INVALID] and drain.get("drain_failed") is False)
         if args.case == "stop-downstream":
             stops = {event["mode"]: event for event in events if event.get("event") == "stop_downstream"}
             stop, shutdown = stops.get("stop", {}), stops.get("shutdown", {})
@@ -577,7 +617,7 @@ def main():
         inputs += [ROOT / "tests/rewrite/db/record-edges.db", ROOT / "tests/rewrite/db/record-order.db"]
     if args.case == "alarms":
         inputs += [ROOT / "tests/rewrite/db/record-alarms.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
-    if args.case in ("stop-inflight", "stop-enqueue-failed", "stop-downstream"):
+    if args.case in ("stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach"):
         inputs += [ROOT / "tests/rewrite/db/record-stop.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case in ("active", "active-unforced"):
         inputs += [ROOT / "tests/rewrite/db/record-active.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]

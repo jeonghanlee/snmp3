@@ -56,6 +56,7 @@ bool rebuild=false;
 bool stopInflight=false;
 bool stopEnqueueFailed=false;
 bool stopDownstream=false;
+bool liveDetach=false;
 int64_t firstActivationWorker=0;
 struct RecordLock {
     dbCommon* value;
@@ -1529,6 +1530,104 @@ void stopWithHeldDownstream()
                 int(runtime.state),scheduler->settled()?"true":"false",(unsigned long long)stopAt,(unsigned long long)releaseAt,
                 (unsigned long long)(stoppedAt-stopAt),(unsigned long long)firstAt(events,7),timeline(events).c_str());
 }
+
+// Replaces one link field through Base's own put path, which asks the device support to detach first.
+// Returns true when Base refused the replacement.
+bool replacementRefused(const char* field,const char* text)
+{
+    DBADDR address{};
+    check(dbNameToAddr(field,&address)==0,"link field lookup failed");
+    return dbPutField(&address,DBR_STRING,text,1)!=0;
+}
+// Tries to replace the input link of Records_TimeoutAi and the output link of Records_TimeoutAo and reports
+// whether Base refused both and left each record's context and binding untouched.
+struct DetachProbe { bool taken=false; bool refused=false; bool intact=false; };
+DetachProbe probeReplacement(const std::vector<RecordContext*>& contexts,const std::vector<uint64_t>& handles)
+{
+    DetachProbe probe; probe.taken=true;
+    const bool ai=replacementRefused("Records_TimeoutAi.INP","@binding=TimeoutCounter32Read deadline_ms=5000");
+    const bool ao=replacementRefused("Records_TimeoutAo.OUT","@binding=TimeoutIntegerWrite deadline_ms=5000");
+    probe.refused=ai && ao;
+    probe.intact=record("Records_TimeoutAi")->dpvt==contexts[0] && record("Records_TimeoutAo")->dpvt==contexts[1] &&
+                 contexts[0]->handle==handles[0] && contexts[1]->handle==handles[1] &&
+                 contexts[0]->record==record("Records_TimeoutAi") && contexts[1]->record==record("Records_TimeoutAo");
+    return probe;
+}
+// Link replacement while requests are in flight, after they complete, after the operator stop, and during the record
+// drain of a stop whose completions the full Base queue refuses: Base must refuse every attempt and leave the contexts.
+void liveDetachCells()
+{
+    const char* phase=std::getenv("SNMP3_RECORD_PHASE");
+    check(phase && (std::strcmp(phase,"live")==0 || std::strcmp(phase,"drain")==0),"live detach phase absent");
+    const bool drain=std::strcmp(phase,"drain")==0;
+    const char* names[]={"Records_TimeoutAi","Records_TimeoutAo"};
+    std::vector<RecordContext*> contexts; std::vector<uint64_t> handles;
+    for(const char* name:names) { auto* context=static_cast<RecordContext*>(record(name)->dpvt);
+                                  contexts.push_back(context); handles.push_back(context->handle); }
+    const auto before=Requests::instance().snapshot();
+    QueueBlocker blocker; epicsCallback fillers[8]{};
+    if(drain) {
+        blocker.queued=callbackRequest(&blocker.callback)==0;
+        check(blocker.queued && blocker.entered.wait(3.0),"live detach queue blocker did not enter");
+        for(auto& filler:fillers) {
+            callbackSetCallback(&QueueBlocker::count,&filler);
+            callbackSetUser(&blocker,&filler); callbackSetPriority(priorityLow,&filler);
+            check(callbackRequest(&filler)==0,"live detach callback queue fill failed");
+        }
+    }
+    for(const char* name:names) {
+        auto* rec=record(name); RecordLock lock(rec);
+        rec->udf=std::strcmp(name,"Records_TimeoutAi")==0;
+        dbProcess(rec); check(rec->pact,"live detach request was not admitted");
+    }
+    const auto inFlight=probeReplacement(contexts,handles);
+    unsigned activeBefore=0;
+    for(const char* name:names) { RecordLock lock(record(name)); activeBefore+=record(name)->pact; }
+    DetachProbe idle,stopped,during; unsigned pendingDuring=0; bool stillStopping=false; uint64_t attemptAt=0;
+    std::vector<unsigned> alarms;
+    if(!drain) {
+        check(until([&]{ unsigned open=0; for(const char* name:names) { RecordLock lock(record(name)); open+=record(name)->pact; }
+                         return open==0; },8000000),"live detach requests did not complete");
+        for(const char* name:names) { RecordLock lock(record(name)); alarms.push_back(record(name)->stat*10+record(name)->sevr); }
+        idle=probeReplacement(contexts,handles);
+        Runtime::instance().stop();
+        stopped=probeReplacement(contexts,handles);
+    } else {
+        check(until([&]{ const auto v=Requests::instance().snapshot();
+                         return v.active==2 && v.pending==2 && v.enqueueFailures>=before.enqueueFailures+2; },3000000),
+              "live detach completions were not refused by the full queue");
+        std::atomic<bool> finished{false};
+        const auto stopAt=monotonicUs();
+        std::thread stopper([&]{ Runtime::instance().stop(); finished=true; });
+        // 2.5 s lies after the supervisor bound and inside the record drain budget.
+        until([&]{ return monotonicUs()>=ipc::add(stopAt,2500000); },3000000);
+        stillStopping=!finished; attemptAt=monotonicUs()-stopAt;
+        pendingDuring=unsigned(Requests::instance().snapshot().pending);
+        during=probeReplacement(contexts,handles);
+        blocker.release.trigger(); stopper.join();
+        check(until([&]{ return blocker.noops==8; }),"live detach fillers did not drain");
+        for(const char* name:names) { RecordLock lock(record(name)); alarms.push_back(record(name)->stat*10+record(name)->sevr); }
+    }
+    const auto records=Requests::instance().snapshot();
+    unsigned open=0;
+    for(const char* name:names) { RecordLock lock(record(name)); open+=record(name)->pact; }
+    // A probe or measurement a phase does not take prints null, never a false default.
+    const auto flag=[](const DetachProbe& p,bool value)->const char* { return !p.taken?"null":value?"true":"false"; };
+    const std::string stopping=drain?(stillStopping?"true":"false"):"null";
+    const std::string pending=drain?std::to_string(pendingDuring):"null";
+    const std::string attempt=drain?std::to_string((unsigned long long)attemptAt):"null";
+    std::printf("{\"event\":\"live_detach\",\"phase\":\"%s\",\"active_before\":%u,\"in_flight_refused\":%s,\"in_flight_intact\":%s,"
+                "\"idle_refused\":%s,\"idle_intact\":%s,\"stopped_refused\":%s,\"stopped_intact\":%s,"
+                "\"during_drain_refused\":%s,\"during_drain_intact\":%s,\"still_stopping_at_attempt\":%s,\"pending_during\":%s,"
+                "\"attempt_after_us\":%s,\"open_after\":%u,\"completions_delta\":%llu,\"alarms\":[%u,%u],"
+                "\"entry_open\":%s,\"detach_allowed\":%s,\"drain_failed\":%s}\n",
+                phase,activeBefore,flag(inFlight,inFlight.refused),flag(inFlight,inFlight.intact),
+                flag(idle,idle.refused),flag(idle,idle.intact),flag(stopped,stopped.refused),flag(stopped,stopped.intact),
+                flag(during,during.refused),flag(during,during.intact),stopping.c_str(),pending.c_str(),
+                attempt.c_str(),open,(unsigned long long)(records.completions-before.completions),
+                alarms.size()>0?alarms[0]:0,alarms.size()>1?alarms[1]:0,records.entryOpen?"true":"false",
+                records.detachAllowed?"true":"false",records.drainFailed?"true":"false");
+}
 }
 
 namespace {
@@ -1886,12 +1985,13 @@ int main(int argc,char** argv)
         stopInflight=std::strcmp(argv[8],"stop-inflight")==0;
         stopEnqueueFailed=std::strcmp(argv[8],"stop-enqueue-failed")==0;
         stopDownstream=std::strcmp(argv[8],"stop-downstream")==0;
+        liveDetach=std::strcmp(argv[8],"live-detach")==0;
         if(edges) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
             testdbReadDatabase((root+"record-edges.db").c_str(),nullptr,"P=Records_");
             testdbReadDatabase((root+"record-order.db").c_str(),nullptr,"P=Records_");
         }
-        if(alarms || stopInflight || stopEnqueueFailed || stopDownstream) {
+        if(alarms || stopInflight || stopEnqueueFailed || stopDownstream || liveDetach) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
             testdbReadDatabase((root+(alarms?"record-alarms.db":"record-stop.db")).c_str(),nullptr,
                                stopDownstream?"P=Records_,FLNK=Records_StopExternal.PROC CA":"P=Records_");
@@ -1919,7 +2019,7 @@ int main(int argc,char** argv)
         }
         testIocInitOk();
         if(edges)inputEdges();
-        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild && !stopInflight && !stopEnqueueFailed && !stopDownstream) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
+        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild && !stopInflight && !stopEnqueueFailed && !stopDownstream && !liveDetach) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
         if(edges) { capacityAndOrder(); simulation(); outputEdges(); maxPayloadQueue(); }
         if(alarms)nativeTimeouts();
         if(active)activeOutputs();
@@ -1933,6 +2033,7 @@ int main(int argc,char** argv)
         if(stopInflight)stopInFlight();
         if(stopEnqueueFailed)stopWithEnqueueFailures();
         if(stopDownstream)stopWithHeldDownstream();
+        if(liveDetach)liveDetachCells();
         Runtime::instance().report();
         const bool blocked=std::strcmp(argv[8],"shutdown")==0;
         const bool abandoned=std::strcmp(argv[8],"queued-shutdown")==0 ||
