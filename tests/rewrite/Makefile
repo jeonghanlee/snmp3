@@ -51,4 +51,11 @@ PROD_IOC += snmp3RecordTest
 snmp3RecordTest_SRCS += RecordTest.cpp snmp3RecordTest_registerRecordDeviceDriver.cpp
 snmp3RecordTest_LIBS += snmp3 snmp3Wire $(EPICS_BASE_IOC_LIBS)
 
+SRC_DIRS += $(TOP)/snmp3App/src
+DBD += snmp3ShutdownTest.dbd
+snmp3ShutdownTest_DBD += base.dbd snmp3.dbd snmp3ShutdownTestRegistrar.dbd
+PROD_IOC += snmp3ShutdownTest
+snmp3ShutdownTest_SRCS += Main.cpp ShutdownTest.cpp snmp3ShutdownTest_registerRecordDeviceDriver.cpp
+snmp3ShutdownTest_LIBS += snmp3 snmp3Wire $(EPICS_BASE_IOC_LIBS)
+
 include $(TOP)/configure/RULES

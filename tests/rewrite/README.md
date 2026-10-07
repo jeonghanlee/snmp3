@@ -575,3 +575,135 @@ RD_LIST='import test_record_controls as c; print(" ".join(c.REPEAT_CONTROLS))'
 RD_CONTROLS=$(PYTHONPATH=tests/rewrite python3 -B -c "$RD_LIST")
 python3 -B "$RD_CONTROL_DRIVER" --build-receipt "$RD_RECEIPT" --d7-controls $RD_CONTROLS --output "$RD_RUN-controls"
 ```
+
+### Non-isolated shutdown with outstanding records
+
+`test_record_shutdown.py` runs two fresh-process cases with `record-shutdown.db`:
+passive low-priority ai Integer GET and ao OpaqueFloat SET, 60000 ms record
+deadlines, initial values 71 and 19.5, and a shared calc FLNK counter.
+`--case inflight|retained|all` selects the case; the default is `all`.
+
+The `inflight` case runs the production `snmp3Ioc`, its generated registrar and
+unchanged Main. Actual CA puts admit both records while an outer UDP proxy
+forwards requests but drops replies. Before shell `exit`, both PACT fields must
+be true, Runtime must have two active contexts and zero completions, an actual
+application request must have reached the proxy, and neither the record nor
+native timeout may have elapsed. The final fallback report must be Stopped with
+closed admission/entry, two retained inactive contexts, exactly two completions,
+no callback activity and successful drain. The worker identified before exit by
+PID/start time must be reaped. This case does not read private record pointers
+or per-record alarm fields after server shutdown.
+
+The `retained` case runs `snmp3ShutdownTest`, built from the same production
+Main plus an observer and a generated test registrar. Its explicit setup command
+registers the observer after the production hook. It uses ordinary `iocInit`
+and shell `exit`, with no isolated test initialization or cleanup. A real
+external callback holds the single low-priority Base consumer while actual CA
+requests traverse the pass-through proxy, worker/native path and NativeAgent.
+Two selected successful native results must have real Result/Retired events
+before exit; both callbacks remain queued and both generations remain charged
+and unconsumed. `Scheduler::settled()` is not a readiness condition here.
+
+Real Runtime drain expires. AtShutdown observes closed entry and detach
+permission; AfterCloseLinks observes null record dpvt and context record
+pointers, then releases only the external hold. AfterStopCallback observes two
+Inert callbacks, retained contexts/results/reservations, zero completions and
+unchanged record values/publication flags/FLNK. The callback queue system still
+exists after its threads join. AfterShutdown preserves that state, reports
+IncompleteStopped, and a real Runtime start attempt must fail without a new
+activation/thread/worker. The later fallback report is checked separately.
+There must be no BeforeFree phase.
+
+`retained-terminal-preserved` requires both contexts to retain a non-null,
+sent, identity-matched successful terminal at queued, AtShutdown,
+AfterCloseLinks, AfterStopCallback, AfterShutdown and restart. Both pointer
+checks require null associations from AfterCloseLinks through restart; the
+Inert count must remain two from AfterStopCallback through restart.
+
+Every required observer phase (`prepared`, `queued`, `AtShutdown`,
+`AfterCloseLinks`, `AfterStopCallback`, `AfterShutdown`, `restart`) occurs once,
+in order, with complete typed fields and monotonic timestamps. Missing,
+duplicate or malformed observations fail. Inventory is checked before reading
+saved context pointers. A watchdog can release the external hold for cleanup,
+but any watchdog, abnormal child exit, forced cleanup, sanitizer diagnostic,
+credential sentinel, missing receipt or runner abort fails the case. IOC, CA
+clients, private repeater, agent and proxy have individual exit/reaping receipts;
+`results.json` aggregates them. Loaded-library and input/product hashes accompany
+raw stdout/stderr and per-case observations.
+
+Build root and tests before generating the separate instrumented products.
+Every output directory below must be unused; use a fresh prefix for another
+execution. Run from the repository root. The required matrix is three ordinary
+trials and one instrumented trial, both cases passing in every trial, followed
+by isolated queued-shutdown and production CA regressions on both product sets.
+
+```bash
+NS_BUILD=work/nonisolated-san
+NS_RUN=work/nonisolated
+NS_DRIVER=tests/rewrite/test_record_shutdown.py
+make -j2
+make -C tests/rewrite -j2
+python3 tests/rewrite/build_r5_sanitizers.py --output "$NS_BUILD"
+NS_PRODUCTS="$PWD/$NS_BUILD/products"
+python3 "$NS_DRIVER" --output "$NS_RUN-1"
+python3 "$NS_DRIVER" --output "$NS_RUN-2"
+python3 "$NS_DRIVER" --output "$NS_RUN-3"
+python3 "$NS_DRIVER" --products "$NS_PRODUCTS" --sanitizers --output "$NS_RUN-asan"
+NS_ISOLATED=tests/rewrite/test_records.py
+python3 "$NS_ISOLATED" --case queued-shutdown --output "$NS_RUN-reg-isolated"
+python3 "$NS_ISOLATED" --case queued-shutdown --products "$NS_PRODUCTS" --sanitizers --output "$NS_RUN-reg-iso-asan"
+NS_CA=tests/rewrite/test_record_ca.py
+python3 "$NS_CA" --output "$NS_RUN-reg-ca"
+python3 "$NS_CA" --products "$NS_PRODUCTS" --sanitizers --output "$NS_RUN-reg-ca-asan"
+```
+
+The separate `--shutdown-controls` group uses all six controls when given
+without names. Each compiles a declared defective support copy and the unchanged
+companion sources using the fresh sanitizer receipt. The receipt's source and
+product hashes must still match. A shared positive reference must pass the whole
+case and contain exactly one passing occurrence of each named check. A defective
+copy qualifies only when its named check occurs once and fails, the intended
+library hash is observed in the IOC, all phases complete, and every child cleans
+up normally. A crash, timeout or sanitizer termination is not detection.
+Other control groups retain their existing behavior.
+
+```bash
+NS_RECEIPT="$NS_BUILD/sanitizer-build.json"
+NS_CONTROLS=tests/rewrite/test_record_controls.py
+python3 "$NS_CONTROLS" --build-receipt "$NS_RECEIPT" --shutdown-controls --output "$NS_RUN-controls"
+```
+
+| Defective support control | Independently targeted check |
+| --- | --- |
+| nonisolated-release-after-join | retained-contexts-after-callback-join |
+| nonisolated-release-after-shutdown | retained-contexts-after-shutdown |
+| nonisolated-detach-dpvt | retained-record-dpvt-detached |
+| nonisolated-detach-record | retained-context-record-detached |
+| nonisolated-late-entry | retained-late-callbacks-inert |
+| nonisolated-false-drain | retained-drain-expiry-recorded |
+
+The following term map distinguishes targeted discrimination from observed
+preconditions and coverage limits. Execution outcomes belong in the canonical
+M6 T12/T14 results; this table defines what the checks can establish.
+
+| Checks/properties | Evidence class and limit |
+| --- | --- |
+| Six named checks above | Each has its own compiled control. Other terms failing in the same run are not credited as independent discrimination. |
+| Phase inventory and field types | Required observation preconditions; missing/duplicate/malformed validation uses copies of retained real events and is parser validation, not additional integration execution. |
+| Terminal presence, sent status, terminal identity match and successful outcome at each ownership phase; pointer and Inert preservation at later phases | Direct synchronized observations. Wrong-but-well-typed value changes in retained real observations validate the assertions only; they are not separately compiled product controls. |
+| Bind readiness, actual IOC/CA requests, both PACT values, pending Runtime counts, native/wire GET and SET, native retirement, queued counts and deadlines | Actual fixture and scenario preconditions; no individual defective-product control for each conjunct. |
+| Closed entry, zero entered processing, detach permission, exact generation identity, unchanged publication/native-success flags and values, zero FLNK/completions, retained count/bytes and unconsumed results | Direct synchronized observations across named phases. The six controls can also disturb some combinations; those combined failures do not independently qualify each term. |
+| IncompleteStopped, restart rejection and unchanged activation/thread counters | Direct public Runtime call and pre/post snapshots; no separate restart control in this group. Native launch events and final worker counts are additional observations, not a replacement for the snapshots. |
+| Live queue after callback join, no BeforeFree, hook order, separate fallback state | Actual Base lifecycle and queue-status observations; thread join is not a proof of queue destruction. No independent Base mutation is in scope. |
+| Production Stopped exit, two inactive contexts, exactly two completions and closed entry | Actual production Main/registrar case and complete final Runtime report. The retained-companion controls do not independently discriminate these production-case terms. |
+| Worker identity/reap, all child receipts, secret/sanitizer scans, IOC loaded libraries | Required execution/provenance preconditions. A control cannot qualify by failing cleanup or crashing; sanitizer silence alone does not establish pointer safety. |
+
+Scope is this ai/ao pair on the selected local Base 7.0.10/Linux installation.
+Retained allocations at non-isolated process exit are expected; no leak-free
+claim is made. ASan/UBSan instruments fresh module, companion, worker/native and
+test products; installed Base, CA tools and system/vendor dependencies remain
+uninstrumented, and leak detection is disabled. The production inflight case
+uses the production worker stderr policy; the retained companion additionally
+captures worker stderr through the public qualification setting. Startup
+failure, all eleven record kinds individually, long-string/maximum-capacity
+buffers, isolated reuse and the remaining D13 cells require separate evidence.

@@ -1,0 +1,26 @@
+record(ai, "$(P)Input") {
+    field(DESC, "Pending shutdown input")
+    field(DTYP, "snmp3")
+    field(SCAN, "Passive")
+    field(PINI, "NO")
+    field(PRIO, "LOW")
+    field(VAL, "71")
+    field(INP, "@binding=ShutdownRead deadline_ms=60000")
+    field(FLNK, "$(P)Completed")
+}
+
+record(ao, "$(P)Output") {
+    field(DESC, "Pending shutdown output")
+    field(DTYP, "snmp3")
+    field(SCAN, "Passive")
+    field(PINI, "NO")
+    field(PRIO, "LOW")
+    field(VAL, "19.5")
+    field(OUT, "@binding=ShutdownWrite deadline_ms=60000")
+    field(FLNK, "$(P)Completed")
+}
+
+record(calc, "$(P)Completed") {
+    field(DESC, "Shutdown completion count")
+    field(CALC, "VAL+1")
+}

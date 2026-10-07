@@ -46,6 +46,9 @@ def build(output):
     jobs.append(("snmp3Ioc", [src / "Main.cpp", src / ("O." + ARCH) /
                  "snmp3Ioc_registerRecordDeviceDriver.cpp"], [],
                  ["-lsnmp3", "-lsnmp3Wire", "-ldbRecStd", "-ldbCore", "-lca", "-lCom"], False))
+    jobs.append(("snmp3ShutdownTest", [src / "Main.cpp", tests / "ShutdownTest.cpp", tests / ("O." + ARCH) /
+                 "snmp3ShutdownTest_registerRecordDeviceDriver.cpp"], [],
+                 ["-lsnmp3", "-lsnmp3Wire", "-ldbRecStd", "-ldbCore", "-lca", "-lCom"], False))
     receipts = []
     inputs = sorted(src.glob("*.h")) + sorted(native.glob("*.h"))
     for name, sources, flags, libraries, use_native in jobs:
