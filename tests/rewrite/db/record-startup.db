@@ -1,0 +1,31 @@
+record(ai, "$(P)Input") {
+    field(DESC, "Startup input")
+    field(DTYP, "snmp3")
+    field(PINI, "NO")
+    field(VAL, "71")
+    field(UDF, "0")
+    field(INP, "@binding=StartupRead deadline_ms=5000")
+}
+
+record(ao, "$(P)Output") {
+    field(DESC, "Startup output")
+    field(DTYP, "snmp3")
+    field(PINI, "NO")
+    field(VAL, "19.5")
+    field(UDF, "0")
+    field(OUT, "@binding=StartupWrite deadline_ms=5000")
+}
+
+record(ai, "$(P)RejectedInput") {
+    field(DESC, "Reject unknown input binding")
+    field(DTYP, "snmp3")
+    field(VAL, "81")
+    field(INP, "@binding=Unknown deadline_ms=5000")
+}
+
+record(ao, "$(P)RejectedOutput") {
+    field(DESC, "Reject GET binding on output")
+    field(DTYP, "snmp3")
+    field(VAL, "29.5")
+    field(OUT, "@binding=StartupRead deadline_ms=5000")
+}

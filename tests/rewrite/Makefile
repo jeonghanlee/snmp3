@@ -58,4 +58,10 @@ PROD_IOC += snmp3ShutdownTest
 snmp3ShutdownTest_SRCS += Main.cpp ShutdownTest.cpp snmp3ShutdownTest_registerRecordDeviceDriver.cpp
 snmp3ShutdownTest_LIBS += snmp3 snmp3Wire $(EPICS_BASE_IOC_LIBS)
 
+DBD += snmp3StartupTest.dbd
+snmp3StartupTest_DBD += base.dbd snmp3.dbd snmp3StartupTestRegistrar.dbd
+PROD_IOC += snmp3StartupTest
+snmp3StartupTest_SRCS += Main.cpp StartupTest.cpp snmp3StartupTest_registerRecordDeviceDriver.cpp
+snmp3StartupTest_LIBS += snmp3 snmp3Wire $(EPICS_BASE_IOC_LIBS)
+
 include $(TOP)/configure/RULES

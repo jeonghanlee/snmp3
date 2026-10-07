@@ -537,6 +537,113 @@ def main_shutdown(args, jobs, output):
     print(("PASS: " if passed else "FAIL: ") + str(output / "results.json"))
     return 0 if passed else 1
 
+STARTUP_CONTROLS = {
+    "startup-failed-state-lost": ("Runtime.cpp", "startup-failed-state-preserved", [
+        ('if(reconciled && drained && !recordDrainFailed && current.state==State::IncompleteStopped)',
+         'if(current.state==State::Failed)current.state=State::Stopped;\n        if(reconciled && drained && !recordDrainFailed && current.state==State::IncompleteStopped)')]),
+    "startup-ownerless-accepted": ("Request.cpp", "startup-no-accepted-work", [
+        ('require(producers && entryOpen && context.owner==activation && !context.active &&',
+         'if(!producers) { context.active=true; context.record->pact=TRUE; return; }\n    require(producers && entryOpen && context.owner==activation && !context.active &&')]),
+    "startup-refusal-alarm-omitted": ("DeviceSupport.cpp", "startup-admission-refused-with-alarm", [
+        ('} catch(const std::exception&) { recGblSetSevr(record,error,INVALID_ALARM); return -1; }',
+         '} catch(const std::exception&) { (void)error; return -1; }')]),
+    "startup-release-after-join": ("Register.cpp", "startup-storage-retained-after-join", [
+        ('} else if(state==initHookAfterShutdown && isolatedCleanup) {',
+         '} else if(state==initHookAfterStopCallback || (state==initHookAfterShutdown && isolatedCleanup)) {')]),
+    "startup-release-after-shutdown": ("Register.cpp", "startup-storage-retained-after-shutdown", [
+        ('} else if(state==initHookAfterShutdown && isolatedCleanup) {',
+         '} else if(state==initHookAfterShutdown) {')]),
+    "startup-detach-dpvt": ("Request.cpp", "startup-record-pointers-cleared", [
+        ('if(context.record && context.record->dpvt==&context)context.record->dpvt=nullptr;', '(void)context.record;')]),
+    "startup-detach-record": ("Request.cpp", "startup-context-pointers-cleared", [
+        ('context.record=nullptr;', '(void)context.record;')]),
+}
+
+
+def run_startup(products, output):
+    argv = [sys.executable, str(ROOT / "tests/rewrite/test_record_startup.py"), "--case", "failure-break",
+            "--products", str(products), "--sanitizers", "--output", str(output)]
+    with output.with_suffix(".stdout").open("xb") as stdout, output.with_suffix(".stderr").open("xb") as stderr:
+        child = subprocess.Popen(argv, stdout=stdout, stderr=stderr)
+        code = waited(child, 120)
+    write_json(output.with_suffix(".receipt.json"), {"argv": argv, "returncode": code,
+               "pid": child.pid, "child_reaped": True})
+    result = json.loads((output / "failure-break/results.json").read_text())
+    result["runner_returncode"] = code
+    return result
+
+
+def startup_completed(outcome):
+    from test_record_startup import phase_inventory
+    required = ("startup-phase-inventory", "startup-two-contexts-before-runtime",
+                "startup-preflight-failed-before-processing", "startup-rejection-diagnostics",
+                "startup-real-shutdown-order", "startup-no-isolated-cleanup",
+                "startup-all-child-receipts-clean", "startup-IOC-native-free",
+                "sanitizer-diagnostics-absent", "secret-sentinels-absent")
+    return (not outcome["aborted"] and outcome["cleanup_passed"] and
+            phase_inventory(outcome["observations"], True) and
+            all(unique_check(outcome, name, True) for name in required))
+
+
+def main_startup(args, jobs, output):
+    selected = {Path(job["argv"][-1]).name: job for job in jobs}
+    original = Path(selected["libsnmp3.so"]["argv"][-1]).parent
+    rebuilt = ("libsnmp3.so", "snmp3StartupTest")
+    for job in jobs:
+        product = Path(job["argv"][-1])
+        if job["returncode"] != 0 or digest(product) != job["product_sha256"]:
+            raise RuntimeError("sanitizer product receipt mismatch")
+        if any(digest(Path(name)) != expected for name, expected in job["sources"].items()):
+            raise RuntimeError("sanitizer source receipt mismatch")
+    reference = run_startup(original, output / "reference")
+    reference_support = original / "libsnmp3.so"
+    reference_loaded = reference["ioc_libraries"].get(str(reference_support.resolve())) == digest(reference_support)
+    results = []
+    names = args.startup_controls or STARTUP_CONTROLS
+    for name in names:
+        filename, check, edits = STARTUP_CONTROLS[name]
+        item = output / name
+        item.mkdir(mode=0o700)
+        products = item / "products"
+        products.mkdir(mode=0o700)
+        source = ROOT / "snmp3App/src" / filename
+        text = source.read_text()
+        for old, new in edits:
+            if text.count(old) != 1:
+                raise RuntimeError("startup control source anchor is not unique")
+            text = text.replace(old, new)
+        replacement = item / filename
+        replacement.write_text(text)
+        write_json(item / "mutation.json", {"control": name, "source": str(source), "edits": edits,
+                   "original_sha256": digest(source), "mutated_sha256": digest(replacement),
+                   "case": "failure-break", "check": check})
+        for existing in original.iterdir():
+            if existing.name not in rebuilt:
+                (products / existing.name).symlink_to(existing)
+        defective = compile_product(selected[rebuilt[0]], original, products, source, replacement, item)
+        executable = compile_product(selected[rebuilt[1]], original, products, source, replacement, item)
+        outcome = run_startup(products, item / "run")
+        loaded = (Path(resolved_support(executable)).resolve() == defective.resolve() and
+                  outcome["ioc_libraries"].get(str(defective.resolve())) == digest(defective))
+        reference_passed = (reference["passed"] and reference["runner_returncode"] == 0 and reference_loaded and
+                            startup_completed(reference) and unique_check(reference, check, True))
+        passed = (reference_passed and loaded and startup_completed(outcome) and outcome["runner_returncode"] == 1 and
+                  unique_check(outcome, check, False))
+        results.append({"control": name, "check": check, "passed": passed, "reference_passed": reference_passed,
+                        "defective_library_loaded": loaded, "defective_sha256": digest(defective),
+                        "lifecycle_completed": startup_completed(outcome), "cleanup_passed": outcome["cleanup_passed"],
+                        "runner_returncode": outcome["runner_returncode"],
+                        "failed_checks": [row["name"] for row in outcome["checks"] if not row["passed"]]})
+        write_json(output / "results.json", {"passed": all(row["passed"] for row in results),
+                   "complete": len(results) == len(names), "controls": results,
+                   "reference": str(output / "reference/failure-break/results.json"),
+                   "inputs": {str(Path(__file__).resolve()): digest(Path(__file__).resolve()),
+                              str(args.build_receipt.resolve()): digest(args.build_receipt)}})
+    passed = all(row["passed"] for row in results)
+    print(("PASS: " if passed else "FAIL: ") + str(output / "results.json"))
+    return 0 if passed else 1
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-receipt", required=True, type=Path)
@@ -544,12 +651,15 @@ def main():
     parser.add_argument("--controls", nargs="+", choices=tuple(CONTROLS), default=list(CONTROLS))
     parser.add_argument("--d7-controls", nargs="+", choices=tuple(D7_CONTROLS))
     parser.add_argument("--shutdown-controls", nargs="*", choices=tuple(SHUTDOWN_CONTROLS))
+    parser.add_argument("--startup-controls", nargs="*", choices=tuple(STARTUP_CONTROLS))
     args = parser.parse_args()
-    if args.d7_controls and args.shutdown_controls is not None:
+    if sum((bool(args.d7_controls), args.shutdown_controls is not None, args.startup_controls is not None)) > 1:
         parser.error("select one control group")
     output = args.output.resolve()
     output.mkdir(mode=0o700)
     jobs = json.loads(args.build_receipt.read_text())["products"]
+    if args.startup_controls is not None:
+        return main_startup(args, jobs, output)
     if args.shutdown_controls is not None:
         return main_shutdown(args, jobs, output)
     if args.d7_controls:

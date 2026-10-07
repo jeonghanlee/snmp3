@@ -707,3 +707,128 @@ uses the production worker stderr policy; the retained companion additionally
 captures worker stderr through the public qualification setting. Startup
 failure, all eleven record kinds individually, long-string/maximum-capacity
 buffers, isolated reuse and the remaining D13 cells require separate evidence.
+
+
+## Record Startup Failure
+
+`test_record_startup.py` runs five fresh processes on local Linux/Base 7.0.10.
+The shipped `db/record-startup.db` contains valid ai Integer GET and ao
+OpaqueFloat SET records, an ai referencing an unknown binding, and an ao
+referencing the GET binding. The latter two are rejected individually during
+device initialization. They do not imply that the whole IOC failed to start.
+All records are passive without PINI processing, with distinguishable initial
+values. No equipment endpoint is used; the runner starts the existing native
+agent and a loopback UDP observer in each case.
+
+| Case | Executable | Required behavior |
+| --- | --- | --- |
+| normal | snmp3StartupTest | Two usable contexts and two rejected records; valid GET/SET complete through the real worker/native/agent path; successful Main exit and non-isolated shutdown |
+| production-break | snmp3Ioc | Real Runtime preflight failure with the Break script policy; exit 1 through unchanged Main |
+| production-continue | snmp3Ioc | Successful commands run after the failed startup hook, but unchanged Main still exits 1 |
+| failure-break | snmp3StartupTest | Same failure plus observations of initialization, processing attempts, repeated stop, pointer detachment, context retention and refused restart |
+| failure-continue | snmp3StartupTest | The same internal observations under Continue, followed by Main exit 1 |
+
+The companion links unchanged production Main with a generated registrar and
+`StartupTest.cpp`. Its setup command registers the observer after production
+registration and before iocInit. AfterInitDatabase captures the two valid
+contexts before Runtime starts. Missing-worker cases select a nonexistent
+absolute path inside their private evidence directory: real Supervisor
+construction fails before Requests starts or a Runtime thread is created.
+No internal function is replaced. This does not exercise thread-creation
+failure after Requests starts.
+
+The failure companion calls actual `dbProcess` on both valid records after
+initial processing, then observes READ/INVALID and WRITE/INVALID, PACT clear,
+unchanged values, no generation/admission identity, and no accepted reservation
+or completion. Two actual Runtime stops follow. The normal companion calls
+`dbProcess` through its exercise command and waits for real completion and
+native retirement; GET publishes -123 and SET sends 19.5. Output success does
+not mark an input publication or native-success flag.
+
+AtShutdown is observed after production stop and detach permission. Real Base
+link closure clears record dpvt and context record pointers; both are checked
+again after callback join, AfterShutdown and the failed-case restart attempt.
+Saved contexts are dereferenced only when inventory still contains two contexts
+and there is no active/entered work. Non-isolated context storage remains
+allocated. No BeforeFree or isolated cleanup helper participates. Base may set
+PACT while closing links, so the PACT-clear refusal check belongs before
+shutdown. Failed must survive repeated stop and the refused restart, with no
+new activation or thread.
+
+From the repository root, build the ordinary products before running:
+
+```bash
+make -j2
+make -C tests/rewrite -j2
+python3 tests/rewrite/test_record_startup.py --output work/startup-check
+```
+
+Every output directory must be new. `--case` selects one row above; its default
+`all` runs all five. Fresh instrumented products include the startup companion:
+
+```bash
+python3 tests/rewrite/build_r5_sanitizers.py --output work/startup-sanitizers
+products=work/startup-sanitizers/products
+runner=tests/rewrite/test_record_startup.py
+python3 "$runner" --products "$products" --sanitizers --output work/startup-sanitized-check
+```
+
+Recheck `edges` and `repeat-detach` with `test_records.py`, and both cases of
+`test_record_shutdown.py`, on ordinary and instrumented products. Their commands
+and evidence requirements are defined in their sections above. The startup
+runner retains the real startup scripts, raw output, ordered typed events,
+source/product/library hashes, private ports, child exit/reaping receipts,
+checks and per-case results. Script EOF reaches Main naturally; no explicit
+exit bypasses Main's Failed check. Expected IOC exits are 0 for normal and 1
+for the four failed starts. Crashes, timeouts, forced cleanup, missing events,
+observer errors, secret sentinels or sanitizer diagnostics fail the run.
+
+### Startup Controls
+
+The controls build separate defective support copies against a fresh sanitizer
+build receipt. The tracked product sources remain unchanged. Each runs the
+actual `failure-break` companion with the shipped fixture and normal Base
+shutdown. Controls do not qualify from an abnormal exit or failed cleanup.
+
+```bash
+receipt=work/startup-sanitizers/sanitizer-build.json
+runner=tests/rewrite/test_record_controls.py
+python3 "$runner" --build-receipt "$receipt" --startup-controls --output work/startup-controls
+```
+
+| Control | Required failed check |
+| --- | --- |
+| startup-failed-state-lost | startup-failed-state-preserved |
+| startup-ownerless-accepted | startup-no-accepted-work |
+| startup-refusal-alarm-omitted | startup-admission-refused-with-alarm |
+| startup-release-after-join | startup-storage-retained-after-join |
+| startup-release-after-shutdown | startup-storage-retained-after-shutdown |
+| startup-detach-dpvt | startup-record-pointers-cleared |
+| startup-detach-record | startup-context-pointers-cleared |
+
+Every reference must pass its full case and contain the named check exactly
+once. A defective execution must reach the initial two-context and real failed
+startup observations, complete the full ordered lifecycle, load the identified
+support library, exit 1, clean up every child normally, and fail that exact
+check. A lost Failed state may permit a later preflight attempt; this is an
+additional failure, not grounds to skip observing the intended earlier failure.
+The ownerless-acceptance control deliberately leaves records active without a
+producer; the real drain then expires. No test repairs that state.
+
+| Properties | Discrimination and limits |
+| --- | --- |
+| Seven named checks above | Each has its own compiled control. Additional checks failing in that run are combined observations, not independent controls for every term. |
+| Initial values, two distinct handles, rejected records, phase order/types and real processing attempts | Fixture and observation preconditions; no separate defective-product control for each term. |
+| Values, context counts, handles, generation identities, publication flags, reservations and later pointer preservation | Direct observations; no separate control for each field at each phase. |
+| Refused restart and unchanged counters | Actual Runtime start call with before/after snapshots. The state-loss control can also disturb this result, but is not a dedicated restart control. |
+| Production policy and exit behavior | Actual production Main/registrar processes under both policies. Companion controls do not independently discriminate every production assertion. |
+| Normal GET/SET, wire bytes, invalid-record isolation and worker reap counters | Actual native-path evidence; no normal-case control group. The final worker report requires one launch/reap and zero current PID. |
+| Child cleanup, library identity and sanitizer/secret scans | Mandatory qualification preconditions, not optional outcome checks. |
+
+The scope is ai/ao initialization rejection and preflight failure with attached
+contexts on this Base version. Retained process-exit allocations are expected;
+no leak-free claim is made. New module/native/test products are instrumented;
+installed Base and system/vendor libraries remain uninstrumented and leak
+checks are disabled. Thread-creation failure, all eleven kinds separately,
+long-string/max-capacity buffers, isolated reuse and other lifecycle cells
+remain outside this case. Execution results belong in the canonical milestone.
