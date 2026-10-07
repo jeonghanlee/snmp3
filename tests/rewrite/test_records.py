@@ -23,6 +23,87 @@ STOP_BOUND_MS = 2000
 # Base alarm condition COMM (9) and severity INVALID (3) as the live-detach event encodes them: stat * 10 + sevr.
 COMM_INVALID = 93
 DRAIN_BUDGET_MS = 2000
+REPEAT_FIELDS = ("Records_TimeoutAi.INP", "Records_TimeoutAo.OUT")
+# Pinned Base 7.0.10: link.h INST_IO, devSup.h S_dev_badInpType, Runtime.h State::Stopped.
+INST_IO = 12
+BAD_INP_TYPE = 33685511
+STOPPED = 4
+
+
+def repeat_detach_checks(runner, events):
+    # Every property is judged even if a different event is missing or malformed.
+    def one(name):
+        matches = [event for event in events if event.get("event") == name]
+        return matches[0] if len(matches) == 1 else {}
+
+    def records(event):
+        rows = event.get("records")
+        if not isinstance(rows, list) or len(rows) != len(REPEAT_FIELDS):
+            return {}
+        if any(not isinstance(row, dict) or row.get("field") not in REPEAT_FIELDS for row in rows):
+            return {}
+        found = {row["field"]: row for row in rows}
+        return found if len(found) == len(REPEAT_FIELDS) else {}
+
+    def integer(value):
+        return type(value) is int
+
+    def snapshot(row):
+        return (isinstance(row, dict) and row.get("field") in REPEAT_FIELDS and
+                all(integer(row.get(key)) for key in ("record", "link_type", "dset", "dpvt", "contexts")) and
+                (row.get("link") is None or isinstance(row.get("link"), str)) and
+                "link" in row and "context_record" in row and
+                (row["context_record"] is None or integer(row["context_record"])))
+
+    baseline = one("repeat_detach_baseline")
+    originals = records(baseline)
+    initial = records(one("repeat_detach"))
+    retained = baseline.get("contexts")
+    ready = (baseline.get("ready") is True and integer(retained) and retained > 0 and
+             len(originals) == 2 and all(snapshot(row) and row["record"] > 0 and row["dset"] > 0 and
+                 row["dpvt"] > 0 and row["context_record"] == row["record"] and row["link_type"] == INST_IO and
+                 isinstance(row["link"], str) and bool(row["link"]) and row["contexts"] == retained
+                 for row in originals.values()))
+    attempts = [event for event in events if event.get("event") == "repeat_detach_attempt"]
+    expected = [(field, number) for number in (1, 2) for field in REPEAT_FIELDS]
+    identities = [(event.get("field"), event.get("attempt")) for event in attempts]
+    sequence = [event.get("event") for event in events if str(event.get("event", "")).startswith("repeat_detach")]
+    runner.check("repeat-detach-events", sequence == ["repeat_detach_baseline", "repeat_detach"] +
+                 ["repeat_detach_attempt"] * 4 + ["repeat_detach_before_free", "repeat_detach_cleanup"])
+    runner.check("repeat-detach-fixture-ready", ready)
+    runner.check("repeat-detach-four-attempts", identities == expected and all(
+                 event.get("attempted") is True and type(event.get("attempt")) is int and
+                 isinstance(event.get("replacement"), str) and event["replacement"].startswith("@binding=") and
+                 event["replacement"][1:] != originals.get(event.get("field"), {}).get("link")
+                 for event in attempts) and len(attempts) == 4)
+
+    def check_snapshot(prefix, row, original):
+        valid = ready and snapshot(row) and snapshot(original) and row["record"] == original["record"]
+        runner.check(prefix + "-link-type", valid and row["link_type"] == original["link_type"])
+        runner.check(prefix + "-link", valid and row["link"] == original["link"])
+        runner.check(prefix + "-dset", valid and row["dset"] == original["dset"])
+        runner.check(prefix + "-dpvt-null", valid and row["dpvt"] == 0)
+        runner.check(prefix + "-context-record-null", valid and row["context_record"] == 0)
+        runner.check(prefix + "-contexts-retained", valid and row["contexts"] == retained)
+
+    for field, label in zip(REPEAT_FIELDS, ("ai", "ao")):
+        original = originals.get(field, {})
+        check_snapshot("repeat-detach-first-" + label, initial.get(field, {}), original)
+        for number in (1, 2):
+            matches = [event for event in attempts if event.get("field") == field and
+                       type(event.get("attempt")) is int and event["attempt"] == number]
+            attempt = matches[0] if len(matches) == 1 else {}
+            prefix = f"repeat-detach-{label}-{number}"
+            runner.check(prefix + "-refused", attempt.get("attempted") is True and
+                         integer(attempt.get("status")) and attempt["status"] == BAD_INP_TYPE)
+            row = attempt.get("snapshot", {})
+            check_snapshot(prefix, row if isinstance(row, dict) else {}, original)
+    before_free = one("repeat_detach_before_free")
+    runner.check("repeat-detach-contexts-retained-before-free", ready and
+                 integer(before_free.get("contexts")) and before_free["contexts"] == retained)
+    cleanup = one("repeat_detach_cleanup")
+    runner.check("repeat-detach-cleanup-contexts-zero", integer(cleanup.get("contexts")) and cleanup["contexts"] == 0)
+    runner.check("repeat-detach-cleanup-stopped", integer(cleanup.get("state")) and cleanup["state"] == STOPPED)
 
 
 def queue_counter_lines(path):
@@ -52,7 +133,7 @@ def main():
     parser.add_argument("--sanitizers", action="store_true")
     parser.add_argument("--case", choices=("baseline", "shutdown", "queued-shutdown", "edges", "alarms", "active", "policy", "numeric",
                                                    "active-unforced", "deadline-queue", "near-deadline",
-                                                   "accounting", "stop-queued", "rebuild", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach"), default="baseline")
+                                                   "accounting", "stop-queued", "rebuild", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach"), default="baseline")
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(mode=0o700)
@@ -83,7 +164,7 @@ def main():
                          "oid": "1.3.6.1.4.1.53864.4." + str(index) + ".0",
                          "operation": operation, "valueType": tag, "capacity": capacity}
                          for name, index, operation, tag, capacity in specs]}
-        if args.case in ("alarms", "policy", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach"):
+        if args.case in ("alarms", "policy", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach"):
             dropped, _ = runner.fault("record-response-drop", 4, peer, "drop-all")
             configuration["endpoints"].append({"id": "Dropped", "address": "127.0.0.1",
                                                "port": int(dropped.rsplit(":", 1)[1]), "profile": "Local"})
@@ -172,8 +253,20 @@ def main():
                        "forced_cleanup": forced, "elapsed_ns": time.monotonic_ns() - started,
                        "loaded_libraries": libraries, "product_sha256": digest(Path(argv[0]))})
             runner.check(tag + ":return", code == 0 and not forced)
-            return libraries, [json.loads(line) for line in (output / (tag + ".stdout")).read_text().splitlines()
-                               if line.startswith("{")]
+            events = []
+            for line in (output / (tag + ".stdout")).read_text().splitlines():
+                if not line.startswith("{"):
+                    continue
+                try:
+                    event = json.loads(line)
+                    if args.case == "repeat-detach" and not isinstance(event, dict):
+                        raise ValueError("record event must be an object")
+                    events.append(event)
+                except ValueError:
+                    if args.case != "repeat-detach":
+                        raise
+                    events.append({"event": "repeat_detach_parse_error"})
+            return libraries, events
 
         def proxy_sets(name):
             path = output / (name + ".stdout")
@@ -255,7 +348,7 @@ def main():
             libraries, events = execute("records")
         summary = next((event for event in events if event.get("event") == "record_summary"), {})
         # Queue cases skip the baseline and pressure phases; their records are checked per trial below.
-        if args.case not in QUEUE_CASES + ("stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach"):
+        if args.case not in QUEUE_CASES + ("stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach"):
             runner.check("actual-eleven-record-path", summary.get("records") == 11 and summary.get("checks", 0) > 100)
             completions = [event for event in events if event.get("event") == "record_completed"]
             runner.check("actual-record-identities", bool(completions) and all(event["activation"] == 1 and
@@ -518,6 +611,8 @@ def main():
             runner.check("retained-records-finalized-once-at-cleanup",
                          len(cleanups) == 3 and all(event.get("contexts") == 0 and event.get("completions") == 11
                                                     for event in cleanups) and after.get("completions_delta") == 0)
+        if args.case == "repeat-detach":
+            repeat_detach_checks(runner, events)
         if args.case == "live-detach":
             cells = {event["phase"]: event for event in events if event.get("event") == "live_detach"}
             live, drain = cells.get("live", {}), cells.get("drain", {})
@@ -617,7 +712,7 @@ def main():
         inputs += [ROOT / "tests/rewrite/db/record-edges.db", ROOT / "tests/rewrite/db/record-order.db"]
     if args.case == "alarms":
         inputs += [ROOT / "tests/rewrite/db/record-alarms.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
-    if args.case in ("stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach"):
+    if args.case in ("stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach"):
         inputs += [ROOT / "tests/rewrite/db/record-stop.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case in ("active", "active-unforced"):
         inputs += [ROOT / "tests/rewrite/db/record-active.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]

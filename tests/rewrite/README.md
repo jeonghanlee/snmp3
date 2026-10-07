@@ -263,6 +263,7 @@ python3 tests/rewrite/test_records.py --case stop-inflight --output work/r6-stop
 python3 tests/rewrite/test_records.py --case stop-enqueue-failed --output work/r6-stop-enqueue
 python3 tests/rewrite/test_records.py --case stop-downstream --output work/r6-stop-downstream
 python3 tests/rewrite/test_records.py --case live-detach --output work/r6-live-detach
+python3 tests/rewrite/test_records.py --case repeat-detach --output work/r6-repeat-detach
 ```
 
 | Case | Shipped fixtures and observed boundary |
@@ -285,6 +286,74 @@ python3 tests/rewrite/test_records.py --case live-detach --output work/r6-live-d
 | stop-enqueue-failed | record-stop.db and actual outer UDP drop-all, three processes; the low-priority Base callback queue is filled by an external blocker before the eleven records are admitted, so every completion enqueue is refused and the stop retries them; released while the runtime thread still runs, or after its 2 s stop bound while only the record drain retries, every record completes once with a communication alarm and one FLNK and the drain succeeds; released after the drain budget has expired, the drain fails, the stop returns without waiting for the queue, the records stay active with PACT set, restart is refused and the isolated cleanup finalizes the eleven completions once without FLNK |
 | stop-downstream | record-stop.db with every FLNK pointed through a Channel Access link at a record in another lockset, and actual outer UDP drop-all, two processes; the downstream record's lock is held past the drain budget while the runtime stops: the stop completes with every record completed once, the drain succeeded and the worker reaped, no downstream processing while held, and eleven downstream processings (one per link; Base keeps one pending put per CA link) on Base's CA link thread after the release; held through the IOC shutdown instead, the snmp3 stop completes first and Base's CA link shutdown waits for the lock; the downstream count after that release is reported, not asserted |
 | live-detach | record-stop.db and actual outer UDP drop-all, two processes; an input and an output record are replaced through Base's own link put while their requests are in flight, after they complete, after the operator stop, and, in the second process, during the record drain of a stop whose completions the full Base callback queue refuses: Base refuses every attempt, each record keeps its context and binding, and each in-flight request completes once with a communication alarm |
+| repeat-detach | record-stop.db ai/ao plus the baseline databases; idle isolated shutdown, first detach at AfterCloseLinks, two real INP and two real OUT puts, retained contexts at BeforeFree and zero contexts after testdbCleanup; every refusal preserves the original full INST_IO text/type and dset with null dpvt/context record pointers |
+
+### Repeated Detach
+
+The driver captures the initialized ai/ao attachment, complete INST_IO text,
+link type, dset and nonzero global context count under the applicable locks.
+After Base closes links, `repeat_detach` records the first detach before any
+put. Base discards the shutdown del_record return; the test checks its effects,
+not a fabricated first-call status. The driver then calls real `dbPutField`
+in this order: INP 1, OUT 1, INP 2, OUT 2. Each replacement has valid snmp3
+syntax and differs from the original. Every immediate snapshot is compared
+with the pre-shutdown original, including the full string beyond 39 bytes.
+
+Required events, in order, are one `repeat_detach_baseline`, one
+`repeat_detach`, four uniquely identified `repeat_detach_attempt` observations,
+one `repeat_detach_before_free` and one `repeat_detach_cleanup`. Missing,
+duplicate or malformed observations fail. An unsafe attachment or changed
+context count suppresses saved-context access and subsequent puts; skipped
+puts fail the four-attempt precondition. The hook records failures without
+throwing through Base or repairing product state. The later BeforeFree hook
+runs after the module hook and reads only the locked Requests count. Cleanup
+checks use value snapshots and never access saved record/context pointers.
+
+The runner names first-detach checks `repeat-detach-first-{r}-{property}` and
+post-put checks `repeat-detach-{r}-{n}-{property}`, where `r` is `ai` or `ao`
+and `n` is `1` or `2`. Properties are `link-type`, `link`, `dset`, `dpvt-null`,
+`context-record-null` and `contexts-retained`; post-put checks also include
+`refused` for the exact Base `S_dev_badInpType` status. The separate checks
+`repeat-detach-contexts-retained-before-free`,
+`repeat-detach-cleanup-contexts-zero` and `repeat-detach-cleanup-stopped`
+require retained storage until queue destruction, then zero contexts and
+Runtime Stopped after actual isolated cleanup. Event order, initial fixture
+validity and four executed calls are scenario preconditions, separately named
+`repeat-detach-events`, `repeat-detach-fixture-ready` and
+`repeat-detach-four-attempts`. Existing exit, child cleanup, secret-sentinel,
+dependency and sanitizer checks remain active.
+
+This case qualifies idle isolated ai/ao shutdown. It does not qualify
+in-flight non-isolated retention, startup failure, another DTYP/support,
+every record kind individually, or production CA access during shutdown.
+An error return alone does not prove preserved state: if del_record wrongly
+succeeds, Base can replace the link and clear dset when add_record refuses,
+while returning the same error code. No product policy is changed by this test.
+
+Build both ordinary targets before the sanitizer build consumes the generated
+registrar. Run from the repository root with unused output directories:
+
+```bash
+RD_RUN=work/repeat-verification
+RD_BUILD=work/repeat-sanitizers
+RD_DRIVER=tests/rewrite/test_records.py
+make -j2
+make -C tests/rewrite -j2
+python3 -B tests/rewrite/build_r5_sanitizers.py --output "$RD_BUILD"
+RD_PRODUCTS="$RD_BUILD/products"
+python3 -B "$RD_DRIVER" --case repeat-detach --output "$RD_RUN-ordinary"
+python3 -B "$RD_DRIVER" --case repeat-detach --products "$RD_PRODUCTS" --sanitizers --output "$RD_RUN-asan"
+python3 -B "$RD_DRIVER" --case live-detach --output "$RD_RUN-live"
+python3 -B "$RD_DRIVER" --case live-detach --products "$RD_PRODUCTS" --sanitizers --output "$RD_RUN-live-asan"
+python3 -B "$RD_DRIVER" --case rebuild --output "$RD_RUN-rebuild"
+python3 -B "$RD_DRIVER" --case rebuild --products "$RD_PRODUCTS" --sanitizers --output "$RD_RUN-rebuild-asan"
+```
+
+Retain ordinary build stdout/stderr and exit codes as well as executable
+hashes. The sanitizer builder retains its compilation receipts; each runner
+retains source/product/loaded-library hashes, raw events and child receipts.
+Module/test products are instrumented; Base/system/vendor dependencies are
+uninstrumented and leak detection is disabled.
 
 The pressure cases fill the actual Base low-priority queue with external
 callbacks. Failed module enqueue retains the terminal, full reservation and
@@ -442,3 +511,67 @@ required T1-T14 matrix belong to the canonical
 close R6 or advertise record support. Receipts retain source/product/library
 hashes, request identities, alarms/UDF/publication state, actual child exits and
 cleanup observations without credentials.
+
+### Repeated Detach Controls
+
+These 45 controls run the shipped repeat-detach driver and fixtures against
+compiled defective support copies. All undeclared product spans remain intact.
+Here `r` expands to `ai` and `ao`, and `n` expands to `1` and `2`; every
+combination is a separate named control. The normal source tree is not edited.
+
+| Control or family | Count | Targeted property |
+| --- | --- | --- |
+| `repeat-first-{r}-link`, `repeat-first-{r}-link-type`, `repeat-first-{r}-dset` | 6 | First detach preserves full text, link type and dset independently. |
+| `repeat-first-{r}-dpvt-null`, `repeat-first-{r}-context-record-null` | 4 | First detach clears each pointer independently. |
+| `repeat-{r}-{n}-refused` | 4 | Each call returns the exact refusal code; another nonzero code fails. |
+| `repeat-{r}-{n}-link`, `repeat-{r}-{n}-link-type`, `repeat-{r}-{n}-dset` | 12 | Each call preserves each original field independently. |
+| `repeat-{r}-{n}-dpvt-null`, `repeat-{r}-{n}-context-record-null` | 8 | Each call leaves each pointer null independently. |
+| `repeat-{r}-{n}-contexts-retained` | 4 | Context storage remains present immediately after each call. |
+| `repeat-{r}-empty-accepted` | 2 | A zero detach return with empty dpvt must fail the first post-put link check, even if add_record returns the usual error. |
+| `repeat-release-after-close` | 1 | Both first-detach context-count checks fail after premature release. |
+| `repeat-release-after-stop-callback` | 1 | The mandatory BeforeFree count check fails if callback join releases storage. |
+| `repeat-release-before-free` | 1 | The same check fails if the module BeforeFree hook releases storage before Base queue destruction. |
+| `repeat-cleanup-retains-contexts` | 1 | Actual cleanup must leave zero contexts. |
+| `repeat-cleanup-not-stopped` | 1 | Actual cleanup must leave Runtime Stopped. |
+
+Every property-specific family targets its corresponding runner name by
+replacing the leading `repeat-` with `repeat-detach-`. The three release
+controls target `repeat-detach-first-ai-contexts-retained` (AfterCloseLinks)
+or `repeat-detach-contexts-retained-before-free` (the later two); both
+first-detach counts read the same global storage before any put.
+
+Context-record faults deliberately leave a non-null record pointer. Their
+mutation also removes the `queuesDestroyed` assertion on that pointer so the
+real cleanup can finish and the named observation can be judged. The repeat
+variants therefore declare both DeviceSupport.cpp and Request.cpp edits;
+first-detach variants use Request.cpp only. No test repairs the pointer, no
+cleanup span is replaced, and no crash counts as detection. A link-type fault
+also makes the typed INST_IO text unavailable; the separate text-only control
+establishes independent string discrimination. A safety skip can cause later
+precondition failures, but only the specified observed property failure
+qualifies its control.
+
+The positive reference must exit successfully with the exact named check
+present once and passing. The defective run must emit the lifecycle event,
+fail that named check, exit its record driver normally and finish without
+runner abort, timeout, forced cleanup, sanitizer diagnostics or secret sentinel.
+Forced cleanup is aggregated across all child receipts, including the external
+agent and UDP proxy. Their `normal-stop` checks must also be present and pass;
+an abnormal external exit fails qualification even without forced cleanup.
+Its actual loader receipt must identify the defective library and its hash.
+All required event counts/order must still pass. These stricter reference and
+control conditions are scoped to repeat-detach; other D7 cases keep their
+existing rules.
+
+Use the fresh sanitizer receipt above and an unused control output directory.
+The name list is read from the shipped control definitions; each control has
+its own product and run directory. A single named control can replace
+`$RD_CONTROLS` in the last command.
+
+```bash
+RD_RECEIPT="$RD_BUILD/sanitizer-build.json"
+RD_CONTROL_DRIVER=tests/rewrite/test_record_controls.py
+RD_LIST='import test_record_controls as c; print(" ".join(c.REPEAT_CONTROLS))'
+RD_CONTROLS=$(PYTHONPATH=tests/rewrite python3 -B -c "$RD_LIST")
+python3 -B "$RD_CONTROL_DRIVER" --build-receipt "$RD_RECEIPT" --d7-controls $RD_CONTROLS --output "$RD_RUN-controls"
+```

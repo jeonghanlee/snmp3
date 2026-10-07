@@ -7,6 +7,8 @@
 #include <dbCommon.h>
 #include <dbLock.h>
 #include <dbLink.h>
+#include <devSup.h>
+#include <initHooks.h>
 #include <dbUnitTest.h>
 #include <epicsExit.h>
 #include <epicsUnitTest.h>
@@ -57,6 +59,7 @@ bool stopInflight=false;
 bool stopEnqueueFailed=false;
 bool stopDownstream=false;
 bool liveDetach=false;
+bool repeatDetach=false;
 int64_t firstActivationWorker=0;
 struct RecordLock {
     dbCommon* value;
@@ -1628,6 +1631,126 @@ void liveDetachCells()
                 alarms.size()>0?alarms[0]:0,alarms.size()>1?alarms[1]:0,records.entryOpen?"true":"false",
                 records.detachAllowed?"true":"false",records.drainFailed?"true":"false");
 }
+
+// The idle isolated case observes detach before any put and storage again after callback join.
+// Only value snapshots survive cleanup; a changed storage count prevents saved-context access.
+struct RepeatRecord {
+    const char* field;
+    const char* replacements[2];
+    DBADDR address{};
+    RecordContext* context=nullptr;
+    const void* dset=nullptr;
+    std::string original;
+    int linkType=-1;
+    explicit RepeatRecord(const char* name,const char* first,const char* second)
+        : field(name),replacements{first,second} {}
+};
+RepeatRecord repeatRecords[]={
+    RepeatRecord("Records_TimeoutAi.INP","@binding=TimeoutCounter32Read deadline_ms=5000",
+                 "@binding=TimeoutIntegerRead deadline_ms=4000"),
+    RepeatRecord("Records_TimeoutAo.OUT","@binding=TimeoutIntegerWrite deadline_ms=5000",
+                 "@binding=TimeoutFloatWrite deadline_ms=4000")
+};
+uint64_t repeatContexts=0;
+bool repeatReady=false;
+std::string jsonText(const std::string& text)
+{
+    std::string value="\"";
+    for(unsigned char c:text) {
+        if(c=='\"' || c=='\\') { value+='\\'; value+=char(c); }
+        else if(c<32) { char escape[7]; std::snprintf(escape,sizeof(escape),"\\u%04x",unsigned(c)); value+=escape; }
+        else value+=char(c);
+    }
+    return value+'\"';
+}
+unsigned long long pointerValue(const void* value)
+{ return static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(value)); }
+std::string repeatSnapshot(const RepeatRecord& saved,bool& safe)
+{
+    auto* rec=saved.address.precord;
+    const auto count=Requests::instance().snapshot().contexts;
+    if(!rec || !saved.address.pfield) { safe=false; return "null"; }
+    RecordLock lock(rec);
+    const auto& link=*static_cast<DBLINK*>(saved.address.pfield);
+    const bool readable=saved.context && repeatContexts>0 && count==repeatContexts;
+    const std::string linkText=link.type==INST_IO && link.value.instio.string ? jsonText(link.value.instio.string):"null";
+    const std::string contextRecord=readable?std::to_string(pointerValue(saved.context->record)):"null";
+    safe=readable && !rec->dpvt && !saved.context->record && rec->dset==saved.dset && link.type==INST_IO;
+    return "{\"field\":"+jsonText(saved.field)+",\"record\":"+std::to_string(pointerValue(rec))+
+           ",\"link_type\":"+std::to_string(link.type)+",\"link\":"+linkText+
+           ",\"dset\":"+std::to_string(pointerValue(rec->dset))+",\"dpvt\":"+std::to_string(pointerValue(rec->dpvt))+
+           ",\"context_record\":"+contextRecord+",\"contexts\":"+std::to_string(count)+"}";
+}
+void prepareRepeatDetach()
+{
+    repeatContexts=Requests::instance().snapshot().contexts;
+    repeatReady=repeatContexts>0;
+    std::string rows;
+    for(auto& saved:repeatRecords) {
+        const bool found=dbNameToAddr(saved.field,&saved.address)==0;
+        repeatReady=repeatReady && found;
+        if(found) {
+            RecordLock lock(saved.address.precord);
+            const auto& link=*static_cast<DBLINK*>(saved.address.pfield);
+            saved.linkType=link.type;
+            if(link.type==INST_IO && link.value.instio.string)saved.original=link.value.instio.string;
+            saved.dset=saved.address.precord->dset;
+            saved.context=static_cast<RecordContext*>(saved.address.precord->dpvt);
+            repeatReady=repeatReady && saved.dset && saved.context &&
+                        saved.context->record==saved.address.precord && !saved.address.precord->pact &&
+                        link.type==INST_IO && !saved.original.empty();
+            for(const char* text:saved.replacements) {
+                const auto parsed=parseRecordLink(text);
+                repeatReady=repeatReady && text[0]=='@' && saved.original!=text+1 && parsed.budgetMs>0;
+            }
+        }
+        bool unused=false;
+        if(!rows.empty())rows+=',';
+        rows+=repeatSnapshot(saved,unused);
+    }
+    std::printf("{\"event\":\"repeat_detach_baseline\",\"ready\":%s,\"contexts\":%llu,\"records\":[%s]}\n",
+                repeatReady?"true":"false",(unsigned long long)repeatContexts,rows.c_str());
+    // The generated registrar already registered the module hook; Base invokes hooks in registration order.
+}
+void repeatDetachHook(initHookState state)
+{
+    if(state!=initHookAfterCloseLinks && state!=initHookBeforeFree)return;
+    try {
+        if(state==initHookBeforeFree) {
+            std::printf("{\"event\":\"repeat_detach_before_free\",\"contexts\":%llu}\n",
+                        (unsigned long long)Requests::instance().snapshot().contexts);
+        } else {
+            bool safe=repeatReady;
+            std::string rows;
+            for(const auto& saved:repeatRecords) {
+                bool intact=false;
+                const auto row=repeatSnapshot(saved,intact);
+                safe=safe && intact;
+                if(!rows.empty())rows+=',';
+                rows+=row;
+            }
+            std::printf("{\"event\":\"repeat_detach\",\"records\":[%s]}\n",rows.c_str());
+            std::fflush(stdout);
+            for(unsigned attempt=0;attempt<2;++attempt)for(auto& saved:repeatRecords) {
+                const bool attempted=safe;
+                const std::string status=attempted ? std::to_string(dbPutField(
+                    &saved.address,DBR_STRING,saved.replacements[attempt],1)):"null";
+                bool intact=false;
+                const auto row=repeatSnapshot(saved,intact);
+                safe=safe && intact;
+                std::printf("{\"event\":\"repeat_detach_attempt\",\"field\":%s,\"attempt\":%u,"
+                            "\"attempted\":%s,\"replacement\":%s,\"status\":%s,\"snapshot\":%s}\n",
+                            jsonText(saved.field).c_str(),attempt+1,attempted?"true":"false",
+                            jsonText(saved.replacements[attempt]).c_str(),status.c_str(),row.c_str());
+                std::fflush(stdout);
+            }
+        }
+    } catch(...) {
+        // Base hooks are C callbacks. Preserve an explicit failure without repairing the observed product state.
+        std::printf("{\"event\":\"repeat_detach_error\",\"hook\":%d}\n",int(state));
+    }
+    std::fflush(stdout);
+}
 }
 
 namespace {
@@ -1986,12 +2109,13 @@ int main(int argc,char** argv)
         stopEnqueueFailed=std::strcmp(argv[8],"stop-enqueue-failed")==0;
         stopDownstream=std::strcmp(argv[8],"stop-downstream")==0;
         liveDetach=std::strcmp(argv[8],"live-detach")==0;
+        repeatDetach=std::strcmp(argv[8],"repeat-detach")==0;
         if(edges) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
             testdbReadDatabase((root+"record-edges.db").c_str(),nullptr,"P=Records_");
             testdbReadDatabase((root+"record-order.db").c_str(),nullptr,"P=Records_");
         }
-        if(alarms || stopInflight || stopEnqueueFailed || stopDownstream || liveDetach) {
+        if(alarms || stopInflight || stopEnqueueFailed || stopDownstream || liveDetach || repeatDetach) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
             testdbReadDatabase((root+(alarms?"record-alarms.db":"record-stop.db")).c_str(),nullptr,
                                stopDownstream?"P=Records_,FLNK=Records_StopExternal.PROC CA":"P=Records_");
@@ -2019,7 +2143,7 @@ int main(int argc,char** argv)
         }
         testIocInitOk();
         if(edges)inputEdges();
-        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild && !stopInflight && !stopEnqueueFailed && !stopDownstream && !liveDetach) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
+        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild && !stopInflight && !stopEnqueueFailed && !stopDownstream && !liveDetach && !repeatDetach) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
         if(edges) { capacityAndOrder(); simulation(); outputEdges(); maxPayloadQueue(); }
         if(alarms)nativeTimeouts();
         if(active)activeOutputs();
@@ -2034,16 +2158,23 @@ int main(int argc,char** argv)
         if(stopEnqueueFailed)stopWithEnqueueFailures();
         if(stopDownstream)stopWithHeldDownstream();
         if(liveDetach)liveDetachCells();
+        if(repeatDetach) { prepareRepeatDetach(); initHookRegister(repeatDetachHook); }
         Runtime::instance().report();
         const bool blocked=std::strcmp(argv[8],"shutdown")==0;
         const bool abandoned=std::strcmp(argv[8],"queued-shutdown")==0 ||
                              (stopEnqueueFailed && std::strcmp(std::getenv("SNMP3_RECORD_RELEASE"),"after")==0);
         const bool shutdownDone=stopDownstream && std::strcmp(std::getenv("SNMP3_RECORD_RELEASE"),"shutdown")==0;
         if(blocked)blockedShutdown(); else if(abandoned && !stopEnqueueFailed)queuedShutdown(); else if(!shutdownDone)testIocShutdownOk();
-        check(Requests::instance().snapshot().contexts==0,"isolated queue cleanup retained detached contexts");
-        check(Runtime::instance().snapshot().state==((blocked || abandoned)?State::IncompleteStopped:State::Stopped),"record runtime stop outcome mismatch");
+        // Repeat-detach reports cleanup failures through named runner checks after real database cleanup.
+        if(!repeatDetach) {
+            check(Requests::instance().snapshot().contexts==0,"isolated queue cleanup retained detached contexts");
+            check(Runtime::instance().snapshot().state==((blocked || abandoned)?State::IncompleteStopped:State::Stopped),"record runtime stop outcome mismatch");
+        }
         testdbCleanup();
         if(rebuild)secondActivation(argv);
+        if(repeatDetach)
+            std::printf("{\"event\":\"repeat_detach_cleanup\",\"contexts\":%llu,\"state\":%d}\n",
+                        (unsigned long long)Requests::instance().snapshot().contexts,int(Runtime::instance().snapshot().state));
         if(stopEnqueueFailed)
             std::printf("{\"event\":\"stop_enqueue_failed_cleanup\",\"completions\":%llu,\"contexts\":%llu}\n",
                         (unsigned long long)Requests::instance().snapshot().completions,

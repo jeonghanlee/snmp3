@@ -175,6 +175,79 @@ D7_CONTROLS = {
 }
 
 
+# Each repeat-detach control targets one field and one observation, including the second refusal.
+# Context-record faults also remove the cleanup assertion that would otherwise abort before testdbCleanup;
+# they leave the real queue/context destruction intact and never repair the observed pointer.
+EMPTY_DETACH = "    if(!record->dpvt)return Requests::instance().attachmentAllowed()?0:S_dev_badInpType;"
+FIRST_DETACH = "    return Requests::instance().detach(*static_cast<RecordContext*>(record->dpvt))?0:S_dev_badInpType;"
+CONTEXT_CLEANUP_GUARD = [("        require(!context->record);", "        (void)context->record;")]
+REPEAT_EXTRA_EDITS = {}
+REPEAT_CONTROLS = {}
+for label, record_name in (("ai", "Records_TimeoutAi"), ("ao", "Records_TimeoutAo")):
+    target = f'std::strcmp(record->name,"{record_name}")==0'
+    first_faults = {
+        "link": ("DeviceSupport.cpp", "dbGetDevLink(record)->value.instio.string[0]='X';"),
+        "link-type": ("DeviceSupport.cpp", "dbGetDevLink(record)->type=CONSTANT;"),
+        "dset": ("DeviceSupport.cpp", "record->dset=nullptr;"),
+        "dpvt-null": ("Request.cpp", [("if(context.record && context.record->dpvt==&context)context.record->dpvt=nullptr;",
+                     f'if(context.record && std::strcmp(context.record->name,"{record_name}")!=0 && '
+                     'context.record->dpvt==&context)context.record->dpvt=nullptr;')]),
+        "context-record-null": ("Request.cpp", [("    context.record=nullptr;",
+                     f'    if(!context.record || std::strcmp(context.record->name,"{record_name}")!=0)context.record=nullptr;')]
+                     + CONTEXT_CLEANUP_GUARD),
+    }
+    for term, (source, fault) in first_faults.items():
+        name = f"repeat-first-{label}-{term}"
+        if source == "DeviceSupport.cpp":
+            edits = [(FIRST_DETACH, "    const bool detached=Requests::instance().detach(*static_cast<RecordContext*>(record->dpvt));\n"
+                      f"    if(detached && {target}) {{ {fault} }}\n    return detached?0:S_dev_badInpType;")]
+        else:
+            edits = [("#include <algorithm>", "#include <algorithm>\n#include <cstring>")] + fault
+        REPEAT_CONTROLS[name] = (source, f"repeat-detach-first-{label}-{term}", edits)
+    for number in (1, 2):
+        for term, fault in {
+            "refused": "return -1;",
+            "link": "dbGetDevLink(record)->value.instio.string[0]='X';",
+            "link-type": "dbGetDevLink(record)->type=CONSTANT;",
+            "dset": "record->dset=nullptr;",
+            "dpvt-null": "record->dpvt=record;",
+            "context-record-null": "saved->record=record;",
+            "contexts-retained": "Requests::instance().queuesDestroyed();",
+        }.items():
+            name = f"repeat-{label}-{number}-{term}"
+            save = (f"    static RecordContext* saved=nullptr;\n    if(record->dpvt && {target})"
+                    "saved=static_cast<RecordContext*>(record->dpvt);\n") if term == "context-record-null" else ""
+            replacement = (save + "    if(!record->dpvt) {\n"
+                           f"        if({target}) {{ static unsigned calls=0; if(++calls=={number}) {{ {fault} }} }}\n"
+                           "        return Requests::instance().attachmentAllowed()?0:S_dev_badInpType;\n    }")
+            REPEAT_CONTROLS[name] = ("DeviceSupport.cpp", f"repeat-detach-{label}-{number}-{term}",
+                                     [(EMPTY_DETACH, replacement)])
+            if term == "context-record-null":
+                REPEAT_EXTRA_EDITS[name] = {"Request.cpp": CONTEXT_CLEANUP_GUARD}
+    # A successful del_record can still produce the usual error from add_record while changing link and dset.
+    REPEAT_CONTROLS[f"repeat-{label}-empty-accepted"] = ("DeviceSupport.cpp", f"repeat-detach-{label}-1-link",
+        [(EMPTY_DETACH, f"    if(!record->dpvt && {target})return 0;\n" + EMPTY_DETACH)])
+
+REPEAT_CONTROLS.update({
+    "repeat-release-after-close": ("Register.cpp", "repeat-detach-first-ai-contexts-retained",
+        [("    case initHookAfterStopScan:", "    case initHookAfterCloseLinks: snmp3::Requests::instance().queuesDestroyed(); return;\n    case initHookAfterStopScan:")]),
+    "repeat-release-after-stop-callback": ("Register.cpp", "repeat-detach-contexts-retained-before-free",
+        [('case initHookAfterStopCallback: name = "AfterStopCallback"; break;',
+          'case initHookAfterStopCallback: snmp3::Requests::instance().queuesDestroyed(); name = "AfterStopCallback"; break;')]),
+    "repeat-release-before-free": ("Register.cpp", "repeat-detach-contexts-retained-before-free",
+        [("case initHookBeforeFree: isolatedCleanup=true; return;",
+          "case initHookBeforeFree: snmp3::Requests::instance().queuesDestroyed(); isolatedCleanup=true; return;")]),
+    "repeat-cleanup-retains-contexts": ("Request.cpp", "repeat-detach-cleanup-contexts-zero",
+        [("    contexts.clear(); cursor=contexts.end(); activation.reset();", "    cursor=contexts.end(); activation.reset();")]),
+    "repeat-cleanup-not-stopped": ("Runtime.cpp", "repeat-detach-cleanup-stopped",
+        [("current.state = drained && (!supervisor || supervisor->reconcile()) ? State::Stopped:State::IncompleteStopped;",
+          "current.state = drained && (!supervisor || supervisor->reconcile()) ? State::IncompleteStopped:State::IncompleteStopped;")]),
+})
+for name, (source, check, edits) in REPEAT_CONTROLS.items():
+    D7_SOURCES[name] = source
+    D7_CONTROLS[name] = ("record", "repeat-detach", check, edits)
+
+
 def run_cell(kind, cell, products, output, sanitizers=True):
     # Executes one real-path cell against a product directory and returns its observable outcome.
     output.mkdir(mode=0o700, exist_ok=True)
@@ -192,26 +265,32 @@ def run_cell(kind, cell, products, output, sanitizers=True):
         child = subprocess.Popen(argv, stdout=stdout, stderr=stderr, env=environment)
         code = waited(child, 900)
     failed = []
+    checks = []
+    loaded_libraries = {}
     aborted = False
     results = output / "run" / "results.json"
     if results.exists():
         data = json.loads(results.read_text())
+        checks = data.get("checks", [])
+        loaded_libraries = data.get("loaded_libraries", {})
         failed = [check["name"] for check in data.get("checks", []) if not check["passed"]]
         aborted = bool(data.get("aborted"))
         for nested in sorted((output / "run").glob("*/results.json")):
             nested_data = json.loads(nested.read_text())
             failed += [check["name"] for check in nested_data.get("checks", []) if not check["passed"]]
             aborted = aborted or bool(nested_data.get("aborted"))
-    # A record cell counts only when every trial process exited by itself and a stop cell printed its event.
+    # Repeat-detach also requires every external fixture to exit without forced cleanup.
+    receipt_pattern = "*.receipt.json" if cell == "repeat-detach" else "records*.receipt.json"
     forced = any(json.loads(receipt.read_text()).get("forced_cleanup")
-                 for receipt in sorted((output / "run").glob("records*.receipt.json")))
+                 for receipt in sorted((output / "run").glob(receipt_pattern)))
     observations = output / "run" / "record-observations.json"
     stop_events = {"stop-queued": "stop_queued", "stop-inflight": "stop_inflight", "stop-enqueue-failed": "stop_enqueue_failed",
-                   "stop-downstream": "stop_downstream", "live-detach": "live_detach"}
+                   "stop-downstream": "stop_downstream", "live-detach": "live_detach", "repeat-detach": "repeat_detach"}
     observed = kind != "record" or cell not in stop_events or (observations.exists() and any(
         event.get("event") == stop_events[cell] for event in json.loads(observations.read_text())))
     return {"argv": argv, "returncode": code, "pid": child.pid, "child_reaped": True, "failed_checks": failed,
             "aborted": aborted, "forced_cleanup": forced, "observed": observed,
+            "checks": checks, "loaded_libraries": loaded_libraries,
             "stderr_tail": (output / "cell.stderr").read_text()[-400:]}
 
 
@@ -222,9 +301,10 @@ def detected(outcome, check):
             outcome["observed"] and (check is None or check in outcome["failed_checks"]))
 
 
-def compile_product(job, original_products, products, source, replacement, output):
+def compile_product(job, original_products, products, source, replacement, output, extra=None):
     argv = ["-L" + str(products) if arg == "-L" + str(original_products) else arg for arg in job["argv"]]
     argv = [str(replacement) if arg == str(source) else arg for arg in argv]
+    argv = [(extra or {}).get(arg, arg) for arg in argv]
     product = products / Path(job["argv"][-1]).name
     argv[-1] = str(product)
     with (output / (product.name + ".build.stdout")).open("xb") as stdout:
@@ -277,6 +357,10 @@ def main_d7(args, jobs, output):
         reference.setdefault("passed_for", {})[name] = (not reference["aborted"] and not reference["forced_cleanup"] and
                                                         reference["observed"]) and (
             reference["returncode"] == 0 if check is None else check not in reference["failed_checks"])
+        if cell == "repeat-detach":
+            matched = [row for row in reference["checks"] if row.get("name") == check]
+            reference["passed_for"][name] = (reference["passed_for"][name] and reference["returncode"] == 0 and
+                                             len(matched) == 1 and matched[0].get("passed") is True)
     results = []
     for name in args.d7_controls:
         kind, cell, check, edits = D7_CONTROLS[name]
@@ -292,18 +376,41 @@ def main_d7(args, jobs, output):
             text = text.replace(old, new)
         replacement = item / source.name
         replacement.write_text(text)
+        extra = {}
+        additional_mutations = []
+        for filename, extra_edits in REPEAT_EXTRA_EDITS.get(name, {}).items():
+            original = ROOT / "snmp3App/src" / filename
+            extra_text = original.read_text()
+            for old, new in extra_edits:
+                if extra_text.count(old) != 1:
+                    raise RuntimeError("control source anchor is not unique")
+                extra_text = extra_text.replace(old, new)
+            changed = item / filename
+            changed.write_text(extra_text)
+            extra[str(original)] = str(changed)
+            additional_mutations.append({"source": str(original), "original_sha256": digest(original),
+                                         "mutated_sha256": digest(changed), "edits": extra_edits})
         write_json(item / "mutation.json", {"control": name, "source": str(source), "original_sha256": digest(source),
-                   "mutated_sha256": digest(replacement), "edits": edits, "cell": [kind, cell], "check": check})
+                   "mutated_sha256": digest(replacement), "edits": edits, "cell": [kind, cell], "check": check,
+                   "additional_mutations": additional_mutations})
         rebuilt = ("libsnmp3.so", tests[kind])
         for existing in original_products.iterdir():
             if existing.name not in rebuilt:
                 (products / existing.name).symlink_to(existing)
-        defective = compile_product(selected["libsnmp3.so"], original_products, products, source, replacement, item)
-        executable = compile_product(selected[tests[kind]], original_products, products, source, replacement, item)
+        defective = compile_product(selected["libsnmp3.so"], original_products, products, source, replacement, item, extra)
+        executable = compile_product(selected[tests[kind]], original_products, products, source, replacement, item, extra)
         loaded = Path(resolved_support(executable)).resolve() == defective.resolve()
         outcome = run_cell(kind, cell, products, item / "cell")
+        if cell == "repeat-detach":
+            loaded = loaded and outcome["loaded_libraries"].get(str(defective.resolve())) == digest(defective)
         reference = references[(kind, cell)]
         passed = reference["passed_for"][name] and loaded and detected(outcome, check)
+        if cell == "repeat-detach":
+            passed = passed and all(any(row.get("name") == required and row.get("passed") is True
+                                       for row in outcome["checks"]) for required in
+                                    ("records:return", "sanitizer-diagnostics-absent", "secret-sentinels-absent",
+                                     "IOC-native-free", "repeat-detach-events", "record-response-drop:normal-stop",
+                                     "agent-ipv4-1:normal-stop"))
         results.append({"control": name, "passed": passed, "cell": [kind, cell], "check": check,
                         "reference_passed": reference["passed_for"][name], "defective_library_resolved": loaded,
                         "returncode": outcome["returncode"], "aborted": outcome["aborted"],
