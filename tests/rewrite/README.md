@@ -711,7 +711,7 @@ buffers, isolated reuse and the remaining D13 cells require separate evidence.
 
 ## Record Startup Failure
 
-`test_record_startup.py` runs five fresh processes on local Linux/Base 7.0.10.
+`test_record_startup.py` runs ten fresh processes on local Linux/Base 7.0.10.
 The shipped `db/record-startup.db` contains valid ai Integer GET and ao
 OpaqueFloat SET records, an ai referencing an unknown binding, and an ao
 referencing the GET binding. The latter two are rejected individually during
@@ -727,6 +727,11 @@ agent and a loopback UDP observer in each case.
 | production-continue | snmp3Ioc | Successful commands run after the failed startup hook, but unchanged Main still exits 1 |
 | failure-break | snmp3StartupTest | Same failure plus observations of initialization, processing attempts, repeated stop, pointer detachment, context retention and refused restart |
 | failure-continue | snmp3StartupTest | The same internal observations under Continue, followed by Main exit 1 |
+| thread-normal | snmp3StartupTest | Traced normal GET/SET and exit 0, with unchanged OS limits |
+| thread-break | snmp3StartupTest | Real OS refusal of Runtime thread creation after preflight; processing refusal, repeated stop, detach, retained contexts and refused restart |
+| thread-continue | snmp3StartupTest | The same thread-failure observations under Continue, followed by Main exit 1 |
+| production-thread-break | snmp3Ioc | Real Runtime thread creation failure through unchanged Main and Break policy; exit 1 |
+| production-thread-continue | snmp3Ioc | Real Runtime thread creation failure through unchanged Main and Continue policy; exit 1 |
 
 The companion links unchanged production Main with a generated registrar and
 `StartupTest.cpp`. Its setup command registers the observer after production
@@ -734,8 +739,40 @@ registration and before iocInit. AfterInitDatabase captures the two valid
 contexts before Runtime starts. Missing-worker cases select a nonexistent
 absolute path inside their private evidence directory: real Supervisor
 construction fails before Requests starts or a Runtime thread is created.
-No internal function is replaced. This does not exercise thread-creation
-failure after Requests starts.
+No internal function is replaced. Preflight failure has activation zero and
+closed Requests entry. Thread failure has activation one and no created,
+exited or joined Runtime thread. Requests entry is open at started/attempted,
+but Runtime admission rejects the actual requests; both stop calls close entry.
+The existing observer and database are used unchanged for both failure phases.
+
+### Real OS Thread Limit
+
+The five `thread-` cases require non-root Linux x86_64, a kernel supporting
+PTRACE_GET_SYSCALL_INFO, permission to trace the owned child, readable child
+`/proc/<pid>/mem` for clone3 arguments, and effective RLIMIT_NPROC enforcement.
+Run in an execution environment that permits these operations; tracing denial
+is not a passing result and does not authorize changing host security policy.
+The original five cases remain individually available with `--case`.
+
+`helpers/runtime_thread_limit.py` starts the actual IOC with PTY stdout and
+observes its main thread. After the existing Runtime starting line, it lowers
+only the owned IOC's process soft limit immediately before a CLONE_THREAD
+syscall, lets the real kernel call run, and restores the original limit at
+syscall exit before user code resumes. The hard limit and parent limits remain
+unchanged. A clone3 ENOSYS may fall back to clone; only EAGAIN qualifies as the
+intended failure. No instruction, register, return value or internal function
+is replaced. The normal traced case observes the same path without limiting it.
+
+Missing or duplicate markers, unsupported ABI, ineffective limits, denied
+tracing, restoration errors, unexpected trace stops and deadlines are
+non-passing. The helper records syscall flags/results/timestamps, original and
+restored limits, parent-limit observations, PID, exit/reaping and cleanup
+errors in `thread-trace.json`. A 60-second trace deadline bounds execution;
+forced cleanup never qualifies. The outer runner additionally retains loaded
+library and input identities. Successful thread-failure cases have a Supervisor
+report but zero worker launches/reaps/current PID and no native requests.
+
+### Record And Shutdown Observations
 
 The failure companion calls actual `dbProcess` on both valid records after
 initial processing, then observes READ/INVALID and WRITE/INVALID, PACT clear,
@@ -764,7 +801,8 @@ python3 tests/rewrite/test_record_startup.py --output work/startup-check
 ```
 
 Every output directory must be new. `--case` selects one row above; its default
-`all` runs all five. Fresh instrumented products include the startup companion:
+`all` runs all ten, including the tracing prerequisite above. Fresh instrumented
+products include the startup companion:
 
 ```bash
 python3 tests/rewrite/build_r5_sanitizers.py --output work/startup-sanitizers
@@ -779,22 +817,29 @@ and evidence requirements are defined in their sections above. The startup
 runner retains the real startup scripts, raw output, ordered typed events,
 source/product/library hashes, private ports, child exit/reaping receipts,
 checks and per-case results. Script EOF reaches Main naturally; no explicit
-exit bypasses Main's Failed check. Expected IOC exits are 0 for normal and 1
-for the four failed starts. Crashes, timeouts, forced cleanup, missing events,
+exit bypasses Main's Failed check. Expected IOC exits are 0 for both normal cases and 1
+for all eight failed starts. Crashes, timeouts, forced cleanup, missing events,
 observer errors, secret sentinels or sanitizer diagnostics fail the run.
 
 ### Startup Controls
 
 The controls build separate defective support copies against a fresh sanitizer
 build receipt. The tracked product sources remain unchanged. Each runs the
-actual `failure-break` companion with the shipped fixture and normal Base
-shutdown. Controls do not qualify from an abnormal exit or failed cleanup.
+actual `failure-break` (preflight) or `thread-break` companion with the shipped
+fixture and normal Base shutdown. Controls do not qualify from an abnormal exit or failed cleanup.
 
 ```bash
 receipt=work/startup-sanitizers/sanitizer-build.json
 runner=tests/rewrite/test_record_controls.py
 python3 "$runner" --build-receipt "$receipt" --startup-controls --output work/startup-controls
+python3 "$runner" --build-receipt "$receipt" --startup-controls --startup-phase thread --output work/thread-controls
 ```
+
+`--startup-phase` accepts `preflight` (default) or `thread` and requires the
+startup-control group. Each phase runs all seven controls unless names are
+supplied. The thread group also requires a real kernel refusal, restored child
+limits, unchanged parent limits and successful trace/reaping evidence in every
+reference and defective execution.
 
 | Control | Required failed check |
 | --- | --- |
@@ -813,7 +858,12 @@ support library, exit 1, clean up every child normally, and fail that exact
 check. A lost Failed state may permit a later preflight attempt; this is an
 additional failure, not grounds to skip observing the intended earlier failure.
 The ownerless-acceptance control deliberately leaves records active without a
-producer; the real drain then expires. No test repairs that state.
+Runtime producer; the real drain then expires. Its preflight variant bypasses
+missing Requests producers, while its thread variant bypasses closed Runtime
+admission after Requests has started and marks its ownerless callback Inert.
+That defective branch leaves the request active through the real drain timeout;
+it does not ask Scheduler to look up a nonexistent identity. No test repairs
+that state.
 
 | Properties | Discrimination and limits |
 | --- | --- |
@@ -825,10 +875,10 @@ producer; the real drain then expires. No test repairs that state.
 | Normal GET/SET, wire bytes, invalid-record isolation and worker reap counters | Actual native-path evidence; no normal-case control group. The final worker report requires one launch/reap and zero current PID. |
 | Child cleanup, library identity and sanitizer/secret scans | Mandatory qualification preconditions, not optional outcome checks. |
 
-The scope is ai/ao initialization rejection and preflight failure with attached
-contexts on this Base version. Retained process-exit allocations are expected;
+The scope is ai/ao initialization rejection, preflight failure and OS-induced
+Runtime thread creation failure with attached contexts on this Base version. Retained process-exit allocations are expected;
 no leak-free claim is made. New module/native/test products are instrumented;
 installed Base and system/vendor libraries remain uninstrumented and leak
-checks are disabled. Thread-creation failure, all eleven kinds separately,
-long-string/max-capacity buffers, isolated reuse and other lifecycle cells
-remain outside this case. Execution results belong in the canonical milestone.
+checks are disabled. Traced normal success establishes functional progress,
+not timing equivalence. All eleven kinds separately, long-string/max-capacity
+buffers, isolated reuse and other lifecycle cells remain outside these cases. Execution results belong in the canonical milestone.

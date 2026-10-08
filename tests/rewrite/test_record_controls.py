@@ -560,32 +560,39 @@ STARTUP_CONTROLS = {
 }
 
 
-def run_startup(products, output):
-    argv = [sys.executable, str(ROOT / "tests/rewrite/test_record_startup.py"), "--case", "failure-break",
+def run_startup(products, output, phase):
+    case = "thread-break" if phase == "thread" else "failure-break"
+    argv = [sys.executable, str(ROOT / "tests/rewrite/test_record_startup.py"), "--case", case,
             "--products", str(products), "--sanitizers", "--output", str(output)]
     with output.with_suffix(".stdout").open("xb") as stdout, output.with_suffix(".stderr").open("xb") as stderr:
         child = subprocess.Popen(argv, stdout=stdout, stderr=stderr)
         code = waited(child, 120)
     write_json(output.with_suffix(".receipt.json"), {"argv": argv, "returncode": code,
                "pid": child.pid, "child_reaped": True})
-    result = json.loads((output / "failure-break/results.json").read_text())
+    result = json.loads((output / case / "results.json").read_text())
     result["runner_returncode"] = code
     return result
 
 
-def startup_completed(outcome):
+def startup_completed(outcome, phase):
     from test_record_startup import phase_inventory
     required = ("startup-phase-inventory", "startup-two-contexts-before-runtime",
-                "startup-preflight-failed-before-processing", "startup-rejection-diagnostics",
+                ("startup-thread-failed-before-processing" if phase == "thread" else "startup-preflight-failed-before-processing"),
+                "startup-rejection-diagnostics",
                 "startup-real-shutdown-order", "startup-no-isolated-cleanup",
                 "startup-all-child-receipts-clean", "startup-IOC-native-free",
                 "sanitizer-diagnostics-absent", "secret-sentinels-absent")
+    if phase == "thread":
+        required += ("startup-trace-complete", "startup-parent-limit-preserved",
+                     "startup-thread-limit-restored", "startup-real-kernel-thread-refusal")
     return (not outcome["aborted"] and outcome["cleanup_passed"] and
             phase_inventory(outcome["observations"], True) and
             all(unique_check(outcome, name, True) for name in required))
 
 
 def main_startup(args, jobs, output):
+    phase = args.startup_phase or "preflight"
+    case = "thread-break" if phase == "thread" else "failure-break"
     selected = {Path(job["argv"][-1]).name: job for job in jobs}
     original = Path(selected["libsnmp3.so"]["argv"][-1]).parent
     rebuilt = ("libsnmp3.so", "snmp3StartupTest")
@@ -595,13 +602,18 @@ def main_startup(args, jobs, output):
             raise RuntimeError("sanitizer product receipt mismatch")
         if any(digest(Path(name)) != expected for name, expected in job["sources"].items()):
             raise RuntimeError("sanitizer source receipt mismatch")
-    reference = run_startup(original, output / "reference")
+    reference = run_startup(original, output / "reference", phase)
     reference_support = original / "libsnmp3.so"
     reference_loaded = reference["ioc_libraries"].get(str(reference_support.resolve())) == digest(reference_support)
     results = []
     names = args.startup_controls or STARTUP_CONTROLS
     for name in names:
         filename, check, edits = STARTUP_CONTROLS[name]
+        if phase == "thread" and name == "startup-ownerless-accepted":
+            # An accepted request without a Runtime producer has no callback that can run.
+            edits = [(old, new.replace("if(!producers)", "if(!Runtime::instance().snapshot().admission)")
+                      .replace("context.active=true;", "context.active=true; context.callbackState=CallbackState::Inert;"))
+                     for old, new in edits]
         item = output / name
         item.mkdir(mode=0o700)
         products = item / "products"
@@ -616,27 +628,27 @@ def main_startup(args, jobs, output):
         replacement.write_text(text)
         write_json(item / "mutation.json", {"control": name, "source": str(source), "edits": edits,
                    "original_sha256": digest(source), "mutated_sha256": digest(replacement),
-                   "case": "failure-break", "check": check})
+                   "case": case, "phase": phase, "check": check})
         for existing in original.iterdir():
             if existing.name not in rebuilt:
                 (products / existing.name).symlink_to(existing)
         defective = compile_product(selected[rebuilt[0]], original, products, source, replacement, item)
         executable = compile_product(selected[rebuilt[1]], original, products, source, replacement, item)
-        outcome = run_startup(products, item / "run")
+        outcome = run_startup(products, item / "run", phase)
         loaded = (Path(resolved_support(executable)).resolve() == defective.resolve() and
                   outcome["ioc_libraries"].get(str(defective.resolve())) == digest(defective))
         reference_passed = (reference["passed"] and reference["runner_returncode"] == 0 and reference_loaded and
-                            startup_completed(reference) and unique_check(reference, check, True))
-        passed = (reference_passed and loaded and startup_completed(outcome) and outcome["runner_returncode"] == 1 and
+                            startup_completed(reference, phase) and unique_check(reference, check, True))
+        passed = (reference_passed and loaded and startup_completed(outcome, phase) and outcome["runner_returncode"] == 1 and
                   unique_check(outcome, check, False))
         results.append({"control": name, "check": check, "passed": passed, "reference_passed": reference_passed,
                         "defective_library_loaded": loaded, "defective_sha256": digest(defective),
-                        "lifecycle_completed": startup_completed(outcome), "cleanup_passed": outcome["cleanup_passed"],
+                        "lifecycle_completed": startup_completed(outcome, phase), "cleanup_passed": outcome["cleanup_passed"],
                         "runner_returncode": outcome["runner_returncode"],
                         "failed_checks": [row["name"] for row in outcome["checks"] if not row["passed"]]})
         write_json(output / "results.json", {"passed": all(row["passed"] for row in results),
                    "complete": len(results) == len(names), "controls": results,
-                   "reference": str(output / "reference/failure-break/results.json"),
+                   "reference": str(output / "reference" / case / "results.json"), "phase": phase,
                    "inputs": {str(Path(__file__).resolve()): digest(Path(__file__).resolve()),
                               str(args.build_receipt.resolve()): digest(args.build_receipt)}})
     passed = all(row["passed"] for row in results)
@@ -652,7 +664,11 @@ def main():
     parser.add_argument("--d7-controls", nargs="+", choices=tuple(D7_CONTROLS))
     parser.add_argument("--shutdown-controls", nargs="*", choices=tuple(SHUTDOWN_CONTROLS))
     parser.add_argument("--startup-controls", nargs="*", choices=tuple(STARTUP_CONTROLS))
+    parser.add_argument("--startup-phase", choices=("preflight", "thread"),
+                        help="startup-control phase (default: preflight); requires --startup-controls")
     args = parser.parse_args()
+    if args.startup_phase is not None and args.startup_controls is None:
+        parser.error("--startup-phase requires --startup-controls")
     if sum((bool(args.d7_controls), args.shutdown_controls is not None, args.startup_controls is not None)) > 1:
         parser.error("select one control group")
     output = args.output.resolve()

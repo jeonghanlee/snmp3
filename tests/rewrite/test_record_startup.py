@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify rejected records and real Runtime preflight failure through IOC exit."""
+"""Verify rejected records and real Runtime startup failures through IOC exit."""
 import argparse
 import json
 import re
@@ -11,8 +11,10 @@ from test_native import ROOT, ARCH, Runner, digest, write_json
 from test_record_ca import private_port
 from test_record_shutdown import events, wait_for
 from run_independence import owns_udp
+from helpers.runtime_thread_limit import trace, CLONE3, CLONE_THREAD
 
-CASES = ("normal", "production-break", "production-continue", "failure-break", "failure-continue")
+CASES = ("normal", "production-break", "production-continue", "failure-break", "failure-continue",
+         "thread-normal", "thread-break", "thread-continue", "production-thread-break", "production-thread-continue")
 PROCESS_SECONDS = 30
 INITIAL_VALUES = [71, 19.5, 81, 29.5]
 PHASE_FIELDS = ("at_us", "before_free", "restart", "admission", "activation", "created", "exited",
@@ -50,7 +52,8 @@ def phase_inventory(observed, failure):
             not any(e.get("event") == "startup_observer_error" for e in observed))
 
 
-def companion_checks(check, observed, failure):
+def companion_checks(check, observed, failure, thread_failure=False):
+    activation = int(thread_failure)
     valid = phase_inventory(observed, failure)
     check("startup-phase-inventory", valid)
     if not valid:
@@ -85,11 +88,17 @@ def companion_checks(check, observed, failure):
                                                  for e in phases.values()))
     if failure:
         failed = [e for name, e in phases.items() if name != "initialized"]
-        check("startup-preflight-failed-before-processing", started["state"] == "Failed" and
-              all(started[k] == 0 for k in ("admission", "created", "activation", "active", "completions")))
+        check("startup-thread-failed-before-processing" if thread_failure else "startup-preflight-failed-before-processing",
+              started["state"] == "Failed" and started["activation"] == activation and
+              started["entry_open"] == activation and
+              all(started[k] == 0 for k in ("admission", "created", "active", "completions")))
+        check("startup-failure-entry-sequence", phases["attempted"]["entry_open"] == activation and
+              all(phases[k]["entry_open"] == 0 for k in
+                  ("stop1", "stop2", "AtShutdown", "AfterCloseLinks", "AfterStopCallback", "AfterShutdown", "restart")))
         check("startup-failed-state-preserved", all(e["state"] == "Failed" and e["admission"] == 0 for e in failed))
         check("startup-no-runtime-thread", all(e[k] == 0 for e in phases.values()
-                                               for k in ("activation", "created", "exited", "joined")))
+                                               for k in ("created", "exited", "joined")) and
+              initial["activation"] == 0 and all(e["activation"] == activation for e in failed))
         attempted = phases["attempted"]
         check("startup-admission-refused-with-alarm", [r["stat"] for r in attempted["records"][:2]] == [1, 2] and
               all(r["sevr"] == 3 and r["pact"] == 0 for r in attempted["records"][:2]) and
@@ -131,10 +140,34 @@ def final_report(text, kind):
     return {k: v if k == "state" else int(v) for k, v in (token.split("=", 1) for token in lines[0].split())}
 
 
+def trace_checks(check, evidence, failure):
+    calls = evidence.get("syscalls", [])
+    limited = [e for e in calls if e.get("limited")]
+    check("startup-trace-complete", evidence.get("error") is None and not evidence.get("cleanup_errors") and
+          evidence.get("child_reaped") is True and evidence.get("forced_cleanup") is False and
+          evidence.get("marker_count") == 1 and evidence.get("abi") == "x86_64")
+    check("startup-parent-limit-preserved", evidence.get("parent_limit_before") == evidence.get("parent_limit_after") and
+          isinstance(evidence.get("parent_limit_before"), list) and len(evidence["parent_limit_before"]) == 2)
+    if not failure:
+        check("startup-traced-normal-unrestricted", not limited)
+        return
+    valid = bool(limited) and all(ints(e, ("flags", "return_value", "syscall", "at_ns", "exited_ns", "restored_ns")) and
+            e.get("thread") is True and e["flags"] & CLONE_THREAD and e.get("after_starting") is True and
+            isinstance(e.get("original_limit"), list) and len(e["original_limit"]) == 2 and
+            e.get("restored_limit") == e["original_limit"] and e.get("restricted_limit") == [0, e["original_limit"][1]] and
+            e["at_ns"] < e["exited_ns"] <= e["restored_ns"] for e in limited)
+    check("startup-thread-limit-restored", valid)
+    check("startup-real-kernel-thread-refusal", valid and limited[-1]["return_value"] == -11 and
+          all(e["syscall"] == CLONE3 and e["return_value"] == -38 for e in limited[:-1]))
+
+
 def run_case(case, output, products, sanitizers):
     output.mkdir(mode=0o700)
     runner = Runner(output, products, sanitizers)
-    failure, production = case != "normal", case.startswith("production")
+    failure = case not in ("normal", "thread-normal")
+    traced = "thread" in case
+    phase = "thread" if traced and failure else ("preflight" if failure else "normal")
+    production = case.startswith("production")
     policy = "continue" if case.endswith("continue") else "break"
     executable = "snmp3Ioc" if production else "snmp3StartupTest"
     base = Path(next(line.split("=", 1)[1].strip() for line in
@@ -200,8 +233,8 @@ def run_case(case, output, products, sanitizers):
                     "oid": f"1.3.6.1.4.1.53864.4.{index}.0"}
                    for name, op, tag, index in (("StartupRead", "get", "integer", 1),
                                                 ("StartupWrite", "set", "opaqueFloat", 9))]})
-        worker = output / "missing-worker" if failure else products / "snmp3Worker"
-        if failure and worker.exists():
+        worker = output / "missing-worker" if phase == "preflight" else products / "snmp3Worker"
+        if phase == "preflight" and worker.exists():
             raise RuntimeError("failure boundary already exists")
         script = output / "startup.cmd"
         setup = "" if production else f'snmp3StartupSetup({int(failure)},"{output}/worker.stderr",{int(sanitizers)})\n'
@@ -215,7 +248,20 @@ def run_case(case, output, products, sanitizers):
         rep = launch("repeater", [str(base / "bin" / ARCH / "caRepeater")])
         if not wait_for(lambda: owns_udp(rep["child"].pid, repeater)):
             raise RuntimeError("private repeater unavailable")
-        finish(launch("ioc", [str(products / executable), str(script)]))
+        argv = [str(products / executable), str(script)]
+        if traced:
+            evidence = trace(argv, runner.env, output, failure)
+            write_json(output / "thread-trace.json", evidence)
+            receipt = {**evidence, "name": "ioc", "expected_exit": evidence["returncode"] == (1 if failure else 0) and
+                       evidence["child_reaped"] and not evidence["forced_cleanup"] and evidence["error"] is None and
+                       not evidence["cleanup_errors"],
+                       "loaded_libraries": runner.loader_identity(output / "ioc.stderr")}
+            write_json(output / "ioc.receipt.json", receipt)
+            receipts.append(receipt)
+            runner.check("ioc:expected-exit", receipt["expected_exit"])
+            trace_checks(runner.check, evidence, failure)
+        else:
+            finish(launch("ioc", argv))
     except Exception as error:
         aborted = True
         write_json(output / "abort.json", {"class": type(error).__name__, "message": str(error)})
@@ -240,14 +286,24 @@ def run_case(case, output, products, sanitizers):
         wire = events((output / "startup-proxy.stdout").read_text())
         wire_requests = [e for e in wire if e.get("event") == "fault_request"]
         if failure:
-            runner.check("startup-real-preflight-failure", text.count("preflight-failed activation=0") == 1 and
+            runner.check("startup-real-thread-failure" if phase == "thread" else "startup-real-preflight-failure",
+                         (text.count("snmp3 lifecycle: starting activation=1\n") == 1 and
+                          text.count("snmp3 lifecycle: create-failed activation=1\n") == 1 and
+                          "preflight-failed" not in text and
+                          not re.search(r"snmp3 lifecycle: (ready|created) ", text) if phase == "thread" else
+                          text.count("preflight-failed activation=0") == 1) and
                          stderr.count("runtime startup failed; admission closed") == 1 and
                          stderr.count("snmp3Ioc: startup script failed") == 1)
-            runner.check("startup-fallback-failed", final == {"state": "Failed", "admission": 0, "activation": 0,
+            runner.check("startup-fallback-failed", final == {"state": "Failed", "admission": 0, "activation": int(phase == "thread"),
                          "created": 0, "exited": 0, "joined": 0})
             runner.check("startup-fallback-idle-retained", requests["contexts"] == 2 and requests["detachAllowed"] == 1 and
                          all(v == 0 for k, v in requests.items() if k not in ("contexts", "detachAllowed")))
-            runner.check("startup-no-worker-or-wire", "snmp3 worker:" not in text and not wire_requests)
+            if phase == "thread":
+                worker = final_report(text, "worker")
+                runner.check("startup-no-worker-or-wire", all(worker[k] == 0 for k in
+                             ("launches", "reaps", "forced", "pid", "ready", "closing")) and not wire_requests)
+            else:
+                runner.check("startup-no-worker-or-wire", "snmp3 worker:" not in text and not wire_requests)
         else:
             agent = events((output / "agent-ipv4-1.stdout").read_text())
             runner.check("startup-real-GET-SET", sorted(e["command"] for e in wire_requests) == [160, 163] and
@@ -258,12 +314,12 @@ def run_case(case, output, products, sanitizers):
             runner.check("startup-worker-reaped", worker["launches"] == worker["reaps"] == 1 and
                          worker["forced"] == worker["pid"] == worker["ready"] == worker["closing"] == 0)
         if not production:
-            companion_checks(runner.check, observed, failure)
+            companion_checks(runner.check, observed, failure, phase == "thread")
     except (ValueError, KeyError, TypeError, OSError) as error:
         runner.check("startup-observations-complete", False)
         write_json(output / "parse-error.json", {"class": type(error).__name__, "message": str(error)})
     fixture_receipts = [json.loads((output / (entry[0] + ".receipt.json")).read_text()) for entry in runner.children]
-    cleanup = len(receipts) == len(children) and all(r["child_reaped"] and r["expected_exit"] for r in receipts) and all(
+    cleanup = len(receipts) == len(children) + int(traced) and all(r["child_reaped"] and r["expected_exit"] for r in receipts) and all(
         r["child_reaped"] and not r["forced_cleanup"] and r["returncode"] == 0 for r in fixture_receipts)
     runner.check("startup-all-child-receipts-clean", cleanup)
     libraries = next((r["loaded_libraries"] for r in receipts if r["name"] == "ioc"), {})
@@ -271,14 +327,15 @@ def run_case(case, output, products, sanitizers):
     sources = list((ROOT / "snmp3App/src").glob("*.[ch]*"))
     sources += [ROOT / "tests/rewrite" / name for name in ("StartupTest.cpp", "db/record-startup.db",
                 "snmp3StartupTestRegistrar.dbd", "Makefile", "build_r5_sanitizers.py", "test_native.py",
-                "NativeAgent.cpp", "helpers/udp_fault.py", "test_record_shutdown.py", "test_record_ca.py", "run_independence.py")]
+                "NativeAgent.cpp", "helpers/udp_fault.py", "helpers/runtime_thread_limit.py", "test_record_shutdown.py", "test_record_ca.py", "run_independence.py")]
     sources += [Path(__file__).resolve(), ROOT / "dbd" / (executable + ".dbd")]
     sources += [products / name for name in (executable, "snmp3Worker", "snmp3NativeAgent", "snmp3NativeProbe")]
     result = {"case": case, "passed": not aborted and all(c["passed"] for c in runner.checks),
               "aborted": aborted, "checks": runner.checks, "observations": observed, "cleanup_passed": cleanup,
               "children": receipts + fixture_receipts, "ioc_libraries": libraries,
               "inputs": {str(p): digest(p) for p in sources if p.is_file()},
-              "scope": "Actual ai/ao initialization and Runtime preflight failure; no isolated cleanup or thread-creation claim"}
+              "phase": phase, "traced": traced,
+              "scope": "Actual ai/ao initialization and Runtime startup; real OS-limit thread failure when selected; no isolated cleanup"}
     write_json(output / "results.json", result)
     return result
 
