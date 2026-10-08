@@ -37,6 +37,7 @@
 #include <atomic>
 #include <thread>
 #include <fstream>
+#include <sstream>
 #include <cstdlib>
 #include <signal.h>
 
@@ -60,6 +61,7 @@ bool stopEnqueueFailed=false;
 bool stopDownstream=false;
 bool liveDetach=false;
 bool repeatDetach=false;
+bool liveDtype=false;
 int64_t firstActivationWorker=0;
 struct RecordLock {
     dbCommon* value;
@@ -1751,6 +1753,184 @@ void repeatDetachHook(initHookState state)
     }
     std::fflush(stdout);
 }
+
+// Each observation is taken under the record lock. Context fields read here are immutable,
+// admission-owned, or callback-owned under that lock; queued terminals are read only after Runtime exit.
+struct DtypeRecord {
+    const char* name;
+    const char* counter;
+    DBADDR address{};
+    RecordContext* context=nullptr;
+    epicsUInt16 original=0,alternate=0;
+    explicit DtypeRecord(const char* value,const char* links) : name(value),counter(links) {}
+};
+DtypeRecord dtypeRecords[]={DtypeRecord("Records_DtypeAi","Records_DtypeAiCompleted"),
+                            DtypeRecord("Records_DtypeAo","Records_DtypeAoCompleted")};
+const char* dtypeMode=nullptr;
+uint64_t dtypeContexts=0;
+unsigned dtypePackets()
+{
+    const char* path=std::getenv("SNMP3_RECORD_DELAY_TRACE");
+    check(path!=nullptr,"DTYP UDP trace absent");
+    std::ifstream stream(path); std::string line; unsigned count=0;
+    while(std::getline(stream,line))if(line.find("\"event\": \"fault_request\"")!=std::string::npos)++count;
+    return count;
+}
+void dtypeObservation(const char* phase,bool terminal=false)
+{
+    const auto requests=Requests::instance().snapshot();
+    const auto runtime=Runtime::instance().snapshot();
+    auto scheduler=Runtime::instance().schedulerOwner();
+    const auto queue=scheduler->snapshot(1);
+    std::ostringstream rows;
+    for(auto& saved:dtypeRecords) {
+        auto* rec=saved.address.precord; RecordLock lock(rec);
+        if(&saved!=dtypeRecords)rows<<',';
+        const bool readable=saved.context && requests.contexts==dtypeContexts && dtypeContexts>0;
+        auto* link=dbGetDevLink(rec);
+        rows<<"{\"name\":"<<jsonText(saved.name)<<",\"record\":"<<pointerValue(rec)
+            <<",\"dpvt\":"<<pointerValue(rec->dpvt)<<",\"dset\":"<<pointerValue(rec->dset)
+            <<",\"dtype\":"<<rec->dtyp<<",\"original\":"<<saved.original<<",\"alternate\":"<<saved.alternate
+            <<",\"pact\":"<<unsigned(rec->pact)<<",\"stat\":"<<rec->stat<<",\"sevr\":"<<rec->sevr
+            <<",\"udf\":"<<unsigned(rec->udf)<<",\"link_type\":"<<(link?link->type:-1)
+            <<",\"link\":"<<(link && link->type==INST_IO && link->value.instio.string?jsonText(link->value.instio.string):"null")
+            <<",\"value\":"<<(&saved==dtypeRecords?reinterpret_cast<aiRecord*>(rec)->val:reinterpret_cast<aoRecord*>(rec)->val);
+        { auto* counter=record(saved.counter); RecordLock counterLock(counter);
+          rows<<",\"flnk\":"<<reinterpret_cast<calcRecord*>(counter)->val; }
+        rows<<",\"context\":";
+        if(!readable)rows<<"null";
+        else {
+            const auto& context=*saved.context;
+            rows<<"{\"record\":"<<pointerValue(context.record)<<",\"dtype\":"<<context.dtype
+                <<",\"dset\":"<<pointerValue(context.dset)<<",\"binding\":"<<pointerValue(context.definition.binding.get())
+                <<",\"handle\":"<<context.handle<<",\"generation\":"<<context.identity.generation
+                <<",\"admission\":"<<context.identity.admission<<",\"identity_binding\":"<<context.identity.binding
+                <<",\"activation\":"<<context.owner->activationId()<<",\"revision\":"<<context.owner->configurationRevision()
+                <<",\"published\":"<<(context.published?"true":"false")
+                <<",\"native_success\":"<<(context.nativeSuccess?"true":"false")
+                <<",\"deadline_ms\":"<<context.definition.budgetMs;
+            if(terminal)rows<<",\"terminal\":"<<(context.terminal.result?int(context.terminal.result->outcome):-1)
+                            <<",\"terminal_same\":"<<(context.terminal.result && context.terminal.id==context.identity?"true":"false");
+            rows<<'}';
+        }
+        rows<<'}';
+    }
+    std::printf("{\"event\":\"dtype\",\"mode\":\"%s\",\"phase\":\"%s\",\"at_us\":%llu,"
+                "\"packets\":%u,\"contexts\":%llu,\"active\":%llu,\"queued\":%llu,\"pending\":%llu,"
+                "\"entered\":%llu,\"completions\":%llu,\"entry_open\":%s,\"drain_failed\":%s,"
+                "\"admission\":%s,\"state\":%d,\"exited\":%lu,\"count\":%llu,\"bytes\":%llu,"
+                "\"settled\":%s,\"records\":[%s]}\n",dtypeMode,phase,(unsigned long long)monotonicUs(),dtypePackets(),
+                (unsigned long long)requests.contexts,(unsigned long long)requests.active,(unsigned long long)requests.queued,
+                (unsigned long long)requests.pending,(unsigned long long)requests.entered,(unsigned long long)requests.completions,
+                requests.entryOpen?"true":"false",requests.drainFailed?"true":"false",runtime.admission?"true":"false",
+                int(runtime.state),runtime.exited,(unsigned long long)queue.count,(unsigned long long)queue.bytes,
+                scheduler->settled()?"true":"false",rows.str().c_str());
+}
+void dtypePut(bool restore,const char* phase,DtypeRecord* selected=nullptr)
+{
+    for(auto& saved:dtypeRecords) {
+        if(selected && selected!=&saved)continue;
+        const epicsUInt16 value=restore?saved.original:saved.alternate;
+        const auto status=dbPutField(&saved.address,DBR_USHORT,&value,1);
+        std::printf("{\"event\":\"dtype_put\",\"mode\":\"%s\",\"phase\":\"%s\",\"name\":\"%s\",\"value\":%u,\"status\":%ld}\n",
+                    dtypeMode,phase,saved.name,value,status);
+    }
+    dtypeObservation(phase);
+}
+void dtypeProcess()
+{
+    for(auto& saved:dtypeRecords) { RecordLock lock(saved.address.precord); dbProcess(saved.address.precord); }
+}
+void dtypeWait()
+{
+    check(until([] { for(auto& saved:dtypeRecords) { RecordLock lock(saved.address.precord);
+                     if(saved.address.precord->pact)return false; } return true; }),"DTYP completion timeout");
+    // Omitted release must be observable without preventing normal real shutdown and fixture cleanup.
+    until([] {return Runtime::instance().schedulerOwner()->settled();},1000000);
+}
+void dtypeHook(initHookState state)
+{
+    if(state!=initHookAtShutdown && state!=initHookAfterCloseLinks && state!=initHookBeforeFree)return;
+    try {
+        if(state==initHookAtShutdown)dtypeObservation("stop_done");
+        else if(state==initHookAfterCloseLinks) {
+            dtypeObservation("detached");
+            bool dpvtClear=true,recordClear=Requests::instance().snapshot().contexts==dtypeContexts;
+            for(const auto& saved:dtypeRecords) {
+                RecordLock lock(saved.address.precord);
+                dpvtClear=dpvtClear && !saved.address.precord->dpvt;
+                if(recordClear)recordClear=!saved.context->record;
+            }
+            std::printf("{\"event\":\"dtype_detach_checks\",\"mode\":\"%s\","
+                        "\"dtype-shutdown-dpvt-cleared\":%s,\"dtype-shutdown-record-cleared\":%s}\n",
+                        dtypeMode,dpvtClear?"true":"false",recordClear?"true":"false");
+            dtypePut(true,"detached_put");
+        } else std::printf("{\"event\":\"dtype_free\",\"mode\":\"%s\",\"contexts\":%llu}\n",dtypeMode,
+                          (unsigned long long)Requests::instance().snapshot().contexts);
+    } catch(...) { std::printf("{\"event\":\"dtype_error\",\"mode\":\"%s\",\"hook\":%d}\n",dtypeMode,int(state)); }
+}
+void dtypeCells()
+{
+    dtypeMode=std::getenv("SNMP3_RECORD_DTYPE_MODE");
+    check(dtypeMode && (std::strcmp(dtypeMode,"idle")==0 || std::strcmp(dtypeMode,"active")==0 ||
+                       std::strcmp(dtypeMode,"restored")==0 || std::strcmp(dtypeMode,"shutdown")==0),"DTYP mode absent");
+    dtypeContexts=Requests::instance().snapshot().contexts;
+    for(auto& saved:dtypeRecords) {
+        const std::string field=std::string(saved.name)+".DTYP";
+        check(dbNameToAddr(field.c_str(),&saved.address)==0,"DTYP field lookup failed");
+        dbr_enumStrs choices{}; long options=DBR_ENUM_STRS,count=0;
+        check(dbGetField(&saved.address,DBR_USHORT,&choices,&options,&count,nullptr)==0 &&
+              (options&DBR_ENUM_STRS) && choices.no_str>1,"DTYP menu lookup failed");
+        RecordLock lock(saved.address.precord);
+        saved.context=static_cast<RecordContext*>(saved.address.precord->dpvt);
+        check(saved.context!=nullptr,"DTYP initial binding missing");
+        saved.original=saved.address.precord->dtyp;
+        saved.alternate=saved.original;
+        for(unsigned i=0;i<choices.no_str;++i)if(i!=saved.original && choices.strs[i][0]) {saved.alternate=i; break;}
+        check(saved.original!=saved.alternate,"DTYP alternate menu choice missing");
+        saved.address.precord->udf=FALSE;
+    }
+    initHookRegister(dtypeHook);
+    dtypeObservation("initial");
+    if(std::strcmp(dtypeMode,"idle")==0) {
+        dtypePut(false,"changed"); dtypeProcess(); dtypeWait(); dtypeObservation("refused");
+        dtypePut(true,"restored"); dtypeProcess(); dtypeWait(); dtypeObservation("completed");
+    } else if(std::strcmp(dtypeMode,"shutdown")!=0) {
+        for(auto& saved:dtypeRecords) {
+            const std::string suffix=&saved==dtypeRecords?"-ai":"-ao";
+            const auto packets=dtypePackets();
+            { RecordLock lock(saved.address.precord); dbProcess(saved.address.precord); }
+            check(until([&] {return dtypePackets()>packets;}),"DTYP real request not observed");
+            dtypeObservation(("inflight"+suffix).c_str());
+            dtypePut(false,("changed"+suffix).c_str(),&saved);
+            if(std::strcmp(dtypeMode,"restored")==0)dtypePut(true,("restored"+suffix).c_str(),&saved);
+            dtypeWait(); dtypeObservation(("completed"+suffix).c_str());
+        }
+        if(std::strcmp(dtypeMode,"active")==0) {
+            dtypeProcess(); dtypeWait(); dtypeObservation("refused");
+        }
+    } else {
+        QueueBlocker blocker; blocker.queued=callbackRequest(&blocker.callback)==0;
+        check(blocker.queued && blocker.entered.wait(3.0),"DTYP callback hold failed");
+        dtypeProcess();
+        check(until([] {auto s=Requests::instance().snapshot(); return s.queued==2 && s.entered==0;}),
+              "DTYP native completions not queued");
+        dtypeObservation("queued");
+        std::atomic<bool> finished{false}; std::exception_ptr error;
+        std::thread stopper([&] {try {testIocShutdownOk();} catch(...) {error=std::current_exception();} finished=true;});
+        try {
+            const bool window=until([&] {const auto r=Runtime::instance().snapshot(); const auto q=Requests::instance().snapshot();
+                return !finished && !r.admission && r.exited==r.created && r.created>0 && q.entryOpen && !q.entered;},3000000);
+            std::printf("{\"event\":\"dtype_window\",\"mode\":\"%s\",\"reached\":%s,\"still_stopping\":%s}\n",
+                        dtypeMode,window?"true":"false",!finished?"true":"false");
+            if(window) { dtypeObservation("stop_window",true); dtypePut(false,"changed"); }
+        } catch(...) { blocker.release.trigger(); stopper.join(); throw; }
+        blocker.release.trigger(); stopper.join();
+        if(error)std::rethrow_exception(error);
+        return;
+    }
+    testIocShutdownOk();
+}
 }
 
 namespace {
@@ -2110,6 +2290,11 @@ int main(int argc,char** argv)
         stopDownstream=std::strcmp(argv[8],"stop-downstream")==0;
         liveDetach=std::strcmp(argv[8],"live-detach")==0;
         repeatDetach=std::strcmp(argv[8],"repeat-detach")==0;
+        liveDtype=std::strcmp(argv[8],"live-dtype")==0;
+        if(liveDtype) {
+            const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
+            testdbReadDatabase((root+"record-dtype.db").c_str(),nullptr,"P=Records_");
+        }
         if(edges) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
             testdbReadDatabase((root+"record-edges.db").c_str(),nullptr,"P=Records_");
@@ -2143,7 +2328,7 @@ int main(int argc,char** argv)
         }
         testIocInitOk();
         if(edges)inputEdges();
-        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild && !stopInflight && !stopEnqueueFailed && !stopDownstream && !liveDetach && !repeatDetach) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
+        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild && !stopInflight && !stopEnqueueFailed && !stopDownstream && !liveDetach && !repeatDetach && !liveDtype) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
         if(edges) { capacityAndOrder(); simulation(); outputEdges(); maxPayloadQueue(); }
         if(alarms)nativeTimeouts();
         if(active)activeOutputs();
@@ -2158,19 +2343,23 @@ int main(int argc,char** argv)
         if(stopEnqueueFailed)stopWithEnqueueFailures();
         if(stopDownstream)stopWithHeldDownstream();
         if(liveDetach)liveDetachCells();
+        if(liveDtype)dtypeCells();
         if(repeatDetach) { prepareRepeatDetach(); initHookRegister(repeatDetachHook); }
         Runtime::instance().report();
         const bool blocked=std::strcmp(argv[8],"shutdown")==0;
         const bool abandoned=std::strcmp(argv[8],"queued-shutdown")==0 ||
                              (stopEnqueueFailed && std::strcmp(std::getenv("SNMP3_RECORD_RELEASE"),"after")==0);
-        const bool shutdownDone=stopDownstream && std::strcmp(std::getenv("SNMP3_RECORD_RELEASE"),"shutdown")==0;
+        const bool shutdownDone=liveDtype || (stopDownstream && std::strcmp(std::getenv("SNMP3_RECORD_RELEASE"),"shutdown")==0);
         if(blocked)blockedShutdown(); else if(abandoned && !stopEnqueueFailed)queuedShutdown(); else if(!shutdownDone)testIocShutdownOk();
         // Repeat-detach reports cleanup failures through named runner checks after real database cleanup.
-        if(!repeatDetach) {
+        if(!repeatDetach && !liveDtype) {
             check(Requests::instance().snapshot().contexts==0,"isolated queue cleanup retained detached contexts");
             check(Runtime::instance().snapshot().state==((blocked || abandoned)?State::IncompleteStopped:State::Stopped),"record runtime stop outcome mismatch");
         }
         testdbCleanup();
+        if(liveDtype)
+            std::printf("{\"event\":\"dtype_cleanup\",\"mode\":\"%s\",\"contexts\":%llu,\"state\":%d}\n",dtypeMode,
+                        (unsigned long long)Requests::instance().snapshot().contexts,int(Runtime::instance().snapshot().state));
         if(rebuild)secondActivation(argv);
         if(repeatDetach)
             std::printf("{\"event\":\"repeat_detach_cleanup\",\"contexts\":%llu,\"state\":%d}\n",

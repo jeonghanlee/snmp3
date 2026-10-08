@@ -106,6 +106,204 @@ def repeat_detach_checks(runner, events):
     runner.check("repeat-detach-cleanup-stopped", integer(cleanup.get("state")) and cleanup["state"] == STOPPED)
 
 
+
+DTYPE_MODES = ("idle", "active", "restored", "shutdown")
+DTYPE_NAMES = ("Records_DtypeAi", "Records_DtypeAo")
+DTYPE_DELAY_MS = 750
+# Base 7.0.10 alarm.h: LINK condition and INVALID severity.
+LINK_INVALID = (14, 3)
+
+
+def dtype_phases(mode):
+    phases = ["initial"]
+    if mode == "idle":
+        phases += ["changed", "refused", "restored", "completed"]
+    elif mode in ("active", "restored"):
+        for label in ("ai", "ao"):
+            phases += ["inflight-" + label, "changed-" + label]
+            if mode == "restored":
+                phases += ["restored-" + label]
+            phases += ["completed-" + label]
+        if mode == "active":
+            phases += ["refused"]
+    else:
+        phases += ["queued", "stop_window", "changed"]
+    return phases + ["stop_done", "detached", "detached_put"]
+
+
+def dtype_inventory(events):
+    # Validate the entire observation schema before any property can use its values.
+    def integers(row, keys):
+        return all(type(row.get(key)) is int for key in keys.split())
+
+    def flags(row, keys):
+        return all(type(row.get(key)) is bool for key in keys.split())
+
+    try:
+        if any(not isinstance(e, dict) for e in events):
+            return False
+        observed = [e for e in events if str(e.get("event", "")).startswith("dtype") and e.get("event") != "dtype_wire"]
+        if any(e.get("mode") not in DTYPE_MODES or e.get("event") not in
+               ("dtype", "dtype_put", "dtype_window", "dtype_detach_checks", "dtype_free", "dtype_cleanup") for e in observed):
+            return False
+        for mode in DTYPE_MODES:
+            selected = [e for e in observed if e["mode"] == mode]
+            rows = [e for e in selected if e["event"] == "dtype"]
+            if [e.get("phase") for e in rows] != dtype_phases(mode):
+                return False
+            for e in rows:
+                if (not integers(e, "at_us packets contexts active queued pending entered completions state exited count bytes") or
+                        not flags(e, "entry_open drain_failed admission settled") or
+                        [r.get("name") for r in e["records"]] != list(DTYPE_NAMES)):
+                    return False
+                for r in e["records"]:
+                    if (not integers(r, "record dpvt dset dtype original alternate pact stat sevr udf link_type") or
+                            not isinstance(r.get("link"), str) or type(r.get("value")) not in (int, float) or
+                            type(r.get("flnk")) not in (int, float)):
+                        return False
+                    c = r["context"]
+                    if (not isinstance(c, dict) or not integers(c, "record dtype dset binding handle generation admission identity_binding activation revision deadline_ms") or
+                            not flags(c, "published native_success")):
+                        return False
+                    if mode == "shutdown" and e["phase"] == "stop_window" and (
+                            not integers(c, "terminal") or not flags(c, "terminal_same")):
+                        return False
+            puts = [e for e in selected if e["event"] == "dtype_put"]
+            expected = []
+            for phase in dtype_phases(mode):
+                if phase.startswith(("changed", "restored", "detached_put")):
+                    names = [DTYPE_NAMES[0 if phase.endswith("-ai") else 1]] if "-" in phase else DTYPE_NAMES
+                    expected += [(phase, name) for name in names]
+            if [(e.get("phase"), e.get("name")) for e in puts] != expected or any(
+                    not integers(e, "value status") for e in puts):
+                return False
+            for kind in ("dtype_free", "dtype_cleanup"):
+                matching = [e for e in selected if e["event"] == kind]
+                if len(matching) != 1 or not integers(matching[0], "contexts"):
+                    return False
+            if [e["event"] for e in selected][-2:] != ["dtype_free", "dtype_cleanup"]:
+                return False
+            detach_checks = [e for e in selected if e["event"] == "dtype_detach_checks"]
+            if len(detach_checks) != 1 or not flags(detach_checks[0], "dtype-shutdown-dpvt-cleared dtype-shutdown-record-cleared"):
+                return False
+            detached_index = next(i for i, e in enumerate(selected) if e.get("phase") == "detached")
+            if selected[detached_index + 1]["event"] != "dtype_detach_checks":
+                return False
+            windows = [e for e in selected if e["event"] == "dtype_window"]
+            if len(windows) != (1 if mode == "shutdown" else 0):
+                return False
+            if windows and not flags(windows[0], "reached still_stopping"):
+                return False
+        return True
+    except (KeyError, TypeError, AttributeError, IndexError, StopIteration):
+        return False
+
+
+def dtype_checks(runner, events):
+    valid = dtype_inventory(events)
+    runner.check("dtype-events", valid)
+    if not valid:
+        return
+    rows = {mode: {e["phase"]: e for e in events if e.get("event") == "dtype" and e["mode"] == mode}
+            for mode in DTYPE_MODES}
+    for mode, phases in rows.items():
+        initial = phases["initial"]
+        prefix = "dtype-" + mode
+        # Field changes are explicit; completion, refusal and detach must preserve each record's expected value.
+        expected_dtype = [r["original"] for r in initial["records"]]
+        current_dtype = True
+        for phase in dtype_phases(mode):
+            if phase.startswith(("changed", "restored", "detached_put")):
+                indices = range(len(DTYPE_NAMES)) if "-" not in phase else (0 if phase.endswith("-ai") else 1,)
+                field = "alternate" if phase.startswith("changed") else "original"
+                for i in indices:
+                    expected_dtype[i] = initial["records"][i][field]
+            current_dtype = current_dtype and all(r["dtype"] == expected for r, expected in
+                                                  zip(phases[phase]["records"], expected_dtype))
+        runner.check(prefix + "-current-dtype", current_dtype)
+        runner.check(prefix + "-fixture", initial["contexts"] == 14 and initial["packets"] >= 0 and
+                     all(r["pact"] == 0 and r["original"] != r["alternate"] and r["dpvt"] > 0 and
+                         r["context"]["record"] == r["record"] and r["dtype"] == r["original"] and
+                         r["context"]["handle"] > 0 and r["context"]["deadline_ms"] == 10000
+                         for r in initial["records"]))
+        attached = [e for phase, e in phases.items() if phase not in ("detached", "detached_put")]
+        runner.check(prefix + "-binding-preserved", all(
+            all(r[key] == base[key] for key in ("record", "dpvt", "dset", "link", "link_type")) and
+            all(r["context"][key] == base["context"][key] for key in
+                ("record", "dtype", "dset", "binding", "handle", "activation", "revision"))
+            for e in attached for r, base in zip(e["records"], initial["records"])))
+        puts = [e for e in events if e.get("event") == "dtype_put" and e["mode"] == mode]
+        runner.check(prefix + "-puts", all(e["status"] == 0 and
+            phases[e["phase"]]["records"][DTYPE_NAMES.index(e["name"])]["dtype"] == e["value"] and
+            e["value"] == initial["records"][DTYPE_NAMES.index(e["name"])][
+                "alternate" if e["phase"].startswith("changed") else "original"] for e in puts))
+        if mode in ("active", "restored"):
+            for i, label in enumerate(("ai", "ao")):
+                before, changed, done = (phases[name + "-" + label] for name in ("inflight", "changed", "completed"))
+                middle = phases["restored-" + label] if mode == "restored" else changed
+                a, b, c, d = (e["records"][i] for e in (before, changed, middle, done))
+                runner.check(prefix + "-" + label + "-active-window", a["pact"] == b["pact"] == c["pact"] == 1 and
+                             before["packets"] == changed["packets"] == middle["packets"] and a["context"]["generation"] == 1)
+                runner.check(prefix + "-" + label + "-identity", all(a["context"][k] == r["context"][k]
+                             for k in ("generation", "admission", "identity_binding") for r in (b, c, d)))
+                runner.check(prefix + "-" + label + "-completion", d["pact"] == 0 and d["flnk"] == 1 and
+                             done["completions"] == i + 1 and done["active"] == 0 and
+                             (d["stat"], d["sevr"]) == (LINK_INVALID if mode == "active" else (0, 0)))
+            input_row = phases["completed-ai"]["records"][0]
+            runner.check(prefix + "-input-publication", input_row["value"] == (42 if mode == "active" else -123) and
+                         input_row["context"]["published"] is (mode == "restored") and
+                         input_row["context"]["native_success"] is (mode == "restored"))
+        if mode in ("idle", "active"):
+            refused = phases["refused"]
+            prior = initial if mode == "idle" else phases["completed-ao"]
+            runner.check(prefix + "-refusal", refused["packets"] == prior["packets"] and refused["active"] == 0 and
+                         refused["completions"] == prior["completions"] and all(
+                         r["pact"] == 0 and (r["stat"], r["sevr"]) == LINK_INVALID and
+                         all(r["context"][k] == b["context"][k] for k in ("generation", "admission", "identity_binding"))
+                         for r, b in zip(refused["records"], prior["records"])))
+        if mode == "idle":
+            restored, done = phases["restored"], phases["completed"]
+            runner.check(prefix + "-restore-no-work", restored["packets"] == initial["packets"] and restored["active"] == 0 and
+                         all(r["context"]["generation"] == 0 for r in restored["records"]))
+            runner.check(prefix + "-restored-success", done["completions"] == 2 and all(
+                         r["pact"] == 0 and r["sevr"] == 0 and r["context"]["generation"] == 1
+                         for r in done["records"]) and done["records"][0]["value"] == -123 and
+                         done["records"][0]["context"]["published"] is True and
+                         all(r["flnk"] == b["flnk"] + 1 for r, b in zip(done["records"], restored["records"])))
+        if mode == "shutdown":
+            queued, window, changed, done = (phases[k] for k in ("queued", "stop_window", "changed", "stop_done"))
+            observation = next(e for e in events if e.get("event") == "dtype_window")
+            runner.check("dtype-shutdown-window", observation["reached"] and observation["still_stopping"] and
+                         queued["queued"] == window["queued"] == 2 and window["active"] == 2 and window["entered"] == 0 and
+                         window["exited"] == 1 and window["admission"] is False and window["entry_open"] is True and
+                         all(r["context"].get("terminal") == 1 and r["context"].get("terminal_same") is True for r in window["records"]) and
+                         all(r["pact"] == 1 for r in changed["records"]))
+            runner.check("dtype-shutdown-completion", done["completions"] == 2 and done["active"] == 0 and
+                         all(r["pact"] == 0 and r["flnk"] == 1 and (r["stat"], r["sevr"]) == LINK_INVALID and
+                             all(r["context"][k] == b["context"][k] for k in ("generation", "admission", "identity_binding"))
+                             for r, b in zip(done["records"], queued["records"])) and
+                         done["records"][0]["value"] == 42 and done["records"][0]["context"]["native_success"] is False and
+                         done["records"][0]["context"]["published"] is False)
+        detached = phases["detached"]
+        after = phases["detached_put"]
+        runner.check(prefix + "-detach-retained", detached["contexts"] == initial["contexts"] and
+                     detached["entry_open"] is False and detached["entered"] == 0 and all(
+                         r["dset"] == b["dset"] and r["dtype"] == b["dtype"] for r, b in
+                         zip(detached["records"], phases["stop_done"]["records"])))
+        runner.check(prefix + "-no-reattach", after["packets"] == detached["packets"] and after["contexts"] == initial["contexts"] and
+                     after["active"] == 0 and all(r["dpvt"] == b["dpvt"] and r["context"]["record"] == b["context"]["record"]
+                         for r, b in zip(after["records"], detached["records"])))
+    runner.check("dtype-retirement-settled", all(p["stop_done"]["settled"] and p["stop_done"]["count"] == 0 and
+                 p["stop_done"]["bytes"] == 0 and not p["stop_done"]["drain_failed"] for p in rows.values()))
+    runner.check("dtype-shutdown-dpvt-cleared", all(r["dpvt"] == 0 for p in rows.values() for r in p["detached"]["records"]) and
+                 all(e["dtype-shutdown-dpvt-cleared"] for e in events if e.get("event") == "dtype_detach_checks"))
+    runner.check("dtype-shutdown-record-cleared", all(r["context"]["record"] == 0 for p in rows.values() for r in p["detached"]["records"]) and
+                 all(e["dtype-shutdown-record-cleared"] for e in events if e.get("event") == "dtype_detach_checks"))
+    runner.check("dtype-storage-lifetime", all(e["contexts"] == (14 if e["event"] == "dtype_free" else 0)
+                 for e in events if e.get("event") in ("dtype_free", "dtype_cleanup")))
+    runner.check("dtype-cleanup-stopped", all(e.get("state") == STOPPED for e in events if e.get("event") == "dtype_cleanup"))
+
+
 def queue_counter_lines(path):
     # Every `snmp3 queue:` report line of a record test process: the three counters of admissions behind a retirement.
     found = []
@@ -133,7 +331,7 @@ def main():
     parser.add_argument("--sanitizers", action="store_true")
     parser.add_argument("--case", choices=("baseline", "shutdown", "queued-shutdown", "edges", "alarms", "active", "policy", "numeric",
                                                    "active-unforced", "deadline-queue", "near-deadline",
-                                                   "accounting", "stop-queued", "rebuild", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach"), default="baseline")
+                                                   "accounting", "stop-queued", "rebuild", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach", "live-dtype"), default="baseline")
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(mode=0o700)
@@ -190,6 +388,14 @@ def main():
                                                    id="RetryFloatWrite", endpoint="Dropped"))
             configuration["bindings"].append(dict(next(binding for binding in outputs if binding["id"] == "FloatWrite"),
                                                    id="NativeRetryFloatWrite", endpoint="NativeRetry"))
+        if args.case == "live-dtype":
+            delayed, _ = runner.fault("dtype-response-delay", 4, peer, "delay", delay_ms=DTYPE_DELAY_MS)
+            runner.env["SNMP3_RECORD_DELAY_TRACE"] = str(output / "dtype-response-delay.stdout")
+            configuration["profiles"].append(dict(configuration["profiles"][0], id="Dtype", timeoutMs=3000))
+            configuration["endpoints"].append({"id": "Dtype", "address": "127.0.0.1",
+                                               "port": int(delayed.rsplit(":", 1)[1]), "profile": "Dtype"})
+            configuration["bindings"] += [dict(b, id="Dtype" + b["id"], endpoint="Dtype")
+                                           for b in configuration["bindings"] if b["id"] in ("IntegerRead", "FloatWrite")]
         if args.case == "numeric":
             tags = (("Integer", 1, "integer"), ("Unsigned32", 3, "unsigned32"),
                     ("Counter32", 2, "counter32"), ("Gauge32", 3, "gauge32"),
@@ -259,13 +465,13 @@ def main():
                     continue
                 try:
                     event = json.loads(line)
-                    if args.case == "repeat-detach" and not isinstance(event, dict):
+                    if args.case in ("repeat-detach", "live-dtype") and not isinstance(event, dict):
                         raise ValueError("record event must be an object")
                     events.append(event)
                 except ValueError:
-                    if args.case != "repeat-detach":
+                    if args.case not in ("repeat-detach", "live-dtype"):
                         raise
-                    events.append({"event": "repeat_detach_parse_error"})
+                    events.append({"event": "dtype_parse_error" if args.case == "live-dtype" else "repeat_detach_parse_error"})
             return libraries, events
 
         def proxy_sets(name):
@@ -326,6 +532,43 @@ def main():
             for mode in ("within", "late", "after"):
                 libraries, trial_events = execute("records-" + mode, {"SNMP3_RECORD_RELEASE": mode})
                 events += trial_events
+        elif args.case == "live-dtype":
+            events = []
+            trace_path = output / "dtype-response-delay.stdout"
+            agent_path = output / "agent-ipv4-1.stdout"
+            for mode in DTYPE_MODES:
+                wire_start = len(trace_path.read_text().splitlines())
+                agent_start = len(agent_path.read_text().splitlines())
+                libraries, trial_events = execute("records-" + mode, {"SNMP3_RECORD_DTYPE_MODE": mode})
+                wire = [json.loads(line) for line in trace_path.read_text().splitlines()[wire_start:] if line.startswith("{")]
+                stored = [json.loads(line) for line in agent_path.read_text().splitlines()[agent_start:] if line.startswith("{")]
+                events += trial_events
+                events.append({"event": "dtype_wire", "mode": mode, "events": wire,
+                               "stored": [e for e in stored if e.get("event") == "agent_set_value"]})
+                requests = [e for e in wire if e.get("event") == "fault_request"]
+                responses = [e for e in wire if e.get("event") == "fault_response"]
+                runner.check("dtype-" + mode + "-wire", len(requests) == len(responses) == 2 and
+                             sorted(e.get("command") for e in requests) == [160, 163] and
+                             sorted(e.get("request_id") for e in requests) == sorted(e.get("request_id") for e in responses) and
+                             all(e.get("status") == 0 and e.get("varbinds") == 1 for e in responses))
+                if mode in ("active", "restored"):
+                    deliveries = [e for e in wire if e.get("event") == "fault_delayed_delivery"]
+                    snapshots = {e["phase"]: e for e in trial_events if e.get("event") == "dtype"}
+                    # Judge the original two request windows independently of forbidden later requests.
+                    # The exact wire-count check still rejects every additional admission.
+                    ordering = len(deliveries) >= 2 and len(requests) >= 2 and [
+                        e.get("command") for e in requests[:2]] == [160, 163]
+                    for i, label in enumerate(("ai", "ao")):
+                        changed = snapshots.get("changed-" + label, {})
+                        restored = snapshots.get("restored-" + label, changed)
+                        if ordering:
+                            ordering = (requests[i]["monotonic_ns"] < changed.get("at_us", 0) * 1000 <=
+                                        restored.get("at_us", 0) * 1000 < deliveries[i]["monotonic_ns"])
+                    runner.check("dtype-" + mode + "-external-delay-window", ordering)
+                values = [e for e in stored if e.get("event") == "agent_set_value"]
+                runner.check("dtype-" + mode + "-captured-SET", len(values) == 1 and values[0].get("index") == 9 and
+                             values[0].get("value") == "7.25")
+            dtype_checks(runner, events)
         elif args.case == "live-detach":
             # One process replacing links while requests run, one during the record drain of a stop with a full queue.
             events = []
@@ -348,7 +591,7 @@ def main():
             libraries, events = execute("records")
         summary = next((event for event in events if event.get("event") == "record_summary"), {})
         # Queue cases skip the baseline and pressure phases; their records are checked per trial below.
-        if args.case not in QUEUE_CASES + ("stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach"):
+        if args.case not in QUEUE_CASES + ("stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach", "live-dtype"):
             runner.check("actual-eleven-record-path", summary.get("records") == 11 and summary.get("checks", 0) > 100)
             completions = [event for event in events if event.get("event") == "record_completed"]
             runner.check("actual-record-identities", bool(completions) and all(event["activation"] == 1 and
@@ -722,6 +965,12 @@ def main():
         inputs += [ROOT / "tests/rewrite/db/record-policy.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case == "numeric":
         inputs += [ROOT / "tests/rewrite/db/record-numeric.db"]
+    if args.case == "live-dtype":
+        inputs += [ROOT / "tests/rewrite/db/record-dtype.db", ROOT / "tests/rewrite/helpers/udp_fault.py",
+                   ROOT / "configure/RELEASE.local"]
+        base = Path(next(line.split("=", 1)[1].strip() for line in
+                    (ROOT / "configure/RELEASE.local").read_text().splitlines() if line.startswith("EPICS_BASE")))
+        inputs += [base / "include/epicsVersion.h", base / "include/dbAccessDefs.h", base / "include/alarm.h"]
     inputs += [ROOT / "tests/rewrite/test_native.py"]
     inputs += [runner.products / name for name in ("snmp3RecordTest", "snmp3NativeProbe", "snmp3Worker", "snmp3NativeAgent")]
     passed = not aborted and bool(runner.checks) and all(check["passed"] for check in runner.checks)

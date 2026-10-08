@@ -287,6 +287,106 @@ python3 tests/rewrite/test_records.py --case repeat-detach --output work/r6-repe
 | stop-downstream | record-stop.db with every FLNK pointed through a Channel Access link at a record in another lockset, and actual outer UDP drop-all, two processes; the downstream record's lock is held past the drain budget while the runtime stops: the stop completes with every record completed once, the drain succeeded and the worker reaped, no downstream processing while held, and eleven downstream processings (one per link; Base keeps one pending put per CA link) on Base's CA link thread after the release; held through the IOC shutdown instead, the snmp3 stop completes first and Base's CA link shutdown waits for the lock; the downstream count after that release is reported, not asserted |
 | live-detach | record-stop.db and actual outer UDP drop-all, two processes; an input and an output record are replaced through Base's own link put while their requests are in flight, after they complete, after the operator stop, and, in the second process, during the record drain of a stop whose completions the full Base callback queue refuses: Base refuses every attempt, each record keeps its context and binding, and each in-flight request completes once with a communication alarm |
 | repeat-detach | record-stop.db ai/ao plus the baseline databases; idle isolated shutdown, first detach at AfterCloseLinks, two real INP and two real OUT puts, retained contexts at BeforeFree and zero contexts after testdbCleanup; every refusal preserves the original full INST_IO text/type and dset with null dpvt/context record pointers |
+| live-dtype | record-dtype.db passive ai/ao; four fresh-process modes exercise idle refusal, active mismatch, restoration before completion and changed-DTYP isolated shutdown, with real UDP and Base lifecycle observations |
+
+
+### Live DTYP Changes
+
+`--case live-dtype` uses `record-dtype.db` with passive ai Integer GET and ao
+OpaqueFloat SET records and separate Base FLNK counters. It runs four fresh
+IOC processes through real Base field writes and the module, worker, native
+library and loopback agent. Use the prerequisites above, the selected Base in
+`configure/RELEASE.local`, and new output directories for every invocation.
+The loaded DTYP menus supply valid alternate choices; the installed DSET is
+never replaced. A successful DTYP put changes a field, not the binding.
+
+| Mode | Stimulus and required result |
+| --- | --- |
+| idle | Change DTYP, explicitly process and observe LINK/INVALID without admission or wire I/O. Restore DTYP without work, then explicitly process successfully with the original binding. |
+| active | For each record, observe its real UDP request, change DTYP before the delayed response is delivered, then complete once with LINK/INVALID. Preserve input value/publication state; reject a later mismatched processing attempt without new wire I/O. |
+| restored | Change and restore each DTYP during its delayed request. The original request completes successfully once with the same identity and binding. |
+| shutdown | Hold the real Base callback consumer until both native terminals are queued. Start isolated IOC shutdown; observe admission closed, Runtime thread exited and completion entry still open before changing DTYP. Release the hold, observe attached mismatch completion, then actual detach and cleanup. |
+
+The agent records the captured SET value `7.25` separately from input
+publication. A SET already transmitted can change the agent even when DTYP
+mismatch later rejects record completion; no rollback is implied. The input
+starts at `42` and receives `-123` only on the successful path. The proxy
+retains request/response IDs and delivery times. Active/restored requests run
+one record at a time because the address shares a worker.
+
+Each `dtype` snapshot records identity, binding, pointers, link/type, alarms,
+PACT, value/publication state, per-record FLNK, Runtime/Requests state and
+scheduler reservations. AfterCloseLinks records both pointer clears and
+emits `dtype_detach_checks` before destruction. A subsequent real DTYP put
+must not attach another context or admit work. BeforeFree retains all 14
+contexts, including the baseline fixtures; post-cleanup observes zero through
+inventory only. PACT is not required to be zero after Base closes links.
+Missing, duplicate or malformed required observations fail `dtype-events`.
+The shutdown `stop_window` requires an exact integer `terminal` and boolean
+`terminal_same` for each record; a boolean or float cannot stand in for the
+integer native outcome. The shutdown proof separately requires success and
+matching terminal identity.
+Each mode's `dtype-<mode>-current-dtype` check compares both records at every
+required phase with their initial loaded-menu original/alternate values.
+Only explicit DTYP puts update the expectation, separately for
+the sequential ai/ao requests. Completion, refusal, stop and detach preserve
+that expectation until the next explicit put; matching two wrong observations
+does not pass. Wrong-value probes derived from retained real observations
+validate these predicates separately from IOC executions and compiled controls.
+
+Build ordinary and fresh instrumented products, then run three ordinary
+invocations and one ASan/UBSan invocation. The sanitizer builder also covers
+RecordTest; Base/system/vendor dependencies are uninstrumented and leak
+detection is disabled.
+
+```bash
+make -j2
+make -C tests/rewrite -j2
+python3 tests/rewrite/build_r5_sanitizers.py --output work/dtype-sanitizers
+DT_RUNNER=tests/rewrite/test_records.py
+DT_PRODUCTS=work/dtype-sanitizers/products
+python3 "$DT_RUNNER" --case live-dtype --output work/dtype-ordinary-1
+python3 "$DT_RUNNER" --case live-dtype --output work/dtype-ordinary-2
+python3 "$DT_RUNNER" --case live-dtype --output work/dtype-ordinary-3
+python3 "$DT_RUNNER" --case live-dtype --products "$DT_PRODUCTS" --sanitizers --output work/dtype-asan
+DT_RECEIPT=work/dtype-sanitizers/sanitizer-build.json
+DT_CONTROLS=tests/rewrite/test_record_controls.py
+python3 "$DT_CONTROLS" --build-receipt "$DT_RECEIPT" --dtype-controls --output work/dtype-controls
+```
+
+`--dtype-controls` is mutually exclusive with every other control group and
+selects all four controls when no names follow it. The source/product hashes
+in the build receipt must match. Each defective library is separately compiled
+and loaded by the unchanged real runner and driver; the original products and
+installed Base remain unchanged.
+
+| Control | Named failure and qualification limit |
+| --- | --- |
+| dtype-comparison | `dtype-idle-refusal` fails when the DTYP comparison is omitted. The shared validator also governs completion; this control does not establish independent necessity of its two call sites. |
+| dtype-release | `dtype-retirement-settled` fails when terminal release is omitted. Both reservation count and bytes must settle on the reference. |
+| dtype-dpvt | `dtype-shutdown-dpvt-cleared` fails when first detach omits the record dpvt clear. |
+| dtype-record | `dtype-shutdown-record-cleared` fails when detach omits the context record-pointer clear. Its defective copy also bypasses the cleanup assertion using `CONTEXT_CLEANUP_GUARD`, so the unchanged faulty pointer is observed and judged before real context destruction. It does not independently test that bypassed assertion. |
+
+Scenario preconditions are the complete event inventory, real request/response
+and delayed-delivery windows, Runtime exit during the shutdown hold, real Base
+phase order and safe retained storage. Binding/identity, alarm/publication,
+FLNK, refusal and detach observations supplement the named controls; the four
+controls do not independently discriminate every predicate. No crash, abort,
+watchdog, missing phase or forced cleanup qualifies a control. The same named
+check must appear exactly once and pass on the instrumented reference, then
+fail on the actual defective-library run. Both edits of the compound pointer
+control are recorded; neither the driver nor runner repairs the pointer.
+Normal IOC, agent and proxy exits, complete cleanup and absence of sanitizer
+diagnostics remain mandatory for every control.
+
+Regression checks cover `baseline`, `live-detach`, `repeat-detach` and
+`queued-shutdown` on ordinary and instrumented products. Use a fresh directory
+for each command, following the record invocation pattern above. Parser probes
+apply missing, duplicate and malformed observations to retained real event
+files through `dtype_checks`; they are parser checks, not additional IOC
+executions. Results and per-mode child receipts distinguish those evidence
+classes. This suite qualifies two record kinds and these four modes only;
+it makes no all-record, race-free, leak-free or timing-equivalence claim.
 
 ### Repeated Detach
 

@@ -248,6 +248,33 @@ for name, (source, check, edits) in REPEAT_CONTROLS.items():
     D7_CONTROLS[name] = ("record", "repeat-detach", check, edits)
 
 
+
+DTYPE_CONTROLS = {
+    "dtype-comparison": ("DeviceSupport.cpp", "dtype-idle-refusal", [
+        (" || record->dtyp!=context.dtype", "")]),
+    "dtype-release": ("Request.cpp", "dtype-retirement-settled", [
+        ("if(context.terminal.result)context.owner->release(context.terminal.id);", "(void)context.terminal.result;")]),
+    "dtype-dpvt": ("Request.cpp", "dtype-shutdown-dpvt-cleared", [
+        ("if(context.record && context.record->dpvt==&context)context.record->dpvt=nullptr;", "(void)context.record;")]),
+    "dtype-record": ("Request.cpp", "dtype-shutdown-record-cleared", [
+        ("    context.record=nullptr;", "    (void)context.record;")] + CONTEXT_CLEANUP_GUARD),
+}
+for name, (source, check, edits) in DTYPE_CONTROLS.items():
+    D7_SOURCES[name] = source
+    D7_CONTROLS[name] = ("record", "live-dtype", check, edits)
+
+
+def dtype_completed(outcome):
+    required = ("dtype-events", "dtype-storage-lifetime", "sanitizer-diagnostics-absent", "secret-sentinels-absent",
+                "IOC-native-free", "dtype-response-delay:normal-stop", "agent-ipv4-1:normal-stop",
+                "dtype-shutdown-window", "dtype-active-ai-active-window", "dtype-active-ao-active-window",
+                "dtype-restored-ai-active-window", "dtype-restored-ao-active-window",
+                "dtype-active-external-delay-window", "dtype-restored-external-delay-window")
+    required += tuple("records-" + mode + ":return" for mode in ("idle", "active", "restored", "shutdown"))
+    return (not outcome["aborted"] and not outcome["forced_cleanup"] and
+            all(unique_check(outcome, name, True) for name in required))
+
+
 def run_cell(kind, cell, products, output, sanitizers=True):
     # Executes one real-path cell against a product directory and returns its observable outcome.
     output.mkdir(mode=0o700, exist_ok=True)
@@ -280,12 +307,12 @@ def run_cell(kind, cell, products, output, sanitizers=True):
             failed += [check["name"] for check in nested_data.get("checks", []) if not check["passed"]]
             aborted = aborted or bool(nested_data.get("aborted"))
     # Repeat-detach also requires every external fixture to exit without forced cleanup.
-    receipt_pattern = "*.receipt.json" if cell == "repeat-detach" else "records*.receipt.json"
+    receipt_pattern = "*.receipt.json" if cell in ("repeat-detach", "live-dtype") else "records*.receipt.json"
     forced = any(json.loads(receipt.read_text()).get("forced_cleanup")
                  for receipt in sorted((output / "run").glob(receipt_pattern)))
     observations = output / "run" / "record-observations.json"
     stop_events = {"stop-queued": "stop_queued", "stop-inflight": "stop_inflight", "stop-enqueue-failed": "stop_enqueue_failed",
-                   "stop-downstream": "stop_downstream", "live-detach": "live_detach", "repeat-detach": "repeat_detach"}
+                   "stop-downstream": "stop_downstream", "live-detach": "live_detach", "repeat-detach": "repeat_detach", "live-dtype": "dtype"}
     observed = kind != "record" or cell not in stop_events or (observations.exists() and any(
         event.get("event") == stop_events[cell] for event in json.loads(observations.read_text())))
     return {"argv": argv, "returncode": code, "pid": child.pid, "child_reaped": True, "failed_checks": failed,
@@ -357,7 +384,7 @@ def main_d7(args, jobs, output):
         reference.setdefault("passed_for", {})[name] = (not reference["aborted"] and not reference["forced_cleanup"] and
                                                         reference["observed"]) and (
             reference["returncode"] == 0 if check is None else check not in reference["failed_checks"])
-        if cell == "repeat-detach":
+        if cell in ("repeat-detach", "live-dtype"):
             matched = [row for row in reference["checks"] if row.get("name") == check]
             reference["passed_for"][name] = (reference["passed_for"][name] and reference["returncode"] == 0 and
                                              len(matched) == 1 and matched[0].get("passed") is True)
@@ -401,10 +428,16 @@ def main_d7(args, jobs, output):
         executable = compile_product(selected[tests[kind]], original_products, products, source, replacement, item, extra)
         loaded = Path(resolved_support(executable)).resolve() == defective.resolve()
         outcome = run_cell(kind, cell, products, item / "cell")
-        if cell == "repeat-detach":
+        if cell in ("repeat-detach", "live-dtype"):
             loaded = loaded and outcome["loaded_libraries"].get(str(defective.resolve())) == digest(defective)
         reference = references[(kind, cell)]
         passed = reference["passed_for"][name] and loaded and detected(outcome, check)
+        if cell == "live-dtype":
+            reference_library = original_products / "libsnmp3.so"
+            reference_loaded = reference["loaded_libraries"].get(str(reference_library.resolve())) == digest(reference_library)
+            passed = (passed and reference_loaded and dtype_completed(reference) and dtype_completed(outcome) and
+                      unique_check(outcome, check, False) and outcome["returncode"] == 1)
+
         if cell == "repeat-detach":
             passed = passed and all(any(row.get("name") == required and row.get("passed") is True
                                        for row in outcome["checks"]) for required in
@@ -660,20 +693,31 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-receipt", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--controls", nargs="+", choices=tuple(CONTROLS), default=list(CONTROLS))
+    parser.add_argument("--controls", nargs="+", choices=tuple(CONTROLS), default=None)
     parser.add_argument("--d7-controls", nargs="+", choices=tuple(D7_CONTROLS))
     parser.add_argument("--shutdown-controls", nargs="*", choices=tuple(SHUTDOWN_CONTROLS))
     parser.add_argument("--startup-controls", nargs="*", choices=tuple(STARTUP_CONTROLS))
+    parser.add_argument("--dtype-controls", nargs="*", choices=tuple(DTYPE_CONTROLS))
     parser.add_argument("--startup-phase", choices=("preflight", "thread"),
                         help="startup-control phase (default: preflight); requires --startup-controls")
     args = parser.parse_args()
     if args.startup_phase is not None and args.startup_controls is None:
         parser.error("--startup-phase requires --startup-controls")
-    if sum((bool(args.d7_controls), args.shutdown_controls is not None, args.startup_controls is not None)) > 1:
+    if sum((args.controls is not None, bool(args.d7_controls), args.shutdown_controls is not None,
+            args.startup_controls is not None, args.dtype_controls is not None)) > 1:
         parser.error("select one control group")
     output = args.output.resolve()
     output.mkdir(mode=0o700)
     jobs = json.loads(args.build_receipt.read_text())["products"]
+    if args.dtype_controls is not None:
+        for job in jobs:
+            product = Path(job["argv"][-1])
+            if job["returncode"] != 0 or digest(product) != job["product_sha256"]:
+                raise RuntimeError("sanitizer product receipt mismatch")
+            if any(digest(Path(name)) != expected for name, expected in job["sources"].items()):
+                raise RuntimeError("sanitizer source receipt mismatch")
+        args.d7_controls = args.dtype_controls or list(DTYPE_CONTROLS)
+        return main_d7(args, jobs, output)
     if args.startup_controls is not None:
         return main_startup(args, jobs, output)
     if args.shutdown_controls is not None:
@@ -685,7 +729,7 @@ def main():
     test_job = selected["snmp3RecordTest"]
     original_products = Path(support_job["argv"][-1]).parent
     results = []
-    for name in args.controls:
+    for name in args.controls or CONTROLS:
         item = output / name
         item.mkdir(mode=0o700)
         products = item / "products"
@@ -722,7 +766,7 @@ def main():
                         "driver_pid": child.pid, "driver_reaped": True,
                         "scope": "Shipped Base record/DSET/Runtime/Scheduler/IPC/worker/native/agent path"})
         write_json(output / "results.json", {"passed": all(row["passed"] for row in results),
-                   "complete": len(results) == len(args.controls), "controls": results,
+                   "complete": len(results) == len(args.controls or CONTROLS), "controls": results,
                    "inputs": {str(Path(__file__).resolve()): digest(Path(__file__).resolve()),
                               str(args.build_receipt.resolve()): digest(args.build_receipt)},
                    "pending": "Stale-generation control; complete T14 remains pending"})

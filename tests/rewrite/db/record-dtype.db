@@ -1,0 +1,25 @@
+record(ai, "$(P)DtypeAi") {
+    field(DESC, "Live DTYP input identity")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=DtypeIntegerRead deadline_ms=10000")
+    field(VAL, "42")
+    field(FLNK, "$(P)DtypeAiCompleted")
+}
+
+record(ao, "$(P)DtypeAo") {
+    field(DESC, "Live DTYP output identity")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=DtypeFloatWrite deadline_ms=10000")
+    field(VAL, "7.25")
+    field(FLNK, "$(P)DtypeAoCompleted")
+}
+
+record(calc, "$(P)DtypeAiCompleted") {
+    field(DESC, "Input Base completion count")
+    field(CALC, "VAL+1")
+}
+
+record(calc, "$(P)DtypeAoCompleted") {
+    field(DESC, "Output Base completion count")
+    field(CALC, "VAL+1")
+}
