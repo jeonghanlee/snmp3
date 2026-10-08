@@ -287,8 +287,104 @@ python3 tests/rewrite/test_records.py --case repeat-detach --output work/r6-repe
 | stop-downstream | record-stop.db with every FLNK pointed through a Channel Access link at a record in another lockset, and actual outer UDP drop-all, two processes; the downstream record's lock is held past the drain budget while the runtime stops: the stop completes with every record completed once, the drain succeeded and the worker reaped, no downstream processing while held, and eleven downstream processings (one per link; Base keeps one pending put per CA link) on Base's CA link thread after the release; held through the IOC shutdown instead, the snmp3 stop completes first and Base's CA link shutdown waits for the lock; the downstream count after that release is reported, not asserted |
 | live-detach | record-stop.db and actual outer UDP drop-all, two processes; an input and an output record are replaced through Base's own link put while their requests are in flight, after they complete, after the operator stop, and, in the second process, during the record drain of a stop whose completions the full Base callback queue refuses: Base refuses every attempt, each record keeps its context and binding, and each in-flight request completes once with a communication alarm |
 | repeat-detach | record-stop.db ai/ao plus the baseline databases; idle isolated shutdown, first detach at AfterCloseLinks, two real INP and two real OUT puts, retained contexts at BeforeFree and zero contexts after testdbCleanup; every refusal preserves the original full INST_IO text/type and dset with null dpvt/context record pointers |
+| support-transition | record-support.db passive ai/ao; five fresh-process modes combine DTYP and compatible INP/OUT puts, first transfer to Base Soft Channel, post-detach refusal and rejected return to snmp3 |
 | live-dtype | record-dtype.db passive ai/ao; four fresh-process modes exercise idle refusal, active mismatch, restoration before completion and changed-DTYP isolated shutdown, with real UDP and Base lifecycle observations |
 
+
+### Device-Support Transitions
+
+`--case support-transition` loads passive ai Integer GET and ao OpaqueFloat SET
+records from `record-support.db`, alongside the baseline databases. It runs all
+five modes in separate isolated IOC processes. `--support-mode` selects one
+mode for diagnosis or a restricted compiled control; it is rejected for other
+cases. A selected-mode result qualifies only that mode.
+
+The loaded device menus must contain exact `snmp3` and `Soft Channel` choices.
+The driver resolves their DSET/DSXT identities and requires Base's built-in
+`devSoft_DSXT` for CONSTANT support. The generated test DBD, installed Base
+headers and loaded libraries are retained with the results. Changing DTYP
+alone does not change installed support. A numeric CONSTANT link put selects
+new support from current DTYP and asks the installed DSET's extension to detach
+first. Each mode separately probes an incompatible INST_IO link; its Base
+validation error is not snmp3 detach-refusal evidence.
+
+| Mode | Required behavior |
+| --- | --- |
+| idle | Compatible INP/OUT puts are refused while original contexts remain attached. Restore DTYP and explicitly process real GET/SET successfully. |
+| active | Observe ai then ao UDP requests and change DTYP/link before delayed response delivery. Refuse link replacement; finish the original request once with LINK/INVALID and no input publication. |
+| drain | Hold actual Base callbacks until both native terminals are queued. During real shutdown, observe Runtime exit, closed admission, open completion entry and detach permission still false; refuse both puts, then release callbacks and complete while attached. |
+| before-close | In AtShutdown after production stop and detach permission, transfer to Soft Channel through real old delete/new add. Attempt returning to snmp3; its add refuses. Base retains the replacement INST_IO link with null DSET/dpvt and PACT true. No rollback or later processing is expected. |
+| after-close | After Base's first detach, change DTYP and attempt compatible links twice per record. The installed snmp3 extension refuses empty-dpvt deletion, preserving original link/DSET and the explicitly changed DTYP. |
+
+`support` observations record exact current DTYP, installed and resolved
+DSET/DSXT identities, both original pointer associations, complete link/type,
+context/binding/handle/request identities, value/publication, alarm, PACT and
+FLNK, Runtime/Requests gates, and scheduler reservations. Every required phase
+is ordered and typed before value checks run. Expected DTYP/support/link and
+request states are derived from the explicit operations, separately for ai and
+ao. Missing or duplicate phases, unknown modes, malformed fields and unjustified
+processing skips fail `support-events`. The drain terminal outcome requires an
+integer Complete value and a boolean matching-identity flag.
+
+Original contexts are retained separately from record dpvt; another support's
+dpvt is never cast to a snmp3 context. Observations use record locks and
+quiescent context phases. BeforeFree retains all 14 contexts; after actual
+`testdbCleanup`, inventory must be zero and Runtime stopped. No record/context
+is read after destruction. A transmitted SET can change the real agent even
+when record completion rejects changed DTYP. The agent must record `7.25` and
+the input publishes `-123` only after successful restored processing.
+
+Run from the repository root, using fresh output directories. Build ordinary
+and instrumented products before executing the complete matrix:
+
+```bash
+make -j2
+make -C tests/rewrite -j2
+python3 tests/rewrite/build_r5_sanitizers.py --output work/support-sanitizers
+ST_RUNNER=tests/rewrite/test_records.py
+ST_PRODUCTS=work/support-sanitizers/products
+python3 "$ST_RUNNER" --case support-transition --output work/support-ordinary-1
+python3 "$ST_RUNNER" --case support-transition --output work/support-ordinary-2
+python3 "$ST_RUNNER" --case support-transition --output work/support-ordinary-3
+python3 "$ST_RUNNER" --case support-transition --products "$ST_PRODUCTS" --sanitizers --output work/support-asan
+ST_RECEIPT=work/support-sanitizers/sanitizer-build.json
+ST_CONTROLS=tests/rewrite/test_record_controls.py
+python3 "$ST_CONTROLS" --build-receipt "$ST_RECEIPT" --support-controls --output work/support-controls
+python3 "$ST_CONTROLS" --build-receipt "$ST_RECEIPT" --dtype-controls --output work/support-dtype-controls
+```
+
+`--support-controls` is mutually exclusive with other control groups. It
+compiles three isolated defective libraries and runs each with a passing
+instrumented reference of the same restricted mode:
+
+| Control | Mode | Required named failure |
+| --- | --- | --- |
+| support-permission | idle | `support-idle-refusal` when detach permission is ignored |
+| support-empty | after-close | `support-after-close-refusal` when empty-dpvt deletion succeeds |
+| support-add | before-close | `support-return-to-snmp3-refused` when post-initialization add succeeds |
+
+The permission control skips reference-only restored processing after observing
+unexpected transfer. `support_resume` explicitly records that decision, and the
+inventory accepts the skip only when the actual pointer/DSET observations show
+the original attachment was lost. It still requires real shutdown and cleanup;
+no state is repaired. This fault never runs with accepted active work. The
+other controls do not process a transferred or partially supported record.
+Actual defective-library identity, the unique named failure, complete safe
+phases and normal IOC/agent/proxy exits are mandatory. Abort, timeout, missing
+observations, sanitizer errors or forced cleanup do not qualify. The three
+controls do not independently discriminate every observed property; existing
+four live-DTYP controls remain separate regressions.
+
+Re-run `baseline`, `live-detach`, `repeat-detach`, `live-dtype` and
+`queued-shutdown` with both product sets using the same runner options and a
+fresh output path per case. Parser validation passes retained actual events
+through `support_checks`, varying missing/duplicate phases, types, current
+DTYP/DSET/link and pointer/attachment outcomes. These are parser replays,
+not additional IOC executions. This suite qualifies these two record kinds
+and five modes only. It does not establish general concurrency, all-record,
+leak-free or timing-equivalent behavior. ASan/UBSan covers rebuilt module/test
+products; Base/system/vendor dependencies are uninstrumented and leak detection
+is disabled.
 
 ### Live DTYP Changes
 

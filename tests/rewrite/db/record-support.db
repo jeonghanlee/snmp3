@@ -1,0 +1,25 @@
+record(ai, "$(P)SupportAi") {
+    field(DESC, "Device-support input transfer")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=SupportIntegerRead deadline_ms=10000")
+    field(VAL, "42")
+    field(FLNK, "$(P)SupportAiCompleted")
+}
+
+record(ao, "$(P)SupportAo") {
+    field(DESC, "Device-support output transfer")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=SupportFloatWrite deadline_ms=10000")
+    field(VAL, "7.25")
+    field(FLNK, "$(P)SupportAoCompleted")
+}
+
+record(calc, "$(P)SupportAiCompleted") {
+    field(DESC, "Input Base completion count")
+    field(CALC, "VAL+1")
+}
+
+record(calc, "$(P)SupportAoCompleted") {
+    field(DESC, "Output Base completion count")
+    field(CALC, "VAL+1")
+}

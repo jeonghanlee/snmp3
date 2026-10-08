@@ -62,6 +62,7 @@ bool stopDownstream=false;
 bool liveDetach=false;
 bool repeatDetach=false;
 bool liveDtype=false;
+bool supportTransition=false;
 int64_t firstActivationWorker=0;
 struct RecordLock {
     dbCommon* value;
@@ -1931,6 +1932,193 @@ void dtypeCells()
     }
     testIocShutdownOk();
 }
+
+// Runtime link replacement uses the installed DSET for deletion and current DTYP for addition.
+// Retain the original context separately; another support's dpvt is never interpreted as ours.
+struct SupportRecord {
+    const char* name;
+    const char* counter;
+    const char* field;
+    DBADDR dtype{},link{};
+    RecordContext* context=nullptr;
+    devSup* originalSupport=nullptr;
+    devSup* softSupport=nullptr;
+    epicsUInt16 original=0,soft=0;
+    std::string originalLink;
+    explicit SupportRecord(const char* n,const char* c,const char* f) : name(n),counter(c),field(f) {}
+};
+SupportRecord supportRecords[]={SupportRecord("Records_SupportAi","Records_SupportAiCompleted","INP"),
+                                SupportRecord("Records_SupportAo","Records_SupportAoCompleted","OUT")};
+const char* supportMode=nullptr;
+uint64_t supportContexts=0;
+std::string supportLink(dbCommon* rec)
+{
+    auto* link=dbGetDevLink(rec);
+    const char* text=link->type==INST_IO?link->value.instio.string:
+                     link->type==CONSTANT?link->value.constantStr:nullptr;
+    return text?text:"";
+}
+void supportObservation(const std::string& phase)
+{
+    const auto q=Requests::instance().snapshot();
+    const auto r=Runtime::instance().snapshot();
+    auto owner=Runtime::instance().schedulerOwner(); const auto queue=owner->snapshot(1);
+    std::ostringstream out;
+    out<<"{\"event\":\"support\",\"mode\":"<<jsonText(supportMode)<<",\"phase\":"<<jsonText(phase)
+       <<",\"at_us\":"<<monotonicUs()<<",\"packets\":"<<dtypePackets()<<",\"contexts\":"<<q.contexts
+       <<",\"active\":"<<q.active<<",\"queued\":"<<q.queued<<",\"pending\":"<<q.pending
+       <<",\"entered\":"<<q.entered<<",\"completions\":"<<q.completions<<",\"entry_open\":"<<(q.entryOpen?"true":"false")
+       <<",\"detach_allowed\":"<<(q.detachAllowed?"true":"false")<<",\"drain_failed\":"<<(q.drainFailed?"true":"false")
+       <<",\"admission\":"<<(r.admission?"true":"false")<<",\"state\":"<<int(r.state)
+       <<",\"created\":"<<r.created<<",\"exited\":"<<r.exited<<",\"count\":"<<queue.count<<",\"bytes\":"<<queue.bytes
+       <<",\"settled\":"<<(owner->settled()?"true":"false")<<",\"records\":[";
+    for(auto& saved:supportRecords) {
+        auto* rec=saved.dtype.precord; RecordLock lock(rec);
+        if(&saved!=supportRecords)out<<',';
+        const auto* installed=dbDSETtoDevSup(rec->rdes,rec->dset);
+        out<<"{\"name\":"<<jsonText(saved.name)<<",\"record\":"<<pointerValue(rec)
+           <<",\"dpvt\":"<<pointerValue(rec->dpvt)<<",\"dset\":"<<pointerValue(rec->dset)
+           <<",\"dsxt\":"<<pointerValue(installed?installed->pdsxt:nullptr)
+           <<",\"original_dset\":"<<pointerValue(saved.originalSupport->pdset)
+           <<",\"original_dsxt\":"<<pointerValue(saved.originalSupport->pdsxt)
+           <<",\"soft_dset\":"<<pointerValue(saved.softSupport->pdset)
+           <<",\"soft_dsxt\":"<<pointerValue(saved.softSupport->pdsxt)
+           <<",\"dtype\":"<<rec->dtyp<<",\"original\":"<<saved.original<<",\"soft\":"<<saved.soft
+           <<",\"pact\":"<<unsigned(rec->pact)<<",\"stat\":"<<rec->stat<<",\"sevr\":"<<rec->sevr
+           <<",\"link_type\":"<<dbGetDevLink(rec)->type<<",\"link\":"<<jsonText(supportLink(rec))
+           <<",\"value\":"<<(&saved==supportRecords?reinterpret_cast<aiRecord*>(rec)->val:reinterpret_cast<aoRecord*>(rec)->val);
+        { auto* counter=record(saved.counter); RecordLock lockCounter(counter);
+          out<<",\"flnk\":"<<reinterpret_cast<calcRecord*>(counter)->val; }
+        out<<",\"context\":";
+        if(!saved.context || q.contexts!=supportContexts)out<<"null";
+        else {
+            const auto& c=*saved.context;
+            out<<"{\"pointer\":"<<pointerValue(saved.context)<<",\"record\":"<<pointerValue(c.record)
+               <<",\"dtype\":"<<c.dtype<<",\"dset\":"<<pointerValue(c.dset)
+               <<",\"binding\":"<<pointerValue(c.definition.binding.get())<<",\"handle\":"<<c.handle
+               <<",\"activation\":"<<c.owner->activationId()<<",\"revision\":"<<c.owner->configurationRevision()
+               <<",\"generation\":"<<c.identity.generation<<",\"admission\":"<<c.identity.admission
+               <<",\"identity_binding\":"<<c.identity.binding<<",\"published\":"<<(c.published?"true":"false")
+               <<",\"native_success\":"<<(c.nativeSuccess?"true":"false");
+            if(phase=="stop_window")out<<",\"terminal\":"<<(c.terminal.result?int(c.terminal.result->outcome):-1)
+                                      <<",\"terminal_same\":"<<(c.terminal.result && c.terminal.id==c.identity?"true":"false");
+            out<<'}';
+        }
+        out<<'}';
+    }
+    out<<"]}"; std::puts(out.str().c_str());
+}
+void supportPut(SupportRecord& saved,const std::string& phase,bool restore,bool link,bool incompatible=false)
+{
+    const epicsUInt16 dtype=restore?saved.original:saved.soft;
+    const std::string replacement=restore || incompatible?"@"+saved.originalLink:"123";
+    const auto status=link?dbPutField(&saved.link,DBR_CHAR,replacement.c_str(),replacement.size()+1):
+                           dbPutField(&saved.dtype,DBR_USHORT,&dtype,1);
+    std::printf("{\"event\":\"support_put\",\"mode\":%s,\"phase\":%s,\"name\":%s,\"field\":%s,"
+                "\"value\":%s,\"status\":%ld}\n",jsonText(supportMode).c_str(),jsonText(phase).c_str(),
+                jsonText(saved.name).c_str(),jsonText(link?saved.field:"DTYP").c_str(),
+                (link?jsonText(replacement):std::to_string(dtype)).c_str(),status);
+}
+void supportPair(const std::string& phase,bool restore,bool link,bool incompatible=false)
+{
+    for(auto& saved:supportRecords)supportPut(saved,phase,restore,link,incompatible);
+    supportObservation(phase);
+}
+void supportProcess(SupportRecord* selected=nullptr)
+{
+    for(auto& saved:supportRecords)if(!selected || selected==&saved) {
+        RecordLock lock(saved.dtype.precord); dbProcess(saved.dtype.precord);
+    }
+}
+void supportWait()
+{
+    check(until([] {for(auto& s:supportRecords) {RecordLock lock(s.dtype.precord);
+                     if(s.dtype.precord->pact)return false;} return true;}),"support completion timeout");
+    until([] {return Runtime::instance().schedulerOwner()->settled();},1000000);
+}
+void supportHook(initHookState state)
+{
+    if(state!=initHookAtShutdown && state!=initHookAfterCloseLinks && state!=initHookBeforeFree)return;
+    try {
+        if(state==initHookBeforeFree) {
+            std::printf("{\"event\":\"support_free\",\"mode\":%s,\"contexts\":%llu}\n",jsonText(supportMode).c_str(),
+                        (unsigned long long)Requests::instance().snapshot().contexts);
+            return;
+        }
+        if(state==initHookAtShutdown) {
+            supportObservation("stop_done");
+            if(std::strcmp(supportMode,"before-close")==0) {
+                const auto q=Requests::instance().snapshot();
+                check(!q.entryOpen && !q.entered && q.detachAllowed,"support pre-close phase missing");
+                supportPair("soft-selected",false,false);
+                supportPair("transferred",false,true);
+                supportPair("snmp-selected",true,false);
+                supportPair("return-attempted",true,true);
+            }
+        } else {
+            supportObservation("detached");
+            if(std::strcmp(supportMode,"after-close")==0) {
+                supportPair("soft-selected",false,false);
+                supportPair("repeat-1",false,true); supportPair("repeat-2",false,true);
+            }
+        }
+    } catch(...) {std::printf("{\"event\":\"support_error\",\"mode\":%s,\"hook\":%d}\n",jsonText(supportMode).c_str(),int(state));}
+}
+void supportCells()
+{
+    supportMode=std::getenv("SNMP3_RECORD_SUPPORT_MODE");
+    check(supportMode!=nullptr,"support mode absent");
+    supportContexts=Requests::instance().snapshot().contexts;
+    for(auto& saved:supportRecords) {
+        check(dbNameToAddr((std::string(saved.name)+".DTYP").c_str(),&saved.dtype)==0 &&
+              dbNameToAddr((std::string(saved.name)+"."+saved.field).c_str(),&saved.link)==0,"support field lookup failed");
+        dbr_enumStrs choices{}; long options=DBR_ENUM_STRS,count=0;
+        check(dbGetField(&saved.dtype,DBR_USHORT,&choices,&options,&count,nullptr)==0 && (options&DBR_ENUM_STRS),"support menu absent");
+        RecordLock lock(saved.dtype.precord); auto* rec=saved.dtype.precord;
+        saved.original=rec->dtyp; saved.soft=saved.original;
+        for(unsigned i=0;i<choices.no_str;++i)if(std::strcmp(choices.strs[i],"Soft Channel")==0)saved.soft=i;
+        check(saved.original<choices.no_str && std::strcmp(choices.strs[saved.original],"snmp3")==0 && saved.soft!=saved.original,"support choices absent");
+        saved.originalSupport=dbDTYPtoDevSup(rec->rdes,saved.original); saved.softSupport=dbDTYPtoDevSup(rec->rdes,saved.soft);
+        check(saved.originalSupport && saved.softSupport && saved.originalSupport->pdset==rec->dset &&
+              saved.originalSupport->pdsxt && saved.originalSupport->pdsxt->add_record && saved.originalSupport->pdsxt->del_record &&
+              saved.softSupport->pdset && saved.softSupport->link_type==CONSTANT && saved.softSupport->pdsxt==&devSoft_DSXT &&
+              saved.softSupport->pdsxt->add_record && saved.softSupport->pdsxt->del_record,"support extension prerequisites differ");
+        saved.context=static_cast<RecordContext*>(rec->dpvt); check(saved.context && saved.context->record==rec,"support context absent");
+        check(dbGetDevLink(rec)->type==INST_IO,"support original link type differs");saved.originalLink=supportLink(rec);rec->udf=FALSE;
+    }
+    initHookRegister(supportHook); supportObservation("initial");
+    // The incompatible probe must be separately recognized as Base validation, never detach evidence.
+    supportPair("probe-selected",false,false);supportPair("probe-rejected",false,true,true);supportPair("probe-restored",true,false);
+    if(std::strcmp(supportMode,"idle")==0) {
+        supportPair("soft-selected",false,false);supportPair("attempted",false,true);
+        bool attached=true;
+        for(auto& s:supportRecords) {RecordLock lock(s.dtype.precord);attached=attached && s.dtype.precord->dpvt==s.context && s.context->record==s.dtype.precord && s.dtype.precord->dset==s.originalSupport->pdset;}
+        std::printf("{\"event\":\"support_resume\",\"mode\":%s,\"processing\":%s}\n",jsonText(supportMode).c_str(),attached?"true":"false");
+        if(attached) {supportPair("restored",true,false);supportProcess();supportWait();supportObservation("completed");}
+    } else if(std::strcmp(supportMode,"active")==0) {
+        for(auto& s:supportRecords) {
+            const std::string label=&s==supportRecords?"-ai":"-ao";const auto packets=dtypePackets();
+            supportProcess(&s);check(until([&] {return dtypePackets()>packets;}),"support request not observed");
+            supportObservation("inflight"+label);supportPut(s,"selected"+label,false,false);supportObservation("selected"+label);
+            supportPut(s,"attempted"+label,false,true);supportObservation("attempted"+label);
+            supportWait();supportObservation("completed"+label);
+        }
+    } else if(std::strcmp(supportMode,"drain")==0) {
+        QueueBlocker blocker;blocker.queued=callbackRequest(&blocker.callback)==0;
+        check(blocker.queued && blocker.entered.wait(3.0),"support callback hold failed");supportProcess();
+        check(until([] {auto q=Requests::instance().snapshot();return q.queued==2 && !q.entered;}),"support queued terminals absent");
+        supportObservation("queued"); std::atomic<bool> finished{false};std::exception_ptr error;
+        std::thread stopper([&] {try {testIocShutdownOk();}catch(...) {error=std::current_exception();}finished=true;});
+        try {
+            const bool window=until([&] {auto r=Runtime::instance().snapshot();auto q=Requests::instance().snapshot();
+                return !finished && !r.admission && r.created>0 && r.exited==r.created && q.entryOpen && !q.entered;},3000000);
+            check(window,"support drain window missed");supportObservation("stop_window");
+            supportPair("soft-selected",false,false);supportPair("attempted",false,true);
+        } catch(...) {blocker.release.trigger();stopper.join();throw;}
+        blocker.release.trigger();stopper.join();if(error)std::rethrow_exception(error);return;
+    } else check(std::strcmp(supportMode,"before-close")==0 || std::strcmp(supportMode,"after-close")==0,"unknown support mode");
+    testIocShutdownOk();
+}
 }
 
 namespace {
@@ -2291,9 +2479,10 @@ int main(int argc,char** argv)
         liveDetach=std::strcmp(argv[8],"live-detach")==0;
         repeatDetach=std::strcmp(argv[8],"repeat-detach")==0;
         liveDtype=std::strcmp(argv[8],"live-dtype")==0;
-        if(liveDtype) {
+        supportTransition=std::strcmp(argv[8],"support-transition")==0;
+        if(liveDtype || supportTransition) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
-            testdbReadDatabase((root+"record-dtype.db").c_str(),nullptr,"P=Records_");
+            testdbReadDatabase((root+(supportTransition?"record-support.db":"record-dtype.db")).c_str(),nullptr,"P=Records_");
         }
         if(edges) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
@@ -2328,7 +2517,7 @@ int main(int argc,char** argv)
         }
         testIocInitOk();
         if(edges)inputEdges();
-        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild && !stopInflight && !stopEnqueueFailed && !stopDownstream && !liveDetach && !repeatDetach && !liveDtype) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
+        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild && !stopInflight && !stopEnqueueFailed && !stopDownstream && !liveDetach && !repeatDetach && !liveDtype && !supportTransition) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
         if(edges) { capacityAndOrder(); simulation(); outputEdges(); maxPayloadQueue(); }
         if(alarms)nativeTimeouts();
         if(active)activeOutputs();
@@ -2344,21 +2533,25 @@ int main(int argc,char** argv)
         if(stopDownstream)stopWithHeldDownstream();
         if(liveDetach)liveDetachCells();
         if(liveDtype)dtypeCells();
+        if(supportTransition)supportCells();
         if(repeatDetach) { prepareRepeatDetach(); initHookRegister(repeatDetachHook); }
         Runtime::instance().report();
         const bool blocked=std::strcmp(argv[8],"shutdown")==0;
         const bool abandoned=std::strcmp(argv[8],"queued-shutdown")==0 ||
                              (stopEnqueueFailed && std::strcmp(std::getenv("SNMP3_RECORD_RELEASE"),"after")==0);
-        const bool shutdownDone=liveDtype || (stopDownstream && std::strcmp(std::getenv("SNMP3_RECORD_RELEASE"),"shutdown")==0);
+        const bool shutdownDone=liveDtype || supportTransition || (stopDownstream && std::strcmp(std::getenv("SNMP3_RECORD_RELEASE"),"shutdown")==0);
         if(blocked)blockedShutdown(); else if(abandoned && !stopEnqueueFailed)queuedShutdown(); else if(!shutdownDone)testIocShutdownOk();
         // Repeat-detach reports cleanup failures through named runner checks after real database cleanup.
-        if(!repeatDetach && !liveDtype) {
+        if(!repeatDetach && !liveDtype && !supportTransition) {
             check(Requests::instance().snapshot().contexts==0,"isolated queue cleanup retained detached contexts");
             check(Runtime::instance().snapshot().state==((blocked || abandoned)?State::IncompleteStopped:State::Stopped),"record runtime stop outcome mismatch");
         }
         testdbCleanup();
         if(liveDtype)
             std::printf("{\"event\":\"dtype_cleanup\",\"mode\":\"%s\",\"contexts\":%llu,\"state\":%d}\n",dtypeMode,
+                        (unsigned long long)Requests::instance().snapshot().contexts,int(Runtime::instance().snapshot().state));
+        if(supportTransition)
+            std::printf("{\"event\":\"support_cleanup\",\"mode\":%s,\"contexts\":%llu,\"state\":%d}\n",jsonText(supportMode).c_str(),
                         (unsigned long long)Requests::instance().snapshot().contexts,int(Runtime::instance().snapshot().state));
         if(rebuild)secondActivation(argv);
         if(repeatDetach)

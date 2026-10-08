@@ -304,6 +304,247 @@ def dtype_checks(runner, events):
     runner.check("dtype-cleanup-stopped", all(e.get("state") == STOPPED for e in events if e.get("event") == "dtype_cleanup"))
 
 
+
+SUPPORT_MODES = ("idle", "active", "drain", "before-close", "after-close")
+SUPPORT_NAMES = ("Records_SupportAi", "Records_SupportAo")
+CONSTANT = 0
+# Base errMdef.h M_dbLib and dbStaticLib.h S_dbLib_badField.
+BAD_FIELD = (512 << 16) | 11
+
+
+def support_layout(mode, resume=True):
+    # Each entry describes a complete phase and the real puts immediately preceding it.
+    pair = (0, 1)
+    phases = [("initial", (), ""), ("probe-selected", pair, "dtype"),
+              ("probe-rejected", pair, "link"), ("probe-restored", pair, "dtype")]
+    if mode == "idle":
+        phases += [("soft-selected", pair, "dtype"), ("attempted", pair, "link")]
+        if resume:
+            phases += [("restored", pair, "dtype"), ("completed", (), "")]
+    elif mode == "active":
+        for i, label in enumerate(("ai", "ao")):
+            phases += [("inflight-" + label, (), ""), ("selected-" + label, (i,), "dtype"),
+                       ("attempted-" + label, (i,), "link"), ("completed-" + label, (), "")]
+    elif mode == "drain":
+        phases += [("queued", (), ""), ("stop_window", (), ""),
+                   ("soft-selected", pair, "dtype"), ("attempted", pair, "link")]
+    phases += [("stop_done", (), "")]
+    if mode == "before-close":
+        phases += [("soft-selected", pair, "dtype"), ("transferred", pair, "link"),
+                   ("snmp-selected", pair, "dtype"), ("return-attempted", pair, "link")]
+    phases += [("detached", (), "")]
+    if mode == "after-close":
+        phases += [("soft-selected", pair, "dtype"), ("repeat-1", pair, "link"), ("repeat-2", pair, "link")]
+    return phases
+
+
+def support_inventory(events, modes=SUPPORT_MODES):
+    def ints(row, keys):
+        return all(type(row.get(k)) is int for k in keys.split())
+
+    def flags(row, keys):
+        return all(type(row.get(k)) is bool for k in keys.split())
+
+    try:
+        if not modes or len(set(modes)) != len(modes) or any(m not in SUPPORT_MODES for m in modes):
+            return False
+        if any(not isinstance(e, dict) for e in events):
+            return False
+        observed = [e for e in events if str(e.get("event", "")).startswith("support") and e.get("event") != "support_wire"]
+        if any(e.get("mode") not in modes for e in observed):
+            return False
+        if [e["mode"] for e in observed] != [m for m in modes for e in observed if e["mode"] == m]:
+            return False
+        for mode in modes:
+            selected = [e for e in observed if e["mode"] == mode]
+            resume = [e for e in selected if e.get("event") == "support_resume"]
+            if len(resume) != (1 if mode == "idle" else 0) or any(not flags(e, "processing") for e in resume):
+                return False
+            processing = resume[0]["processing"] if resume else True
+            expected = []
+            for phase, indices, field in support_layout(mode, processing):
+                expected += [("support_put", phase, SUPPORT_NAMES[i]) for i in indices]
+                expected += [("support", phase, None)]
+                if phase == "attempted" and mode == "idle":
+                    expected += [("support_resume", None, None)]
+            expected += [("support_free", None, None), ("support_cleanup", None, None)]
+            if [(e.get("event"), e.get("phase"), e.get("name")) for e in selected] != expected:
+                return False
+            for e in selected:
+                if e["event"] == "support_put":
+                    field = "DTYP" if e["field"] == "DTYP" else ("INP" if e["name"] == SUPPORT_NAMES[0] else "OUT")
+                    if (e["field"] != field or not ints(e, "status") or
+                            type(e["value"]) is not (int if field == "DTYP" else str)):
+                        return False
+                elif e["event"] in ("support_free", "support_cleanup"):
+                    if not ints(e, "contexts") or (e["event"] == "support_cleanup" and not ints(e, "state")):
+                        return False
+                elif e["event"] == "support":
+                    if (not ints(e, "at_us packets contexts active queued pending entered completions state created exited count bytes") or
+                            not flags(e, "entry_open detach_allowed drain_failed admission settled") or
+                            not isinstance(e["records"], list) or [r.get("name") for r in e["records"]] != list(SUPPORT_NAMES)):
+                        return False
+                    for r in e["records"]:
+                        if (not ints(r, "record dpvt dset dsxt original_dset original_dsxt soft_dset soft_dsxt dtype original soft pact stat sevr link_type") or
+                                type(r.get("link")) is not str or type(r.get("value")) not in (int, float) or
+                                type(r.get("flnk")) not in (int, float)):
+                            return False
+                        c = r["context"]
+                        if (not isinstance(c, dict) or not ints(c, "pointer record dtype dset binding handle activation revision generation admission identity_binding") or
+                                not flags(c, "published native_success")):
+                            return False
+                        if e["phase"] == "stop_window" and (not ints(c, "terminal") or not flags(c, "terminal_same")):
+                            return False
+            if not processing:
+                attempted = next(e for e in selected if e.get("event") == "support" and e["phase"] == "attempted")
+                if all(r["dpvt"] == r["context"]["pointer"] and r["context"]["record"] == r["record"] and
+                       r["dset"] == r["original_dset"] for r in attempted["records"]):
+                    return False
+        return True
+    except (KeyError, TypeError, AttributeError, IndexError, StopIteration):
+        return False
+
+
+def support_checks(runner, events, modes=SUPPORT_MODES):
+    valid = support_inventory(events, modes)
+    runner.check("support-events", valid)
+    if not valid:
+        return
+    for mode in modes:
+        selected = [e for e in events if e.get("mode") == mode]
+        rows = {e["phase"]: e for e in selected if e.get("event") == "support"}
+        initial = rows["initial"]
+        prefix = "support-" + mode
+        puts = [e for e in selected if e.get("event") == "support_put"]
+        resume = next((e["processing"] for e in selected if e.get("event") == "support_resume"), True)
+        runner.check(prefix + "-fixture", initial["contexts"] == 14 and initial["admission"] and initial["entry_open"] and
+                     not initial["detach_allowed"] and all(r["pact"] == 0 and r["flnk"] == 0 and r["dpvt"] > 0 and
+                     r["context"]["pointer"] == r["dpvt"] and r["context"]["record"] == r["record"] > 0 and
+                     r["dtype"] == r["original"] != r["soft"] and r["dset"] == r["original_dset"] > 0 and
+                     r["dsxt"] == r["original_dsxt"] > 0 and r["soft_dset"] > 0 and r["soft_dsxt"] > 0 and
+                     r["soft_dset"] != r["original_dset"] and r["link_type"] == INST_IO and r["link"].startswith("binding=Support") and
+                     all(r["context"][k] > 0 for k in ("binding", "handle", "activation", "revision")) for r in initial["records"]))
+        expected_dtype = [r["original"] for r in initial["records"]]
+        state_ok = identity_ok = puts_ok = no_request = True
+        soft_installed = failed_add = closed = False
+        previous = initial
+        admitted, completed = [False, False], [False, False]
+        requests = [None, None]
+        request_ok = values_ok = True
+        for phase, indices, field in support_layout(mode, resume):
+            e = rows[phase]
+            original_choice = phase in ("probe-restored", "restored", "snmp-selected")
+            if field == "dtype":
+                for i in indices:
+                    expected_dtype[i] = initial["records"][i]["original" if original_choice else "soft"]
+            if phase == "transferred":
+                soft_installed = True
+            if phase == "return-attempted":
+                failed_add = True
+            if phase == "detached":
+                closed = True
+            for i, (r, base) in enumerate(zip(e["records"], initial["records"])):
+                c, bc = r["context"], base["context"]
+                label = ("ai", "ao")[i]
+                if (mode == "idle" and phase == "completed") or (mode == "active" and phase == "inflight-" + label) or (mode == "drain" and phase == "queued"):
+                    admitted[i] = True
+                    requests[i] = tuple(c[k] for k in ("generation", "admission", "identity_binding"))
+                    request_ok = request_ok and requests[i][0] == 1 and requests[i][1] > 0 and requests[i][2] == bc["handle"]
+                if (mode == "idle" and phase == "completed") or (mode == "active" and phase == "completed-" + label) or (mode == "drain" and phase == "stop_done"):
+                    completed[i] = True
+                expected_request = requests[i] if admitted[i] else tuple(bc[k] for k in ("generation", "admission", "identity_binding"))
+                request_ok = request_ok and tuple(c[k] for k in ("generation", "admission", "identity_binding")) == expected_request
+                successful_input = i == 0 and mode == "idle" and completed[i]
+                expected_alarm = ((0, 0) if mode == "idle" else LINK_INVALID) if completed[i] else (base["stat"], base["sevr"])
+                expected_pact = 1 if failed_add or closed else int(admitted[i] and not completed[i])
+                values_ok = values_ok and r["value"] == (-123 if successful_input else base["value"]) and r["flnk"] == int(completed[i]) and (r["stat"], r["sevr"]) == expected_alarm and r["pact"] == expected_pact
+                if i == 0:
+                    values_ok = values_ok and c["published"] is successful_input and c["native_success"] is successful_input
+                dset = 0 if failed_add else base["soft_dset"] if soft_installed else base["dset"]
+                dsxt = 0 if failed_add else base["soft_dsxt"] if soft_installed else base["dsxt"]
+                text = base["link"] if not soft_installed or failed_add else "123"
+                link_type = INST_IO if not soft_installed or failed_add else CONSTANT
+                detached = soft_installed or closed
+                state_ok = state_ok and r["dtype"] == expected_dtype[i] and r["dset"] == dset and r["dsxt"] == dsxt and r["link"] == text and r["link_type"] == link_type
+                state_ok = state_ok and r["dpvt"] == (0 if detached else base["dpvt"]) and c["record"] == (0 if detached else base["record"])
+                if failed_add:
+                    state_ok = state_ok and r["pact"] == 1
+                identity_ok = identity_ok and r["record"] == base["record"] and all(r[k] == base[k] for k in
+                    ("original", "soft", "original_dset", "original_dsxt", "soft_dset", "soft_dsxt")) and all(c[k] == bc[k] for k in
+                    ("pointer", "dtype", "dset", "binding", "handle", "activation", "revision"))
+            phase_puts = [p for p in puts if p["phase"] == phase]
+            for put, i in zip(phase_puts, indices):
+                expect_field = "DTYP" if field == "dtype" else ("INP" if i == 0 else "OUT")
+                value = expected_dtype[i] if field == "dtype" else ("@" + initial["records"][i]["link"] if phase in ("probe-rejected", "return-attempted") else "123")
+                status = 0 if field == "dtype" or phase == "transferred" else BAD_FIELD if phase == "probe-rejected" else BAD_INP_TYPE
+                puts_ok = puts_ok and put["field"] == expect_field and put["value"] == value and put["status"] == status
+            if indices:
+                no_request = no_request and e["packets"] == previous["packets"] and e["completions"] == previous["completions"] and all(
+                    all(r["context"][k] == b["context"][k] for k in ("generation", "admission", "identity_binding"))
+                    for r, b in zip(e["records"], previous["records"]))
+            previous = e
+        runner.check(prefix + "-request-identity", request_ok)
+        runner.check(prefix + "-record-state", values_ok)
+        runner.check(prefix + "-phase-state", state_ok)
+        runner.check(prefix + "-context-identity", identity_ok)
+        runner.check(prefix + "-put-results", puts_ok)
+        runner.check(prefix + "-field-writes-no-request", no_request)
+        probe = rows["probe-rejected"]
+        runner.check(prefix + "-base-validation", all(p["status"] == BAD_FIELD for p in puts if p["phase"] == "probe-rejected") and
+                     all(r["dpvt"] == b["dpvt"] and r["dset"] == b["dset"] and r["link"] == b["link"] and r["link_type"] == INST_IO
+                         for r, b in zip(probe["records"], initial["records"])))
+        if mode in ("idle", "active", "drain", "after-close"):
+            phases = ("attempted",) if mode in ("idle", "drain") else ("attempted-ai", "attempted-ao") if mode == "active" else ("repeat-1", "repeat-2")
+            attempts = [p for p in puts if p["phase"] in phases]
+            runner.check(prefix + "-refusal", len(attempts) == (4 if mode == "after-close" else 2) and all(p["status"] == BAD_INP_TYPE for p in attempts))
+        if mode == "idle":
+            runner.check("support-idle-restored-processing", resume)
+            if resume:
+                done = rows["completed"]
+                runner.check(prefix + "-successful-processing", done["completions"] == 2 and done["packets"]-initial["packets"] == 2 and
+                             all(r["pact"] == 0 and r["flnk"] == 1 and (r["stat"], r["sevr"]) == (0, 0) for r in done["records"]) and
+                             done["records"][0]["value"] == -123 and done["records"][0]["context"]["published"] and
+                             done["records"][0]["context"]["native_success"])
+        if mode == "active":
+            for i, label in enumerate(("ai", "ao")):
+                a, b, done = (rows[p + "-" + label] for p in ("inflight", "attempted", "completed"))
+                ar, br, dr = (e["records"][i] for e in (a, b, done))
+                runner.check(prefix + "-" + label + "-active-window", ar["pact"] == br["pact"] == 1 and
+                             not b["detach_allowed"] and b["admission"] and ar["context"]["generation"] == 1)
+                runner.check(prefix + "-" + label + "-completion", dr["pact"] == 0 and dr["flnk"] == 1 and
+                             (dr["stat"], dr["sevr"]) == LINK_INVALID and done["completions"] == i+1 and done["active"] == 0 and
+                             all(ar["context"][k] == br["context"][k] == dr["context"][k] for k in ("generation", "admission", "identity_binding")))
+        if mode == "drain":
+            window, attempt = rows["stop_window"], rows["attempted"]
+            runner.check(prefix + "-window", all(not e["admission"] and e["entry_open"] and not e["detach_allowed"] and
+                         e["entered"] == 0 and e["queued"] == 2 and e["created"] == e["exited"] > 0 and all(
+                         r["pact"] == 1 and r["context"].get("terminal_same", True) for r in e["records"]) for e in (window, attempt)) and
+                         all(r["context"]["terminal"] == 1 and r["context"]["terminal_same"] for r in window["records"]))
+        if mode in ("active", "drain"):
+            done = rows["stop_done"]
+            runner.check(prefix + "-final-completion", done["completions"] == 2 and done["active"] == 0 and all(
+                         r["pact"] == 0 and r["flnk"] == 1 and (r["stat"], r["sevr"]) == LINK_INVALID for r in done["records"]))
+            inp = done["records"][0]
+            runner.check(prefix + "-no-input-publication", inp["value"] == initial["records"][0]["value"] == 42 and
+                         not inp["context"]["published"] and not inp["context"]["native_success"])
+        if mode == "before-close":
+            transfer, returned = rows["transferred"], rows["return-attempted"]
+            runner.check("support-first-transfer", all(p["status"] == 0 for p in puts if p["phase"] == "transferred") and
+                         all(r["dtype"] == r["soft"] and r["dset"] == r["soft_dset"] and r["dsxt"] == r["soft_dsxt"] and r["dpvt"] == r["context"]["record"] == 0 and
+                             r["link_type"] == CONSTANT and r["link"] == "123" for r in transfer["records"]))
+            runner.check("support-return-to-snmp3-refused", all(p["status"] == BAD_INP_TYPE for p in puts if p["phase"] == "return-attempted") and
+                         all(r["dtype"] == r["original"] and r["dpvt"] == r["dset"] == r["context"]["record"] == 0 and r["pact"] == 1 and
+                             r["link_type"] == INST_IO and r["link"] == b["link"] for r, b in zip(returned["records"], initial["records"])))
+        stop = rows["stop_done"]
+        runner.check(prefix + "-stop", not stop["admission"] and not stop["entry_open"] and stop["detach_allowed"] and
+                     not stop["drain_failed"] and stop["entered"] == stop["active"] == stop["pending"] == stop["queued"] == 0 and
+                     stop["settled"] and stop["count"] == stop["bytes"] == 0 and stop["created"] == stop["exited"] > 0 and stop["state"] == STOPPED)
+        runner.check(prefix + "-storage-lifetime", all(e["contexts"] == initial["contexts"] for e in rows.values()) and
+                     next(e for e in selected if e.get("event") == "support_free")["contexts"] == initial["contexts"])
+        cleanup = next(e for e in selected if e.get("event") == "support_cleanup")
+        runner.check(prefix + "-cleanup", cleanup["contexts"] == 0 and cleanup["state"] == STOPPED)
+
+
 def queue_counter_lines(path):
     # Every `snmp3 queue:` report line of a record test process: the three counters of admissions behind a retirement.
     found = []
@@ -331,8 +572,11 @@ def main():
     parser.add_argument("--sanitizers", action="store_true")
     parser.add_argument("--case", choices=("baseline", "shutdown", "queued-shutdown", "edges", "alarms", "active", "policy", "numeric",
                                                    "active-unforced", "deadline-queue", "near-deadline",
-                                                   "accounting", "stop-queued", "rebuild", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach", "live-dtype"), default="baseline")
+                                                   "accounting", "stop-queued", "rebuild", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach", "live-dtype", "support-transition"), default="baseline")
+    parser.add_argument("--support-mode", choices=SUPPORT_MODES)
     args = parser.parse_args()
+    if args.support_mode is not None and args.case != "support-transition":
+        parser.error("--support-mode requires --case support-transition")
     output = args.output.resolve()
     output.mkdir(mode=0o700)
     runner = Runner(output, args.products.resolve() if args.products else None, args.sanitizers)
@@ -395,6 +639,14 @@ def main():
             configuration["endpoints"].append({"id": "Dtype", "address": "127.0.0.1",
                                                "port": int(delayed.rsplit(":", 1)[1]), "profile": "Dtype"})
             configuration["bindings"] += [dict(b, id="Dtype" + b["id"], endpoint="Dtype")
+                                           for b in configuration["bindings"] if b["id"] in ("IntegerRead", "FloatWrite")]
+        if args.case == "support-transition":
+            delayed, _ = runner.fault("support-response-delay", 4, peer, "delay", delay_ms=DTYPE_DELAY_MS)
+            runner.env["SNMP3_RECORD_DELAY_TRACE"] = str(output / "support-response-delay.stdout")
+            configuration["profiles"].append(dict(configuration["profiles"][0], id="Support", timeoutMs=3000))
+            configuration["endpoints"].append({"id": "Support", "address": "127.0.0.1",
+                                               "port": int(delayed.rsplit(":", 1)[1]), "profile": "Support"})
+            configuration["bindings"] += [dict(b, id="Support" + b["id"], endpoint="Support")
                                            for b in configuration["bindings"] if b["id"] in ("IntegerRead", "FloatWrite")]
         if args.case == "numeric":
             tags = (("Integer", 1, "integer"), ("Unsigned32", 3, "unsigned32"),
@@ -465,13 +717,13 @@ def main():
                     continue
                 try:
                     event = json.loads(line)
-                    if args.case in ("repeat-detach", "live-dtype") and not isinstance(event, dict):
+                    if args.case in ("repeat-detach", "live-dtype", "support-transition") and not isinstance(event, dict):
                         raise ValueError("record event must be an object")
                     events.append(event)
                 except ValueError:
-                    if args.case not in ("repeat-detach", "live-dtype"):
+                    if args.case not in ("repeat-detach", "live-dtype", "support-transition"):
                         raise
-                    events.append({"event": "dtype_parse_error" if args.case == "live-dtype" else "repeat_detach_parse_error"})
+                    events.append({"event": "support_error" if args.case == "support-transition" else "dtype_parse_error" if args.case == "live-dtype" else "repeat_detach_parse_error"})
             return libraries, events
 
         def proxy_sets(name):
@@ -532,6 +784,38 @@ def main():
             for mode in ("within", "late", "after"):
                 libraries, trial_events = execute("records-" + mode, {"SNMP3_RECORD_RELEASE": mode})
                 events += trial_events
+        elif args.case == "support-transition":
+            events = []
+            modes = (args.support_mode,) if args.support_mode else SUPPORT_MODES
+            trace_path, agent_path = output / "support-response-delay.stdout", output / "agent-ipv4-1.stdout"
+            for mode in modes:
+                wire_start, agent_start = len(trace_path.read_text().splitlines()), len(agent_path.read_text().splitlines())
+                libraries, trial_events = execute("records-" + mode, {"SNMP3_RECORD_SUPPORT_MODE": mode})
+                wire = [json.loads(line) for line in trace_path.read_text().splitlines()[wire_start:] if line.startswith("{")]
+                stored = [json.loads(line) for line in agent_path.read_text().splitlines()[agent_start:] if line.startswith("{")]
+                events += trial_events
+                events.append({"event": "support_wire", "mode": mode, "events": wire,
+                               "stored": [e for e in stored if e.get("event") == "agent_set_value"]})
+                requests = [e for e in wire if e.get("event") == "fault_request"]
+                responses = [e for e in wire if e.get("event") == "fault_response"]
+                processing = next((e.get("processing") for e in trial_events if e.get("event") == "support_resume"), True)
+                expected = 2 if mode in ("active", "drain") or (mode == "idle" and processing) else 0
+                runner.check("support-" + mode + "-wire", len(requests) == len(responses) == expected and
+                             sorted(e.get("command") for e in requests) == ([160, 163] if expected else []) and
+                             sorted(e.get("request_id") for e in requests) == sorted(e.get("request_id") for e in responses) and
+                             all(e.get("status") == 0 and e.get("varbinds") == 1 for e in responses))
+                values = [e for e in stored if e.get("event") == "agent_set_value"]
+                runner.check("support-" + mode + "-captured-SET", (len(values) == 1 and values[0].get("index") == 9 and
+                             values[0].get("value") == "7.25") if expected else not values)
+                if mode == "active":
+                    delivered = [e for e in wire if e.get("event") == "fault_delayed_delivery"]
+                    phases = {e["phase"]: e for e in trial_events if e.get("event") == "support"}
+                    ordering = len(requests) == len(delivered) == 2
+                    for i, label in enumerate(("ai", "ao")):
+                        if ordering:
+                            ordering = requests[i]["monotonic_ns"] < phases.get("selected-" + label, {}).get("at_us", 0)*1000 <= phases.get("attempted-" + label, {}).get("at_us", 0)*1000 < delivered[i]["monotonic_ns"]
+                    runner.check("support-active-external-delay-window", ordering)
+            support_checks(runner, events, modes)
         elif args.case == "live-dtype":
             events = []
             trace_path = output / "dtype-response-delay.stdout"
@@ -591,7 +875,7 @@ def main():
             libraries, events = execute("records")
         summary = next((event for event in events if event.get("event") == "record_summary"), {})
         # Queue cases skip the baseline and pressure phases; their records are checked per trial below.
-        if args.case not in QUEUE_CASES + ("stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach", "live-dtype"):
+        if args.case not in QUEUE_CASES + ("stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach", "live-dtype", "support-transition"):
             runner.check("actual-eleven-record-path", summary.get("records") == 11 and summary.get("checks", 0) > 100)
             completions = [event for event in events if event.get("event") == "record_completed"]
             runner.check("actual-record-identities", bool(completions) and all(event["activation"] == 1 and
@@ -965,8 +1249,8 @@ def main():
         inputs += [ROOT / "tests/rewrite/db/record-policy.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case == "numeric":
         inputs += [ROOT / "tests/rewrite/db/record-numeric.db"]
-    if args.case == "live-dtype":
-        inputs += [ROOT / "tests/rewrite/db/record-dtype.db", ROOT / "tests/rewrite/helpers/udp_fault.py",
+    if args.case in ("live-dtype", "support-transition"):
+        inputs += [ROOT / ("tests/rewrite/db/record-support.db" if args.case == "support-transition" else "tests/rewrite/db/record-dtype.db"), ROOT / "tests/rewrite/helpers/udp_fault.py",
                    ROOT / "configure/RELEASE.local"]
         base = Path(next(line.split("=", 1)[1].strip() for line in
                     (ROOT / "configure/RELEASE.local").read_text().splitlines() if line.startswith("EPICS_BASE")))

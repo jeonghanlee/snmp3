@@ -264,6 +264,29 @@ for name, (source, check, edits) in DTYPE_CONTROLS.items():
     D7_CONTROLS[name] = ("record", "live-dtype", check, edits)
 
 
+SUPPORT_CONTROLS = {
+    "support-permission": ("Request.cpp", "idle", "support-idle-refusal", [
+        ("    if(!detachAllowed)return false;", "    // Qualification fault: detach permission is ignored.")]),
+    "support-empty": ("DeviceSupport.cpp", "after-close", "support-after-close-refusal", [
+        (EMPTY_DETACH, "    if(!record->dpvt)return 0;")]),
+    "support-add": ("DeviceSupport.cpp", "before-close", "support-return-to-snmp3-refused", [
+        ("Requests::instance().attachmentAllowed() && !record->dpvt ? 0:S_dev_badInpType", "!record->dpvt ? 0:S_dev_badInpType")]),
+}
+for name, (source, mode, check, edits) in SUPPORT_CONTROLS.items():
+    D7_SOURCES[name] = source
+    D7_CONTROLS[name] = ("record", "support-transition", check, edits)
+
+
+def support_completed(outcome, mode):
+    required = ("support-events", "support-" + mode + "-fixture", "support-" + mode + "-base-validation",
+                "support-" + mode + "-storage-lifetime", "support-" + mode + "-cleanup", "support-" + mode + "-stop",
+                "support-" + mode + "-wire", "support-" + mode + "-captured-SET", "records-" + mode + ":return",
+                "sanitizer-diagnostics-absent", "secret-sentinels-absent", "IOC-native-free",
+                "support-response-delay:normal-stop", "agent-ipv4-1:normal-stop")
+    return (not outcome["aborted"] and not outcome["forced_cleanup"] and
+            all(unique_check(outcome, name, True) for name in required))
+
+
 def dtype_completed(outcome):
     required = ("dtype-events", "dtype-storage-lifetime", "sanitizer-diagnostics-absent", "secret-sentinels-absent",
                 "IOC-native-free", "dtype-response-delay:normal-stop", "agent-ipv4-1:normal-stop",
@@ -275,7 +298,7 @@ def dtype_completed(outcome):
             all(unique_check(outcome, name, True) for name in required))
 
 
-def run_cell(kind, cell, products, output, sanitizers=True):
+def run_cell(kind, cell, products, output, sanitizers=True, support_mode=None):
     # Executes one real-path cell against a product directory and returns its observable outcome.
     output.mkdir(mode=0o700, exist_ok=True)
     if kind == "component":
@@ -286,6 +309,8 @@ def run_cell(kind, cell, products, output, sanitizers=True):
     else:
         argv = [sys.executable, str(ROOT / "tests/rewrite/test_records.py"), "--case", cell,
                 "--products", str(products), "--output", str(output / "run")] + (["--sanitizers"] if sanitizers else [])
+    if support_mode is not None:
+        argv += ["--support-mode", support_mode]
     environment = dict(os.environ, ASAN_OPTIONS="detect_leaks=0:abort_on_error=1",
                        UBSAN_OPTIONS="halt_on_error=1:print_stacktrace=1")
     with (output / "cell.stdout").open("xb") as stdout, (output / "cell.stderr").open("xb") as stderr:
@@ -307,12 +332,12 @@ def run_cell(kind, cell, products, output, sanitizers=True):
             failed += [check["name"] for check in nested_data.get("checks", []) if not check["passed"]]
             aborted = aborted or bool(nested_data.get("aborted"))
     # Repeat-detach also requires every external fixture to exit without forced cleanup.
-    receipt_pattern = "*.receipt.json" if cell in ("repeat-detach", "live-dtype") else "records*.receipt.json"
+    receipt_pattern = "*.receipt.json" if cell in ("repeat-detach", "live-dtype", "support-transition") else "records*.receipt.json"
     forced = any(json.loads(receipt.read_text()).get("forced_cleanup")
                  for receipt in sorted((output / "run").glob(receipt_pattern)))
     observations = output / "run" / "record-observations.json"
     stop_events = {"stop-queued": "stop_queued", "stop-inflight": "stop_inflight", "stop-enqueue-failed": "stop_enqueue_failed",
-                   "stop-downstream": "stop_downstream", "live-detach": "live_detach", "repeat-detach": "repeat_detach", "live-dtype": "dtype"}
+                   "stop-downstream": "stop_downstream", "live-detach": "live_detach", "repeat-detach": "repeat_detach", "live-dtype": "dtype", "support-transition": "support"}
     observed = kind != "record" or cell not in stop_events or (observations.exists() and any(
         event.get("event") == stop_events[cell] for event in json.loads(observations.read_text())))
     return {"argv": argv, "returncode": code, "pid": child.pid, "child_reaped": True, "failed_checks": failed,
@@ -375,16 +400,19 @@ def main_d7(args, jobs, output):
     references = {}
     for name in args.d7_controls:
         kind, cell, check, _ = D7_CONTROLS[name]
-        if (kind, cell) not in references:
-            outcome = run_cell(kind, cell, original_products, output / ("reference-" + kind + "-" + cell))
-            references[(kind, cell)] = outcome
+        mode = SUPPORT_CONTROLS[name][1] if name in SUPPORT_CONTROLS else None
+        key = (kind, cell, mode) if mode else (kind, cell)
+        if key not in references:
+            outcome = run_cell(kind, cell, original_products,
+                               output / ("reference-" + kind + "-" + cell + ("-" + mode if mode else "")), support_mode=mode)
+            references[key] = outcome
         # The reference must pass the very cell or named check the control has to fail; other checks of
         # the same case may fail for unrelated pending work.
-        reference = references[(kind, cell)]
+        reference = references[key]
         reference.setdefault("passed_for", {})[name] = (not reference["aborted"] and not reference["forced_cleanup"] and
                                                         reference["observed"]) and (
             reference["returncode"] == 0 if check is None else check not in reference["failed_checks"])
-        if cell in ("repeat-detach", "live-dtype"):
+        if cell in ("repeat-detach", "live-dtype", "support-transition"):
             matched = [row for row in reference["checks"] if row.get("name") == check]
             reference["passed_for"][name] = (reference["passed_for"][name] and reference["returncode"] == 0 and
                                              len(matched) == 1 and matched[0].get("passed") is True)
@@ -427,15 +455,23 @@ def main_d7(args, jobs, output):
         defective = compile_product(selected["libsnmp3.so"], original_products, products, source, replacement, item, extra)
         executable = compile_product(selected[tests[kind]], original_products, products, source, replacement, item, extra)
         loaded = Path(resolved_support(executable)).resolve() == defective.resolve()
-        outcome = run_cell(kind, cell, products, item / "cell")
-        if cell in ("repeat-detach", "live-dtype"):
+        mode = SUPPORT_CONTROLS[name][1] if name in SUPPORT_CONTROLS else None
+        key = (kind, cell, mode) if mode else (kind, cell)
+        outcome = run_cell(kind, cell, products, item / "cell", support_mode=mode)
+        if cell in ("repeat-detach", "live-dtype", "support-transition"):
             loaded = loaded and outcome["loaded_libraries"].get(str(defective.resolve())) == digest(defective)
-        reference = references[(kind, cell)]
+        reference = references[key]
         passed = reference["passed_for"][name] and loaded and detected(outcome, check)
         if cell == "live-dtype":
             reference_library = original_products / "libsnmp3.so"
             reference_loaded = reference["loaded_libraries"].get(str(reference_library.resolve())) == digest(reference_library)
             passed = (passed and reference_loaded and dtype_completed(reference) and dtype_completed(outcome) and
+                      unique_check(outcome, check, False) and outcome["returncode"] == 1)
+
+        if cell == "support-transition":
+            reference_library = original_products / "libsnmp3.so"
+            reference_loaded = reference["loaded_libraries"].get(str(reference_library.resolve())) == digest(reference_library)
+            passed = (passed and reference_loaded and support_completed(reference, mode) and support_completed(outcome, mode) and
                       unique_check(outcome, check, False) and outcome["returncode"] == 1)
 
         if cell == "repeat-detach":
@@ -698,25 +734,26 @@ def main():
     parser.add_argument("--shutdown-controls", nargs="*", choices=tuple(SHUTDOWN_CONTROLS))
     parser.add_argument("--startup-controls", nargs="*", choices=tuple(STARTUP_CONTROLS))
     parser.add_argument("--dtype-controls", nargs="*", choices=tuple(DTYPE_CONTROLS))
+    parser.add_argument("--support-controls", nargs="*", choices=tuple(SUPPORT_CONTROLS))
     parser.add_argument("--startup-phase", choices=("preflight", "thread"),
                         help="startup-control phase (default: preflight); requires --startup-controls")
     args = parser.parse_args()
     if args.startup_phase is not None and args.startup_controls is None:
         parser.error("--startup-phase requires --startup-controls")
     if sum((args.controls is not None, bool(args.d7_controls), args.shutdown_controls is not None,
-            args.startup_controls is not None, args.dtype_controls is not None)) > 1:
+            args.startup_controls is not None, args.dtype_controls is not None, args.support_controls is not None)) > 1:
         parser.error("select one control group")
     output = args.output.resolve()
     output.mkdir(mode=0o700)
     jobs = json.loads(args.build_receipt.read_text())["products"]
-    if args.dtype_controls is not None:
+    if args.dtype_controls is not None or args.support_controls is not None:
         for job in jobs:
             product = Path(job["argv"][-1])
             if job["returncode"] != 0 or digest(product) != job["product_sha256"]:
                 raise RuntimeError("sanitizer product receipt mismatch")
             if any(digest(Path(name)) != expected for name, expected in job["sources"].items()):
                 raise RuntimeError("sanitizer source receipt mismatch")
-        args.d7_controls = args.dtype_controls or list(DTYPE_CONTROLS)
+        args.d7_controls = (args.support_controls or list(SUPPORT_CONTROLS)) if args.support_controls is not None else (args.dtype_controls or list(DTYPE_CONTROLS))
         return main_d7(args, jobs, output)
     if args.startup_controls is not None:
         return main_startup(args, jobs, output)
