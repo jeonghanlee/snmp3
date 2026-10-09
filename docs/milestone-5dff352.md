@@ -9,7 +9,7 @@ Remote tracker: none associated with this register
 Recorded date: 2026-10-01
 Source baseline: `5dff352b9e86abfca74a74c4adc4fc8c1e48079f`
 
-Next session entry point: `docs/milestone-5dff352.md`, M6 Capability Advertisement Supplement: prepare the accepted capability change for repository landing. The available-report change, focused real-IOC qualification and independent technical and reader reviews are complete. Required record verification is already accepted; M11 and dated limits are unchanged. M6 remains In progress pending repository landing and closure.
+Next session entry point: `docs/milestone-5dff352.md`, M6 Closure Evidence: both completion-record reviews are accepted; prepare this documentation change for commit. M6 deliverables are Complete within the recorded limits and have landed; this closure-record text still requires its own commit. Then prepare the M7 APC migration/comparison plan, including the target, comparator and permitted equipment boundary for G2 acceptance. G2 remains Open and M7 implementation remains Blocked; M11 stays Deferred. Create a handoff only on explicit request.
 
 ## Scope
 
@@ -17,7 +17,7 @@ This register owns the R1-R8 rewrite checkpoints and the assigned mdBook documen
 
 Out of scope: changing implementation or installed dependencies through this documentation update, operating equipment, publishing a site, or changing Git history or remote state.
 
-Complete means the identified checkpoint scope and its qualified verification are complete. It does not close later integration requirements. R6 implementation was authorized on 2026-10-01 (G1) for a plan now superseded by the D7-D9 revision; G5 accepted and authorized that revision on 2026-10-03; M5 implementation under it completed on 2026-10-05 and M6 implementation proceeds under it. R7-R8 and mdBook implementation have not started. Their Blocked status records the missing detailed-plan acceptance and separate implementation authorization; planning may proceed before those gates close. Ready is an execution dependency indicator, not implementation authorization.
+Complete means the identified checkpoint scope and its qualified verification are complete. It does not close later integration requirements. R6 implementation was authorized on 2026-10-01 (G1) for a plan now superseded by the D7-D9 revision; G5 accepted and authorized that revision on 2026-10-03; M5 implementation under it completed on 2026-10-05 and M6 completed within its accepted scope on 2026-10-08. M6 Closure Evidence identifies landed deliverables, actual verification and retained exclusions. R7-R8 and mdBook implementation have not started. Their Blocked status records the missing detailed-plan acceptance and separate implementation authorization; planning may proceed before those gates close. Ready is an execution dependency indicator, not implementation authorization.
 
 Implemented source and executable fixtures are carried by `49d5c62feca95f12a13910b73b60667455773b7c`; architecture/operator documents by `81cdcddd4fb431cba55e5a7999c9f7c923a670e6`; Python cache exclusions by the source baseline above. The current identity is snmp3.
 
@@ -25,7 +25,7 @@ Implemented source and executable fixtures are carried by `49d5c62feca95f12a1391
 
 Observed results below are retained executions, not new tests performed when this register was written. Current receipts are local JSON records under `work/name-change-20261001/`; they identify source, product and loaded-library hashes. Receipt digests below fix the selected records. The shipped [verification procedures](../tests/rewrite/README.md) provide the actual runners. Private receipts and this register are not intended as mdBook operator chapters.
 
-The current configuration receipt records wrong-owner secret-file testing as NOT RUN: a differently owned regular fixture was unavailable. The earlier owner-assisted PASS is not transferred to renamed products. ASan/UBSan results cover the executed new code; dependencies are uninstrumented and leak checks are disabled. The standard-record fixture does not establish SNMP record I/O. The M6 results separately identify current record/FLNK/callback observations and unresolved matrix cells. APC hardware/consumer behavior, two-OS qualification, TSan and sustained resource acceptance remain later work.
+The current configuration receipt records wrong-owner secret-file testing as NOT RUN: a differently owned regular fixture was unavailable. The earlier owner-assisted PASS is not transferred to renamed products. ASan/UBSan results cover the executed new code; dependencies are uninstrumented and leak checks are disabled. The standard-record fixture does not establish SNMP record I/O. M6 Current Required Verification Results and Closure Evidence identify accepted record/FLNK/callback observations, deferred cells and explicit limits; dated earlier results retain their historical product identities. APC hardware/consumer behavior, two-OS qualification, TSan and sustained resource acceptance remain later work.
 
 ## Milestone
 
@@ -38,7 +38,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | M3 | R3: immutable configuration, Binding and Value | Milestone | Complete | No | M2 | Qualified configuration/security/ownership matrix with explicit NOT RUN; [detail](#m3---r3-immutable-configuration) |
 | M4 | R4: native SNMP adapter | Milestone | Complete | No | M3 | Actual GET/SET, security, response and native lifetime tests; [detail](#m4---r4-native-snmp-adapter) |
 | M5 | R5: address queues, IPC and worker supervision | Milestone | Complete | No | M3, M4, D3, D7, D9, D10, G5 | Actual isolated worker, deadline, recovery and IOC qualification, including the D7 per-handle bound and D9 containment/backoff rules; [detail](#m5---r5-address-worker-supervision) |
-| M6 | R6: record DSET, conversion, completion and FLNK | Milestone | In progress | No | M1, M2, M3, M4, M5, D5, D6, D7, D8, D11, D12, D13, G1, G5 | Real record/wire order, values, alarms and shutdown verified; [detail](#m6---r6-record-integration) |
+| M6 | R6: record DSET, conversion, completion and FLNK | Milestone | Complete | No | M1, M2, M3, M4, M5, D5, D6, D7, D8, D11, D12, D13, G1, G5 | Required real-path verification and capability landed at ade4c58; D13/M11 exclusions and dated limits retained; [detail](#m6---r6-record-integration) |
 | M7 | R7: APC startup/DB migration and comparison | Milestone | Blocked | No | M6, D1, G2 | Actual v2c/v3, CA/PVA, comparator and nested startup error observations; [detail](#m7---r7-apc-migration-and-comparison) |
 | M8 | R8: integrated two-OS and resource qualification | Milestone | Blocked | No | M6, M7, G3 | Full identified-source matrix and measured resource acceptance; [detail](#m8---r8-integrated-qualification) |
 | M9 | mdBook documentation | Milestone | Blocked | No | M1, M2, M3, M4, M5, D4, G4 | Curated book builds and rendered navigation/links match current behavior; [detail](#m9---mdbook-documentation) |
@@ -362,7 +362,7 @@ Superseded Plan Artifacts: original R5 draft replaced by the approved corrected 
 Origin: 5dff352 / M6
 Identity History: none
 GitHub Issue: none associated with this register
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -387,7 +387,7 @@ Out of scope: legacy syntax adapters, manual FLNK execution, custom native secur
 ##### Dependencies And Decisions
 
 - M1-M5 are behavioral dependencies: the new DSET must use their configuration ownership, admission-origin deadlines, native adapter, worker isolation and retirement rules. Their existing receipts do not qualify record I/O.
-- G1 closed on 2026-10-01 after separate plan acceptance and implementation authorization for the plan now listed under Superseded Plan Artifacts. G5 accepted and authorized the D7-D9 revision on 2026-10-03; M6 was Blocked from 2026-10-03 until then and resumed as In progress. The required T1-T14 executions under the revised plan are recorded in Current Required Verification Results, which owns their current review acceptance and limitations. M6 remains In progress for capability advertisement and repository landing/closure.
+- G1 closed on 2026-10-01 after separate plan acceptance and implementation authorization for the plan now listed under Superseded Plan Artifacts. G5 accepted and authorized the D7-D9 revision on 2026-10-03; M6 was Blocked from 2026-10-03 until then and resumed as In progress. The required T1-T14 executions under the revised plan are recorded in Current Required Verification Results, which owns their review acceptance and limitations. Capability advertisement and repository landing are complete; Closure Evidence records the M6 completion assessment and unchanged exclusions.
 - D1 requires an explicit new record/configuration interface; D2 fixes the snmp3 product identity. D3 remains unchanged: equal configured budgets do not imply equal absolute deadlines or permit a new batching rule.
 - Record-scope decision, 2026-10-01: include Base 7.0.10 int64in/int64out alongside the existing seven record types. This adds exact signed 64-bit scalar I/O. D5/D6 separately define the conversion policies; implementation authority for the superseded plan was recorded in G1; the current revision was accepted and authorized through G5.
 - Long-string scope decision, 2026-10-01: add Base 7.0.10 lsi/lso for bounded long-string input/output, including SIZV/LEN handling and full-length client access. Keep stringin/stringout for the existing short-string interface. D6 defines capacity-error handling; implementation authority for the superseded plan was recorded in G1; the current revision was accepted and authorized through G5.
@@ -1264,12 +1264,45 @@ The extra observation procedure is `work/capability-report.py`; each result dire
 
 Review Acceptance: independent technical review 1 PASS, with zero unresolved must-fix/minor findings. Report: `work/review_sessions/20261003_013534_rpro-admission/reviews/rev20261009_012645_subagent_gpt6_thread_plan_r1_capability.md`, SHA256 `55afffe12a4f6a1abf00dd74780ecb3790b83915cd010b919cd1c81631f90cad`. The reviewer independently executed the configured operator path (PASS15) and a real IOC configuration-rejection/Cold-stop probe (PASS9), and checked retained receipts, source/product identities and document links (audit PASS800; not runtime executions).
 
-Separate second-person reader review 2 PASS, with zero unresolved findings. Both required reviews of the capability supplement are complete. This reader pass checked the changed documentation, CLI and retained actual receipts; no new runtime execution ran. M6 remains In progress pending repository landing and closure. Next: prepare the accepted change for commit under the existing Git workflow. Report: `work/review_sessions/20261003_013534_rpro-admission/reviews/fup20261009_013125_subagent_gpt6_thread_plan_r1_on_rev20261009_012645.md`, SHA256 `c1f9a6281b9485114d2ae80c08ff4a3324d10d9f610713c7ba17ff7863371c3b`. No Git, memory or handoff change is included in this execution.
+Separate second-person reader review 2 PASS, with zero unresolved findings. Both required reviews of the capability supplement are complete. This reader pass checked the changed documentation, CLI and retained actual receipts; no new runtime execution ran. At this review checkpoint, M6 remained In progress pending repository landing and closure. Subsequent landing and completion are recorded in Closure Evidence below. Report: `work/review_sessions/20261003_013534_rpro-admission/reviews/fup20261009_013125_subagent_gpt6_thread_plan_r1_on_rev20261009_012645.md`, SHA256 `c1f9a6281b9485114d2ae80c08ff4a3324d10d9f610713c7ba17ff7863371c3b`. The capability execution and its reviews themselves included no Git, memory or handoff change.
 
 
 ##### Closure Evidence
 
-- none; planning and implementation acceptance remain separate.
+Completion Date: 2026-10-08 (Pacific). M6 is Complete for the accepted required scope. G1/G5 implementation gates and the required verification and capability reviews are satisfied. No linked GitHub issue or unresolved M6 external gate remains. This completion does not close M7-M9, Backlog M10-M12, or the formal review session.
+
+The full required-verification checkpoint is `7e21dd568cb16974f8f2cc6d554a39ada5250aea`; the separately reviewed capability checkpoint is `ade4c58a1ceb2e6cdf39c981db7023c22970e5db`. The only later production change is the static unavailable-to-available report literal. The full thirty-case ordinary and thirty-case ASan/UBSan selections and eleven compiled controls retain their original product identities. The capability supplement records its separate actual IOC and ordinary/instrumented record-baseline executions. Closure adds no new IOC, build or control execution and does not relabel old receipts as tests of rebuilt binaries.
+
+Repository landing was observed after `git fetch origin` completed with exit 0 at 2026-10-09 04:22:35 UTC. HEAD and fetched `origin/feature/snmp-base-7.0.10-rewrite` both identified `ade4c58a1ceb2e6cdf39c981db7023c22970e5db`; their complete tracked trees both identified `d0ef8050c81c02734a5a2e7ac76c15b8c8c0520e`. The full-verification commit is an ancestor, and the working tree was clean before this closure-record update. Recheck with a fetch of origin, compare HEAD and its upstream plus both tree IDs, and verify that the two named commits remain ancestors. This landing observation covers the deliverables; the new closure-record text requires its own subsequent commit.
+
+| Completion criterion | Accepted evidence | Closure result |
+| --- | --- | --- |
+| Advertised record/type and loss boundaries | T1-T5; baseline, numeric, edges, boundaries, contract and final-clauses; actual storage, wire and native readback | Satisfied within D13 scope |
+| Full identity and once-only Base completion | T1, T5-T8, T10, T12, T14; record/FLNK/PACT observations and actual stale-generation control | Satisfied |
+| Immutable first SET and explicit retry | T4, T7-T9; active, active-unforced, CA, policy, queued-simm and retirement-flow | Satisfied within D13 scope |
+| Charged ownership through consumption and retirement | T9-T10, T14; accounting, deadline-queue, callback pressure and genuine retirement/reap observations | Satisfied; D11/D12 limitations unchanged |
+| Shutdown, detach and callback storage safety | T11-T12; drain/stop/lock/downstream, isolated/non-isolated, detach, rebuild and startup cases | Satisfied within dated T11 scope; no total-duration guarantee |
+| Required T1-T14 execution and honest limits | Current Required Verification Results and Capability Advertisement Supplement; exact selected receipts, source/products and compiled controls | Satisfied; inherited NOT RUN and instrumentation limits remain explicit |
+| D13 waived-check accounting | The four groups listed below remain assigned to Deferred M11 | Accounted for; not executed PASS results |
+
+Waived M6 checks under D13 (Decision Date: 2026-10-05), retained in Backlog M11:
+
+1. T2/T3/T4 Channel Access variants: signed-minimum int64in/int64out access, maximum-capacity lsi/lso VAL$ access, and ao/longout writes.
+2. T7 long active client-write verification.
+3. T8 delayed output simulation-mode changes.
+4. T12 isolated rebuild/reuse beyond the accepted D7 rebuild case, including delayed or abandoned queued completions, lsi/lso pointer-backed buffers and maximum-capacity payloads.
+
+Other limits remain unchanged: D11's unpinned unsent WorkerFailure/message-reset placement, D12's unobserved printed nonzero behindRetirement counter, and the 2026-10-04 T11 outside-stop-bound reap exclusion. The M3 differently-owned secret-file fixture remains NOT RUN. Base/system/vendor dependencies are uninstrumented; leaks and TSan were not qualified, and InventoryTest's UBSan-import exception remains recorded. APC equipment/consumer behavior, two-OS and sustained resource acceptance belong to later work. M10's control-harness questions and M12's total-stop-duration decision remain Open. No new waiver, security relaxation or successful result is inferred for any of these limits.
+
+Closure evidence review 1: PASS, no unresolved findings. Report: `work/review_sessions/20261003_013534_rpro-admission/reviews/rev20261009_042804_subagent_gpt6_thread_plan_r1_m6-closure.md`, SHA256 `b78d4042e546157d9747df607a8b9e03e980ad4aa076a1151782ddfca46af2dc`. The reviewer independently compared 5,429 recorded source entries from 161 receipts with the landed full-verification commit, preserving the two already disclosed unused foundation source entries, and audited selected runtime observations, product identities and required controls. The new checks inspect real retained evidence; they are not new runtime executions.
+
+| Closure audit | Observed result | SHA256 |
+| --- | --- | --- |
+| `work/m6-closure-audit.json` | PASS413; fetched landing, source delta, retained receipts and sixty selected record cases | `efc5e2bc82b5b5bd1c695cd9c1fc31a4834cf549f18356c874f473a9afe8d31c` |
+| `work/m6-closure-review/source-commit-audit.json` | 5,429 entries and 95 source paths compared with the full-verification commit; disclosed unused foundation entries preserved | `da251e1dca7584270e83d7082f52e3fa90a8dad6fd29a1c0de1bbb59c60d2256` |
+| `work/m6-closure-review/closure-audit.json` | PASS569; required-case inventory, raw receipt/product checks, limits and landing | `450bef66e640d9d113bcd5196d6ce10484e2b4a942e53f6da4ee8f465d727b5b` |
+
+Separate second-person reader review 2: PASS, zero unresolved reader-action or truth findings. Both reviews of the M6 completion record are complete. This pass checked the full canonical delta and retained evidence; no new runtime execution ran. Report: `work/review_sessions/20261003_013534_rpro-admission/reviews/fup20261009_043233_subagent_gpt6_thread_plan_r1_on_rev20261009_042804.md`, SHA256 `225ace7f32af7877750f3b7efc2babd889e0155b0dc9cd3d8f79e4d715b7ae63`. Next: prepare this documentation change for commit under the Git workflow; then prepare the M7 detailed plan and obtain G2 acceptance and separate execution authorization. M6 remains Complete, G2 Open, M7 implementation Blocked and M11 Deferred. No equipment operation, deployment, Git execution, handoff or formal review-session closure is authorized by this acceptance.
 
 
 
