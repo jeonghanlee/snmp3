@@ -1,5 +1,87 @@
 # Independent IOC Verification
 
+## Local AP8932 Application
+
+`build_apcpdu.py` creates a separate AP8932 24-outlet verification application
+from apcpdu commit `54345c73c9f2c7fb8210a8b39e593564f61271b5`. It exports only
+the selected committed generic DB, MIB, information scheduler and outer SNMP
+fixture. Selected source files must still match that commit. It neither edits
+the sibling checkout nor reads its deployed startup or credentials.
+
+The existing Linux x86_64 Base 7.0.10, PVXS and current snmp3 shared libraries,
+DBD, native probe and worker must already be built. The helper runs the real
+EPICS application build with the shipped snmp3 Main.cpp, generated registrar
+and original APC scheduler. The result is `bin/linux-x86_64/snmp3ApcIoc` under
+the chosen output directory. No dependency installation occurs.
+
+```bash
+APC_SRC=/absolute/path/to/apcpdu
+BASE_PATH=/absolute/path/to/installed/base
+PVXS_PATH=/absolute/path/to/installed/pvxs
+APC_BUILD=tests/rewrite/build_apcpdu.py
+python3 "$APC_BUILD" --apcpdu "$APC_SRC" --base "$BASE_PATH" --pvxs "$PVXS_PATH" --output work/ap8932-build
+python3 tests/rewrite/test_apcpdu.py --ioc work/ap8932-build --output work/ap8932-test
+```
+
+Both output directories must be new and under this checkout's `work/`.
+Build paths accept ASCII letters, digits, `_`, `.`, `-` and `/` only.
+The runner requires local UDP/TCP and network-interface enumeration; a sandbox
+that restricts these facilities cannot qualify the CA/PVA path.
+
+The generated DB fixes the local prefix to `APCTEST:PDU:` and preserves all
+400 original record names and types for that prefix. It has 178 explicit
+numeric-OID bindings and the original 100-field read-only PVA group. Nine
+scaled inputs use private raw snmp3 ai -> calc -> public soft ai completion
+chains. Existing engineering units, alarm-limit consumers and public FLNK
+links remain on the public ai; original request triggers address the raw ai.
+Each outlet's raw-status completion processes its decoded status. The
+periodic DeviceError summary uses currently available alarms and is not a
+barrier waiting for all asynchronous reads to finish.
+
+The source's 2-second scanner, 10-second information schedule and 10-second
+setting readbacks remain configured. Local bindings use a 15,000 ms admission
+deadline; the v2c profile uses 100 ms timeout, zero retries and maxVarbinds 24.
+These are local verification settings, not measured production timing bounds.
+Sensors and LIMIT_EN setting write-back are disabled. Command records load,
+but this runner issues no command SET. Octet strings contain device text
+without the legacy Net-SNMP formatting quotes.
+
+`test_apcpdu.py` starts fresh loopback PDU fixtures and the real generated IOC
+with isolated CA/PVA discovery and ports. It checks all public record types,
+registration, engineering values, 24 outlet states, all 100 CA/PVA mappings
+and their PVA types, group write rejection, cold unavailability, loss and
+same-value recovery, zero unintended SET, loaded libraries and normal
+worker/queue cleanup. A separate deliberate harness setup failure verifies
+cleanup after the real IOC has started. Every case owns its own resources.
+
+Startup cases run the same generated nested loaders with first/later invalid
+configuration and an stdin sentinel to detect accidental shell entry. Valid
+v1/v2c/v3 cases qualify configuration acceptance only; they do not call
+iocInit. The communication case runs v2c through iocInit and real CA/PVA
+clients. This distinction leaves full M7 / T3 installed-application coverage
+open. Individual cases can run without an earlier suite:
+
+```bash
+APC_TEST=tests/rewrite/test_apcpdu.py
+python3 "$APC_TEST" --ioc work/ap8932-build --case cleanup --output work/ap8932-cleanup
+python3 "$APC_TEST" --ioc work/ap8932-build --case acceptance --output work/ap8932-acceptance
+python3 "$APC_TEST" --ioc work/ap8932-build --case startup --output work/ap8932-startup
+```
+
+Evidence stays in the output directories on success and failure: build
+commands and logs, source/product hashes, original expanded and migrated DB,
+binding/group inventory, IOC and client logs, SNMP requests, process receipts,
+loaded-library hashes and `result.json`. Success requires exit 0 and
+`passed: true`; a build or partial check count alone is insufficient.
+
+This is an initial local M7 subset. It does not qualify hardware, actual v3
+communication, the legacy comparator, command SET behavior, setting
+write-back, sensor/16-outlet/AP7800B variants, the full delay/reorder matrix,
+scanner pause/resume, or all startup/configuration failure cases. The existing
+APC checker and pvxmonitor suite are not run by this runner; its 100-field
+checks use actual caget/pvxget calls against the original group definitions.
+Full M7 acceptance remains in the canonical milestone document.
+
 ## Scope And Prerequisites
 
 Linux x86_64, Python 3, GNU make, Perl, a C++ compiler, ldd and an existing
