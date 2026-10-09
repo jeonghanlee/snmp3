@@ -7,9 +7,9 @@ address, supervises a separate native worker and returns scheduler-owned termina
 results. Net-SNMP runs only in the native worker. This reference covers component
 admission, IPC, accounting, failure containment and IOC lifecycle.
 
-Record DSET, conversion and completion are implemented as a qualification
-candidate; their complete matrix is pending. The
-[record contract](snmp-rewrite-contract.md#record-qualification-candidate)
+Record DSET, conversion and completion have accepted real-path evidence
+within the current scope and limitations in the work register. The
+[record contract](snmp-rewrite-contract.md#record-support-contract)
 defines that boundary. The standard foundation longin fixture processes
 constant 42; it is not an
 SNMP record. Hardware acceptance, two-OS, TSan, leaks and sustained RSS checks
@@ -76,7 +76,9 @@ numeric address with one configured in that JSON. Load and worker selection must
 succeed before iocInit. `on error break` propagates command failure; Base's
 Continue policy can proceed after a rejected command and does not prove success.
 
-`snmp3Report` reports `owned-worker-transport; recordSupport=unavailable`.
+`snmp3Report` reports `owned-worker-transport; recordSupport=available`.
+This identifies compiled record support, not configuration validity, lifecycle
+readiness or successful device communication.
 `snmp3ConfigReport` reports revision, freeze and definition counts.
 `snmp3RuntimeReport` reports actual lifecycle/queue/worker numbers. Running
 means the servicing owner is ready; it does not promise device reachability.
@@ -274,9 +276,11 @@ entry-gate closure and a separate safety wait for entered callbacks. Failed
 record drain stays failed after native reconciliation and refuses restart.
 AtShutdown permits detach only after entered processing reaches zero; isolated
 queue destruction, rather than callback join alone, permits context release.
-Non-isolated shutdown retains still-referenced contexts. The complete record
-lifecycle qualification remains pending; external Base processing can extend
-the safety wait without a bounded total shutdown claim.
+Non-isolated shutdown retains still-referenced contexts. The
+[current qualification record](milestone-5dff352.md#current-required-verification-results-2026-10-08)
+identifies the accepted lifecycle paths and remaining reuse limitations.
+External Base processing can extend the safety wait without a bounded total
+shutdown claim.
 
 ## Execute real verification
 

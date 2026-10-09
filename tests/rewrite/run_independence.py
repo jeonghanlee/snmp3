@@ -215,7 +215,7 @@ def main():
         loader_env = dict(env, LD_DEBUG="libs")
         run = invoke([str(binary), str(script)], output, "ioc", loader_env, stdin="exit\n")
         check("ioc_exit", run.returncode == 0)
-        check("report", "snmp3: Base 7.0.10; capability=owned-worker-transport; recordSupport=unavailable" in run.stdout)
+        check("report", "snmp3: Base 7.0.10; capability=owned-worker-transport; recordSupport=available" in run.stdout)
         check("actual_processing", re.search(r"dbProcess of 'Rewrite_Probe'", run.stdout) is not None)
         check("probe_result", re.search(r"\bVAL\s*:\s*42\b", run.stdout) is not None and
               re.search(r"\bUDF\s*:\s*0\b", run.stdout) is not None and

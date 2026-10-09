@@ -43,7 +43,7 @@ def main():
                    "elapsed_ns": time.monotonic_ns() - start, "product_sha256": digest(Path(argv[0]))})
         runner.check("actual-operator-exit", code == 0 and not forced)
         text = (output / "operator.stdout").read_text()
-        runner.check("documented-capability", "capability=owned-worker-transport; recordSupport=unavailable" in text)
+        runner.check("documented-capability", "capability=owned-worker-transport; recordSupport=available" in text)
         runner.check("actual-running-then-stopped", "state=Running admission=1" in text and "state=Stopped admission=0" in text)
         runner.check("actual-default-limits", "countLimit=1024 byteLimit=1048576" in text)
         runner.check("exact-one-join", "activation=1 created=1 exited=1 joined=1" in text)

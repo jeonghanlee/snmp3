@@ -10,7 +10,7 @@
 namespace {
 void report(const iocshArgBuf*)
 {
-    std::printf("snmp3: Base %s; capability=owned-worker-transport; recordSupport=unavailable\n",
+    std::printf("snmp3: Base %s; capability=owned-worker-transport; recordSupport=available\n",
                 EPICS_VERSION_SHORT);
 }
 void runtimeReport(const iocshArgBuf*) { snmp3::Runtime::instance().report(); }

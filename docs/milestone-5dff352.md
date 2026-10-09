@@ -9,7 +9,7 @@ Remote tracker: none associated with this register
 Recorded date: 2026-10-01
 Source baseline: `5dff352b9e86abfca74a74c4adc4fc8c1e48079f`
 
-Next session entry point: `docs/milestone-5dff352.md`, M6: required verification and its independent technical and reader reviews are accepted within Current Required Verification Results. Next: address capability advertisement and repository landing/closure separately. M6 remains In progress; M11 and dated limitations are unchanged. Create a handoff only on explicit request.
+Next session entry point: `docs/milestone-5dff352.md`, M6 Capability Advertisement Supplement: prepare the accepted capability change for repository landing. The available-report change, focused real-IOC qualification and independent technical and reader reviews are complete. Required record verification is already accepted; M11 and dated limits are unchanged. M6 remains In progress pending repository landing and closure.
 
 ## Scope
 
@@ -1215,7 +1215,56 @@ Receipt audit: `work/final-m6-audit.py` checks retained real receipts rather tha
 | `work/final-m6-controls/results.json` | `9460c1bdd4e83593279aaa52b1b28b2d9c3624cbd510b1f855b580246bd4e489` |
 | `work/final-m6-d7-controls/results.json` | `4bb8d2dfbf077abeda5874ec1d2f37d9fe4910f1e03100569cba2e88506c405a` |
 
-Review acceptance: independent technical review 1 PASS, with zero unresolved must-fix/minor findings. Report: `work/review_sessions/20261003_013534_rpro-admission/reviews/rev20261009_003402_subagent_gpt6_thread_plan_r1_m6-reconciliation.md`, SHA256 `8ee523a3fbc89e8f2cbd2568dcc98b861ed45c9e4ef79b4299e92e94c798170d`. The reviewer executed final-clauses (PASS14/396), independently checked 210 raw observations and 3,218 reconciliation checks, including sixty current record cases and 168 record child receipts. First reader review 2 identified F-final-reader-001; the documentation-only correction was accepted by bounded second reader review 3, PASS with no unresolved findings. Required runtime executions and their reviews are complete within the recorded exclusions. Reader reports: `work/review_sessions/20261003_013534_rpro-admission/reviews/fup20261009_003900_subagent_gpt6_thread_plan_r1_on_rev20261009_003402.md`, SHA256 `5842e6606b12ef2f854114eb0fcda6cd72ec7d1c1a20d2f1b092862ed97ef351`; `work/review_sessions/20261003_013534_rpro-admission/reviews/fup20261009_004422_subagent_gpt6_thread_plan_r1_on_fup20261009_003900.md`, SHA256 `996c68bd112f9fc128df27b4dbb987034f58dd2f5c06ae7ba69bea893d443fa6`. Required runtime executions are complete within the stated exclusions. M6 remains In progress: `recordSupport=unavailable` capability advertisement and repository landing/closure remain separate work. This verification authorization changes neither capability policy nor Git history.
+Review acceptance: independent technical review 1 PASS, with zero unresolved must-fix/minor findings. Report: `work/review_sessions/20261003_013534_rpro-admission/reviews/rev20261009_003402_subagent_gpt6_thread_plan_r1_m6-reconciliation.md`, SHA256 `8ee523a3fbc89e8f2cbd2568dcc98b861ed45c9e4ef79b4299e92e94c798170d`. The reviewer executed final-clauses (PASS14/396), independently checked 210 raw observations and 3,218 reconciliation checks, including sixty current record cases and 168 record child receipts. First reader review 2 identified F-final-reader-001; the documentation-only correction was accepted by bounded second reader review 3, PASS with no unresolved findings. Required runtime executions and their reviews are complete within the recorded exclusions. Reader reports: `work/review_sessions/20261003_013534_rpro-admission/reviews/fup20261009_003900_subagent_gpt6_thread_plan_r1_on_rev20261009_003402.md`, SHA256 `5842e6606b12ef2f854114eb0fcda6cd72ec7d1c1a20d2f1b092862ed97ef351`; `work/review_sessions/20261003_013534_rpro-admission/reviews/fup20261009_004422_subagent_gpt6_thread_plan_r1_on_fup20261009_003900.md`, SHA256 `996c68bd112f9fc128df27b4dbb987034f58dd2f5c06ae7ba69bea893d443fa6`. Required runtime executions are complete within the stated exclusions. At this verification checkpoint, `recordSupport=unavailable` and repository landing/closure remained separate work. The subsequent Capability Advertisement Supplement owns the current report value and its focused verification; the full-matrix receipts above retain their original identities.
+
+
+###### Capability Advertisement Supplement (2026-10-08)
+
+Plan Status: accepted
+Plan Acceptance: 2026-10-08; owner selected option 1, the existing report format with recordSupport=available
+Implementation Authorization: 2026-10-08; owner explicitly directed execution of option 1
+
+Premise: the required record verification and independent technical/reader reviews are accepted in Current Required Verification Results. Commit `7e21dd568cb16974f8f2cc6d554a39ada5250aea` carries those tests and records; its same-named origin branch was observed at that commit after push. The static report string still says unavailable. The capability is a compiled module feature, not a record-enable switch, lifecycle state, configuration validity or device-reachability result.
+
+P001: change only the recordSupport value in `snmp3App/src/Register.cpp`; retain Base version and owned-worker-transport spelling. Update the literal report assertions in `tests/rewrite/run_independence.py` and `tests/rewrite/test_r5_operator.py`.
+
+P002: align current support/coverage descriptions in `docs/snmp-rewrite-contract.md`, `docs/snmp-rewrite-config.md`, `docs/snmp-rewrite-architecture.md` and `docs/snmp-worker-supervision.md`. Preserve all runtime contracts, historical measurements and deferred test boundaries. State the static-report meaning and direct readers to current qualified coverage; repair the two local links if the candidate heading is renamed.
+
+P003: verify the changed report through the actual production IOC, run ordinary and instrumented record baseline regressions, obtain independent technical and separate reader review, and record the identified products/results here. No record-name list, behavior change, new support policy, M11 expansion, Git mutation, handoff or memory work is included. The initial worktree is clean at 7e21dd5; existing review-session evidence is local-only.
+
+Verification sequence from the checkout:
+
+```bash
+CAP_BASE=/home/jeonglee/gitsrc/alsu-epics-environment/1.3.0/debian-13/7.0.10/base
+python3 -B tests/rewrite/run_independence.py --base "$CAP_BASE" --output work/capability-independence
+make -C tests/rewrite -j2
+python3 -B tests/rewrite/test_r5_operator.py --output work/capability-operator
+python3 -B tests/rewrite/test_records.py --case baseline --output work/capability-records
+python3 -B tests/rewrite/build_r5_sanitizers.py --output work/capability-sanitizers
+CAP_PRODUCTS=work/capability-sanitizers/products
+python3 -B tests/rewrite/test_records.py --products "$CAP_PRODUCTS" --sanitizers --output work/capability-records-asan
+```
+
+The instrumented production IOC also runs the real generated registrar and snmp3Report before/after iocInit and after snmp3Stop, with exact output, exit/reap, loader identity and sanitizer diagnostics retained. Report output remains available at every lifecycle point. Installed Base/system/vendor libraries remain uninstrumented, with leak detection disabled. The full previously accepted matrix retains its original product identities; this bounded output change does not relabel old receipts as new executions.
+
+Verification Results, observed 2026-10-08 (Pacific): production report and the two shipped report assertions now use `recordSupport=available`. The only production source delta from 7e21dd5 is this literal in Register.cpp; record, configuration, scheduler and lifecycle code are unchanged. Actual execution on Debian 13 x86_64 with the existing Base 7.0.10 installation produced the following results.
+
+| Actual execution | Result | Receipt SHA256 |
+| --- | --- | --- |
+| `work/capability-independence/results.json` | PASS27; forced application build, actual IOC report, native-free load and Base processing | `7fc349f25709833955ae7605d066367b99336790f2e02299bae3d10e951c4167` |
+| `work/capability-operator/results.json` | PASS15; actual configured IOC commands, new report, Running/Stopped and worker joins | `4958e2d8d8560d1db0c1d01523e83680ddd35659cfd7f888129d1da813064034` |
+| `work/capability-records/results.json` | PASS11 runner checks / 206 C++ assertions; eleven actual record kinds | `9a545f7482a92fbf095ccb3740786b3f9f016fd24b8960f8eac012dcdb1b1e04` |
+| `work/capability-records-asan/results.json` | PASS11 runner checks / 206 C++ assertions on separate instrumented products | `6fe88dedbae4ea28ac127fad321fb032d479c90c79e11335fd9ae39d51a780ca` |
+| `work/capability-report-ordinary/results.json` | PASS7; exact report before init, while Running and after stop | `3c3e769cf8b922728b1782639dc30a8804c450fcf16166b17d3283a0144a6669` |
+| `work/capability-report-asan/results.json` | PASS7; same three actual IOC observations on instrumented products | `c98be55da3e16fe2d39b2ae79e536b534517cfdbd2b44f2be263cb6545765010` |
+
+Separate build: `work/capability-sanitizers/sanitizer-build.json`, SHA256 `8765d07f049c8943fae4188ab5be0fd2ac3a5eb877c3fed16e6957c59fb4d33c`; seventeen products compile successfully. The compiled new module/native/test code is instrumented; Base/system/vendor dependencies and leak checks retain the limits stated above. Each report receipt identifies the actual loaded support library and records normal exit/reap without forced cleanup or sanitizer diagnostics. Before iocInit the actual configuration report has revision 0 and zero definitions, while the capability is already available. The state sequence is Cold, Running, Stopped; capability stays identical. This does not assert device communication or configuration success.
+
+The extra observation procedure is `work/capability-report.py`; each result directory retains its actual production-IOC startup script and stdout/stderr. The script invokes the production IOC and generated registrar directly, using empty configuration; it substitutes no internal runtime span. The shipped baseline separately exercises real records, worker, native transport and agent. Earlier full-matrix receipts remain evidence for their identified earlier products. These focused executions qualify the literal-only delta; the full matrix and negative controls were not rerun for this change.
+
+Review Acceptance: independent technical review 1 PASS, with zero unresolved must-fix/minor findings. Report: `work/review_sessions/20261003_013534_rpro-admission/reviews/rev20261009_012645_subagent_gpt6_thread_plan_r1_capability.md`, SHA256 `55afffe12a4f6a1abf00dd74780ecb3790b83915cd010b919cd1c81631f90cad`. The reviewer independently executed the configured operator path (PASS15) and a real IOC configuration-rejection/Cold-stop probe (PASS9), and checked retained receipts, source/product identities and document links (audit PASS800; not runtime executions).
+
+Separate second-person reader review 2 PASS, with zero unresolved findings. Both required reviews of the capability supplement are complete. This reader pass checked the changed documentation, CLI and retained actual receipts; no new runtime execution ran. M6 remains In progress pending repository landing and closure. Next: prepare the accepted change for commit under the existing Git workflow. Report: `work/review_sessions/20261003_013534_rpro-admission/reviews/fup20261009_013125_subagent_gpt6_thread_plan_r1_on_rev20261009_012645.md`, SHA256 `c1f9a6281b9485114d2ae80c08ff4a3324d10d9f610713c7ba17ff7863371c3b`. No Git, memory or handoff change is included in this execution.
 
 
 ##### Closure Evidence

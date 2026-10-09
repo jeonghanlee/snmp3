@@ -69,9 +69,10 @@ Net-SNMP owns protocol encoding, native retries, discovery and USM.
 Base owns record processing, alarms, callback facilities and thread APIs.
 
 Lifecycle, configuration, native adapter and scheduler have separate qualified
-products. Device support has current integrated subset evidence; its complete
-record matrix remains pending. Component boundaries do not imply acceptance
-of an unexecuted integration path.
+products. Device support has accepted integration evidence within the
+[current qualification scope](milestone-5dff352.md#current-required-verification-results-2026-10-08).
+The capability report identifies compiled support; deferred cases and hardware
+acceptance remain separate from that evidence.
 
 ## Implemented Configuration Data Flow
 
@@ -170,8 +171,9 @@ contexts through native callbacks and closes each handle once.
 
 Actual native agents and external UDP faults verify this library in separate
 processes. The IOC services address queues and IPC while native calls remain in separate
-workers. Record products exercise the candidate DSET boundary; its full matrix
-and hardware traffic remain pending qualification. The
+workers. Record products exercise the DSET boundary through actual Base
+processing and native agents; hardware traffic remains a separate acceptance
+requirement. The
 [native transport reference](snmp-native-transport.md) defines lifetime, security,
 representation limits and executable verification commands.
 

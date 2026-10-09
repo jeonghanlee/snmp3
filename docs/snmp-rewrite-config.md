@@ -8,13 +8,13 @@ and the ownership boundary.
 
 Configuration, immutable bindings, owned values, native capability observation,
 address queues, private IPC and supervised native workers are implemented.
-Eleven record DSETs and conversion form a qualification candidate; the complete
-record matrix remains pending. Loading configuration and device initialization
+Eleven record DSETs and checked conversion are available through the owned
+worker path. Loading configuration and device initialization
 perform no request; iocInit starts configured workers, and record/component
 admission sends application GET/SET. Records select an existing JSON definition
 with `DTYP="snmp3"` and `@binding=<id> deadline_ms=<1..600000>` on INP/OUT.
 Both keys are mandatory and frozen at initialization. The
-[record contract](snmp-rewrite-contract.md#record-qualification-candidate)
+[record contract](snmp-rewrite-contract.md#record-support-contract)
 defines supported records, conversion and live-field behavior. See the
 [worker reference](snmp-worker-supervision.md) for queue and lifecycle ownership.
 
@@ -234,7 +234,7 @@ and joins the servicing thread. Unsettled ownership remains IncompleteStopped. S
 activation never permit reload. A fresh IOC process is required to use different
 definitions. No operator reset, bind, freeze, or replacement command exists.
 Record device initialization uses the same immutable Config binding and freeze;
-the candidate DSET performs no request until actual record processing.
+the DSET performs no request until actual record processing.
 
 ## IOC commands and reports
 
@@ -242,11 +242,14 @@ the candidate DSET performs no request until actual record processing.
 | --- | --- |
 | `snmp3Load(config, nativeProbe)` | Whole-file load or IOC shell error |
 | `snmp3ConfigReport` | Revision, frozen flag, and definition counts |
-| `snmp3Report` | `owned-worker-transport; recordSupport=unavailable` capability |
+| `snmp3Report` | `owned-worker-transport; recordSupport=available` capability |
 | `snmp3RuntimeReport` | Lifecycle, pending reservation and worker state/counters |
 | `snmp3Stop` | Freeze, admission closure, worker containment and one thread join |
 | `snmp3WorkerPath(path)` | Absolute actual worker product before freeze |
 | `snmp3QueueLimit(address,count,bytes)` | Live count 1-16384 and bytes 1-67108864; preserve accepted work |
+
+`recordSupport=available` identifies a compiled feature, not configuration
+validity, runtime readiness or device reachability.
 
 The configuration report contains numbers only:
 

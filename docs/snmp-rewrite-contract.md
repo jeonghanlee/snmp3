@@ -7,7 +7,7 @@ Base 7.0.10. Compilation rejects other Base major/revision/modification
 versions. The support library registers `snmp3Report`, `snmp3RuntimeReport`,
 `snmp3Stop`, `snmp3Load`, `snmp3ConfigReport`,
 `snmp3WorkerPath` and `snmp3QueueLimit`. Capability is
-`owned-worker-transport; recordSupport=unavailable`. The native-free
+`owned-worker-transport; recordSupport=available`. The native-free
 `libsnmp3Wire` is shared with the actual separate worker.
 
 The IOC uses Base `iocsh` and `epicsExit`. With a startup file, a nonzero
@@ -24,10 +24,13 @@ Returning from the interactive shell leads Main to call epicsExit.
 Owned startup definitions, address admission queues, framed IPC and native
 worker supervision are implemented. Component callers use the actual
 scheduler/worker/native path. Eleven record DSETs, checked conversion and
-terminal callbacks are implemented as a qualification candidate. The complete
-record matrix is still pending, so the public report retains
-`recordSupport=unavailable`. The canonical [work register](milestone-5dff352.md)
-owns current acceptance and observed coverage.
+terminal callbacks provide record support through that same path.
+`recordSupport=available` describes the compiled module capability; it is not
+a record-enable switch or a claim that configuration, startup or device
+communication has succeeded. Use the lifecycle report for runtime state and
+record values/alarms for request outcomes. The canonical
+[work register](milestone-5dff352.md#current-required-verification-results-2026-10-08)
+owns accepted qualification, observed coverage and remaining limitations.
 The servicing thread owns deadlines/IPC/reap and never calls native session APIs.
 The separate capability probe performs no session open. Native dependencies and
 legacy production sources remain excluded from IOC/support/wire products.
@@ -41,7 +44,7 @@ syntax translation adapter is excluded. Legacy record links require deliberate
 migration to the explicit new grammar. Previous verification qualifies only its
 identified previous source, never this independent target.
 
-## Record Qualification Candidate
+## Record Support Contract
 
 The shipped Value API owns exact signed 64-bit, unsigned 32-bit, Counter64,
 binary octets, OID arcs, IPv4, Float32, Float64, and exception tags. Accessors
@@ -164,27 +167,22 @@ recorded in the work register, M6 Verification Results T9.
 
 ### Coverage
 
-The qualification candidate covers the cases listed in the
-[record verification reference](../tests/rewrite/README.md#record-verification);
-each case is one named test run against the real record, scheduler, worker and
-agent path. Verified: all five outputs and a plain put or a put-callback while
-the first SET response is held on the production Channel Access path; for the
-six inputs, SIOL before admission and after a queued native completion, SIMM
-selecting SIOL while a native timeout terminal waits in the Base queue, a return
-to normal mode with a further native failure, and a SIMM change while a Base SDLY
-callback is pending; for the five outputs, the three IVOA branches, live
-simulation after a native timeout, and synchronous or delayed simulation before
-admission.
+The [record verification reference](../tests/rewrite/README.md#record-verification)
+provides executable cases through real Base records, DSET, scheduler, worker,
+native transport and agents. Required record qualification covers the eleven
+record kinds, checked conversions, output capture, alarms, FLNK, reprocessing,
+simulation, charged ownership, callback pressure, shutdown and lifecycle.
+The [current qualification record](milestone-5dff352.md#current-required-verification-results-2026-10-08)
+identifies actual products, receipts, accepted results and evidence limits.
 
-Not yet verified, as recorded in the work register: other record, failure and
-deadline chains, fanout and delayed or duplicate external responses; reprocess
-routes other than a plain put and a put-callback, such as scan and PROC; a SIMM
-change while a Base SDLY callback is pending on an output record; other
-Stopping, waveform and downstream shutdown states; and reuse of an isolated database after queue cleanup, including after a
-stop that retained a retirement-pending and a queued generation. Passing the
-verified cases does not advertise record support.
-
-These contracts require the complete qualification matrix before advertisement.
+Additional Channel Access variants (signed-minimum values, maximum-capacity
+long strings and ao/longout access), long active client writes, delayed output
+simulation-mode changes and broader isolated database reuse remain outside
+that accepted verification scope. Hardware acceptance, two-OS qualification,
+TSan, leak checking and sustained resource acceptance also remain separate.
+Available support does not imply that these additional cases have run or that
+a particular device is reachable. The work register owns the exact deferred
+cases and dated limitations.
 
 ## Implemented Startup Configuration Contract
 
