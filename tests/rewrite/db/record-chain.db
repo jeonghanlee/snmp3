@@ -1,0 +1,128 @@
+record(ai, "$(P)Ai") {
+    field(INP, "@binding=IntegerRead deadline_ms=300")
+}
+
+record(longin, "$(P)Longin") {
+    field(INP, "@binding=IntegerRead deadline_ms=300")
+}
+
+record(int64in, "$(P)Int64in") {
+    field(INP, "@binding=Counter32Read deadline_ms=300")
+}
+
+record(stringin, "$(P)Stringin") {
+    field(INP, "@binding=OidRead deadline_ms=300")
+}
+
+record(lsi, "$(P)Lsi") {
+    field(INP, "@binding=OctetsRead deadline_ms=300")
+}
+
+record(waveform, "$(P)Waveform") {
+    field(INP, "@binding=Counter64Read deadline_ms=300")
+}
+
+record(ao, "$(P)Ao") {
+    field(OUT, "@binding=FloatWrite deadline_ms=300")
+}
+
+record(longout, "$(P)Longout") {
+    field(OUT, "@binding=IntegerWrite deadline_ms=300")
+}
+
+record(int64out, "$(P)Int64out") {
+    field(OUT, "@binding=Counter64Write deadline_ms=300")
+}
+
+record(stringout, "$(P)Stringout") {
+    field(OUT, "@binding=OctetsWrite deadline_ms=300")
+}
+
+record(lso, "$(P)Lso") {
+    field(OUT, "@binding=OctetsWrite deadline_ms=300")
+}
+
+record(calc, "$(P)ChainPhase") {
+    field(DESC, "Capture source state during FLNK")
+    field(CALC, "A+10*B+1000*C+10000*D")
+    field(FLNK, "$(P)ChainValue")
+}
+
+record(lsi, "$(P)ChainValue") {
+    field(DESC, "Read complete source text during FLNK")
+    field(SIZV, "256")
+    field(INP, "unchanged")
+    field(FLNK, "$(P)ChainB")
+}
+
+record(ai, "$(P)ChainB") {
+    field(DESC, "Native GET started by source FLNK")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=ChainRead deadline_ms=5000")
+    field(FLNK, "$(P)ChainCount")
+}
+
+record(calc, "$(P)ChainCount") {
+    field(DESC, "Count native chain target completions")
+    field(CALC, "VAL+1")
+}
+
+record(fanout, "$(P)Fanout") {
+    field(DESC, "Start independent native requests")
+    field(SELM, "All")
+    field(FLNK, "$(P)FanoutIssued")
+}
+
+record(calc, "$(P)FanoutIssued") {
+    field(DESC, "Count fanout issue without barrier")
+    field(CALC, "VAL+1")
+}
+
+record(ai, "$(P)Slow4") {
+    field(DESC, "Independent address fanout target")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=Slow4 deadline_ms=5000")
+    field(FLNK, "$(P)Slow4Done")
+}
+
+record(calc, "$(P)Slow4Done") {
+    field(DESC, "Count completed fanout target")
+    field(CALC, "VAL+1")
+}
+
+record(ai, "$(P)Fast6") {
+    field(DESC, "Independent address fanout target")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=Fast6 deadline_ms=5000")
+    field(FLNK, "$(P)Fast6Done")
+}
+
+record(calc, "$(P)Fast6Done") {
+    field(DESC, "Count completed fanout target")
+    field(CALC, "VAL+1")
+}
+
+record(ai, "$(P)Fast4") {
+    field(DESC, "Independent address fanout target")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=Fast4 deadline_ms=5000")
+    field(FLNK, "$(P)Fast4Done")
+}
+
+record(calc, "$(P)Fast4Done") {
+    field(DESC, "Count completed fanout target")
+    field(CALC, "VAL+1")
+}
+
+record(ai, "$(P)Slow6") {
+    field(DESC, "Independent address fanout target")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=Slow6 deadline_ms=5000")
+    field(FLNK, "$(P)Slow6Done")
+}
+
+record(calc, "$(P)Slow6Done") {
+    field(DESC, "Count completed fanout target")
+    field(CALC, "VAL+1")
+}
+

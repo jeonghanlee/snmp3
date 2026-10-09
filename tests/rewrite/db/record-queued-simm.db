@@ -1,0 +1,30 @@
+record(ao, "$(P)ActiveAo") {
+    field(OUT, "@binding=$(PATH)FloatWrite deadline_ms=$(BUDGET)")
+    field(SIMS, "NO_ALARM")
+    field(SDLY, "-1")
+}
+
+record(longout, "$(P)ActiveLongout") {
+    field(OUT, "@binding=$(PATH)IntegerWrite deadline_ms=$(BUDGET)")
+    field(SIMS, "NO_ALARM")
+    field(SDLY, "-1")
+}
+
+record(int64out, "$(P)ActiveInt64out") {
+    field(OUT, "@binding=$(PATH)Counter64Write deadline_ms=$(BUDGET)")
+    field(SIMS, "NO_ALARM")
+    field(SDLY, "-1")
+}
+
+record(stringout, "$(P)ActiveStringout") {
+    field(OUT, "@binding=$(PATH)OctetsWrite deadline_ms=$(BUDGET)")
+    field(SIMS, "NO_ALARM")
+    field(SDLY, "-1")
+}
+
+record(lso, "$(P)ActiveLso") {
+    field(OUT, "@binding=$(PATH)OctetsWrite deadline_ms=$(BUDGET)")
+    field(SIMS, "NO_ALARM")
+    field(SDLY, "-1")
+}
+

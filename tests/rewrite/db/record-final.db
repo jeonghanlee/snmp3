@@ -1,0 +1,29 @@
+record(longin, "$(P)PressureGet") {
+    field(DESC, "Callback deadline and GET ownership")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=IntegerRead deadline_ms=1000")
+    field(FLNK, "$(P)Completed")
+}
+
+record(ao, "$(P)PressureSet") {
+    field(DESC, "Callback deadline and SET ownership")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=FloatWrite deadline_ms=1000")
+    field(VAL, "17.25")
+    field(FLNK, "$(P)Completed")
+}
+
+record(int64out, "$(P)Drive64") {
+    field(DESC, "Exact signed integer drive limits")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=Counter64Write deadline_ms=5000")
+    field(DRVL, "9007199254740993")
+    field(DRVH, "9007199254740995")
+    field(FLNK, "$(P)Completed")
+}
+
+record(int64in, "$(P)DriveRead") {
+    field(DESC, "Independent native drive readback")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=Counter64Read deadline_ms=5000")
+}

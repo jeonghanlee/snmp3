@@ -1,0 +1,72 @@
+record(stringin, "$(P)OctetsString") {
+    field(DESC, "Octet text capacity boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=B$(ROW)OctetsRead deadline_ms=5000")
+}
+record(lsi, "$(P)OctetsLsi") {
+    field(DESC, "Long octet text capacity boundary")
+    field(DTYP, "snmp3")
+    field(SIZV, "$(SIZV)")
+    field(INP, "@binding=B$(ROW)OctetsRead deadline_ms=5000")
+}
+record(waveform, "$(P)OctetsWave") {
+    field(DESC, "Binary octet capacity boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UCHAR")
+    field(NELM, "$(NELM)")
+    field(INP, "@binding=B$(ROW)OctetsRead deadline_ms=5000")
+}
+record(stringin, "$(P)OidString") {
+    field(DESC, "Formatted OID text boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=BoundaryOidRead deadline_ms=5000")
+}
+record(lsi, "$(P)OidLsi") {
+    field(DESC, "Formatted long OID text boundary")
+    field(DTYP, "snmp3")
+    field(SIZV, "$(SIZV)")
+    field(INP, "@binding=BoundaryOidRead deadline_ms=5000")
+}
+record(waveform, "$(P)OidWave") {
+    field(DESC, "Independent OID capacity boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "ULONG")
+    field(NELM, "$(OIDNELM)")
+    field(INP, "@binding=B$(ROW)OidRead deadline_ms=5000")
+}
+record(stringin, "$(P)IpString") {
+    field(DESC, "Formatted IPv4 text boundary")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=BoundaryIpRead deadline_ms=5000")
+}
+record(lsi, "$(P)IpLsi") {
+    field(DESC, "Formatted long IPv4 text boundary")
+    field(DTYP, "snmp3")
+    field(SIZV, "$(SIZV)")
+    field(INP, "@binding=BoundaryIpRead deadline_ms=5000")
+}
+record(waveform, "$(P)IpWave") {
+    field(DESC, "Fixed IPv4 array capacity boundary")
+    field(DTYP, "snmp3")
+    field(FTVL, "UCHAR")
+    field(NELM, "$(IPNELM)")
+    field(INP, "@binding=BoundaryIpRead deadline_ms=5000")
+}
+record(stringout, "$(P)Stringout") {
+    field(DESC, "Short text SET capacity boundary")
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=B$(ROW)OctetsWrite deadline_ms=5000")
+}
+record(lso, "$(P)Lso") {
+    field(DESC, "Long text SET capacity boundary")
+    field(DTYP, "snmp3")
+    field(SIZV, "$(SIZV)")
+    field(OUT, "@binding=B$(ROW)OctetsWrite deadline_ms=5000")
+}
+record(waveform, "$(P)Readback") {
+    field(DESC, "Independent complete SET readback")
+    field(DTYP, "snmp3")
+    field(FTVL, "UCHAR")
+    field(NELM, "32767")
+    field(INP, "@binding=BoundaryOctetsRead deadline_ms=5000")
+}

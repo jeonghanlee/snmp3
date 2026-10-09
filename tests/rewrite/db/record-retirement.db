@@ -1,0 +1,29 @@
+record(ai, "$(P)Ai") {
+    field(INP, "@binding=IntegerRead deadline_ms=$(BUDGET)")
+    field(FLNK, "$(P)Completed")
+}
+record(longin, "$(P)Longin") {
+    field(INP, "@binding=IntegerRead deadline_ms=$(BUDGET)")
+    field(FLNK, "$(P)Completed")
+}
+record(int64in, "$(P)Int64in") {
+    field(INP, "@binding=Counter32Read deadline_ms=$(BUDGET)")
+    field(FLNK, "$(P)Completed")
+}
+record(stringin, "$(P)Stringin") {
+    field(INP, "@binding=OidRead deadline_ms=$(BUDGET)")
+    field(FLNK, "$(P)Completed")
+}
+record(lsi, "$(P)Lsi") {
+    field(INP, "@binding=OctetsRead deadline_ms=$(BUDGET)")
+    field(FLNK, "$(P)Completed")
+}
+record(waveform, "$(P)Waveform") {
+    field(INP, "@binding=Counter64Read deadline_ms=$(BUDGET)")
+    field(FLNK, "$(P)Completed")
+}
+record(ai, "$(P)Progress") {
+    field(DESC, "Independent address GET progress")
+    field(DTYP, "snmp3")
+    field(INP, "@binding=ProgressRead deadline_ms=5000")
+}

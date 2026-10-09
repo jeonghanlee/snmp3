@@ -4,9 +4,11 @@ import argparse
 import json
 import re
 import subprocess
+import sys
 import time
 from pathlib import Path
 from test_native import ROOT, ARCH, Runner, digest, write_json
+from helpers.retired_hold import hold as hold_retired
 
 # Deadline-queue and near-deadline trials run one snmp3RecordTest process each.
 DEADLINE_SAMPLE_BUDGET_MS = 1000
@@ -28,6 +30,65 @@ REPEAT_FIELDS = ("Records_TimeoutAi.INP", "Records_TimeoutAo.OUT")
 INST_IO = 12
 BAD_INP_TYPE = 33685511
 STOPPED = 4
+# Ipc.h terminal outcome values; native codes are fixed by WorkerMain.cpp::nativeCode.
+IPC_COMPLETE, IPC_NATIVE_FAILURE = 1, 6
+BOUNDARY_ROWS = ((15, 16, 16, 6, 7, 3), (16, 16, 15, 7, 6, 4), (39, 41, 40, 8, 8, 5),
+                 (40, 40, 39, 6, 8, 4), (255, 256, 256, 8, 6, 5), (256, 257, 255, 7, 7, 4),
+                 (32767, 32767, 32767, 8, 8, 4))
+BOUNDARY_LENGTHS = (0, 1, 14, 15, 16, 17, 38, 39, 40, 41, 254, 255, 256, 257, 32765, 32766, 32767)
+
+
+def boundary_checks(runner, events, output):
+    inputs = [e for e in events if e.get("event") == "boundary_input"]
+    outputs = [e for e in events if e.get("event") == "boundary_output"]
+    summaries = [e for e in events if e.get("event") == "boundary_summary"]
+    expected_inputs, expected_outputs = [], []
+    for row, (capacity, sizv, nelm, oidcap, oidnelm, ipnelm) in enumerate(BOUNDARY_ROWS):
+        for tag, samples in (("Octets", tuple(map(str, BOUNDARY_LENGTHS)) + ("nul", "high")),
+                             ("Oid", ("6", "7", "8", "20", "21")), ("Ip", ("zero", "high"))):
+            for sample in samples:
+                for name in (("seed", sample) if tag != "Ip" else (sample,)):
+                    for slot in range(3):
+                        count = 4 if name == "seed" and tag == "Octets" else 2 if name == "seed" else (
+                            4 if tag == "Ip" or name == "nul" else 2 if name == "high" else
+                            20 if tag == "Oid" and name == "21" else int(name))
+                        text_bytes = count if tag == "Octets" else (15 if sample == "high" else 7) if tag == "Ip" else (
+                            40 if name == "21" else count * 2 - 1)
+                        limit = capacity if tag == "Octets" else oidcap if tag == "Oid" and slot == 2 else 128
+                        storage = 40 if slot == 0 else sizv if slot == 1 else (
+                            nelm if tag == "Octets" else oidnelm if tag == "Oid" else ipnelm)
+                        accepted = count <= limit and (count <= storage if slot == 2 else text_bytes < storage and name != "nul")
+                        expected_inputs.append((row, tag, slot, name, count, text_bytes, accepted))
+        for long_string in (False, True):
+            storage = sizv if long_string else 40
+            for length in BOUNDARY_LENGTHS:
+                if length < storage:
+                    expected_outputs.append((row, long_string, "valid", length, length, length <= capacity))
+            expected_outputs.append((row, long_string, "unterminated", storage, storage, False))
+            if long_string:
+                expected_outputs += [(row, True, "zero-len", 4, 4, False), (row, True, "mismatch-len", 4, 4, False),
+                                     (row, True, "client", storage + 2, storage - 1, storage - 1 <= capacity)]
+    runner.check("boundary-input-exact-inventory-and-policy", [tuple(e.get(k) for k in
+                 ("row", "tag", "slot", "sample", "count", "text_bytes", "accepted")) for e in inputs] == expected_inputs)
+    runner.check("boundary-output-exact-inventory-and-policy", [tuple(e.get(k) for k in
+                 ("row", "long", "mode", "length", "captured", "accepted")) for e in outputs] == expected_outputs)
+    runner.check("boundary-failures-after-valid-input", bool(inputs) and all(e.get("prior_native_success") for e in inputs
+                 if not e.get("accepted") and e.get("tag") != "Ip"))
+    runner.check("boundary-separate-full-native-readback", len(outputs) == len(expected_outputs) and all(e.get("readback") for e in outputs))
+    sets = sum(e[-1] for e in expected_outputs)
+    stimuli = 7 * (19 * 2 + 5 * 2 + 2) + len(expected_outputs)
+    gets = len(expected_inputs) + len(expected_outputs)
+    runner.check("boundary-exact-summary", summaries == [{"event": "boundary_summary", "rows": 7, "stimuli": stimuli,
+                 "gets": gets, "sets": sets, "rejected": len(expected_outputs) - sets}])
+    wire = [json.loads(line) for line in (output / "boundary-response.stdout").read_text().splitlines() if line.startswith("{")]
+    requests = [e for e in wire if e.get("event") == "fault_request"]
+    responses = [e for e in wire if e.get("event") == "fault_response"]
+    runner.check("boundary-exact-native-packets", len(requests) == len(responses) == gets + stimuli + sets and
+                 sum(e.get("command") == 163 for e in requests) == stimuli + sets and
+                 sum(e.get("command") == 160 for e in requests) == gets and
+                 sorted(e.get("request_id") for e in requests) == sorted(e.get("request_id") for e in responses))
+    stored = [json.loads(line) for line in (output / "agent-ipv4-1.stdout").read_text().splitlines() if line.startswith("{")]
+    runner.check("boundary-exact-native-SET-commits", sum(e.get("event") == "agent_set_value" for e in stored) == stimuli + sets)
 
 
 def repeat_detach_checks(runner, events):
@@ -572,7 +633,7 @@ def main():
     parser.add_argument("--sanitizers", action="store_true")
     parser.add_argument("--case", choices=("baseline", "shutdown", "queued-shutdown", "edges", "alarms", "active", "policy", "numeric",
                                                    "active-unforced", "deadline-queue", "near-deadline",
-                                                   "accounting", "stop-queued", "rebuild", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach", "live-dtype", "support-transition"), default="baseline")
+                                                   "accounting", "stop-queued", "rebuild", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach", "live-dtype", "support-transition", "scan-proc", "alarm-flow", "chain-flow", "queued-simm", "boundaries", "retirement-flow", "contract", "stale-record", "final-clauses"), default="baseline")
     parser.add_argument("--support-mode", choices=SUPPORT_MODES)
     args = parser.parse_args()
     if args.support_mode is not None and args.case != "support-transition":
@@ -613,7 +674,7 @@ def main():
             prefix = "Policy" if args.case == "policy" else "Timeout"
             configuration["bindings"] += [dict(binding, id=prefix + binding["id"], endpoint="Dropped")
                                            for binding in list(configuration["bindings"])]
-        if args.case in ("active", "active-unforced", "accounting"):
+        if args.case in ("active", "active-unforced", "accounting", "queued-simm"):
             delayed, _ = runner.fault("active-response-delay", 4, peer, "delay", delay_ms=750)
             dropped, _ = runner.fault("active-response-drop", 4, peer, "drop-all")
             runner.env["SNMP3_RECORD_DELAY_TRACE"] = str(output / "active-response-delay.stdout")
@@ -632,6 +693,53 @@ def main():
                                                    id="RetryFloatWrite", endpoint="Dropped"))
             configuration["bindings"].append(dict(next(binding for binding in outputs if binding["id"] == "FloatWrite"),
                                                    id="NativeRetryFloatWrite", endpoint="NativeRetry"))
+        if args.case == "queued-simm":
+            configuration["profiles"].append(dict(configuration["profiles"][0], id="Deadline", timeoutMs=NATIVE_TIMEOUT_MS))
+            configuration["endpoints"].append({"id": "Deadline", "address": "127.0.0.1",
+                "port": int(dropped.rsplit(":", 1)[1]), "profile": "Deadline"})
+            configuration["bindings"] += [dict(b, id="Deadline" + b["id"], endpoint="Deadline") for b in outputs]
+        if args.case in ("alarm-flow", "chain-flow", "retirement-flow", "numeric"):
+            control = output / "response-mode.txt"
+            control.write_text("pass\n")
+            runner.env["SNMP3_RECORD_FAULT_CONTROL"] = str(control)
+            fault_name = {"chain-flow": "chain-response", "alarm-flow": "alarm-response", "retirement-flow": "retirement-response", "numeric": "numeric-response"}[args.case]
+            faulted, _ = runner.fault(fault_name, 4, peer, "controlled")
+            configuration["endpoints"][0]["port"] = int(faulted.rsplit(":", 1)[1])
+        if args.case == "retirement-flow":
+            runner.env["SNMP3_RECORD_DELAY_TRACE"] = str(output / "retirement-response.stdout")
+            configuration["profiles"][0]["timeoutMs"] = NATIVE_TIMEOUT_MS
+            peer6, material6 = runner.agent(6)
+            configuration["profiles"].append(dict(configuration["profiles"][0], id="Local6",
+                                                   communityFile=str(material6["community"])))
+            direct6, _ = runner.fault("retirement-progress", 6, peer6, "pass")
+            configuration["endpoints"].append({"id": "Direct6", "address": "::1",
+                "port": int(direct6.rsplit(":", 1)[1]), "profile": "Local6"})
+            read = next(b for b in configuration["bindings"] if b["id"] == "IntegerRead")
+            configuration["bindings"].append(dict(read, id="ProgressRead", endpoint="Direct6"))
+        if args.case == "chain-flow":
+            configuration["profiles"][0]["timeoutMs"] = 1500
+            peer6, material6 = runner.agent(6)
+            configuration["profiles"].append(dict(configuration["profiles"][0], id="Local6",
+                                                   communityFile=str(material6["community"])))
+            configuration["endpoints"].append({"id": "Direct6", "address": "::1",
+                "port": int(peer6.rsplit(":", 1)[1]), "profile": "Local6"})
+            read = next(b for b in configuration["bindings"] if b["id"] == "IntegerRead")
+            configuration["bindings"].append(dict(read, id="ChainRead", endpoint="Direct6"))
+            for name, family, delay in (("Slow4", 4, 750), ("Fast6", 6, 100),
+                                        ("Fast4", 4, 100), ("Slow6", 6, 750)):
+                delayed, _ = runner.fault("chain-" + name, family, peer if family == 4 else peer6,
+                                          "delay", delay_ms=delay)
+                configuration["endpoints"].append({"id": name, "address": "127.0.0.1" if family == 4 else "::1",
+                    "port": int(delayed.rsplit(":", 1)[1]), "profile": "Local" if family == 4 else "Local6"})
+                configuration["bindings"].append(dict(read, id=name, endpoint=name))
+        if args.case == "final-clauses":
+            delayed, _ = runner.fault("final-response", 4, peer, "delay", delay_ms=100)
+            configuration["profiles"][0]["timeoutMs"] = 1500
+            configuration["endpoints"][0]["port"] = int(delayed.rsplit(":", 1)[1])
+        if args.case == "scan-proc":
+            delayed, _ = runner.fault("scan-proc-delay", 4, peer, "delay", delay_ms=750)
+            configuration["profiles"][0]["timeoutMs"] = 1500
+            configuration["endpoints"][0]["port"] = int(delayed.rsplit(":", 1)[1])
         if args.case == "live-dtype":
             delayed, _ = runner.fault("dtype-response-delay", 4, peer, "delay", delay_ms=DTYPE_DELAY_MS)
             runner.env["SNMP3_RECORD_DELAY_TRACE"] = str(output / "dtype-response-delay.stdout")
@@ -648,6 +756,29 @@ def main():
                                                "port": int(delayed.rsplit(":", 1)[1]), "profile": "Support"})
             configuration["bindings"] += [dict(b, id="Support" + b["id"], endpoint="Support")
                                            for b in configuration["bindings"] if b["id"] in ("IntegerRead", "FloatWrite")]
+        if args.case == "boundaries":
+            direct, _ = runner.fault("boundary-response", 4, peer, "pass")
+            configuration["endpoints"][0]["port"] = int(direct.rsplit(":", 1)[1])
+            for name, index, tag, capacity in (("Octets", 6, "octets", 32767), ("Oid", 7, "oid", 128), ("Ip", 8, "ipAddress", 1)):
+                for operation, suffix in (("get", "Read"), ("set", "Write")):
+                    configuration["bindings"].append({"id": "Boundary" + name + suffix, "endpoint": "Local",
+                        "oid": "1.3.6.1.4.1.53864.4." + str(index) + ".0", "operation": operation,
+                        "valueType": tag, "capacity": capacity})
+            for row, (capacity, _, _, oidcap, _, _) in enumerate(BOUNDARY_ROWS):
+                for name, index, tag, size, operation in (("OctetsRead", 6, "octets", capacity, "get"),
+                        ("OctetsWrite", 6, "octets", capacity, "set"), ("OidRead", 7, "oid", oidcap, "get")):
+                    configuration["bindings"].append({"id": "B" + str(row) + name, "endpoint": "Local",
+                        "oid": "1.3.6.1.4.1.53864.4." + str(index) + ".0", "operation": operation,
+                        "valueType": tag, "capacity": size})
+        if args.case == "stale-record":
+            direct, _ = runner.fault("stale-response", 4, peer, "pass")
+            configuration["endpoints"][0]["port"] = int(direct.rsplit(":", 1)[1])
+            runner.env["SNMP3_RECORD_IPC_CONTROL"] = str(output / "stale-ipc")
+            runner.env["SNMP3_RECORD_IPC_HELPER"] = str(ROOT / "tests/rewrite/helpers/ipc_fault.py")
+            runner.env["SNMP3_RECORD_IPC_PYTHON"] = sys.executable
+        if args.case == "contract":
+            direct, _ = runner.fault("contract-response", 4, peer, "pass")
+            configuration["endpoints"][0]["port"] = int(direct.rsplit(":", 1)[1])
         if args.case == "numeric":
             tags = (("Integer", 1, "integer"), ("Unsigned32", 3, "unsigned32"),
                     ("Counter32", 2, "counter32"), ("Gauge32", 3, "gauge32"),
@@ -699,7 +830,15 @@ def main():
                 child = subprocess.Popen(argv, stdout=stdout, stderr=stderr, env=environment)
                 forced = False
                 try:
-                    code = child.wait(timeout=180 if args.case in ("numeric",) + QUEUE_CASES else 30)
+                    if "SNMP3_RETIRED_HOLD" in environment:
+                        trace = hold_retired(child, runner.products / "snmp3Worker", Path(environment["SNMP3_RETIRED_HOLD"]))
+                        write_json(output / (tag + ".retired.json"), trace)
+                        runner.check(tag + ":retired-hold", all(trace.get(key) for key in
+                                     ("attached", "held", "released", "detached")) and
+                                     not trace.get("error") and not trace.get("cleanup_error") and
+                                     trace.get("activation") == 1 and
+                                     (trace.get("batch", 0) > 1 if args.case == "retirement-flow" else trace.get("batch") == 1))
+                    code = child.wait(timeout=180 if args.case in ("numeric", "scan-proc", "chain-flow", "boundaries") + QUEUE_CASES else 30)
                 except subprocess.TimeoutExpired:
                     forced = True
                     child.kill()
@@ -853,6 +992,32 @@ def main():
                 runner.check("dtype-" + mode + "-captured-SET", len(values) == 1 and values[0].get("index") == 9 and
                              values[0].get("value") == "7.25")
             dtype_checks(runner, events)
+        elif args.case == "queued-simm":
+            events = []
+            for mode in ("normal", "deadline"):
+                for kind in ("Ao", "Longout", "Int64out", "Stringout", "Lso"):
+                    trace = "active-response-delay.stdout" if mode == "normal" else "active-response-drop.stdout"
+                    extra = {"SNMP3_SIMM_MODE": mode, "SNMP3_SIMM_KIND": kind,
+                             "SNMP3_RECORD_DELAY_TRACE": str(output / trace)}
+                    if mode == "normal":
+                        extra["SNMP3_RETIRED_HOLD"] = str(output / ("hold-" + kind))
+                    libraries, trial_events = execute("records-" + mode + "-" + kind, extra)
+                    events += trial_events
+        elif args.case == "retirement-flow":
+            events = []
+            for mode in ("normal", "deadline"):
+                for kind in ("Ai", "Longin", "Int64in", "Stringin", "Lsi", "Waveform"):
+                    extra = {"SNMP3_RETIREMENT_MODE": mode, "SNMP3_RETIREMENT_KIND": kind}
+                    if mode == "normal":
+                        extra["SNMP3_RETIRED_HOLD"] = str(output / ("hold-" + kind))
+                    libraries, trial_events = execute("records-" + mode + "-" + kind, extra)
+                    events += trial_events
+        elif args.case == "chain-flow":
+            events = []
+            for kind in ("Ai", "Longin", "Int64in", "Stringin", "Lsi", "Waveform",
+                         "Ao", "Longout", "Int64out", "Stringout", "Lso"):
+                libraries, trial_events = execute("records-" + kind, {"SNMP3_CHAIN_KIND": kind})
+                events += trial_events
         elif args.case == "live-detach":
             # One process replacing links while requests run, one during the record drain of a stop with a full queue.
             events = []
@@ -875,7 +1040,7 @@ def main():
             libraries, events = execute("records")
         summary = next((event for event in events if event.get("event") == "record_summary"), {})
         # Queue cases skip the baseline and pressure phases; their records are checked per trial below.
-        if args.case not in QUEUE_CASES + ("stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach", "live-dtype", "support-transition"):
+        if args.case not in QUEUE_CASES + ("stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach", "live-dtype", "support-transition", "scan-proc", "alarm-flow", "chain-flow", "queued-simm", "boundaries", "retirement-flow", "contract", "stale-record", "final-clauses"):
             runner.check("actual-eleven-record-path", summary.get("records") == 11 and summary.get("checks", 0) > 100)
             completions = [event for event in events if event.get("event") == "record_completed"]
             runner.check("actual-record-identities", bool(completions) and all(event["activation"] == 1 and
@@ -884,6 +1049,264 @@ def main():
                          event.get("enqueue_failures", 0) > 0 and event.get("completed_once") for event in events))
             runner.check("actual-GET-and-SET-pressure", {event.get("record") for event in events if
                          event.get("event") == "callback_pressure"} == {"Records_Longin", "Records_Ao"})
+        if args.case == "boundaries":
+            boundary_checks(runner, events, output)
+        if args.case == "final-clauses":
+            phases = [e for e in events if e.get("event") == "callback_phases"]
+            runner.check("final-callback-phase-inventory", [e.get("record") for e in phases] ==
+                         ["Records_PressureGet", "Records_PressureSet"])
+            runner.check("final-callback-owned-after-deadline", len(phases) == 2 and all(
+                e.get("pending") == e.get("queued") == e.get("running") == e.get("completions_delta") == 1 and
+                e.get("enqueue_failures", 0) > 0 and e.get("bytes", 0) > 0 and
+                e.get("released_us", 0) > e.get("deadline_us", 0) > 0 and
+                e.get("generation") == 1 and e.get("admission", 0) > 0 for e in phases))
+            drive = [e for e in events if e.get("event") == "integer_drive"]
+            runner.check("final-integer-drive", [(e.get("requested"), e.get("value"), e.get("readback")) for e in drive] ==
+                [(str(value), str(expected), str(expected)) for value, expected in
+                 [(-(2**63), 2**53+1), (2**53+2, 2**53+2), (2**63-1, 2**53+3)]])
+            rounded = [e for e in events if e.get("event") == "adjacent_rounding"]
+            expected_bits = [("3ff000000fffffff", "3f800000"), ("3ff0000010000001", "3f800001"),
+                             ("bff000000fffffff", "bf800000"), ("bff0000010000001", "bf800001")]
+            runner.check("final-adjacent-rounding", len(rounded) == 16 and
+                         len({e.get("mode") for e in rounded}) == 4 and
+                         [(e.get("source_hex"), e.get("expected_hex")) for e in rounded] == expected_bits * 4)
+            wire = [json.loads(line) for line in (output / "final-response.stdout").read_text().splitlines()]
+            requests = [e for e in wire if e.get("event") == "fault_request"]
+            runner.check("final-exact-native-no-replay", len(requests) == 40 and
+                         sum(e.get("command") == 160 for e in requests) == 20 and
+                         sum(e.get("command") == 163 for e in requests) == 20 and
+                         sum(e.get("event") == "fault_response" for e in wire) == 40)
+        if args.case == "stale-record":
+            rows = [e for e in events if e.get("event") == "stale_record"]
+            runner.check("stale-record-inventory", len(rows) == 1)
+            for row in rows:
+                runner.check("stale-record-preserved", row.get("source_generation") == 2 and
+                    row.get("successor_generation") == 3 and row.get("held_count") == 2 and
+                    row.get("held_bytes", 0) > 0 and row.get("barrier") is True and
+                    row.get("completions") == row.get("flnk") == 2)
+                timeline = row.get("timeline", [])
+                runner.check("stale-record-supervision", sum(e.get("code") == 4 for e in timeline) == 3 and
+                    sum(e.get("code") == 5 for e in timeline) == 3 and sum(e.get("code") == 16 for e in timeline) == 1 and
+                    all(e["at"] >= row["release_at"] for e in timeline if e.get("code") == 5 and e.get("batch") == 2) and
+                    all(e.get("code") not in (6, 7, 8, 9, 12) for e in timeline))
+            cleanup = [e for e in events if e.get("event") == "record_ipc_cleanup"]
+            runner.check("stale-record-helper-cleanup", len(cleanup) == 1 and cleanup[0].get("reaped") is True and
+                         cleanup[0].get("forced") is False and cleanup[0].get("passed") is True)
+            ipc = [json.loads(line) for line in (output / "stale-ipc.log").read_text().splitlines() if line.startswith("{")]
+            faults = [e for e in ipc if e.get("event") == "record_stale_retired"]
+            runner.check("stale-record-real-frame-fault", len(faults) == 1 and faults[0].get("generation") == 1 and
+                         faults[0].get("source_generation") == 2 and faults[0].get("changed_offsets") == [87] and
+                         len([e for e in ipc if e.get("event") == "record_stale_barrier"]) == 1 and
+                         len([e for e in ipc if e.get("event") == "record_original_retired"]) == 1 and
+                         len([e for e in ipc if e.get("event") == "ipc_fault_stopped" and e.get("pending") == [0, 0]]) == 1)
+            wire = [json.loads(line) for line in (output / "stale-response.stdout").read_text().splitlines()]
+            requests = [e for e in wire if e.get("event") == "fault_request"]
+            responses = [e for e in wire if e.get("event") == "fault_response"]
+            runner.check("stale-record-exact-wire", len(requests) == len(responses) == 3 and
+                         all(e.get("command") == 160 for e in requests) and
+                         [e.get("request_id") for e in requests] == [e.get("request_id") for e in responses])
+        if args.case == "contract":
+            kinds = ("Ai", "Longin", "Int64in", "Stringin", "Lsi", "Waveform", "Ao", "Longout", "Int64out", "Stringout", "Lso")
+            expected = ["RejectGrammar" + str(i) for i in range(13)]
+            expected += [prefix + kind for kind in kinds for prefix in ("RejectOperation", "RejectType")]
+            expected += ["RejectFtvl" + str(i) for i in range(9)] + ["RejectLinrai", "RejectLinrao", "RejectScan"]
+            runner.check("contract-rejection-inventory", [e.get("record") for e in events if e.get("event") == "contract_rejected"] ==
+                         ["Records_" + name for name in expected])
+            initial = [e for e in events if e.get("event") == "contract_init"]
+            runner.check("contract-initialized-storage", len(initial) == 1 and initial[0].get("rejected") == 47 and
+                         initial[0].get("contexts") == 17 and initial[0].get("distinct_handles") == 11 and initial[0].get("default_sizv") == 41)
+            rows = [e for e in events if e.get("event") == "contract_simm"]
+            runner.check("contract-successful-SIMM-inventory", [e.get("record") for e in rows] == ["Records_" + k for k in kinds[:6]])
+            for row in rows:
+                runner.check(row["record"] + "-successful-SIMM", row.get("terminal") == row.get("native") == 1 and
+                             row.get("generations") == row.get("completions") == 2 and row.get("flnk") == 3 and
+                             row.get("simulation_published") is False and row.get("native_recovered") is True)
+            rows = [e for e in events if e.get("event") == "contract_linr"]
+            runner.check("contract-live-LINR", [e.get("record") for e in rows] == ["Records_Ai", "Records_Ao"] and
+                         all(e.get("idle_admitted") is False and e.get("active_completed") is True and
+                             e.get("recovered") is True and e.get("generations") == 3 for e in rows))
+            wire = [json.loads(line) for line in (output / "contract-response.stdout").read_text().splitlines()]
+            requests = [e for e in wire if e.get("event") == "fault_request"]
+            responses = [e for e in wire if e.get("event") == "fault_response"]
+            runner.check("contract-exact-wire", len(requests) == len(responses) == 26 and
+                         sum(e.get("command") == 160 for e in requests) == 17 and
+                         sum(e.get("command") == 163 for e in requests) == 9 and
+                         [e.get("request_id") for e in requests] == [e.get("request_id") for e in responses])
+            runner.check("contract-no-initialization-IO", len(initial) == 1 and len(requests) == 26 and
+                         all(e["monotonic_ns"] > initial[0]["at"] * 1000 for e in requests))
+        if args.case == "retirement-flow":
+            kinds = ("Ai", "Longin", "Int64in", "Stringin", "Lsi", "Waveform")
+            rows = [e for e in events if e.get("event") == "input_retirement"]
+            runner.check("retirement-inventory", [(e.get("mode"), e.get("record")) for e in rows] ==
+                         [(mode, "Records_" + kind) for mode in ("normal", "deadline") for kind in kinds])
+            wire = [json.loads(line) for line in (output / "retirement-response.stdout").read_text().splitlines()]
+            progress = [json.loads(line) for line in (output / "retirement-progress.stdout").read_text().splitlines()]
+            for name, trace, count in (("source", wire, 102), ("independent", progress, 12)):
+                requests = [e for e in trace if e.get("event") == "fault_request"]
+                responses = [e for e in trace if e.get("event") == "fault_response"]
+                runner.check("retirement-" + name + "-wire", len(requests) == len(responses) == count and
+                             [e.get("request_id") for e in requests] == [e.get("request_id") for e in responses])
+            runner.check("retirement-wire-commands", sum(e.get("event") == "fault_request" and e.get("command") == 163 for e in wire) == 60 and
+                         sum(e.get("event") == "fault_request" and e.get("command") == 160 for e in wire) == 42 and
+                         sum(e.get("event") == "fault_controlled" and e.get("mode") == "drop-all" for e in wire) == 6)
+            for row in rows:
+                deadline = row["mode"] == "deadline"
+                label = row["mode"] + "-" + row["record"][8:]
+                runner.check(label + "-retirement-accounting", row.get("held_count") == 2 and
+                             row.get("held_bytes") == 2 * row.get("single_bytes", 0) > 0 and
+                             (not deadline or row.get("consumed_count") == 1 and row.get("consumed_bytes") == row.get("single_bytes")))
+                runner.check(label + "-retirement-outcome", row.get("terminal") == (2 if deadline else 1) and
+                             row.get("sent") is (not deadline) and row.get("source_packets") == (1 if deadline else 2) and
+                             row.get("source_generations") == row.get("source_completions") == row.get("flnk") == 3 and row.get("retry_recovered") is True)
+                runner.check(label + "-retirement-progress", 0 < row.get("started_at", 0) < row.get("queued_at", 0) <
+                             row.get("progress_at", 0) < row.get("released_at", 0) < row.get("reap_at" if deadline else "retired_at", 0) and
+                             len([e for e in progress if e.get("event") == "fault_request" and e.get("command") == 160 and
+                                  row["queued_at"] * 1000 < e["monotonic_ns"] < row["progress_at"] * 1000]) == 1)
+                runner.check(label + "-retirement-message", not deadline or
+                             row.get("empty_comm_events", 0) >= 1 and row.get("never_sent_events", 0) >= 1)
+                packets = [e for e in wire if e.get("event") == "fault_request" and
+                           row["started_at"] * 1000 < e["monotonic_ns"] < row["released_at"] * 1000]
+                runner.check(label + "-retirement-blocked-wire", len(packets) == 1 and packets[0].get("command") == 160)
+                if not deadline:
+                    trace = json.loads((output / ("records-" + label + ".retired.json")).read_text())
+                    result = next((e for e in row.get("timeline", []) if e.get("code") == 4 and e.get("at", 0) >= row["started_at"]), {})
+                    runner.check(label + "-retirement-genuine-boundary", trace.get("batch") == result.get("batch") and
+                                 trace.get("epoch") == result.get("epoch") and result.get("at", 0) < row["queued_at"] and
+                                 trace.get("held_ns", 0) < row["queued_at"] * 1000 < row["released_at"] * 1000 <=
+                                 trace.get("released_ns", 0) < row["retired_at"] * 1000)
+        if args.case == "scan-proc":
+            kinds = ("Ao", "Longout", "Int64out", "Stringout", "Lso",
+                     "Ai", "Longin", "Int64in", "Stringin", "Lsi", "Waveform")
+            rows = [event for event in events if event.get("event") == "scan_proc"]
+            runner.check("scan-proc-complete-inventory", [(e.get("record"), e.get("route")) for e in rows] ==
+                         [("Records_" + kind, route) for kind in kinds for route in ("scan", "proc")])
+            wire = [json.loads(line) for line in (output / "scan-proc-delay.stdout").read_text().splitlines()]
+            requests = [e for e in wire if e.get("event") == "fault_request"]
+            responses = [e for e in wire if e.get("event") == "fault_response"]
+            runner.check("scan-proc-exact-wire-count", len(requests) == len(responses) == 44 and
+                         sorted(e.get("request_id") for e in requests) == sorted(e.get("request_id") for e in responses))
+            for row in rows:
+                label = row["record"] + ":" + row["route"]
+                packets = [e for e in requests if row["started_us"] * 1000 <= e["monotonic_ns"] <= row["ended_us"] * 1000]
+                command = 160 if row["record"][8:] in kinds[5:] else 163
+                runner.check(label + "-wire", len(packets) == 2 and all(e.get("command") == command for e in packets))
+                runner.check(label + "-completion", row.get("completions") == row.get("flnk") == 2 and
+                             row.get("generation") == row.get("generation_before", -10) + 2 and
+                             row.get("pact") == row.get("rpro") == row.get("severity") == 0 and
+                             row.get("activation") == row.get("revision") == 1 and row.get("handle", 0) > 0 and
+                             (row.get("active_scans", 0) >= 4 if row["route"] == "scan" else row.get("active_scans") == 0))
+        if args.case == "queued-simm":
+            kinds = ("Ao", "Longout", "Int64out", "Stringout", "Lso")
+            rows = [e for e in events if e.get("event") == "queued_simm"]
+            runner.check("queued-simm-inventory", [(e.get("mode"), e.get("record")) for e in rows] ==
+                         [(mode, "Records_Active" + kind) for mode in ("normal", "deadline") for kind in kinds])
+            for row in rows:
+                deadline = row["mode"] == "deadline"
+                kind = row["record"][len("Records_Active"):]
+                expected = {"Ao": "31.5" if deadline else "32.5", "Longout": "31" if deadline else "32",
+                            "Int64out": "9007199254740993" if deadline else "9007199254740995",
+                            "Stringout": "first-short" if deadline else "latest-short",
+                            "Lso": "F" * 200 if deadline else "latest-short"}[kind]
+                label = row["mode"] + "-" + kind
+                runner.check(label + "-actual-queued-switch", row.get("queued") == row.get("retirement_pending") == 1 and
+                             row.get("count") == 2 and row.get("bytes", 0) > 0 and
+                             0 < row.get("paused_at", 0) < row.get("switched_at", 0) and
+                             (deadline or row.get("switched_at", 0) < row.get("retired_at", 0)))
+                runner.check(label + "-completion-and-wire", row.get("terminal") == (2 if deadline else 1) and
+                             row.get("sent") is (not deadline) and row.get("source_packets") == (1 if deadline else 2) and
+                             row.get("source_generations") == row.get("source_completions") == row.get("flnk") == 2 and
+                             row.get("readback") == expected)
+                runner.check(label + "-message-monitor", not deadline or
+                             row.get("empty_comm_events", 0) >= 1 and row.get("never_sent_events", 0) >= 1)
+                if not deadline:
+                    trace = json.loads((output / ("records-normal-" + kind + ".retired.json")).read_text())
+                    result = next((e for e in row.get("timeline", []) if e.get("code") == 4), {})
+                    runner.check(label + "-actual-Retired-boundary", trace.get("held") and trace.get("released") and
+                                 trace.get("batch") == result.get("batch") == 1 and
+                                 trace.get("epoch") == result.get("epoch") and
+                                 trace.get("held_ns", 0) < row.get("paused_at", 0) * 1000 < row.get("switched_at", 0) * 1000 <
+                                 trace.get("released_ns", 0) < row.get("retired_at", 0) * 1000 and
+                                 result.get("at", 0) < row.get("paused_at", 0))
+            for name, expected in (("active-response-delay", 10), ("active-response-drop", 5)):
+                wire = [json.loads(line) for line in (output / (name + ".stdout")).read_text().splitlines()]
+                requests = [e for e in wire if e.get("event") == "fault_request"]
+                responses = [e for e in wire if e.get("event") == "fault_response"]
+                runner.check(name + "-queued-simm-wire", len(requests) == len(responses) == expected and
+                             all(e.get("command") == 163 for e in requests) and
+                             [e["request_id"] for e in requests] == [e["request_id"] for e in responses])
+        if args.case == "chain-flow":
+            kinds = ("Ai", "Longin", "Int64in", "Stringin", "Lsi", "Waveform",
+                     "Ao", "Longout", "Int64out", "Stringout", "Lso")
+            modes = ("pass", "error-status", "duplicate", "drop-all")
+            rows = [e for e in events if e.get("event") == "chain_flow"]
+            runner.check("chain-flow-inventory", [(e.get("record"), e.get("mode")) for e in rows] ==
+                         [("Records_" + kind, mode) for kind in kinds for mode in modes])
+            for i, row in enumerate(rows):
+                mode = row["mode"]
+                good = mode in ("pass", "duplicate")
+                kind = row["record"][len("Records_"):]
+                alarm = 0 if good else 9 if mode == "drop-all" else 1 if kind in kinds[:6] else 2
+                runner.check(row["record"] + ":" + mode, row.get("terminal") == (1 if good else 2 if mode == "drop-all" else 6) and
+                             row.get("native") == (1 if good else 0 if mode == "drop-all" else 6) and
+                             row.get("alarm") == alarm and row.get("severity") == (0 if good else 3) and
+                             row.get("source_pact_at_flnk") == 1 and row.get("completions") == 2 and row.get("flnk") == 1 and
+                             row.get("target_generation") == i % 4 + 1 and row.get("source_handle", 0) > 0 and
+                             row.get("target_handle", 0) > 0 and row.get("finished_at", 0) > row.get("terminal_at", 0) > 0 and
+                             row.get("value_length") == (201 if kind in ("Lsi", "Lso") else 0))
+            wire = [json.loads(line) for line in (output / "chain-response.stdout").read_text().splitlines()]
+            controlled = [e for e in wire if e.get("event") == "fault_controlled"]
+            runner.check("chain-exact-wire", len(controlled) == 110 and
+                         len([e for e in wire if e.get("event") == "fault_request"]) == 110 and
+                         len([e for e in wire if e.get("event") == "fault_response"]) == 110)
+            runner.check("chain-fault-counts", [sum(e.get("mode") == mode for e in controlled) for mode in modes] == [77, 11, 11, 11] and
+                         len([e for e in wire if e.get("event") == "fault_duplicate"]) == 11)
+            fanout = [e for e in events if e.get("event") == "fanout_flow"]
+            runner.check("fanout-inventory", [e.get("trial") for e in fanout] == [0, 1] * 11)
+            for i, row in enumerate(fanout):
+                runner.check("fanout-order-" + str(i), row.get("no_barrier") is True and row.get("completions") == 2 and
+                             row.get("first") == ("Records_Fast4" if i % 2 else "Records_Slow4") and
+                             row.get("second") == ("Records_Slow6" if i % 2 else "Records_Fast6") and
+                             row.get("started", 0) < row.get("fast_at", 0) < row.get("slow_at", 0))
+            for name, delay in (("Slow4", 750), ("Fast6", 100), ("Fast4", 100), ("Slow6", 750)):
+                wire = [json.loads(line) for line in (output / ("chain-" + name + ".stdout")).read_text().splitlines()]
+                requests = [e for e in wire if e.get("event") == "fault_request"]
+                responses = [e for e in wire if e.get("event") == "fault_response"]
+                delivery = [e for e in wire if e.get("event") == "fault_delayed_delivery"]
+                runner.check("fanout-wire-" + name, len(requests) == len(responses) == len(delivery) == 11 and
+                             all(q["request_id"] == r["request_id"] and d["monotonic_ns"] - r["monotonic_ns"] >= delay * 1000000
+                                 for q, r, d in zip(requests, responses, delivery)))
+        if args.case == "alarm-flow":
+            kinds = ("Ai", "Longin", "Int64in", "Stringin", "Lsi", "Waveform")
+            modes = ("error-status", "too-big", "bad-error-index", "no-such-object",
+                     "no-such-instance", "end-of-mib", "wrong-type", "drop-all")
+            rows = [e for e in events if e.get("event") == "alarm_after_good"]
+            runner.check("alarm-flow-inventory", [(e.get("record"), e.get("mode")) for e in rows] ==
+                         [("Records_" + kind, mode) for kind in kinds for mode in modes])
+            terminals = [e for e in events if e.get("event") == "native_terminal"]
+            runner.check("alarm-flow-terminal-inventory", len(terminals) == 50)
+            for index, row in enumerate(rows):
+                label = row["record"] + ":" + row["mode"]
+                alarm = 9 if row["mode"] == "drop-all" else 1
+                runner.check(label + "-preserved-and-monitored", row.get("preserved") is True and
+                             row.get("native_success") is True and row.get("published") is False and
+                             row.get("alarm") == alarm and row.get("severity") == 3 and row.get("udf") == 0 and
+                             row.get("monitor") == alarm * 10 + 3 and row.get("generation") == 2 * (index % 8 + 1))
+                terminal = terminals[index] if index < len(terminals) else {}
+                mode = row["mode"]
+                native = 6 if mode in ("error-status", "too-big") else 9 if mode in ("bad-error-index", "wrong-type") else 2 if mode == "drop-all" else 1
+                runner.check(label + "-native", terminal.get("record") == row["record"] and
+                             terminal.get("native_code") == native and terminal.get("outcome") == (IPC_COMPLETE if native == 1 else IPC_NATIVE_FAILURE) and
+                             terminal.get("error_status") == (1 if mode == "too-big" else 5 if mode in ("error-status", "bad-error-index") else 0) and
+                             terminal.get("error_index") == (1 if mode == "error-status" else 2 if mode == "bad-error-index" else 0))
+            competing = [e for e in events if e.get("event") == "competing_alarm"]
+            runner.check("alarm-flow-competing-and-recovery", len(competing) == 1 and all(
+                         competing[0].get(k) is True for k in ("limit_observed", "native_error_wins", "udf_preserved", "recovered")))
+            wire = [json.loads(line) for line in (output / "alarm-response.stdout").read_text().splitlines()]
+            controlled = [e for e in wire if e.get("event") == "fault_controlled"]
+            runner.check("alarm-flow-real-fault-responses", all(sum(e.get("mode") == mode for e in controlled) ==
+                         (8 if mode == "error-status" else 6) for mode in modes))
+            runner.check("alarm-flow-exact-wire", len([e for e in wire if e.get("event") == "fault_request"]) ==
+                         len([e for e in wire if e.get("event") == "fault_response"]) == 105)
         if args.case == "shutdown":
             runner.check("actual-blocked-shutdown", any(event.get("event") == "blocked_shutdown" and
                          event.get("waited_for_entered") and event.get("restart_rejected") for event in events))
@@ -981,6 +1404,16 @@ def main():
             inputs_observed = [event for event in events if event.get("event") == "numeric_input"]
             outputs_observed = [event for event in events if event.get("event") == "numeric_output"]
             summary_numeric = next((event for event in events if event.get("event") == "numeric_summary"), {})
+            db_reads = [e for e in events if e.get("event") == "numeric_db_read"]
+            db_writes = [e for e in events if e.get("event") == "numeric_db_write"]
+            signed = {e["value"] for e in db_reads if e["type"] == "INT64"}
+            unsigned = {e["value"] for e in db_reads if e["type"] == "UINT64"}
+            written = {e["value"] for e in db_writes}
+            runner.check("actual-DBR-64-bit-integer-access", all(values <= observed for values, observed in (
+                ({"-9223372036854775808", "-2147483648", "9007199254740993", "9223372036854775807"}, signed),
+                ({"4294967295", "9007199254740993", "9223372036854775808", "18446744073709551615"}, unsigned),
+                ({"-9223372036854775808", "-2147483648", "2147483647", "4294967295",
+                  "9007199254740993", "9223372036854775807"}, written))))
             runner.check("actual-68-advertised-numeric-GET-pairs", len({event["record"] for event in inputs_observed
                          if not event["fixed"]}) == 68)
             runner.check("actual-48-waveform-tag-FTVL-pairs", len({event["record"] for event in inputs_observed
@@ -991,6 +1424,24 @@ def main():
                          if event["accepted"]}) == 20)
             runner.check("actual-60-fixed-high-or-nonfinite-GET-pairs", len({event["record"] for event in inputs_observed
                          if event["fixed"]}) == 60)
+            fixed_inputs = [event for event in inputs_observed if event["fixed"]]
+            fixed_names = {event["record"] for event in fixed_inputs}
+            runner.check("fixed-inputs-seed-before-extreme", len(fixed_inputs) == 120 and len(fixed_names) == 60 and
+                         all(len(pair := [e for e in fixed_inputs if e["record"] == name]) == 2 and
+                             pair[0]["sample"] == "fixed_seed" and pair[0]["accepted"] and
+                             not pair[0]["prior_native_success"] and pair[1]["sample"] != "fixed_seed" and
+                             pair[1]["prior_native_success"] for name in fixed_names))
+            rejected_fixed = [e for e in fixed_inputs if not e["accepted"]]
+            runner.check("fixed-lossy-inputs-preserve-valid-data", len(rejected_fixed) == 55 and
+                         all(e["prior_native_success"] and e["preserved_on_rejection"] for e in rejected_fixed))
+            wire = [json.loads(line) for line in (output / "numeric-response.stdout").read_text().splitlines()
+                    if line.startswith("{")]
+            seeds = [e for e in wire if e.get("event") == "numeric_seed"]
+            runner.check("fixed-seed-is-external-response-only", len(seeds) == 60 and
+                         len({e["request_id"] for e in seeds}) == 60 and
+                         sum(e["tag"] == 70 and e["seed_hex"] == "07" for e in seeds) == 18 and
+                         sum(e["seed_hex"] == "9f780440e00000" for e in seeds) == 21 and
+                         sum(e["seed_hex"] == "9f7908401c000000000000" for e in seeds) == 21)
             runner.check("failure-after-native-success-preserves-input", summary_numeric.get("failed_after_good", 0) > 50)
             runner.check("numeric-rejections-send-no-native-SET", summary_numeric.get("rejected_outputs", 0) >= 30)
             runner.check("numeric-output-wire-readback", all(event["separate_native_readback"] for event in outputs_observed))
@@ -1237,18 +1688,37 @@ def main():
                ROOT / "tests/rewrite/db/record-output.db", ROOT / "dbd/snmp3RecordTest.dbd"]
     if args.case == "edges":
         inputs += [ROOT / "tests/rewrite/db/record-edges.db", ROOT / "tests/rewrite/db/record-order.db"]
+    if args.case in ("scan-proc", "alarm-flow", "chain-flow"):
+        inputs += [ROOT / "tests/rewrite/helpers/udp_fault.py"]
+    if args.case == "chain-flow":
+        inputs += [ROOT / "tests/rewrite/db/record-chain.db"]
     if args.case == "alarms":
         inputs += [ROOT / "tests/rewrite/db/record-alarms.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case in ("stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach"):
         inputs += [ROOT / "tests/rewrite/db/record-stop.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
-    if args.case in ("active", "active-unforced"):
+    if args.case in ("active", "active-unforced", "queued-simm"):
         inputs += [ROOT / "tests/rewrite/db/record-active.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
+    if args.case == "queued-simm":
+        inputs += [ROOT / "tests/rewrite/db/record-queued-simm.db", ROOT / "tests/rewrite/helpers/retired_hold.py",
+                   ROOT / "tests/rewrite/helpers/runtime_thread_limit.py"]
     if args.case in QUEUE_CASES:
         inputs += [ROOT / "tests/rewrite/db/record-queue.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case == "policy":
         inputs += [ROOT / "tests/rewrite/db/record-policy.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case == "numeric":
-        inputs += [ROOT / "tests/rewrite/db/record-numeric.db"]
+        inputs += [ROOT / "tests/rewrite/db/record-numeric.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
+    if args.case == "boundaries":
+        inputs += [ROOT / "tests/rewrite/db/record-boundaries.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
+    if args.case == "retirement-flow":
+        inputs += [ROOT / "tests/rewrite/db/record-retirement.db", ROOT / "tests/rewrite/helpers/udp_fault.py",
+                   ROOT / "tests/rewrite/helpers/retired_hold.py", ROOT / "tests/rewrite/helpers/runtime_thread_limit.py"]
+    if args.case == "stale-record":
+        inputs += [ROOT / "tests/rewrite/db/record-stale.db", ROOT / "tests/rewrite/helpers/ipc_fault.py",
+                   ROOT / "tests/rewrite/helpers/udp_fault.py"]
+    if args.case == "contract":
+        inputs += [ROOT / "tests/rewrite/db/record-contract.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
+    if args.case == "final-clauses":
+        inputs += [ROOT / "tests/rewrite/db/record-final.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case in ("live-dtype", "support-transition"):
         inputs += [ROOT / ("tests/rewrite/db/record-support.db" if args.case == "support-transition" else "tests/rewrite/db/record-dtype.db"), ROOT / "tests/rewrite/helpers/udp_fault.py",
                    ROOT / "configure/RELEASE.local"]

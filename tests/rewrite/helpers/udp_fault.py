@@ -5,14 +5,19 @@ import argparse
 import heapq
 import itertools
 import json
+import os
+from pathlib import Path
 import selectors
 import signal
 import socket
+import struct
 import time
 
 RUNNING = True
 MODES = ("pass", "drop", "drop-all", "delay", "duplicate", "reorder", "missing", "extra", "duplicate-varbind",
-         "malformed", "wrong-request-id", "foreign-report")
+         "malformed", "wrong-request-id", "foreign-report", "controlled")
+CONTROL_MODES = ("pass", "drop-all", "duplicate", "error-status", "too-big", "bad-error-index",
+                 "no-such-object", "no-such-instance", "end-of-mib", "wrong-type", "numeric-seed")
 
 
 def stop(_signal, _frame):
@@ -101,7 +106,33 @@ def mutate(data, mode):
     if pdu is None or integer(outer[0]) == 3:
         raise ValueError("varbind faults require actual community responses")
     variables = items(fields[3]["body"])
-    if mode == "wrong-request-id":
+    if mode in ("error-status", "too-big", "bad-error-index"):
+        fields[1]["raw"] = encode(2, bytes([1 if mode == "too-big" else 5]))
+        fields[2]["raw"] = encode(2, bytes([0 if mode == "too-big" else 2 if mode == "bad-error-index" else 1]))
+    elif mode in ("no-such-object", "no-such-instance", "end-of-mib", "wrong-type"):
+        tag = {"no-such-object": 128, "no-such-instance": 129, "end-of-mib": 130, "wrong-type": 5}[mode]
+        changed = []
+        for variable in variables:
+            pair = items(variable["body"])
+            changed.append(encode(48, pair[0]["raw"] + encode(tag, b"")))
+        fields[3]["raw"] = encode(48, b"".join(changed))
+    elif mode == "numeric-seed":
+        if pdu["tag"] != 162 or integer(fields[1]) or len(variables) != 1:
+            raise ValueError("numeric seed requires one successful response varbind")
+        pair = items(variables[0]["body"])
+        value = pair[1]
+        if value["tag"] == 70:
+            body = b"\x07"
+        elif value["tag"] == 68 and value["body"][:3] == b"\x9f\x78\x04" and len(value["body"]) == 7:
+            body = value["body"][:3] + struct.pack("!f", 7.0)
+        elif value["tag"] == 68 and value["body"][:3] == b"\x9f\x79\x08" and len(value["body"]) == 11:
+            body = value["body"][:3] + struct.pack("!d", 7.0)
+        else:
+            raise ValueError("numeric seed requires Counter64 or opaque float/double")
+        emit("numeric_seed", request_id=integer(fields[0]), tag=value["tag"],
+             original_hex=value["body"].hex(), seed_hex=body.hex())
+        fields[3]["raw"] = encode(48, encode(48, pair[0]["raw"] + encode(value["tag"], body)))
+    elif mode == "wrong-request-id":
         request = (integer(fields[0]) + 1) & 0x7FFFFFFF
         raw = request.to_bytes(max(1, (request.bit_length() + 8) // 8), "big")
         fields[0]["raw"] = encode(2, raw)
@@ -184,6 +215,19 @@ def main():
                         listener.sendto(packet, client)
                         continue
                     mode = args.mode
+                    if mode == "controlled":
+                        mode = Path(os.environ["SNMP3_RECORD_FAULT_CONTROL"]).read_text().strip()
+                        if mode not in CONTROL_MODES:
+                            raise ValueError("invalid controlled response mode")
+                        if mode not in ("pass", "drop-all", "duplicate"):
+                            packet = mutate(packet, mode)
+                        emit("fault_controlled", mode=mode, **parse(packet)[3])
+                        if mode != "drop-all":
+                            if mode == "duplicate":
+                                listener.sendto(packet, client)
+                                emit("fault_duplicate", **parse(packet)[3])
+                            listener.sendto(packet, client)
+                            continue
                     if mode in ("drop", "drop-all"):
                         emit("fault_dropped", length=len(packet))
                         continue

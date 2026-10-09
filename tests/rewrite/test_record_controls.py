@@ -10,6 +10,11 @@ from test_native import ROOT, digest, write_json
 
 
 CONTROLS = {
+    "stale-generation": ("Scheduler.cpp", "stale-record",
+        [("for(size_t i=0;i<ids.size();++i)if(!(a.generations.at(a.active[i])->command.id==ids[i]))return false;",
+          "for(size_t i=0;i<ids.size();++i) { const auto& current=a.generations.at(a.active[i])->command.id; "
+          "if(current.binding!=ids[i].binding || current.admission!=ids[i].admission)return false; }")],
+        "stale generation retired the current record request"),
     "communication-alarm": ("DeviceSupport.cpp", "alarms",
                             [("context.alarm=result.outcome==ipc::Outcome::NativeFailure && !transport ?",
                               "context.alarm=result.outcome==ipc::Outcome::NativeFailure ?")],
@@ -798,6 +803,16 @@ def main():
         observed = expected in diagnostic
         loaded = receipt["loaded_libraries"].get(str(defective.resolve())) == digest(defective)
         passed = code == 1 and receipt["returncode"] == 1 and not receipt["forced_cleanup"] and observed and loaded
+        if name == "stale-generation":
+            summary = json.loads((run / "results.json").read_text())
+            events = json.loads((run / "record-observations.json").read_text())
+            cleanup = [e for e in events if e.get("event") == "record_ipc_cleanup"]
+            required = {"stale-record-helper-cleanup", "stale-record-real-frame-fault",
+                        "stale-response:normal-stop", "agent-ipv4-1:normal-stop",
+                        "secret-sentinels-absent", "sanitizer-diagnostics-absent"}
+            checks = [row for row in summary["checks"] if row.get("name") in required]
+            passed = (passed and not summary["aborted"] and len(cleanup) == 1 and cleanup[0].get("passed") is True
+                      and len(checks) == len(required) and all(row.get("passed") is True for row in checks))
         results.append({"control": name, "passed": passed, "detected_assertion": observed,
                         "actual_defective_library_loaded": loaded, "driver_returncode": code,
                         "driver_pid": child.pid, "driver_reaped": True,
@@ -806,7 +821,7 @@ def main():
                    "complete": len(results) == len(args.controls or CONTROLS), "controls": results,
                    "inputs": {str(Path(__file__).resolve()): digest(Path(__file__).resolve()),
                               str(args.build_receipt.resolve()): digest(args.build_receipt)},
-                   "pending": "Stale-generation control; complete T14 remains pending"})
+                   "pending": "Selected controls only; complete T14 requires canonical clause reconciliation"})
     passed = all(row["passed"] for row in results)
     print(("PASS: " if passed else "FAIL: ") + str(output / "results.json"))
     return 0 if passed else 1

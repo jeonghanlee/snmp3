@@ -3,6 +3,7 @@
 import argparse
 from collections import deque
 import json
+from pathlib import Path
 import select
 import signal
 import socket
@@ -12,7 +13,7 @@ import time
 RUNNING = True
 HEADER = struct.Struct("!IHHII6Q")
 MAX_FRAME = 16777216 + HEADER.size
-MODES = ("partial", "coalesced", "stale", "stale-behind", "malformed", "truncated", "partial-timeout",
+MODES = ("partial", "coalesced", "stale", "stale-behind", "record-stale", "malformed", "truncated", "partial-timeout",
          "full-channel", "bad-set", "oversize", "bootstrap-mismatch", "bootstrap-secret", "ready-executable", "ready-library")
 
 
@@ -26,7 +27,7 @@ def emit(event, **fields):
 
 
 class Forwarder:
-    def __init__(self, mode, parent, worker):
+    def __init__(self, mode, parent, worker, control=None):
         self.mode = mode
         self.sockets = [socket.socket(fileno=parent), socket.socket(fileno=worker)]
         for transport in self.sockets:
@@ -40,6 +41,50 @@ class Forwarder:
         self.changed = False
         self.frames = [0, 0]
         self.paused = False
+        self.control = control
+        self.result = None
+        self.stage = "waiting"
+
+    def marker(self, suffix):
+        return Path(str(self.control) + suffix)
+
+    def record_fault(self):
+        if self.mode != "record-stale":
+            return
+        if self.stage == "held" and self.marker(".queued").exists():
+            fields = list(HEADER.unpack_from(self.held))
+            body = bytearray(self.held[64:])
+            binding, generation, admission = struct.unpack_from("!3Q", body, 8)
+            if generation < 2 or self.result is None:
+                raise RuntimeError("record fault lacks a genuine seeded generation")
+            struct.pack_into("!Q", body, 16, generation - 1)
+            altered = HEADER.pack(*fields) + bytes(body)
+            self.enqueue(0, altered)
+            emit("record_stale_retired", binding=binding, source_generation=generation,
+                 generation=generation - 1, admission=admission, batch=fields[9], sequence=fields[10],
+                 changed_offsets=[i for i, (a, b) in enumerate(zip(self.held, altered)) if a != b])
+            # A stale copy of the real Result follows the forged Retired. Supervisor event 16
+            # acknowledges parsing beyond the forged frame without changing the current terminal.
+            result_fields = list(HEADER.unpack_from(self.result))
+            result_fields[10] = fields[10] + 1
+            result_body = bytearray(self.result[64:])
+            if struct.unpack_from("!3Q", result_body, 8) != (binding, generation, admission):
+                raise RuntimeError("record Result/Retired identities differ")
+            struct.pack_into("!Q", result_body, 16, generation - 1)
+            self.enqueue(0, HEADER.pack(*result_fields) + bytes(result_body))
+            emit("record_stale_barrier", batch=fields[9], sequence=result_fields[10])
+            fields[10] += 2
+            self.offsets[1] += 2
+            self.held = HEADER.pack(*fields) + self.held[64:]
+            self.stage = "injecting"
+        if self.stage == "injecting" and not self.outputs[0]:
+            self.marker(".injected").write_text("injected\n")
+            self.stage = "injected"
+        if self.stage == "injected" and self.marker(".release").exists():
+            self.enqueue(0, self.held)
+            emit("record_original_retired", batch=HEADER.unpack_from(self.held)[9])
+            self.held = None
+            self.stage = "released"
 
     def enqueue(self, target, packet):
         size = sum(len(entry[0]) for entry in self.outputs[target])
@@ -64,6 +109,17 @@ class Forwarder:
         emit("actual_frame", direction=direction, kind=kind, length=len(packet),
              activation=fields[5], epoch=fields[6], batch=fields[9], sequence=fields[10])
         target = 1 - direction
+        if self.mode == "record-stale" and direction == 1 and self.stage == "waiting":
+            if kind == 4:
+                self.result = packet
+            elif kind == 5:
+                if self.result is None:
+                    raise RuntimeError("record Retired arrived without actual Result")
+                self.held = packet
+                self.stage = "held"
+                self.marker(".held").write_text("held\n")
+                emit("record_retired_held", batch=fields[9], sequence=fields[10])
+                return
         if direction == 0 and kind == 1 and self.mode == "bootstrap-secret":
             altered = bytearray(packet)
             position = 68
@@ -203,7 +259,10 @@ class Forwarder:
 
     def run(self):
         emit("ipc_fault_ready", mode=self.mode)
+        if self.mode == "record-stale":
+            self.marker(".ready").write_text("ready\n")
         while RUNNING:
+            self.record_fault()
             now = time.monotonic()
             readers = [self.sockets[i] for i in range(2) if not self.closed[i] and not (i == 0 and self.paused)]
             writers = [self.sockets[i] for i in range(2) if self.outputs[i] and self.outputs[i][0][1] <= now]
@@ -268,10 +327,13 @@ def main():
     parser.add_argument("--mode", choices=MODES, required=True)
     parser.add_argument("--parent-fd", type=int, required=True)
     parser.add_argument("--worker-fd", type=int, required=True)
+    parser.add_argument("--control", type=Path)
     args = parser.parse_args()
+    if (args.mode == "record-stale") != (args.control is not None):
+        parser.error("--control is required only for record-stale")
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
-    Forwarder(args.mode, args.parent_fd, args.worker_fd).run()
+    Forwarder(args.mode, args.parent_fd, args.worker_fd, args.control).run()
 
 
 if __name__ == "__main__":

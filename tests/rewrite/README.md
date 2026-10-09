@@ -246,6 +246,12 @@ queue, FLNK and isolated shutdown run unchanged.
 make -C snmp3App/native/tests -j4
 make -C tests/rewrite -j4
 python3 tests/rewrite/test_records.py --case baseline --output work/r6-records
+python3 tests/rewrite/test_records.py --case scan-proc --output work/r6-scan-proc
+python3 tests/rewrite/test_records.py --case alarm-flow --output work/r6-alarm-flow
+python3 tests/rewrite/test_records.py --case chain-flow --output work/r6-chain-flow
+python3 tests/rewrite/test_records.py --case queued-simm --output work/r6-queued-simm
+python3 tests/rewrite/test_records.py --case boundaries --output work/r6-boundaries
+python3 tests/rewrite/test_records.py --case retirement-flow --output work/r6-retirement
 python3 tests/rewrite/test_records.py --case edges --output work/r6-edges
 python3 tests/rewrite/test_records.py --case alarms --output work/r6-alarms
 python3 tests/rewrite/test_records.py --case active --output work/r6-active
@@ -277,6 +283,13 @@ python3 tests/rewrite/test_records.py --case repeat-detach --output work/r6-repe
 | shutdown | An actual module callback has entered but waits for a held Base record lock; drain expiry closes the gate, shutdown waits for the lease to finish and restart is refused |
 | queued-shutdown | An external callback holds the actual Base queue; a module completion remains queued after gate closure/detach and retains its storage until actual isolated queue cleanup |
 | stop-queued | record-queue.db and actual outer UDP response dropping; a stopped worker leaves a Deadline-selected predecessor retirement-pending while a Base RPRO successor is queued behind it, then `Runtime::stop`, the operation behind `snmp3Stop`, completes the successor once and reaps the predecessor; the `stop_queued` event in `record-observations.json` records the wait rule of the [supervision document](../../docs/snmp-worker-supervision.md) |
+| alarm-flow | records.db and record-output.db; real SETs establish agent values, then each of the six input types completes a valid GET before each of eight external response faults. Checks prior bytes/UDF/LEN/NORD, native-success history, no failed publication, Base FLNK, actual DBE_ALARM subscriptions, native error metadata, competing ai limit/UDF alarms and recovery. |
+| chain-flow | record-chain.db with the existing input/output records; all eleven source types drive actual FLNK observers and a native ai target on success, protocol failure, deadline and duplicate response. Independent IPv4/IPv6 fanout targets reverse response delays. |
+| queued-simm | record-active.db and record-queued-simm.db; five output types switch SIMM while their second SET is actually queued behind retirement, on normal and never-sent Deadline paths. Real GETs distinguish delivered and undelivered payloads; DBE_ALARM metadata observes the changed deadline message. |
+| boundaries | record-boundaries.db; independent Binding/SIZV/NELM limits for octets, formatted OID/IPv4 and arrays; full previous-input preservation, text SET termination/LEN/capacity rejection and real Base oversized VAL$ handling with separate native GETs. |
+| retirement-flow | record-retirement.db; six input types retain two charged generations behind actual retirement, allow independent-address GET progress, complete normal/never-sent Deadline paths and recover through explicit retry; input DBE_ALARM message events. |
+| final-clauses | record-final.db; actual Pending/Queued/Running callback ownership across the original deadline, exact int64out drive clipping above 2^53 and positive/negative adjacent-halfway SET/GET in four ambient modes. |
+| scan-proc | records.db and record-output.db; all eleven record types use actual .1 second periodic scan and active PROC writes against 750 ms delayed UDP responses. Periodic scan reaches two generations and observes LCNT while active without RPRO. Two PROC writes while active coalesce into one successor. Each route requires two completions, two Base FLNK executions, NO_ALARM and two matching native requests/responses; no direct record-processing substitute drives the periodic path. |
 | active-unforced | record-active.db; no external callback holds the Base consumer, so each of the five outputs is rewritten while its first SET is delayed 750 ms and the reprocess is admitted behind the first request's native retirement; two generations, two completions, the latest value on the wire and NO_ALARM; the case reports in how many trials the queued-behind-retirement branch ran and the Result-to-Retired gap |
 | accounting | record-active.db; three trials of the unheld rewrite observe the window with one consumed generation awaiting retirement and one queued (count 2, charged bytes twice a single generation); a count limit of 1 rejects the reprocess synchronously as WRITE/INVALID with PACT cleared, and raising the limit admits an explicit request |
 | deadline-queue | record-queue.db and actual outer UDP drop-all; three sampling trials with a 1000 ms budget measure reap, relaunch and Ready after a Deadline, one below-threshold and one above-threshold budget trial follow, and a follow-up SET after the unsent generation is observed; each trial records the put-to-dispatch interval, the AMSG, the alarm and the report counters, and the case reports the threshold as the range over every relaunch it measured |
@@ -592,9 +605,24 @@ through an actual SET and GET, before tag-specific range/precision values.
 Independent declared acceptance masks cover INT32/UINT32 boundaries, 2^24,
 2^53, signed-64 boundaries, finite floating extrema, subnormals and signed zero.
 Fixed agent OIDs provide Counter64 2^63/UINT64_MAX and opaque NaN/infinities;
-these are initial-input checks rather than failure-after-success checks.
+each of these 60 record/tag pairs first receives the exact value 7 through
+the actual native GET path. The controlled UDP boundary changes only that
+successful response's numeric varbind value, retaining its native tag, OID,
+request identity and protocol envelope. It then forwards the fixed agent
+response unchanged. All 55 rejected fixed pairs must preserve the successful
+input; five exact high-Counter64 destinations accept the fixed value.
+Raw proxy events retain the original and seed value bytes. No internal
+conversion, binding, record storage or callback is replaced to seed the input.
 Rejected input preserves full prior value bytes and NORD, follows the actual
 Base UDF rule and leaves the diagnostic native-success state unchanged.
+Successful int64in and INT64/UINT64 waveform values are also read through
+actual dbGetField requests using DBR_INT64/DBR_UINT64. Numeric int64out
+requests use dbPut with DBR_INT64 under the record lock, followed by the
+existing explicit dbProcess path. These checks include signed minima/maxima,
+UINT32/UINT64 boundaries and 2^53+1 without a floating-point intermediary.
+The numeric_db_read/numeric_db_write observations identify each record,
+request type (for reads) and complete decimal value. This is IOC database
+access; dbPut does not itself supply the process-passive behavior of dbPutField.
 Output cases capture the real Base-prepared value and use separate GETs to
 verify wire state, including unchanged agent state after a rejected SET.
 Agent SET-action counts distinguish accepted output/stimulus commands from
@@ -646,7 +674,7 @@ CA STRING exposes 39 data bytes. caput rejects an oversized 300-byte VAL$
 write before put; the requested value and later native GET remain unchanged.
 This differs from Base DOL reducing a long source before DSET entry in the
 policy case. PINI input, Base FLNK and normal non-isolated exit also run.
-Other reprocess routes (scan, PROC) and in-flight non-isolated shutdown require separate cases.
+The `scan-proc` case separately qualifies periodic scan and active PROC for all eleven record types. The non-isolated outstanding-work cases are documented below.
 
 Real-path negative controls build defective copies of the production support
 in private directories. They reuse the compiler arguments from an identified
@@ -1078,3 +1106,447 @@ installed Base and system/vendor libraries remain uninstrumented and leak
 checks are disabled. Traced normal success establishes functional progress,
 not timing equivalence. All eleven kinds separately, long-string/max-capacity
 buffers, isolated reuse and other lifecycle cells remain outside these cases. Execution results belong in the canonical milestone.
+
+## Periodic Scan And Active PROC
+
+Build the ordinary record driver with `make -C tests/rewrite -j4`, then run the
+`scan-proc` command above with a fresh output directory. For ASan/UBSan, build
+separate products with the sanitizer builder and select those products:
+
+```bash
+python3 -B tests/rewrite/build_r5_sanitizers.py --output work/scan-proc-sanitizers
+SP_PRODUCTS=work/scan-proc-sanitizers/products
+SP_RUNNER=tests/rewrite/test_records.py
+python3 -B "$SP_RUNNER" --case scan-proc --products "$SP_PRODUCTS" --sanitizers --output work/scan-proc-asan
+```
+
+The fixture starts with Passive records. For each of the eleven types, the
+runner enables the real Base `.1 second` scan, observes at least two active
+scan attempts in each of two generations, then returns SCAN to Passive before
+waiting for the second completion. Active scans must not set RPRO or replace
+the accepted generation. In the separate PROC route, one `dbPutField(PROC)`
+starts processing and two further writes while PACT is true must retain the
+first identity and set RPRO; Base then completes exactly one successor.
+
+`results.json`, the child receipt, `records.stdout`, and `scan-proc-delay.stdout`
+retain all 22 record/route observations, 44 matching native requests/responses,
+loaded libraries and source/product hashes. Each route requires two completions,
+two Base-owned FLNK executions, cleared PACT/RPRO and NO_ALARM. The run includes
+normal isolated shutdown and context cleanup. A missing active observation,
+extra generation or packet, failed child, sanitizer diagnostic or cleanup
+failure rejects qualification. Ordinary `baseline` and `active` cases remain
+separate regressions. This case does not qualify the M11 long active client
+writes, maximum-capacity CA access or delayed output-simulation mode change.
+
+## Failure After A Valid GET
+
+The `alarm-flow` case uses the existing six input types, real module/worker/native
+products and the loopback agent. A controlled UDP proxy changes only actual agent
+responses: general errorStatus with index 1, tooBig with index 0, an invalid
+errorIndex, noSuchObject, noSuchInstance, endOfMibView, an incompatible value type,
+and response loss. `response-mode.txt` selects the next response behavior; the
+IOC changes it only after the preceding generation and native retirement settle.
+The proxy records original response metadata and the forwarded fault metadata.
+
+Every fault follows a successful GET on the same record. The case compares full
+input storage, UDF and applicable LEN/NORD, checks that native-success history is
+retained without a new publication, and observes INVALID through a real Base
+DBE_ALARM subscription. Protocol/type/exception errors report READ; response loss
+reports COMM. Actual terminal observations distinguish native failures from
+exception values returned in a successful native response. Separate ai checks
+establish a competing MAJOR limit alarm, verify native INVALID takes precedence,
+verify UDF remains true on failure, then recover through a valid GET.
+
+```bash
+make -C tests/rewrite -j4
+python3 -B tests/rewrite/test_records.py --case alarm-flow --output work/alarm-flow-normal
+python3 -B tests/rewrite/build_r5_sanitizers.py --output work/alarm-flow-sanitizers
+AF_PRODUCTS=work/alarm-flow-sanitizers/products
+AF_RUNNER=tests/rewrite/test_records.py
+python3 -B "$AF_RUNNER" --case alarm-flow --products "$AF_PRODUCTS" --sanitizers --output work/alarm-flow-asan
+```
+
+Use fresh output paths. The receipt requires all 48 record/fault combinations,
+50 observed fault terminals, the competing-alarm result, 105 actual native
+requests/responses, normal child exit and isolated cleanup, and no sanitizer or
+secret-sentinel diagnostic. `baseline`, `alarms`, `policy` and the native adapter
+suite remain separate regressions for shared driver/proxy changes. This case
+qualifies these T2/T5 cells only; queued-deadline alarm-message monitors and
+values observed by downstream FLNK records remain separate required coverage.
+
+
+## Record Chains And Independent Fanout
+
+The `chain-flow` case loads `record-chain.db` over the existing input/output
+fixtures in eleven fresh IOC processes, one per source type. Real SETs establish
+the input agent state. For every source type,
+a successful generation establishes a valid value before four chain trials:
+success, actual response errorStatus, an actual duplicate response, and record
+deadline after response loss. The source deadline is 300 ms; its native timeout
+is 1500 ms. A real calc FLNK target reads source PACT/STAT/SEVR/UDF, a Soft Channel
+lsi reads the complete long-string source through its local VAL$ link, and a native ai target on the
+IPv6 agent completes a second GET and increments a final calc counter.
+
+The driver holds the source record lock until its real terminal callback enters,
+then confirms that the FLNK target has not started. Releasing the lock runs the
+unchanged module preparation and Base record processing. Every trial requires
+source PACT=1 at FLNK, final source alarm/UDF visible downstream, exactly two
+native completions, one final FLNK count and retired ownership. lsi/lso targets
+must see all 200 data bytes and LEN=201. For waveform, BUSY is explicitly true
+while the source callback waits; successful completion and cleared BUSY prove
+that the real completion path reaches Base processing. This is not a direct
+instrumentation of rset entry.
+
+Two fanout trials always issue IPv4 then IPv6, using different IP addresses
+because Scheduler queues are keyed by address, not port. First the IPv4 response
+is delayed 750 ms and IPv6 100 ms; the second trial reverses those delays. A real
+fanout FLNK counter advances while both targets remain active, the fast target
+finishes while the slow one is still active, and both finish exactly once.
+Four UDP traces prove the actual delays and request/response identities.
+
+```bash
+make -C tests/rewrite -j4
+python3 -B tests/rewrite/test_records.py --case chain-flow --output work/chain-flow-normal
+python3 -B tests/rewrite/build_r5_sanitizers.py --output work/chain-flow-sanitizers
+CF_PRODUCTS=work/chain-flow-sanitizers/products
+CF_RUNNER=tests/rewrite/test_records.py
+python3 -B "$CF_RUNNER" --case chain-flow --products "$CF_PRODUCTS" --sanitizers --output work/chain-flow-asan
+```
+
+Use fresh output paths. Qualification requires all 44 chain observations, 22
+fanout observations, 110 source-side requests/responses, 11 duplicated responses,
+normal child exit and isolated cleanup. The independent chain target completes
+44 native GETs; each fanout target completes eleven GETs across the fresh IOCs. `baseline`,
+`edges`, `alarm-flow` and the native adapter suite are separate regressions for
+shared driver/proxy changes. The case does not close all M6 verification or
+qualify the M11 deferred groups. Queued-deadline AMSG monitor transitions remain
+separate required T5 coverage.
+
+
+## SIMM Changes On Queued Output SETs
+
+The `queued-simm` case runs ten fresh IOC processes: ao, longout, int64out,
+stringout and lso on each of the normal and deadline paths. A real active VAL put
+requests a second generation through Base RPRO. The driver changes SIMM only
+while that second generation has PACT set and the real Scheduler reports one
+queued request, one pending retirement and two charged generations. A missed
+window fails qualification. This tests admitted native SET ownership; it does
+not exercise the M11 delayed output-simulation mode change.
+
+On the normal path, the outer UDP proxy delays each actual response by 750 ms.
+Before admission, `helpers/retired_hold.py` verifies the worker's actual parent
+and executable, attaches with Linux ptrace, and observes its syscalls. It holds
+the first genuine Retired header immediately before the worker's sendto call;
+it changes no register, frame or result. The driver holds the first completion
+on the real record lock, observes its successful native terminal and the helper's
+hold marker, then lets Base complete and admit the RPRO successor. After SIMM
+changes in the actual queued state, a release marker lets the helper detach and
+the original send execute. The trace receipt retains PID, complete frame header
+identity and hold/release timestamps. A missed hold or cleanup failure is non-passing.
+The SIMM change must precede the first Retired observation. The second SET still
+reaches the real agent because admission already captured its payload. Both
+source generations finish, Base FLNK runs twice, requested VAL/LEN is preserved,
+and a separate native GET returns the latest value.
+
+On the deadline path, the proxy drops actual responses. After the first SET is
+observed on the wire, SIGSTOP holds only that actual worker so the successor's
+retirement wait is observable. Both record budgets are 300 ms. The second
+request ends Deadline without a native SET, with COMM/INVALID and AMSG
+`deadline before send`, despite SIMM selecting simulation at completion. A real
+DBE_ALARM subscription requires both the first COMM/INVALID with an empty
+message and the subsequent COMM/INVALID with the new message. The worker is
+resumed, native ownership settles, and a separate GET returns only the first
+SET's value. Scope guards release the normal-path marker or resume the
+deadline-path worker if the driver fails; the helper also detaches on error.
+
+Both paths require exact terminal identity, two source generations/completions
+and FLNK executions, cleared PACT/RPRO and no borrowed terminal. Returning SIMM
+to normal must not replay an output. Short active text writes are intentional;
+the first lso payload is 200 bytes, but long active client writes remain in M11.
+The unchanged Base, module, scheduler, worker and native paths perform all
+processing; no internal function or record support is replaced. These controlled
+process-boundary cases do not measure the unheld retirement interval; use the
+separate `active-unforced` case for that observation.
+
+The normal-path helper requires Linux x86_64, readable owned-process `/proc`
+metadata and permission to trace the test's own descendant worker. A denied
+ptrace call is a non-passing environment result, never skipped coverage. Its
+12-second deadline is separate from record budgets; forced IOC cleanup is not
+qualification. Installed Base and system/vendor libraries remain uninstrumented
+in ASan/UBSan runs, and leak detection is disabled.
+
+```bash
+make -C tests/rewrite -j4
+python3 -B tests/rewrite/test_records.py --case queued-simm --output work/queued-simm-normal
+python3 -B tests/rewrite/build_r5_sanitizers.py --output work/queued-simm-sanitizers
+QS_PRODUCTS=work/queued-simm-sanitizers/products
+QS_RUNNER=tests/rewrite/test_records.py
+python3 -B "$QS_RUNNER" --case queued-simm --products "$QS_PRODUCTS" --sanitizers --output work/queued-simm-asan
+```
+
+Use fresh output paths. Receipts require all ten record/path observations,
+ten actual normal-path SET requests/responses, five deadline-path SET
+requests/responses, ten successful readback GETs, normal IOC/fixture cleanup
+and no sanitizer or secret-sentinel diagnostic. `active-unforced`,
+`deadline-queue` and `alarm-flow` are separate shared-driver regressions.
+The output message-monitor coverage is a bounded T5 result; queued input
+message monitors and the rest of the M6 matrix remain separate requirements.
+
+
+## Text And Structured Data Boundaries
+
+The `boundaries` case loads seven instances of the shipped
+`record-boundaries.db` into one actual IOC. It varies the following capacities
+independently; the fixed short string storage is 40 bytes, including NUL.
+
+| Row | Octet Binding | SIZV | Octet NELM | OID Binding | OID NELM | IPv4 NELM |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0 | 15 | 16 | 16 | 6 | 7 | 3 |
+| 1 | 16 | 16 | 15 | 7 | 6 | 4 |
+| 2 | 39 | 41 | 40 | 8 | 8 | 5 |
+| 3 | 40 | 40 | 39 | 6 | 8 | 4 |
+| 4 | 255 | 256 | 256 | 8 | 6 | 5 |
+| 5 | 256 | 257 | 255 | 7 | 7 | 4 |
+| 6 | 32767 | 32767 | 32767 | 8 | 8 | 4 |
+
+Real preparatory SETs through the public Runtime API establish each native agent
+value, including binary octets, OID and IPv4 that text output records cannot
+represent. These are stimulus operations, not output-DSET qualification.
+Every tested GET goes through actual Base record processing, DSET, Scheduler,
+worker and native UDP. Stringin/lsi formatting uses a wide 128-arc OID Binding;
+the OID Binding column applies to waveform, so formatted-text and native-arc
+limits are tested independently. IPv4 Binding capacity is the fixed scalar 1.
+
+Octet samples contain 0/1/14/15/16/17/38/39/40/41/254/255/256/257/32765/32766/32767
+bytes, embedded NUL with a high byte, and non-NUL high bytes. Each sample follows
+an actual successful seed GET in all three input types. OID samples contain
+6/7/8 arcs and text lengths 39/40, each after a valid two-arc GET. IPv4 zero and
+all-255 addresses exercise deterministic formatting and 3/4/5-element storage;
+the three-element array always rejects and is explicitly initial-failure
+coverage. Accepted values, LEN including NUL, exact NORD and waveform tail
+preservation are checked. Rejection must preserve the entire previous storage,
+LEN/NORD and native-success history, with Base-specific UDF behavior.
+
+Stringout and lso SETs use every sample length that fits their storage, then
+unterminated buffers. Lso also tests LEN=0 and a LEN inconsistent with its first
+NUL. Unsafe LEN greater than allocated storage is not injected into Base.
+Rejected captures must create no admission or module completion, retain the
+requested bytes/LEN, report WRITE/INVALID and leave the actual agent unchanged.
+Every output trial starts with a real seed SET and ends with a separate full
+32767-element native waveform GET. Successful lso sends LEN-1 bytes without NUL.
+An oversized idle `dbPutField(VAL$, DBR_CHAR)` exercises Base's real truncation
+to SIZV-1 before DSET entry; the resulting complete prefix is accepted only when
+it fits the independent Binding. This is distinct from truncating native input.
+
+From the repository root, build as in the record-test prerequisites and use
+fresh output paths. The instrumented build is separate from ordinary products.
+
+```bash
+make -C tests/rewrite -j4
+python3 -B tests/rewrite/test_records.py --case boundaries --output work/boundaries-normal
+python3 -B tests/rewrite/build_r5_sanitizers.py --output work/boundaries-sanitizers
+BD_PRODUCTS=work/boundaries-sanitizers/products
+BD_RUNNER=tests/rewrite/test_records.py
+python3 -B "$BD_RUNNER" --case boundaries --products "$BD_PRODUCTS" --sanitizers --output work/boundaries-asan
+```
+
+The runner requires the complete ordered input/output inventory, independently
+computed acceptance decisions, exact native GET/SET and agent commit counts,
+normal child cleanup and no sanitizer/secret diagnostic. The UDP proxy passes
+all genuine packets and provides external evidence; it does not create values
+or substitute for an internal path. Receipts identify shipped inputs, products
+and loaded libraries. Re-run `numeric` and `edges` for existing numeric and
+binary32 coverage on the same driver. Installed Base/system/vendor dependencies
+remain uninstrumented and leak checks are disabled. Deferred CA maximum/signed
+minimum variants and long active client writes remain outside this case.
+
+
+## Input Retirement, Independent Progress And Retry
+
+The `retirement-flow` case runs twelve fresh IOC processes: ai, longin,
+int64in, stringin, lsi and waveform on normal and deadline paths. Five actual
+native SETs prepare the agent, then a successful GET seeds the selected input.
+An active PROC put requests one Base RPRO successor. Both generations retain
+full queue charges while the successor waits for the first native operation to
+retire. The driver checks the exact terminal identity, unchanged prior input
+storage and LEN/NORD, native-success history, UDF, PACT/RPRO, waveform BUSY,
+completion counts and three source FLNK executions including the explicit retry.
+
+Normal trials use the same external Linux x86_64 ptrace helper as `queued-simm`.
+It attaches to the identified owned worker after the seed GET and holds that
+worker's next genuine Retired send. No frame, register or result is changed.
+The pending successor must remain unsent until the original send is released.
+Deadline trials drop the actual first GET response and SIGSTOP its worker;
+both record budgets are 300 ms. The successor expires without sending a GET.
+After Base consumes it, the still-held predecessor retains one count and its
+full byte charge. Resuming the worker permits genuine Retired or exact reap to
+release that charge. The driver waits for settlement and a new Ready worker
+before explicit retry. Scope guards resume/release on failure.
+
+While two generations remain charged on IPv4, a real native ai GET through an
+independent IPv6 agent must complete with -123 and no alarm. Source and progress
+UDP traces establish its timing before boundary release. Each source then
+completes two test generations, followed by an explicit successful GET retry.
+Deadline trials require real DBE_ALARM events for both COMM/INVALID with empty
+AMSG and the subsequent `deadline before send` message at the same alarm level.
+Retry clears that message and preserves the full valid input. These are native
+GET retries driven by record processing, not automatic module readback.
+
+```bash
+make -C tests/rewrite -j4
+python3 -B tests/rewrite/test_records.py --case retirement-flow --output work/retirement-normal
+python3 -B tests/rewrite/build_r5_sanitizers.py --output work/retirement-sanitizers
+RT_PRODUCTS=work/retirement-sanitizers/products
+RT_RUNNER=tests/rewrite/test_records.py
+python3 -B "$RT_RUNNER" --case retirement-flow --products "$RT_PRODUCTS" --sanitizers --output work/retirement-asan
+```
+
+Use fresh output directories. A complete receipt requires all twelve trials,
+six genuine Retired hold receipts, 60 setup SETs and 42 source GETs on IPv4,
+12 independent GETs on IPv6, six dropped responses and normal cleanup. There
+are 120 module completions including setup, seed, queued work, progress and
+retry; six queued deadline completions have no native request. A denied ptrace
+call or a missed hold is non-passing. The helper's separate 12-second timeout
+and required Linux permissions are described in the queued-output procedure.
+ASan/UBSan instruments the rebuilt products; installed Base and system/vendor
+libraries remain uninstrumented, with leak detection disabled. This controlled
+retirement hold does not measure the natural unheld interval. The deferred M11
+client/rebuild groups, compiled negative controls and final full-matrix
+reconciliation are separate from this case.
+
+
+## Initialization, Successful Input Simulation And Live LINR
+
+The `contract` case loads `record-contract.db` together with the baseline
+record fixtures. Forty-seven unusable records must acquire no context:
+13 link/deadline grammar variants, reversed GET/SET operations and incompatible
+native classes for all eleven DSET kinds, nine unsupported waveform FTVL
+combinations, ai/ao LINR SLOPE and I/O Intr SCAN. The eleven valid DSET kinds
+receive distinct handles. Default lsi/lso SIZV is 41, frozen storage matches,
+and Base refuses a live SIZV write. Both deadline endpoints (1 and 600000 ms)
+initialize. Default and initially nonzero waveform BUSY become false.
+No native request is allowed before the initialization observation.
+
+Six input kinds select distinguishable SIOL values before admission and again
+when a genuine successful native terminal waits in the real Base callback
+queue. Each terminal is consumed once without native publication; return to
+normal mode publishes the actual agent value. PACT, UDF, LEN/NORD, waveform
+BUSY, native-success history and three Base FLNK executions are checked.
+For ai/ao, real dbPutField(LINR) exercises idle and active changes to SLOPE,
+LINK/INVALID, exact completion ownership and recovery with NO CONVERSION.
+LINR is a process-passive field: an idle write also processes the record, and
+an active write requests Base RPRO. Its idle rejection returns -1 after keeping
+the requested LINR; the test requires this exact behavior.
+
+```bash
+make -C tests/rewrite -j4
+python3 -B tests/rewrite/test_records.py --case contract --output work/contract-normal
+python3 -B tests/rewrite/build_r5_sanitizers.py --output work/contract-sanitizers
+CT_PRODUCTS=work/contract-sanitizers/products
+CT_RUNNER=tests/rewrite/test_records.py
+python3 -B "$CT_RUNNER" --case contract --products "$CT_PRODUCTS" --sanitizers --output work/contract-asan
+```
+
+Use fresh directories. Passing requires 17 contexts, 47 rejected records,
+six successful-input SIMM observations, both live LINR observations, 26 actual
+native requests/responses (17 GET, nine SET) and normal isolated cleanup.
+Deadline endpoints are initialization checks, not timing qualification at the
+extremes. Frozen SIZV writes are Base refusal checks. The callback hold is an
+external Base queue boundary; the module, worker and native adapter run intact.
+ASan/UBSan covers rebuilt module/test products; Base/system/vendor dependencies
+remain uninstrumented and leak detection is disabled. This case excludes M11
+and does not qualify stale-generation controls or the final regression matrix.
+
+
+## Callback Phases, Integer Drive Limits And Adjacent Rounding
+
+The `final-clauses` case loads `record-final.db` and runs three remaining
+contract checks through real Base records, the worker, native adapter and agent.
+Two external Base callbacks first fill the queue and then hold its consumer.
+Actual GET and SET completions traverse Pending, Queued and Running; the running
+callback waits on the real record lock. The original admission deadline is read
+before the delayed native response. A successful terminal remains owned past
+that deadline, with unchanged identity and full count/byte reservation, and
+completes once with one Base FLNK after release. This observes preservation of
+the selected outcome across the deadline; it does not expose or modify the
+Scheduler's private stored deadline after terminal selection.
+
+Actual DBR_INT64 writes below, within and above int64out drive limits verify
+Base clipping and independent native GET readback at exact values above 2^53.
+Four binary64 values immediately beside positive/negative binary32 halfway
+points run in four ambient rounding modes, with native SET/GET verification.
+The existing `edges` case supplies the exact-halfway and other rounding cases.
+
+```bash
+make -C tests/rewrite -j4
+python3 -B tests/rewrite/test_records.py --case final-clauses --output work/final-clauses-normal
+python3 -B tests/rewrite/build_r5_sanitizers.py --output work/final-clauses-sanitizers
+FC_PRODUCTS=work/final-clauses-sanitizers/products
+FC_RUNNER=tests/rewrite/test_records.py
+python3 -B "$FC_RUNNER" --case final-clauses --products "$FC_PRODUCTS" --sanitizers --output work/final-clauses-asan
+```
+
+Use fresh output directories. Passing requires both callback observations,
+three integer drive observations, sixteen adjacent-rounding observations,
+exactly twenty native GETs and twenty SETs, forty module completions, and normal
+isolated cleanup. The external UDP delay prevents terminal selection before
+the admission-deadline observation. No internal path is substituted. ASan/UBSan
+covers rebuilt module/native/test code; Base/system/vendor dependencies are
+uninstrumented and leak detection remains disabled. CA variants remain separate.
+
+
+## Record Generation Validation At The IPC Boundary
+
+The `stale-record` case uses the real ai record, Scheduler, worker and native
+GET path. After a successful seed, an external Python process forwards the
+owned worker's actual UNIX socket frames. The IOC duplicates only the idle
+kernel socket descriptors; Runtime, Supervisor, IPC decoding and worker code
+are unchanged. The helper's two inherited descriptors connect the existing
+worker to the existing IOC channel. It never creates a substitute worker or
+terminal result.
+
+The helper holds the genuine Retired for generation 2 while Base completes its
+Result and admits one active-PROC/RPRO successor, generation 3. It then sends a
+copy of that Retired with only generation changed from 2 to 1; binding,
+admission, activation, epoch, revision and batch remain unchanged. A stale copy
+of the genuine Result follows as a parsing sentinel. Actual Supervisor event
+16 proves parsing passed the forged Retired. Both generations must remain
+charged (count 2, full byte reservations), with the successor queued and no
+extra terminal or completion. Releasing the original Retired permits one
+successor GET and one Base FLNK. The complete case has three native GETs,
+three module completions and three source FLNK executions, including the seed.
+
+Sequence numbers account for the two injected frames so ordinary protocol
+ordering remains valid. The emitted changed-byte offsets identify the sole
+Retired payload alteration. The helper stays connected through actual Runtime
+stop and must exit and be reaped without termination signals. Scope cleanup
+releases a held frame and stops the owned Runtime on failure; forced helper
+cleanup is non-passing. Final isolated Base cleanup must leave no contexts or
+queue charges. This case requires no ptrace permissions.
+
+```bash
+make -C tests/rewrite -j4
+python3 -B tests/rewrite/test_records.py --case stale-record --output work/stale-normal
+python3 -B tests/rewrite/build_r5_sanitizers.py --output work/stale-sanitizers
+SG_PRODUCTS=work/stale-sanitizers/products
+SG_RUNNER=tests/rewrite/test_records.py
+python3 -B "$SG_RUNNER" --case stale-record --products "$SG_PRODUCTS" --sanitizers --output work/stale-asan
+SG_RECEIPT=work/stale-sanitizers/sanitizer-build.json
+SG_CONTROLS=tests/rewrite/test_record_controls.py
+python3 -B "$SG_CONTROLS" --build-receipt "$SG_RECEIPT" --controls stale-generation --output work/stale-control
+```
+
+Use fresh output directories. Qualify the unmodified case before the control.
+The `stale-generation` control compiles a disposable Scheduler copy whose
+Retired matching still checks binding and admission but omits generation.
+The unchanged record case must fail its named assertion, `stale generation
+retired the current record request`, with the defective library loaded, normal
+external fixture cleanup and no sanitizer termination. A timeout, unrelated
+failure or missing helper receipt does not qualify detection. Product sources
+and ordinary installed products are never replaced by the control.
+
+This is bounded generation/retirement discrimination through an actual record,
+not every stale-frame or multi-activation combination. The existing IPC stale
+and stale-behind qualification cases remain separate regressions. ASan/UBSan
+instruments rebuilt module/test products; Base/system/vendor dependencies are
+uninstrumented and leak detection is disabled. M11 exclusions remain separate.

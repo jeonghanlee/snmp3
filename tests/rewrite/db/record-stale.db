@@ -1,0 +1,4 @@
+record(ai, "$(P)Ai") {
+    field(DESC, "Generation validation through real IPC")
+    field(FLNK, "$(P)Completed")
+}
