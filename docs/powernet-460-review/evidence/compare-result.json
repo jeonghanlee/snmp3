@@ -1,0 +1,86 @@
+{
+ "old": {
+  "file": "PowerNet-MIB",
+  "sha256": "d6872be58b15e9bad4743e781374219f0758c0b47914069b8e4fb687f8854631"
+ },
+ "new": {
+  "file": "powernet460.mib",
+  "sha256": "5d4d0e4470378082c3dfeb2797d81938d461be6e8a9e2f59002c93564b347e00"
+ },
+ "set": {
+  "file": "ap8932-oids.tsv",
+  "instances": 358,
+  "distinct_objects": 91
+ },
+ "duplicate_names_in_selection": {
+  "old": [],
+  "new": []
+ },
+ "missing_in_old": [],
+ "missing_in_new": [],
+ "changed": [],
+ "identical": 91,
+ "instances_outside_object_oid": [],
+ "rPDU2_family": {
+  "old": 284,
+  "new": 333,
+  "added": [
+   "rPDU2AdvBank",
+   "rPDU2AdvBankConfigBankPeakCurrentReset",
+   "rPDU2AdvBankConfigEntry",
+   "rPDU2AdvBankConfigIndex",
+   "rPDU2AdvBankConfigLowLoadCurrentThreshold",
+   "rPDU2AdvBankConfigModule",
+   "rPDU2AdvBankConfigNearOverloadCurrentThreshold",
+   "rPDU2AdvBankConfigNumber",
+   "rPDU2AdvBankConfigOverloadCurrentThreshold",
+   "rPDU2AdvBankConfigOverloadRestriction",
+   "rPDU2AdvBankConfigTable",
+   "rPDU2AdvPhase",
+   "rPDU2AdvPhaseConfigEntry",
+   "rPDU2AdvPhaseConfigIndex",
+   "rPDU2AdvPhaseConfigLowLoadCurrentThreshold",
+   "rPDU2AdvPhaseConfigModule",
+   "rPDU2AdvPhaseConfigNearOverloadCurrentThreshold",
+   "rPDU2AdvPhaseConfigNumber",
+   "rPDU2AdvPhaseConfigOverloadCurrentThreshold",
+   "rPDU2AdvPhaseConfigOverloadRestriction",
+   "rPDU2AdvPhaseConfigPhasePeakCurrentReset",
+   "rPDU2AdvPhaseConfigTable",
+   "rPDU2SensorAnalogVoltage",
+   "rPDU2SensorAnalogVoltageConfigAlarmEnable",
+   "rPDU2SensorAnalogVoltageConfigEntry",
+   "rPDU2SensorAnalogVoltageConfigHysteresis",
+   "rPDU2SensorAnalogVoltageConfigIndex",
+   "rPDU2SensorAnalogVoltageConfigModule",
+   "rPDU2SensorAnalogVoltageConfigName",
+   "rPDU2SensorAnalogVoltageConfigNumber",
+   "rPDU2SensorAnalogVoltageConfigTable",
+   "rPDU2SensorAnalogVoltageConfigThreshMax",
+   "rPDU2SensorAnalogVoltageConfigThreshMin",
+   "rPDU2SensorAnalogVoltageStatusCommStatus",
+   "rPDU2SensorAnalogVoltageStatusEntry",
+   "rPDU2SensorAnalogVoltageStatusHundredthVolts",
+   "rPDU2SensorAnalogVoltageStatusIndex",
+   "rPDU2SensorAnalogVoltageStatusModule",
+   "rPDU2SensorAnalogVoltageStatusName",
+   "rPDU2SensorAnalogVoltageStatusNumber",
+   "rPDU2SensorAnalogVoltageStatusTable",
+   "rPDU2SensorAnalogVoltageStatusThreshStatus",
+   "rPDU2SensorAnalogVoltageTableSize",
+   "rPDU2SensorTempHumidityConfigHumidityHighThresh",
+   "rPDU2SensorTempHumidityConfigHumidityMaxThresh",
+   "rPDU2SensorTempHumidityConfigTempLowThreshC",
+   "rPDU2SensorTempHumidityConfigTempLowThreshF",
+   "rPDU2SensorTempHumidityConfigTempMinThreshC",
+   "rPDU2SensorTempHumidityConfigTempMinThreshF"
+  ],
+  "removed": [],
+  "body_changed": [
+   "rPDU2SensorTempHumidityConfigHumidityLowThresh",
+   "rPDU2SensorTempHumidityConfigHumidityMinThresh",
+   "rPDU2SensorTempHumidityConfigTempHighThreshC",
+   "rPDU2SensorTempHumidityConfigTempHighThreshF"
+  ]
+ }
+}
