@@ -2,9 +2,10 @@
 
 Date: 2026-09-30
 Status: accepted
-Source Session: `/home/jeonglee/gitsrc/snmp/work/review_sessions/20260923_104501_snmp-architecture`
+Source Session: `<local>/review_sessions/20260923_104501_snmp-architecture`
 Source Decisions: conv20260930_002546 Decisions; plan20260930_001514 R2.1-R2.2
 Scope: idle-thread lifecycle checkpoint only
+Note: `<local>/...` names a directory retained outside the repository, not tracked.
 
 ## Context
 

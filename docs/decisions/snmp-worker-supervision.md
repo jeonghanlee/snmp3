@@ -4,11 +4,12 @@ Date: 2026-10-01
 Amended: 2026-10-03 (per-handle generations behind retirement; containment of answered requests;
 register decisions D7 and D9 and gate G5 in `docs/milestone-5dff352.md`)
 Status: accepted for the verified R5 component and IOC supervision boundary
-Source Session: standalone author work in `/home/jeonglee/gitsrc/snmp3`
-Source Decisions: User-approved `work/plan-r5-20260930-02.md`, SHA256
+Source Session: standalone author work in `~/gitsrc/snmp3`
+Source Decisions: User-approved `<local>/plan-r5-20260930-02.md`, SHA256
 `f4209d83308b3518c70506a1dd0785276461ade07689bb584463ec98f45bbc38`, and
-`work/contract-r5-20260930-02.md`, SHA256
+`<local>/contract-r5-20260930-02.md`, SHA256
 `3b3d2f1a846a8870d283bfbcf57bc6aa44ea6d755e2147ff1e36107cae83798b`.
+Note: `<local>/...` names a directory retained outside the repository, not tracked.
 
 ## Context
 

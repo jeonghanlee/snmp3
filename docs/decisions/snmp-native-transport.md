@@ -2,8 +2,9 @@
 
 Date: 2026-09-30
 Status: accepted for the verified R4 component boundary
-Source Session: standalone work in `/home/jeonglee/gitsrc/snmp3`
-Source Decisions: User-approved `work/plan-r4-20260930.md`, SHA256 `6a707681a94607ad520f3d14de99989e7802232b7d28c5a7d6c915789ec8e14a`; R4.1-R4.5
+Source Session: standalone work in `~/gitsrc/snmp3`
+Source Decisions: User-approved `<local>/plan-r4-20260930.md`, SHA256 `6a707681a94607ad520f3d14de99989e7802232b7d28c5a7d6c915789ec8e14a`; R4.1-R4.5
+Note: `<local>/...` names a directory retained outside the repository, not tracked.
 
 ## Scope
 
