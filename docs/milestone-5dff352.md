@@ -9,7 +9,7 @@ Remote tracker: none associated with this register
 Recorded date: 2026-10-01
 Source baseline: `5dff352b9e86abfca74a74c4adc4fc8c1e48079f`
 
-Next session entry point: `docs/milestone-5dff352.md`, M7 Local AP8932 Execution Scope and Verification Results. Both local implementation reviews are complete; retain the qualified local IOC and evidence, and obtain owner direction for the remaining comparator, compatibility and hardware scope before extending execution. Full M7 remains Blocked, G2 Open and M11 Deferred. No commit, push, sibling change, equipment operation, memory or handoff is authorized by this acceptance.
+Next session entry point: `docs/milestone-5dff352.md`, M14 Group record requests and keep requests in flight on the record path. The evaluation and procedure are in `docs/snmp-performance/`; the sibling database session was asked on 2026-10-10 to test a tiered AP8932 database through the current module on both device classes (read-only), and its module-path results are the input to the owner direction that M14 records before the record path is restructured. M7 Local AP8932 Execution Scope and Verification Results stays as before: both local implementation reviews are complete; retain the qualified local IOC and evidence, and obtain owner direction for the remaining comparator, compatibility and hardware scope before extending execution. Full M7 remains Blocked, G2 Open and M11 Deferred. No commit, push, sibling change, equipment operation, memory or handoff is authorized by that acceptance.
 
 ## Scope
 
@@ -1965,11 +1965,14 @@ Status: Open (unresolved scope: which of the candidate changes is taken)
 
 The record path sends one object per request, one request in flight per address, with 20 to 30 ms
 between a completion and the next request. Measured against devices of two management card
-generations, a pass over a 358-object monitoring set takes about 134 s (older card) and 11 s (newer
-card) through the module, against 4 to 6 s and about 0.2 s when the same objects are read with
-Net-SNMP in grouped requests. The evidence, the cost model and the device selection considerations are
+generations (NMC2 and NMC3, the newer), the module needs 362 to 396 ms (NMC2) and 32 ms (NMC3) per
+record; over a 358-object monitoring set that is about 130 to 140 s and 11 s per pass (computed from
+the 100-record intervals, not a measured pass). The same objects read with Net-SNMP in grouped
+requests take 4 to 6 s and about 0.2 s. The evidence, the cost model and the device selection considerations are
 in `docs/snmp-performance/evaluation.md`; the repeatable procedure and reference values are in
-`docs/snmp-performance/test-procedure.md`.
+`docs/snmp-performance/test-procedure.md`. All device figures in them were taken while a legacy IOC
+polled the same units, so they are figures with a second client present; a run with the devices
+otherwise idle is needed before they are used as acceptance values.
 
 ##### Scope
 
@@ -1980,16 +1983,16 @@ Decide and then implement a change so that record reads reach the grouped-reques
 
   | Candidate | Expected effect | Cost or risk |
   | --- | --- | --- |
-  | Wake on socket and pipe readiness; send Result and Retired together | Removes most of the 20 to 30 ms between requests (the share of the 10 ms waits was not isolated); the newer card gains most (about 32 ms to a few ms per record) and the older card little (about 370 ms per record) | Small; no change to the batching or ownership rules |
-  | Coalesce contiguous compatible requests under the earliest member deadline | Requests per pass fall by about K; direct grouped passes of 358 objects took 5.3 to 6.2 s (older card, K = 32 to 48) and 0.16 s (newer card, K = 28 to 48) against 66.5 s and 0.75 s | Revisits decision D3 (exact equal deadlines); group size must stay below the response-size ceiling (K = 64 failed on the older card) |
+  | Wake on socket and pipe readiness; send Result and Retired together | Removes most of the 20 to 30 ms between requests (the share of the 10 ms waits was not isolated); NMC3 gains most (about 32 ms to a few ms per record) and NMC2 little (about 370 ms per record) | Small; no change to the batching or ownership rules |
+  | Coalesce contiguous compatible requests under the earliest member deadline | Requests per pass fall by about K; direct grouped passes of 358 objects took 5.3 to 6.2 s (NMC2, K = 32 to 48) and 0.16 s (NMC3, K = 28 to 48) against 66.5 s and 0.75 s | Revisits decision D3 (exact equal deadlines); group size must stay below the response-size ceiling (K = 64 failed on NMC2) |
   | A binding that reads several objects into one record | The same request reduction, visible to the database (for example one waveform per table column) | Configuration schema extension; record conversion rules for arrays |
-  | Several requests in flight per address | Older card: passes 11 and 27 percent shorter with 2 and 3 in flight at K = 32; newer card: none; also removes the idle gap | Deadline and retirement accounting; devices lose requests above a device-specific count |
+  | Several requests in flight per address | NMC2: passes 11 and 27 percent shorter with 2 and 3 in flight at K = 32; NMC3: none; also removes the idle gap | Deadline and retirement accounting; devices lose requests above a device-specific count |
 
 - Profile parameters that follow: objects per request bounded by response bytes, requests in flight,
   request timeout above the device request p95 at that size, retries.
-- Device classes seen so far: the older card answered single-object requests with a median of 30 ms
-  (mean about 190 ms) and lost 2 of 10 outstanding requests while answering 5 fully; a request of 64
-  objects returned `tooBig`. The newer card answered with a median of 1.6 ms and lost 6 of 20
+- Device classes seen so far: NMC2 answered single-object requests with a median of 30 ms
+  (mean 186 ms) and lost 2 of 10 outstanding requests while answering 5 fully; a request of 64
+  objects returned `tooBig`. NMC3 answered with a median of 1.6 ms (mean 2.1 ms) and lost 6 of 20
   outstanding requests.
 
 Out of scope: writes (SET) path timing, other device models, changing the Net-SNMP version.
@@ -2035,7 +2038,7 @@ Superseded Plan Artifacts: none
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | Not run | Linux host, fixture agent | Pending | Current module baseline: about 30 ms per record at zero added round trip, `docs/snmp-performance/results/reference-run.json` |
-| T2 | Not run | Hardware of two card generations | Pending | Current module baseline: 362 to 396 ms per record (older card), 32 ms (newer card) |
+| T2 | Not run | Hardware of two card generations | Pending | Current module baseline, with a legacy client polling the units: 362 to 396 ms per record (NMC2), 32 ms (NMC3) |
 | T3 | Not run | Hardware of two card generations | Pending | The reference schedule was run with Net-SNMP direct, not through the module |
 | T4 | Not run | Linux host | Pending | none |
 

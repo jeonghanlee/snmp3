@@ -153,7 +153,9 @@ the first run is [results/reference-run.json](results/reference-run.json).
 
 ## Reference values and tolerance bands
 
-First run, 358 objects, SNMPv3 authPriv. A rerun on the same class and firmware is expected inside
+First run, 358 objects, SNMPv3 authPriv, taken while a legacy IOC was polling the same units (the
+no-other-client prerequisite was not met); treat the values as figures with a second client present
+until a run with the devices otherwise idle replaces them. A rerun on the same class and firmware is expected inside
 the bands, which are the observed spread of five repeats widened to a round number; a result
 outside a band is a finding to investigate (firmware change, device load, network path).
 
@@ -177,6 +179,8 @@ without phase 1b; the fixture steps add about 10 minutes.
 - It measures one monitoring set per run and one SNMPv3 profile; other sets and SNMPv1/v2c are
   not covered.
 - The second client reads only `sysUpTime`; other services of the device are not measured.
-- The tolerance bands come from one day on one pair of units.
+- The tolerance bands come from one day on one pair of units, with a legacy client polling them.
+- It cannot detect another client by itself: check for other pollers of the device (running IOCs,
+  monitoring systems) before a run and record what was found with the results.
 - The first run had no 10 s rest between the two devices in phases 1 to 3 (they are different
   hardware); the tool now applies it.

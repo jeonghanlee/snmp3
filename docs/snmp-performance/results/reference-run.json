@@ -163,6 +163,7 @@
    "1": {
     "pass_ms_median": 66546,
     "per_oid_ms_median": 185.9,
+    "pdu_p50_ms_median": 30.1,
     "pdu_p95_ms": 570.5,
     "pdus_lost": 3,
     "pdus_sent": 1790
@@ -309,6 +310,7 @@
    "1": {
     "pass_ms_median": 748,
     "per_oid_ms_median": 2.09,
+    "pdu_p50_ms_median": 1.6,
     "pdu_p95_ms": 2.6,
     "pdus_lost": 0,
     "pdus_sent": 1790

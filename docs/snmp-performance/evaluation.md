@@ -16,6 +16,12 @@ Measured with Net-SNMP 5.9.4 (`net-snmp-config` reports 5.9.4.pre2) and the modu
 | NMC2 unit | AP8932 | NMC2 | v7.0.8 | 7.0.8 |
 | NMC3 unit | AP8932 | NMC3 | v2.5.3.2 | 2.5.2.5 |
 
+**Measurement condition.** A legacy IOC built on the previous module (SNMPv3, one session per
+device, 2 s polling) was running and reading both units during the device measurements; its traffic
+was not excluded. Every device figure below is therefore a figure with a second client present, and
+the procedure's prerequisite of no other client was not met. The fixture-agent figures are not
+affected. No run with the devices otherwise idle has been made yet.
+
 The monitoring set is 358 object instances (state 38, measurement 18, slow 302), which follows the
 record count of a database for this model. A complete readable instance set of the model is
 754 objects on the layout measured (24 outlets, 2 banks, 1 phase).
@@ -24,8 +30,9 @@ record count of a database for this model. A complete readable instance set of t
 
 - **Request**: one SNMP GET carrying K objects; **K**: objects per request; **pass**: reading the whole
   monitoring set once; **in flight**: requests sent and not yet answered.
-- **NMC2, NMC3**: two generations of the vendor's network management card of the rack PDU; the units
-  here are told apart by card firmware (AOS v7.0.8 and v2.5.3.2).
+- **NMC2, NMC3**: two generations of the vendor's network management card of the rack PDU; NMC3 is
+  the newer generation. The units here are told apart by card firmware (AOS v7.0.8 and v2.5.3.2);
+  the firmware numbers follow separate schemes, so the lower number belongs to the newer card.
 - **Tier**: reading priority group of the monitoring set (state, measurement, slow); see the
   procedure for the definition.
 
@@ -45,8 +52,9 @@ record count of a database for this model. A complete readable instance set of t
    5.33 s (NMC2, K=48) and 158 ms (NMC3, K=28).
 5. **The group size has a response-size ceiling**, not an object-count ceiling: on the NMC2 unit
    64 objects returned `tooBig` and lost most requests; 48 worked.
-6. **Idle time between requests slows the NMC2 unit**: back-to-back requests had a median of
-   44 ms and requests with 10 ms of idle time before each had about 280 ms.
+6. **Idle time between requests slows the NMC2 unit**: in the idle-time test (100 integer objects
+   cycled), back-to-back requests had a median of 44 ms and requests with 10 ms of idle time
+   before each had about 280 ms.
 7. **A device loses requests when too many are outstanding**: 2 of 10 on the NMC2 unit and 6 of 20
    on the NMC3 unit (single-object requests, no retry); 5 outstanding was answered fully.
 8. **Ordering of the objects made no measurable difference**: the five orders differ by 7 percent on
@@ -120,8 +128,10 @@ whole list, which has the same stop condition but is not the identical load shap
 | 48 | 8 | 5.33 s | 14.9 ms | 1674 ms | 157 ms | 0.44 ms | 39 ms |
 | 64 | 6 | stopped: `tooBig` and 4 of 6 requests lost | | | not run | | |
 
-The K = 1 row is five sequential single-object passes. Losses in these passes were 3 of 1790
-requests on NMC2 and 0 of 1790 on NMC3.
+The K = 1 row is five sequential single-object passes over the whole set. Losses in these passes
+were 3 of 1790 requests on NMC2 and 0 of 1790 on NMC3. The median request was 30 ms on NMC2 and
+1.6 ms on NMC3 against means of 186 ms and 2.1 ms: a minority of slow requests carries the pass
+time. The 44 ms of the idle-time table is a different sample (integer objects only).
 
 ### Requests in flight at selected group sizes
 
@@ -239,6 +249,9 @@ Prediction and measurement of the first run (median cycle times):
 
 - One day, one pair of units, five passes per point; the NMC2 unit varies by about 10 percent
   between passes and has sporadic timeouts.
+- A legacy IOC was polling the same units throughout, so every device figure was taken with a
+  second client present; its effect on idle time, idle-gap sensitivity, request loss with several
+  requests outstanding and the second-client ratio is not separated from the device's own behavior.
 - Only the 358 objects of the monitoring set; sensors and metered outlets were not attached.
 - The idle-gap effect is measured, not explained.
 - Grouped requests were measured with Net-SNMP direct; the module cannot yet form them, so the
