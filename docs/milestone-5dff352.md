@@ -9,7 +9,7 @@ Remote tracker: none associated with this register
 Recorded date: 2026-10-01
 Source baseline: `5dff352b9e86abfca74a74c4adc4fc8c1e48079f`
 
-Next session entry point: `docs/milestone-5dff352.md`, M14 Group record requests and keep requests in flight on the record path. The evaluation and procedure are in `docs/snmp-performance/`; the direct reference run and the record-database run through the current module, both with no other client on the devices, were recorded on 2026-10-10. The next step is the owner direction that M14 records (which candidate change is taken), then the detailed plan before the record path is restructured. M7 Local AP8932 Execution Scope and Verification Results stays as before: both local implementation reviews are complete; retain the qualified local IOC and evidence, and obtain owner direction for the remaining comparator, compatibility and hardware scope before extending execution. Full M7 remains Blocked, G2 Open and M11 Deferred. No commit, push, sibling change, equipment operation, memory or handoff is authorized by that acceptance.
+Next session entry point: `docs/milestone-5dff352.md`, M14 Group record requests and keep requests in flight on the record path. The evaluation and procedure are in `docs/snmp-performance/`; the direct reference run and the record-database run through the current module, both with no other client on the devices, were recorded on 2026-10-10. The owner direction is recorded as D15 (declared groups with one deadline per group, waking on readiness). The next step is the detailed plan for M14, then its separate acceptance and implementation authorization. M7 Local AP8932 Execution Scope and Verification Results stays as before: both local implementation reviews are complete; retain the qualified local IOC and evidence, and obtain owner direction for the remaining comparator, compatibility and hardware scope before extending execution. Full M7 remains Blocked, G2 Open and M11 Deferred. No commit, push, sibling change, equipment operation, memory or handoff is authorized by that acceptance.
 
 ## Scope
 
@@ -58,7 +58,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | --- | --- | --- |
 | D1 | Use a new explicit configuration/record interface and deliberate APC DB/startup migration; retain the legacy implementation only as a comparator. | 2026-09-29 |
 | D2 | Use snmp3 for the active module, libraries, executables, commands and fixtures. | 2026-10-01 |
-| D3 | Batch only compatible contiguous FIFO requests with exactly equal absolute deadlines; different deadlines remain separate FIFO work. | 2026-09-30 |
+| D3 | Batch only compatible contiguous FIFO requests with exactly equal absolute deadlines; different deadlines remain separate FIFO work. Narrowed by D15 for bindings of a declared group. | 2026-09-30 |
 | D4 | Assign mdBook documentation as a separate milestone, using the existing epics-ioc-runner and epicsarchiverap-maven examples as planning inputs. | 2026-10-01 |
 | D5 | Use IEEE 754 roundTiesToEven for ao double-to-OpaqueFloat SET conversion; permit the resulting finite binary32 rounding without decimal pre-rounding. | 2026-10-01 |
 | D6 | Reject record conversion precision loss and capacity overflow as errors, except the ao-to-OpaqueFloat rounding permitted by D5; preserve prior input data on failure and send no invalid SET. | 2026-10-01 |
@@ -70,6 +70,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | D12 | Accept that no test shows a nonzero `behindRetirement` in the `snmp3 queue:` line of `snmp3RuntimeReport`: the report of a record test process is printed when nothing is queued behind a retirement, so a copy that prints a constant 0 or `retirementPending` in that slot is not detected; the counter's meaning is pinned by the Scheduler and qualification tests. | 2026-10-05 |
 | D13 | Execute the cells that M6 Verification Results T1 to T12 record as unexecuted, except the cells moved to Backlog M11 and deferred: the Channel Access variants of T2 to T4, the long active client writes of T7, the delayed output-simulation mode change of T8, and isolated rebuild or reuse of T12 beyond the D7 clause. The deferred cells are excluded from the M6 Completion Criteria and from Test Plan rows T2, T3, T4, T7, T8 and T12, and M6 Closure Evidence lists them as waived checks citing D13 and M11. Execute the rest in order of risk: shutdown, lifecycle, alarm, ordering and reprocess cells first, then input and conversion boundaries, delayed retirement and the stale-generation control. | 2026-10-05 |
 | D14 | Build the snmp3 book in place: root `book.toml` with `src = "docs"`, `docs/SUMMARY.md` and a generated-output directory excluded from tracking. Organize chapters by reader goal and page type (introduction, concepts, procedures, reference, glossary, appendix); split documents that mix page types at their existing locations without keeping a second copy; replace links to files outside `docs/` with repository URLs; keep milestone and private records out of navigation. Toolchain, build automation and publication remain with G4. | 2026-10-10 |
+| D15 | Revise D3 for declared groups: bindings of one declared group on one address are admitted as one request with one deadline and a member result each, bounded by `maxVarbinds` and the response-size limit; bindings outside a group keep D3 (exact equal absolute deadlines). Wake the worker and the servicing thread on socket and pipe readiness instead of fixed 10 ms waits. This scope adds no result cache stage, no multi-object binding and no requests in flight. | 2026-10-10 |
 
 ### Milestone Details
 
@@ -1698,7 +1699,7 @@ The D7-D9 revisions of the M5 and M6 Implementation Plans (2026-10-03) needed ow
 | M11 | Deferred record verification cells | Carry-forward | Deferred | No | D13 | Deferred by D13 on 2026-10-05; the cells run when the owner asks for Channel Access, long-write, delayed-simulation or rebuild/reuse record verification; [detail](#m11---deferred-record-verification-cells) |
 | M12 | Stop duration with a blocked callback queue | Carry-forward | Open | No | none | Owner decision on whether the stop bound and the record drain budget may overlap or skip waits that cannot progress, recorded with its date; then the change verified by the `stop-enqueue-failed` case or the observation kept by decision; [detail](#m12---stop-duration-with-a-blocked-callback-queue) |
 | M13 | PowerNet-MIB 4.6.0 review for the AP8932 database | Carry-forward | Open | No | none | Owner decision to adopt 4.6.0 or keep 4.4.6 recorded with its date, and any `rPDU2Adv*` scope decided; adoption verified by regeneration and a new run of the database's integration test; [detail](#m13---powernet-mib-460-review-for-the-ap8932-database) |
-| M14 | Group record requests and keep requests in flight on the record path | Carry-forward | Open | No | none | Owner decision on the direction recorded with its date; then the monitoring set of the evaluation read through the module within 1.5 times the direct Net-SNMP pass at the same group size and requests in flight on each device class, with the sustained schedule criteria met; [detail](#m14---group-record-requests-and-keep-requests-in-flight-on-the-record-path) |
+| M14 | Group record requests and keep requests in flight on the record path | Carry-forward | Not started | Yes | D15 | Direction recorded as D15 (2026-10-10); then the monitoring set of the evaluation read through the module within 1.5 times the direct Net-SNMP pass at the same group size on each device class, with the sustained schedule criteria met; [detail](#m14---group-record-requests-and-keep-requests-in-flight-on-the-record-path) |
 | M15 | Secret material management for SNMPv3 device access | Carry-forward | Open | No | none | Owner decision on creation, location, rotation and repository exclusion recorded with its date; procedure documented and verified by a scan of tracked files and history; [detail](#m15---secret-material-management-for-snmpv3-device-access) |
 
 ### Backlog Details
@@ -1962,7 +1963,7 @@ Superseded Plan Artifacts: none
 Origin: 5dff352 / M14
 Identity History: none
 GitHub Issue: none
-Status: Open (unresolved scope: which of the candidate changes is taken)
+Status: Not started (direction chosen by D15 on 2026-10-10; detailed plan draft, plan acceptance none, implementation authorization none)
 
 ##### Summary
 
@@ -1987,7 +1988,7 @@ Decide and then implement a change so that record reads reach the grouped-reques
 
   | Candidate | Expected effect | Cost or risk |
   | --- | --- | --- |
-  | Wake on socket and pipe readiness; send Result and Retired together | Removes most of the 20 to 30 ms between requests (the share of the 10 ms waits was not isolated); NMC3 gains most (48 to 61 ms per object through the database, about 30 ms of it module path) and NMC2 less (48 to 204 ms per object) | Small; no change to the batching or ownership rules |
+  | Wake on socket and pipe readiness; send Result and Retired together | Removes most of the 20 to 30 ms between requests (on the fixture path 27 of 31 ms per record belong to the 10 ms waits; with 1 ms waits the interval was 3.3 ms); NMC3 gains most (48 to 61 ms per object through the database, about 30 ms of it module path) and NMC2 less (48 to 204 ms per object) | Small; no change to the batching or ownership rules |
   | Coalesce contiguous compatible requests under the earliest member deadline | Requests per pass fall by about K; direct grouped passes of 358 objects took 3.4 to 4.0 s (NMC2, K = 28 to 48) and 0.12 to 0.16 s (NMC3, K = 28 to 48); one-object passes with a legacy client present took 66.5 s and 0.75 s | Revisits decision D3 (exact equal deadlines); group size must stay below the response-size ceiling (K = 64 failed on both classes) |
   | A binding that reads several objects into one record | The same request reduction, visible to the database (for example one waveform per table column) | Configuration schema extension; record conversion rules for arrays |
   | Several requests in flight per address | NMC2: passes 12 and 18 percent shorter with 2 and 3 in flight at K = 10, no gain beyond the pass spread at K = 20 and 28; NMC3: none | Deadline and retirement accounting; devices lose requests above a device-specific count |
@@ -2015,8 +2016,9 @@ Out of scope: writes (SET) path timing, other device models, changing the Net-SN
 
 ##### Dependencies And Decisions
 
-- none yet; the owner decision is pending.
-- If coalescing is chosen, decision D3 (exact equal deadlines) is revisited.
+- D15 (2026-10-10) chooses the direction: declared groups admitted as one request with one deadline, and waking on readiness. It narrows D3 to bindings outside a declared group.
+- Not in this scope: a result cache stage, a multi-object binding, requests in flight (candidates remain in the table above).
+- Verification dependency outside this repository: T2 and T3 need a database whose records of a group are queued in one processing cycle, owned by the database repository (plan step 6). It is not a gate on implementation or on T1, T4, T5 and T6.
 
 ##### Implementation Plan
 
@@ -2025,9 +2027,14 @@ Plan Acceptance: none
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. Owner chooses the direction using `docs/snmp-performance/evaluation.md`.
-2. Draft the detailed plan for the chosen change and its test plan; accept it separately.
-3. Implement and verify with the procedure.
+1. Direction chosen by the owner as D15, using `docs/snmp-performance/evaluation.md`.
+2. Wake on readiness. `snmp3App/native/WorkerMain.cpp`: wait on the channel descriptor and the descriptors and timer of the native session instead of `poll(...,10)`; `snmp3App/native/Native.{h,cpp}`: expose the session descriptors and next timeout (confirm in the first step what the library interface already gives); `snmp3App/src/Runtime.cpp` and `Supervisor.{h,cpp}`: wait on the worker channel descriptors and the wake event with the next timer as timeout. Closes with T1 (interval at zero round trip) and a count of wake-ups of an idle address that stays at the timer rate.
+3. Group declaration. `snmp3App/src/Config.{h,cpp}` and `Binding.h`: an optional string field `group` on a binding; configuration errors for a group on a non-GET binding, members on different endpoints, more members than the profile `maxVarbinds`, and a group whose request or response exceeds the IPC data limit; the strict field check stays. The worker protocol does not carry the group. Closes with configuration tests (T5).
+4. Group coalescing. `snmp3App/src/Scheduler.cpp` (`compatible`, `dispatch`): contiguous queue-front members of the same declared group join one batch regardless of their deadlines, up to `maxVarbinds` and the response limit; the batch deadline is the earliest member deadline and is written into every command before the IPC frame, because the worker requires equal deadlines in a batch; bindings outside a group keep the exact-equal rule of D3. Per-generation charges, identities and retirement are unchanged. Closes with the scheduler and IPC cases of T5.
+5. Failure of a group. A timed-out or failed group request gives every member the same outcome through the existing member results; the containment rule of D9 is unchanged. Document the loss amplification (K records fail together) and the earliest-deadline effect in the contract. Closes with T6.
+6. Database interface (database repository, not changed here). Records of a declared group must be queued in the same processing cycle (a fan-out, not a serial chain) and each binding carries `group`; the member lists of a tier stay stable. T2 and T3 need this change; T1, T4, T5 and T6 do not.
+7. Documentation. `docs/snmp-rewrite-config.md` (the `group` field and its errors), `docs/snmp-rewrite-contract.md` (admission, group deadline, failure), `docs/snmp-worker-supervision.md` (wake and batch deadline), `docs/snmp-performance/evaluation.md` (results).
+8. Implement step by step, run the Test Plan after each step, and verify with the procedure.
 
 ##### Test Plan
 
@@ -2037,6 +2044,8 @@ Superseded Plan Artifacts: none
 | T2 | Device pass through the module | Phases 1 and 2 of the procedure with the module as the reader, per device class | Hardware of two card generations | Per-object time within 1.5 times the direct figure; no stop rule fired |
 | T3 | Sustained schedule | Phase 4 of the procedure through the module | Hardware of two card generations | Overruns 0, loss below 0.5 percent, second client p95 ratio at most 2 |
 | T4 | Regression | The shipped record, lifecycle, supervisor and qualification runners | Linux host | All checks pass, including the deadline and shutdown cases |
+| T5 | Group admission | Configuration, scheduler and IPC qualification cases through the shipped runners: members of a group with different deadlines coalesce, different groups and ungrouped bindings with different deadlines do not, ungrouped bindings with equal deadlines still do (D3), size and response caps, earliest deadline written to every command, strict configuration errors | Linux host | All cases pass and each control case fails when the corresponding rule is removed |
+| T6 | Group on the wire | A database of records of one group triggered in the same cycle against the fixture agent; count of requests at the agent; a group that times out; a group with one member past its deadline | Linux host, fixture agent | One request per group at the agent; every member updated from it; a failed group gives every member the same outcome by the earliest deadline |
 
 ##### Verification Results
 
@@ -2046,6 +2055,8 @@ Superseded Plan Artifacts: none
 | T2 | Not run | Hardware of two card generations | Pending | Baseline of the current module, no other client, 2026-10-10: 48 to 204 ms per object (NMC2) and 48 to 61 ms (NMC3) through a record database; one-object module path with a legacy client present: 362 to 396 ms per record (NMC2) and 32 ms (NMC3). Direct grouped: `docs/snmp-performance/evaluation.md` |
 | T3 | Not run | Hardware of two card generations | Pending | Baseline of the current module through a record database of the monitoring set, 900 s per unit, no other client, 2026-10-10: NMC3 loss 0 of 13316, no overrun, cycles 1.81 s, 1.10 s and 14.97 s for the 5 s, 10 s and 60 s tiers (direct grouped 33, 41 and 164 ms); NMC2 loss 6 of 13070, state tier 23 overruns, slow cycle p95 63.2 s (direct grouped 757, 929 and 4389 ms); no second-client probe through the module |
 | T4 | Not run | Linux host | Pending | none |
+| T5 | Not run | Linux host | Pending | none |
+| T6 | Not run | Linux host, fixture agent | Pending | none |
 
 ##### Closure Evidence
 

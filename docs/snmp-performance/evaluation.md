@@ -89,6 +89,22 @@ is a fixed delay on each response through an outer UDP relay.
 | 20 ms | 2.16 s | 30 ms | 23 ms | 5.14 s (51 ms) |
 | 100 ms | 10.2 s | 113 ms | 103 ms | 12.4 s (123 ms) |
 
+### Module path with the wake-up waits shortened (fixture agent, SNMPv3 authPriv)
+
+Interval per record of 100 records through the module IOC, worker and native path, median of three
+sweeps. The variant is a copy of the module in which the three fixed 10 ms waits (the worker poll
+and the two waits of the servicing thread) were set to 1 ms; nothing else differs.
+
+| Added RTT | Module as shipped | Waits set to 1 ms |
+| --- | --- | --- |
+| 0 ms | 30.8 ms | 3.3 ms |
+| 20 ms | 51.1 ms | 23.4 ms |
+
+At zero round trip 27 of the 31 ms per record belong to the wake-up granularity, so the per-record
+processing of the module is at most 3.3 ms (including what remains of the 1 ms waits). Shortening
+the waits by polling costs wake-ups at 1 kHz per address and is not the fix; the table bounds what
+waking on readiness can recover.
+
 ### Module path against the devices (one object per request, legacy client present)
 
 100 records with distinct integer objects released together, three sweeps; the request timeout was
@@ -263,7 +279,7 @@ matches the clients the device will have.
 | --- | --- | --- |
 | One object per request: record requests carry different deadlines and batching needs identical ones | The fixed per-request cost of the device is paid per object | Build requests from several objects: coalescing or a multi-object binding |
 | One active request per address with a completion handshake before the next | At least 20 to 30 ms between requests | Send the next request without waiting for the handshake; keep a small number in flight |
-| Fixed 10 ms wake-up granularity in the worker and in the servicing thread (read from the source) | Estimated 5 to 10 ms added per request; its share was not isolated by measurement | Wake on socket and pipe readiness |
+| Fixed 10 ms wake-up granularity in the worker and in the servicing thread (read from the source) | About 27 of the 31 ms per record on the fixture path (see the wake-up table); with 1 ms waits the interval was 3.3 ms | Wake on socket and pipe readiness |
 | Deadline containment restarts the whole address worker | One late reply costs a worker restart and SNMPv3 rediscovery (about 0.4 s) | Keep the deadline above the device's request p95 at the chosen size |
 
 Quantities that follow for a device profile: objects per request (bounded by response bytes),
