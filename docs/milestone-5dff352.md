@@ -9,7 +9,7 @@ Remote tracker: none associated with this register
 Recorded date: 2026-10-01
 Source baseline: `5dff352b9e86abfca74a74c4adc4fc8c1e48079f`
 
-Next session entry point: `docs/milestone-5dff352.md`, M14 Group record requests and keep requests in flight on the record path. The evaluation and procedure are in `docs/snmp-performance/`; the sibling database session was asked on 2026-10-10 to test a tiered AP8932 database through the current module on both device classes (read-only), and its module-path results are the input to the owner direction that M14 records before the record path is restructured. M7 Local AP8932 Execution Scope and Verification Results stays as before: both local implementation reviews are complete; retain the qualified local IOC and evidence, and obtain owner direction for the remaining comparator, compatibility and hardware scope before extending execution. Full M7 remains Blocked, G2 Open and M11 Deferred. No commit, push, sibling change, equipment operation, memory or handoff is authorized by that acceptance.
+Next session entry point: `docs/milestone-5dff352.md`, M14 Group record requests and keep requests in flight on the record path. The evaluation and procedure are in `docs/snmp-performance/`; the direct reference run and the record-database run through the current module, both with no other client on the devices, were recorded on 2026-10-10. The next step is the owner direction that M14 records (which candidate change is taken), then the detailed plan before the record path is restructured. M7 Local AP8932 Execution Scope and Verification Results stays as before: both local implementation reviews are complete; retain the qualified local IOC and evidence, and obtain owner direction for the remaining comparator, compatibility and hardware scope before extending execution. Full M7 remains Blocked, G2 Open and M11 Deferred. No commit, push, sibling change, equipment operation, memory or handoff is authorized by that acceptance.
 
 ## Scope
 
@@ -45,7 +45,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | M6 | R6: record DSET, conversion, completion and FLNK | Milestone | Complete | No | M1, M2, M3, M4, M5, D5, D6, D7, D8, D11, D12, D13, G1, G5 | Required real-path verification and capability landed at ade4c58; D13/M11 exclusions and dated limits retained; [detail](#m6---r6-record-integration) |
 | M7 | R7: APC startup/DB migration and comparison | Milestone | Blocked | No | M6, D1, G2 | Actual v2c/v3, CA/PVA, comparator and nested startup error observations; [detail](#m7---r7-apc-migration-and-comparison) |
 | M8 | R8: integrated two-OS and resource qualification | Milestone | Blocked | No | M6, M7, G3 | Full identified-source matrix and measured resource acceptance; [detail](#m8---r8-integrated-qualification) |
-| M9 | mdBook documentation | Milestone | Blocked | No | M1, M2, M3, M4, M5, D4, G4 | Curated book builds and rendered navigation/links match current behavior; [detail](#m9---mdbook-documentation) |
+| M9 | mdBook documentation | Milestone | Blocked | No | M1, M2, M3, M4, M5, D4, D14, G4 | Curated book builds and rendered navigation/links match current behavior; [detail](#m9---mdbook-documentation) |
 | G1 | R6 detailed-plan acceptance and execution authorization | External gate | Complete | No | none | Explicit acceptance and separate authorization recorded; [detail](#g1---r6-authorization) |
 | G2 | R7 detailed-plan acceptance and execution authorization | External gate | Open | No | none | Target, comparator and permitted equipment scope approved; [detail](#g2---r7-authorization) |
 | G3 | R8 detailed-plan acceptance and execution authorization | External gate | Open | No | none | OS environments, instruments and resource acceptance policy approved; [detail](#g3---r8-authorization) |
@@ -69,6 +69,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | D11 | Accept that no test pins two details of the never-sent Deadline message: that an unsent WorkerFailure result does not stage the message (no record case reaches an unsent WorkerFailure), and that the message reset stays in `Requests::admit` rather than moving into `prepare`. | 2026-10-05 |
 | D12 | Accept that no test shows a nonzero `behindRetirement` in the `snmp3 queue:` line of `snmp3RuntimeReport`: the report of a record test process is printed when nothing is queued behind a retirement, so a copy that prints a constant 0 or `retirementPending` in that slot is not detected; the counter's meaning is pinned by the Scheduler and qualification tests. | 2026-10-05 |
 | D13 | Execute the cells that M6 Verification Results T1 to T12 record as unexecuted, except the cells moved to Backlog M11 and deferred: the Channel Access variants of T2 to T4, the long active client writes of T7, the delayed output-simulation mode change of T8, and isolated rebuild or reuse of T12 beyond the D7 clause. The deferred cells are excluded from the M6 Completion Criteria and from Test Plan rows T2, T3, T4, T7, T8 and T12, and M6 Closure Evidence lists them as waived checks citing D13 and M11. Execute the rest in order of risk: shutdown, lifecycle, alarm, ordering and reprocess cells first, then input and conversion boundaries, delayed retirement and the stale-generation control. | 2026-10-05 |
+| D14 | Build the snmp3 book in place: root `book.toml` with `src = "docs"`, `docs/SUMMARY.md` and a generated-output directory excluded from tracking. Organize chapters by reader goal and page type (introduction, concepts, procedures, reference, glossary, appendix); split documents that mix page types at their existing locations without keeping a second copy; replace links to files outside `docs/` with repository URLs; keep milestone and private records out of navigation. Toolchain, build automation and publication remain with G4. | 2026-10-10 |
 
 ### Milestone Details
 
@@ -1532,6 +1533,7 @@ Out of scope: implementing or publishing the book through this register update, 
 
 - M1-M5 provide current product documentation; D4 assigns this milestone. It need not wait for M6-M8, except that M5's reclosure under D7 needed the current-product executions of M6 step 7, which were recorded on 2026-10-03/04 and completed M5 on 2026-10-05; later implemented behavior updates the maintained chapters.
 - G4 remains Open; resume as Not started after layout/toolchain/build scope and implementation are approved. Publication is not authorized by this assignment.
+- D14 (2026-10-10) records the layout and page-organization direction only. The plan stays draft, plan acceptance and implementation authorization stay none.
 
 ##### Implementation Plan
 
@@ -1540,8 +1542,8 @@ Plan Acceptance: none
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. Select an in-place or dedicated book source layout, curated chapter list and identified compatible toolchain; propose automation and publication boundaries explicitly.
-2. After G4 closes, add the book configuration/navigation/build support and generated-output exclusions while preserving the maintained document content.
+1. The in-place layout is fixed by D14. Select the identified compatible toolchain and write the curated chapter list by page type; propose automation and publication boundaries explicitly. The chapter list under consideration: an introduction that states scope, readers, verification status and the tutorial decision; concepts (architecture, worker ownership and supervision, native transport, request time between module and device); procedures (configure at startup, start the IOC and check workers, verify against a fixture agent, measure request performance of a device); reference (startup configuration fields, module contract and record support, IOC commands and reports); a glossary; an appendix (design decisions, PowerNet-MIB review).
+2. After G4 closes, add the book configuration/navigation/build support and generated-output exclusions; split documents that mix page types at their existing locations, add a Scope and an Out of scope declaration to each page, replace links that leave `docs/` with repository URLs, and remove history words and title-case headings, keeping the maintained document content.
 3. Run the real build and inspect rendered navigation/links and documented commands. Implement a publication phase only if separately approved.
 
 The inspected epics-ioc-runner example uses root `book.toml`, `src = "docs"`, `docs/SUMMARY.md`, `public/` output and a container-based documentation workflow. The inspected epicsarchiverap-maven example uses `docs/book/book.toml`, dedicated `docs/book/src/SUMMARY.md`, a version/checksum-pinned Dockerfile and a Pages workflow using that same image. These are alternative planning inputs; neither layout nor its tool versions is selected for snmp3 by this record.
@@ -1646,7 +1648,7 @@ Status: Open
 
 ##### Summary
 
-The owner assigned mdBook work on 2026-10-01. The detailed M9 layout/toolchain/build plan and implementation authorization remain pending; assignment does not authorize publication.
+The owner assigned mdBook work on 2026-10-01 and chose the in-place layout and page organization on 2026-10-10 (D14). The toolchain, build, publication boundary, plan acceptance and implementation authorization remain pending; assignment does not authorize publication.
 
 ##### Completion Criteria
 
@@ -1922,6 +1924,7 @@ Out of scope: physical PDU operation, production deployment, other PDU models, s
 
 - none yet; the owner decisions are pending.
 - Database changes are made in the database repository, not in this repository.
+- Observation 2026-10-10: `rPDU2DevicePropertiesOutletLayout` (instance 1) returned -1 on the NMC3 unit (rack PDU firmware 2.5.2.5) and 5 on the NMC2 unit. The enumeration is the same in 4.4.6 and 4.6.0 (1 to 10), so adopting 4.6.0 does not change it; -1 reads as a not-available marker and is a device value.
 
 ##### Implementation Plan
 
@@ -1965,14 +1968,15 @@ Status: Open (unresolved scope: which of the candidate changes is taken)
 
 The record path sends one object per request, one request in flight per address, with 20 to 30 ms
 between a completion and the next request. Measured against devices of two management card
-generations (NMC2 and NMC3, the newer), the module needs 362 to 396 ms (NMC2) and 32 ms (NMC3) per
-record; over a 358-object monitoring set that is about 130 to 140 s and 11 s per pass (computed from
-the 100-record intervals, not a measured pass). The same objects read with Net-SNMP in grouped
-requests take 4 to 6 s and about 0.2 s. The evidence, the cost model and the device selection considerations are
-in `docs/snmp-performance/evaluation.md`; the repeatable procedure and reference values are in
-`docs/snmp-performance/test-procedure.md`. All device figures in them were taken while a legacy IOC
-polled the same units, so they are figures with a second client present; a run with the devices
-otherwise idle is needed before they are used as acceptance values.
+generations (NMC2 and NMC3, the newer) with no other client on the devices (2026-10-10), the
+monitoring set read directly in grouped requests takes 3.4 s (NMC2, K = 28) and 0.12 to 0.16 s
+(NMC3, K = 28 to 40) per pass. The same set run as a record database through the current module
+meets the loss criterion on both classes, fails the overrun criterion on NMC2 (state tier 23
+overruns, slow cycle above its period), and takes 2.4 to 11 times the grouped reads on NMC2 and 27
+to 91 times on NMC3 per tier cycle. The evidence, the cost model and the device selection
+considerations are in `docs/snmp-performance/evaluation.md`; the repeatable procedure and reference
+values are in `docs/snmp-performance/test-procedure.md`. An earlier run with a legacy IOC polling
+the same units is kept there for comparison; it lengthened the NMC2 pass at K = 32 from 3.45 s to 6.17 s.
 
 ##### Scope
 
@@ -1983,17 +1987,18 @@ Decide and then implement a change so that record reads reach the grouped-reques
 
   | Candidate | Expected effect | Cost or risk |
   | --- | --- | --- |
-  | Wake on socket and pipe readiness; send Result and Retired together | Removes most of the 20 to 30 ms between requests (the share of the 10 ms waits was not isolated); NMC3 gains most (about 32 ms to a few ms per record) and NMC2 little (about 370 ms per record) | Small; no change to the batching or ownership rules |
-  | Coalesce contiguous compatible requests under the earliest member deadline | Requests per pass fall by about K; direct grouped passes of 358 objects took 5.3 to 6.2 s (NMC2, K = 32 to 48) and 0.16 s (NMC3, K = 28 to 48) against 66.5 s and 0.75 s | Revisits decision D3 (exact equal deadlines); group size must stay below the response-size ceiling (K = 64 failed on NMC2) |
+  | Wake on socket and pipe readiness; send Result and Retired together | Removes most of the 20 to 30 ms between requests (the share of the 10 ms waits was not isolated); NMC3 gains most (48 to 61 ms per object through the database, about 30 ms of it module path) and NMC2 less (48 to 204 ms per object) | Small; no change to the batching or ownership rules |
+  | Coalesce contiguous compatible requests under the earliest member deadline | Requests per pass fall by about K; direct grouped passes of 358 objects took 3.4 to 4.0 s (NMC2, K = 28 to 48) and 0.12 to 0.16 s (NMC3, K = 28 to 48); one-object passes with a legacy client present took 66.5 s and 0.75 s | Revisits decision D3 (exact equal deadlines); group size must stay below the response-size ceiling (K = 64 failed on both classes) |
   | A binding that reads several objects into one record | The same request reduction, visible to the database (for example one waveform per table column) | Configuration schema extension; record conversion rules for arrays |
-  | Several requests in flight per address | NMC2: passes 11 and 27 percent shorter with 2 and 3 in flight at K = 32; NMC3: none; also removes the idle gap | Deadline and retirement accounting; devices lose requests above a device-specific count |
+  | Several requests in flight per address | NMC2: passes 12 and 18 percent shorter with 2 and 3 in flight at K = 10, no gain beyond the pass spread at K = 20 and 28; NMC3: none | Deadline and retirement accounting; devices lose requests above a device-specific count |
 
 - Profile parameters that follow: objects per request bounded by response bytes, requests in flight,
   request timeout above the device request p95 at that size, retries.
-- Device classes seen so far: NMC2 answered single-object requests with a median of 30 ms
-  (mean 186 ms) and lost 2 of 10 outstanding requests while answering 5 fully; a request of 64
-  objects returned `tooBig`. NMC3 answered with a median of 1.6 ms (mean 2.1 ms) and lost 6 of 20
-  outstanding requests.
+- Device classes seen so far (no other client): NMC2 answered a two-object request with a median
+  of 32 ms (p95 68 ms), lost 2 of 358 single-object requests with 10 in flight while answering 5 in
+  flight fully, and lost 5 of 6 requests of 64 objects. NMC3 answered with a median of 2 ms
+  (p95 4 ms), lost 1 of 1074 with 10 in flight and 6 of 1074 with 16, and returned `tooBig` for a
+  request of 64 objects.
 
 Out of scope: writes (SET) path timing, other device models, changing the Net-SNMP version.
 
@@ -2038,8 +2043,8 @@ Superseded Plan Artifacts: none
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | Not run | Linux host, fixture agent | Pending | Current module baseline: about 30 ms per record at zero added round trip, `docs/snmp-performance/results/reference-run.json` |
-| T2 | Not run | Hardware of two card generations | Pending | Current module baseline, with a legacy client polling the units: 362 to 396 ms per record (NMC2), 32 ms (NMC3) |
-| T3 | Not run | Hardware of two card generations | Pending | The reference schedule was run with Net-SNMP direct, not through the module |
+| T2 | Not run | Hardware of two card generations | Pending | Baseline of the current module, no other client, 2026-10-10: 48 to 204 ms per object (NMC2) and 48 to 61 ms (NMC3) through a record database; one-object module path with a legacy client present: 362 to 396 ms per record (NMC2) and 32 ms (NMC3). Direct grouped: `docs/snmp-performance/evaluation.md` |
+| T3 | Not run | Hardware of two card generations | Pending | Baseline of the current module through a record database of the monitoring set, 900 s per unit, no other client, 2026-10-10: NMC3 loss 0 of 13316, no overrun, cycles 1.81 s, 1.10 s and 14.97 s for the 5 s, 10 s and 60 s tiers (direct grouped 33, 41 and 164 ms); NMC2 loss 6 of 13070, state tier 23 overruns, slow cycle p95 63.2 s (direct grouped 757, 929 and 4389 ms); no second-client probe through the module |
 | T4 | Not run | Linux host | Pending | none |
 
 ##### Closure Evidence

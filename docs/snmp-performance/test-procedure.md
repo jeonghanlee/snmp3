@@ -82,12 +82,13 @@ builds `device_sweep`, `device_monitor` and `fixture_baseline` against the insta
 
 1. **Group size K\*** (per device class): the smallest K whose per-object time is within 10 percent
    of the best per-object time and whose request p95 is at most 1000 ms. If no K qualifies, state
-   that and choose by judgement, with the reason recorded (the first run did so for NMC2).
+   that and choose by judgement, with the reason recorded (the run with a legacy client present did
+   so for NMC2; the reference run gave K\* = 20).
 2. **Requests in flight W**: the smallest W after which the pass time improves by less than the
    spread of the repeats, and at which the request p95 stays below 60 percent of the timeout
-   (the first run measured 55 percent at K = 32, W = 3 on NMC2).
-3. **Timeout**: above the highest request p95 seen at the chosen K and W with a margin; the first
-   run used 3000 ms against a p95 of up to 1.6 s.
+   (the reference run measured 49 percent at K = 20, W = 3 and 35 percent at K = 28, W = 3 on NMC2).
+3. **Timeout**: above the highest request p95 seen at the chosen K and W with a margin; the
+   reference run used 3000 ms against a p95 of up to 1.5 s.
 4. **Order**: no order is preferred unless it beats the best by more than the spread.
 5. **Schedule passes** when all hold: no tier overruns its period; lost requests are below
    0.5 percent; the second client p95 ratio is at most 2.
@@ -104,19 +105,19 @@ export T=/abs/targets.json O=/abs/objects.tsv OUT=/abs/results BIN=/abs/bin
 | Phase | Command | What it does | Time per device |
 | --- | --- | --- | --- |
 | 0 | `python3 docs/snmp-performance/tools/run_device_phases.py phase0 --targets $T --oids $O --out $OUT --tools $BIN` | Idle probe, 30 requests; also writes the object-order files | 1 min |
-| 1 | `python3 docs/snmp-performance/tools/run_device_phases.py phase1 --targets $T --oids $O --out $OUT --tools $BIN` | Group size sweep K = 2, 4, 8, 12, 16, 20, 24, 28, 32, 40, 48, window 1, 5 repeats; writes `kstar.json` | 15 min NMC2, 2 min NMC3 |
-| 1b | same command as phase 1 with `--ks 64,80,96,128 --tag phase1b` | Optional: find the ceiling when K = 48 shows no error; writes `phase1b.json` and `kstar-phase1b.json`, not `phase1.json` | 2 min |
-| 1c | same command as phase 1 with `--ks 1x2,1x5,1x10,1x16,1x20 --tag ramp` | Outstanding-request ramp: single-object requests with 2 to 20 in flight over the whole list; stops at the first loss; writes `ramp.json` | 1 min |
-| 2 | `python3 docs/snmp-performance/tools/run_device_phases.py phase2 --targets $T --oids $O --out $OUT --tools $BIN --kstar $OUT/kstar.json` | Window 1, 2, 3 at K\*/2, K\*, and the best K | 10 min NMC2, 2 min NMC3 |
-| 3 | same command with `phase3` | Order: inventory, by column, by row, random, without strings, at K\* | 10 min NMC2, 2 min NMC3 |
-| 4 | `python3 docs/snmp-performance/tools/run_device_phases.py phase4 --targets $T --oids $O --out $OUT --tools $BIN` | Sustained schedule of 900 s with the second client; periods 5, 10, 60 s | 17 min |
+| 1 | `python3 docs/snmp-performance/tools/run_device_phases.py phase1 --targets $T --oids $O --out $OUT --tools $BIN` | Group size sweep K = 2, 4, 8, 12, 16, 20, 24, 28, 32, 40, 48, window 1, 5 repeats; writes `kstar.json` | 10 min NMC2, 1 min NMC3 |
+| 1b | same command as phase 1 with `--ks 64,80,96,128 --tag phase1b` | Optional: find the ceiling when K = 48 shows no error; writes `phase1b.json` and `kstar-phase1b.json`, not `phase1.json` | 1 min |
+| 1c | same command as phase 1 with `--ks 1x2,1x5,1x10,1x16,1x20 --tag ramp` | Outstanding-request ramp: single-object requests with 2 to 20 in flight over the whole list; stops at the first loss; writes `ramp.json` | 1 to 2 min |
+| 2 | `python3 docs/snmp-performance/tools/run_device_phases.py phase2 --targets $T --oids $O --out $OUT --tools $BIN --kstar $OUT/kstar.json` | Window 1, 2, 3 at K\*/2, K\*, and the best K | 7 min NMC2, 1 min NMC3 |
+| 3 | same command with `phase3` | Order: inventory, by column, by row, random, without strings, at K\* | 9 min NMC2, 1 min NMC3 |
+| 4 | `python3 docs/snmp-performance/tools/run_device_phases.py phase4 --targets $T --oids $O --out $OUT --tools $BIN` | Sustained schedule of 900 s with the second client; periods 5, 10, 60 s | 16 min |
 
 A stop shows on the console as a step with return code 10 and in the phase JSON under `stopped`; the
 rows measured before it are kept and the device is skipped for the rest of that phase. Do not rerun a
 stopped device without finding the cause.
 
 When the rule gave `kstar: null`, phases 2 and 3 use the best K of phase 1; set `kstar` in
-`kstar.json` to override it (the first run set 32 for NMC2). Phase 4 needs a person present; ask the
+`kstar.json` to override it (the run with a legacy client present set 32 for NMC2). Phase 4 needs a person present; ask the
 owner of the device before starting it and announce the hold to any other user of the device.
 
 Options of `run_device_phases.py`: `--repeats` (default 5), `--ks` (phase 1 list), `--timeout-ms`
@@ -149,37 +150,47 @@ python3 docs/snmp-performance/tools/summarize_results.py $OUT
 Report, per device class: the K\* decision, the
 pass time table by K, the window table, the order table, the sustained table with the second client
 ratio, and the model fit (`fixed + per_object * K`, least squares over K = 2 to 48). The layout of
-the first run is [results/reference-run.json](results/reference-run.json).
+the reference run is [results/reference-run.json](results/reference-run.json).
 
 ## Reference values and tolerance bands
 
-First run, 358 objects, SNMPv3 authPriv, taken while a legacy IOC was polling the same units (the
-no-other-client prerequisite was not met); treat the values as figures with a second client present
-until a run with the devices otherwise idle replaces them. A rerun on the same class and firmware is expected inside
-the bands, which are the observed spread of five repeats widened to a round number; a result
-outside a band is a finding to investigate (firmware change, device load, network path).
+Reference run: 358 objects, SNMPv3 authPriv, GET only, with no other client on the devices. An
+earlier run with a legacy IOC polling the same units is kept in
+[results/reference-run.json](results/reference-run.json) under `legacy_client_present`.
+
+The reference is the median of five repeats. The pass-time bands are a fixed share of the reference
+(15 percent on NMC2, 25 percent on NMC3), not the observed spread; the other rows state their share.
+Compare the median of the repeats of a rerun on the same class and firmware with the band, not a
+single pass: single passes of the reference run fell outside the band at three points (NMC2 K=8 3.9
+to 5.1 s and K=32 3.4 to 4.3 s; NMC3 K=48 117 to 243 ms). A median outside a band is a finding to
+investigate (firmware change, device load, network path, another client on the device).
 
 | Quantity | NMC2 reference | NMC2 tolerance band | NMC3 reference | NMC3 tolerance band |
 | --- | --- | --- | --- | --- |
-| Pass, K=1 | 66.5 s | 56.6 s to 76.5 s | 748 ms | 561 ms to 935 ms |
-| Pass, K=8 | 14.2 s | 12.0 s to 16.3 s | 274 ms | 206 ms to 343 ms |
-| Pass, K=32 | 6.17 s | 5.24 s to 7.09 s | 168 ms | 126 ms to 210 ms |
-| Pass, K=48 | 5.33 s | 4.53 s to 6.13 s | 157 ms | 117 ms to 196 ms |
-| Request p95, K=32 | 1342 ms | +/- 30 percent | 35 ms | +/- 50 percent |
-| Idle probe p50 (1 per s) | 200 ms | +/- 50 percent | 2.5 ms | +/- 50 percent |
-| State cycle p50 (38 objects, 5 s) | 1077 ms | +/- 30 percent | 33 ms | +/- 50 percent |
+| Pass, K=2 | 7.15 s | 6.08 s to 8.22 s | 457 ms | 343 ms to 572 ms |
+| Pass, K=8 | 4.96 s | 4.21 s to 5.70 s | 242 ms | 182 ms to 303 ms |
+| Pass, K=32 | 3.45 s | 2.93 s to 3.97 s | 143 ms | 107 ms to 179 ms |
+| Pass, K=48 | 3.99 s | 3.39 s to 4.59 s | 157 ms | 118 ms to 196 ms |
+| Request p95, K=32 | 680 ms | +/- 30 percent | 33 ms | +/- 50 percent |
+| Idle probe p50 (1 per s) | 19 ms | +/- 50 percent | 2.5 ms | +/- 50 percent |
+| State cycle p50 (38 objects, 5 s) | 757 ms | +/- 30 percent | 33 ms | +/- 50 percent |
+
+The single-object pass (K = 1) is not part of phase 1; with a legacy client present it was 66.5 s
+on NMC2 and 748 ms on NMC3.
 
 ## Time budget
 
-A full run of phases 0 to 4 on one NMC2-class and one NMC3-class unit takes about 1 hour 15 minutes
-without phase 1b; the fixture steps add about 10 minutes.
+A full run of phases 0 to 4 with 1b and 1c on one NMC2-class and one NMC3-class unit took about 1
+hour 10 minutes (phase 4 about 33 minutes of it for both units); the fixture steps add about 10
+minutes.
 
 ## Limits of the procedure
 
 - It measures one monitoring set per run and one SNMPv3 profile; other sets and SNMPv1/v2c are
   not covered.
 - The second client reads only `sysUpTime`; other services of the device are not measured.
-- The tolerance bands come from one day on one pair of units, with a legacy client polling them.
+- The reference values come from one day on one pair of units, with no other client on them; the
+  bands are chosen shares of the reference, not a measured distribution.
 - It cannot detect another client by itself: check for other pollers of the device (running IOCs,
   monitoring systems) before a run and record what was found with the results.
 - The first run had no 10 s rest between the two devices in phases 1 to 3 (they are different
