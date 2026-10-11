@@ -7,7 +7,9 @@
 #include <epicsExit.h>
 #include <algorithm>
 #include <climits>
+#include <poll.h>
 #include <set>
+#include <time.h>
 
 namespace snmp3 {
 namespace {
@@ -22,7 +24,8 @@ Runtime::Runtime()
 void Runtime::initialize(void*)
 {
     // Process storage survives Base isolated-database cleanup and hook reuse.
-    owner = new Runtime;
+    try { owner = new Runtime; }
+    catch(const std::exception&) { cantProceed("snmp3: cannot create runtime\n"); }
     if (epicsAtExit(&Runtime::fallback, owner) != 0)
         cantProceed("snmp3: cannot register process fallback\n");
 }
@@ -84,7 +87,7 @@ bool Runtime::start()
         if (current.state == State::Failed)
             return false;
         ready.tryWait();
-        wake.tryWait();
+        wake.clear();
         current.state = State::Starting;
         current.admission = false;
         if(current.activation==ULONG_MAX) { current.state=State::Failed; return false; }
@@ -119,11 +122,13 @@ void Runtime::run(void* argument)
     if(self.supervisor) {
         try {
             for(;;) {
+                self.wake.clear(); ++self.passes;
                 const auto now=monotonicUs(); self.supervisor->step(now);
-                Requests::instance().service();
-                if(self.supervisor->finished(monotonicUs()))break;
-                const auto timer=self.supervisor->nextTimer(); const auto origin=monotonicUs();
-                self.wake.wait(timer<=origin ? 0.0:std::min(0.01,double(timer-origin)/1000000.0));
+                ServiceOutcome outcome;
+                do { outcome=Requests::instance().service(); } while(outcome.more);
+                const auto after=monotonicUs();
+                if(self.supervisor->finished(after))break;
+                self.pause(self.supervisor->nextWake(after),outcome.retry,UINT64_MAX);
             }
         } catch(...) {
             {
@@ -136,18 +141,42 @@ void Runtime::run(void* argument)
             const auto end=ipc::add(monotonicUs(),2000000);
             while(monotonicUs()<end) {
                 try {
-                    self.supervisor->step(monotonicUs()); Requests::instance().service();
+                    self.wake.clear(); ++self.passes;
+                    self.supervisor->step(monotonicUs());
+                    while(Requests::instance().service().more) {}
                     if(self.supervisor->finished(monotonicUs()))break;
                 } catch(...) {}
-                self.wake.wait(0.01);
+                // The bounded wait is its own handler: a failure to build the wait set must not end the thread.
+                try { self.pause(UINT64_MAX,false,10000); } catch(...) {}
             }
         }
-    } else self.wake.wait();
+    } else { try { self.pause(UINT64_MAX,false,UINT64_MAX); } catch(...) {} }
     {
         epicsGuard<epicsMutex> state(self.stateMutex);
         ++self.current.exited;
         self.trace("worker-exit");
     }
+}
+
+void Runtime::notify(void* runtime) { static_cast<Runtime*>(runtime)->wake.signal(); }
+
+void Runtime::pause(uint64_t timer,bool retry,uint64_t limit)
+{
+    // The loop sleeps until the wake descriptor or a worker channel is ready or the earliest timer
+    // is due; without a timer the wait has no timeout.
+    const auto now=monotonicUs(); uint64_t wait=UINT64_MAX;
+    if(timer!=UINT64_MAX)wait=timer<=now ? 0:timer-now;
+    if(retry)wait=std::min<uint64_t>(wait,ServiceRetryUs);
+    wait=std::min(wait,limit);
+    std::vector<pollfd> set; pollfd entry{};
+    entry.fd=wake.descriptor(); entry.events=POLLIN; set.push_back(entry);
+    if(supervisor)for(const auto& channel:supervisor->descriptors()) {
+        entry.fd=channel.fd; entry.events=POLLIN|(channel.write ? POLLOUT:0); set.push_back(entry);
+    }
+    timespec span{}; timespec* bound=nullptr;
+    if(wait!=UINT64_MAX) { span.tv_sec=time_t(wait/1000000); span.tv_nsec=long(wait%1000000)*1000; bound=&span; }
+    // EINTR and a descriptor error are re-evaluated by the next pass, which rebuilds the set.
+    ppoll(set.data(),nfds_t(set.size()),bound,nullptr);
 }
 
 void Runtime::stop()
@@ -177,7 +206,7 @@ void Runtime::stop()
     }
     if(supervisor)supervisor->requestStop();
     else if(scheduler)scheduler->stop();
-    wake.trigger();
+    wake.signal();
     epicsThreadMustJoin(target);
     const bool drained=Requests::instance().drain();
     {
@@ -227,6 +256,7 @@ void Runtime::report()
                     (unsigned long long)worker.address,(unsigned long long)worker.epoch,(long long)worker.pid,
                     worker.ready ? 1u:0u,worker.closing ? 1u:0u,(unsigned long long)worker.batch,
                     (unsigned long long)worker.spawnAttempts,(unsigned long long)worker.reaps,(unsigned long long)worker.forced);
+    std::printf("snmp3 loop: passes=%llu\n",(unsigned long long)passes.load());
 }
 
 void Runtime::prepare(const ConfigState& config)
@@ -241,6 +271,7 @@ void Runtime::prepare(const ConfigState& config)
         const auto limits=prestartLimits.find(ipc::addressKey(endpoint.second.address));
         if(limits!=prestartLimits.end())owner->limits(endpoint.second.address,limits->second.first,limits->second.second);
     }
+    owner->setNotifier(&Runtime::notify,this);
     scheduler=std::move(owner);
 }
 uint64_t Runtime::bind(const std::string& definition)
@@ -262,7 +293,7 @@ std::vector<ipc::Identity> Runtime::admit(const std::vector<uint64_t>& handles,c
     std::shared_ptr<Scheduler> owner;
     { epicsGuard<epicsMutex> state(stateMutex); if(current.state!=State::Running || !current.admission)throw std::runtime_error("runtime admission closed"); owner=scheduler; }
     if(!owner)throw std::runtime_error("runtime has no configured address");
-    auto admitted=owner->admit(handles,payload,budgetMs,monotonicUs()); wake.trigger(); return admitted;
+    auto admitted=owner->admit(handles,payload,budgetMs,monotonicUs()); wake.signal(); return admitted;
 }
 void Runtime::queueLimit(const std::string& address,uint64_t count,uint64_t bytes)
 {
@@ -274,7 +305,7 @@ void Runtime::queueLimit(const std::string& address,uint64_t count,uint64_t byte
     auto next=prestartLimits;
     for(auto it=next.begin();it!=next.end();) { if(!configured.count(it->first))it=next.erase(it); else ++it; }
     next[key]={count,bytes}; auto owner=schedulerOwner(); if(owner)owner->limits(address,count,bytes);
-    prestartLimits.swap(next); wake.trigger();
+    prestartLimits.swap(next); wake.signal();
 }
 void Runtime::setQualification(const Qualification& mode)
 {

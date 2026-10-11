@@ -46,6 +46,10 @@ void module()
         require(active.state == snmp3::State::Running && active.admission,
                 "readiness or admission missing");
         require(runtime.start(), "idempotent start failed");
+        // A runtime without a supervisor waits for its stop request. A wake left over from the previous
+        // activation must not end it: the thread is still running after the first activation's wake.
+        epicsThreadSleep(0.05);
+        require(runtime.snapshot().exited == cycle, "runtime thread left before any stop request");
         epicsThreadId callers[CallerCount] = {};
         epicsThreadOpts options = EPICS_THREAD_OPTS_INIT;
         options.joinable = 1;

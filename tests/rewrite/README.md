@@ -295,6 +295,8 @@ immutable post-freeze file changes and real pinned-USM conflict. Actual positive
 traffic traverses Config/Scheduler/Supervisor/IPC/Worker/Native/agent/consumer.
 Only outer process, filesystem or socket boundaries supply faults.
 
+The `timers`, `ipc-hold-retired`, `ipc-partial-timeout` and `ipc-full-channel` cases (`test_qualification.py --cases timers ipc-hold-retired ipc-partial-timeout ipc-full-channel`; the default case list includes them) read the supervisor's wake sources from the driver's own loop with equalities: an idle supervisor holds no event timer and polls its worker every 100 ms; a contained worker is polled every 10 ms; a hung-up channel leaves the wait set; a channel with unsent bytes is waited on for write readiness; with the IPC proxy withholding the Retired frame of an answered member, the end of its retire grace (the deadline plus 1 s) is the supervisor's next event timer, and once a stopped worker is contained no event timer lies in the past, and the containment follows the end of the grace within 50 ms; a frame that stops after one byte arms the 1 s partial-frame limit of a ready worker as an event timer, and the containment follows that timer within 50 ms. The loop that combines these is exercised by the `wake-loop` and `stop-enqueue-failed` cases of `test_records.py`.
+
 Run separate ASan/UBSan products through the worker reference's selected-product
 commands. Private stderr must be present and free of sanitizer reports and secret
 sentinels. Base/system/vendor dependencies remain uninstrumented; leak, TSan,
@@ -350,6 +352,7 @@ python3 tests/rewrite/test_records.py --case rebuild --output work/r6-rebuild
 python3 tests/rewrite/test_records.py --case stop-inflight --output work/r6-stop-inflight
 python3 tests/rewrite/test_records.py --case stop-enqueue-failed --output work/r6-stop-enqueue
 python3 tests/rewrite/test_records.py --case stop-downstream --output work/r6-stop-downstream
+python3 tests/rewrite/test_records.py --case wake-loop --output work/r6-wake-loop
 python3 tests/rewrite/test_records.py --case live-detach --output work/r6-live-detach
 python3 tests/rewrite/test_records.py --case repeat-detach --output work/r6-repeat-detach
 ```
@@ -378,7 +381,8 @@ python3 tests/rewrite/test_records.py --case repeat-detach --output work/r6-repe
 | near-deadline | record-queue.db and an outer UDP response delay of 300 ms; ten fresh processes with record budgets of 314 to 322 ms place the response just before the deadline and report whether the worker was contained after its result had been selected |
 | rebuild | record-queue.db and actual outer UDP drop-all; the stop-queued state (a stopped worker, a retirement-pending predecessor and a queued Base RPRO successor) is stopped and cleaned up in isolation, then the same process loads the databases again and starts a second activation; the second activation runs the complete baseline on a new worker, the first activation's worker is gone, and the report counters start again at zero |
 | stop-inflight | record-stop.db (the eleven Timeout records of the alarms case, each with a FLNK to one counter) and actual outer UDP drop-all; all eleven records are admitted on one address, the case waits until a batch is on the worker channel and stops the runtime; one generation is sent and the others are queued, and every record completes once as a communication alarm with INVALID severity, no native publication, PACT and waveform BUSY clear and exactly one FLNK each, the drain succeeds and the worker is reaped |
-| stop-enqueue-failed | record-stop.db and actual outer UDP drop-all, three processes; the low-priority Base callback queue is filled by an external blocker before the eleven records are admitted, so every completion enqueue is refused and the stop retries them; released while the runtime thread still runs, or after its 2 s stop bound while only the record drain retries, every record completes once with a communication alarm and one FLNK and the drain succeeds; released after the drain budget has expired, the drain fails, the stop returns without waiting for the queue, the records stay active with PACT set, restart is refused and the isolated cleanup finalizes the eleven completions once without FLNK |
+| stop-enqueue-failed | record-stop.db and actual outer UDP drop-all, three processes; the low-priority Base callback queue is filled by an external blocker before the eleven records are admitted, so every completion enqueue is refused and the stop retries them; released while the runtime thread still runs, or after its 2 s stop bound while only the record drain retries, every record completes once with a communication alarm and one FLNK and the drain succeeds; released after the drain budget has expired, the drain fails, the stop returns without waiting for the queue, the records stay active with PACT set, restart is refused and the isolated cleanup finalizes the eleven completions once without FLNK; while the refused enqueues are retried the loop passes 10 to 100 times in 300 ms, the first process's stop returns within 50 ms of the last released terminal and the second process's drain within 5 ms of it |
+| wake-loop | a generated database of 200 longin records on an actual outer UDP drop-all endpoint plus one record on the answering agent, one process; the idle loop passes at most 130 times in 10 s; ten single reads started on an idle loop each complete within 40 ms; a worker killed from outside three times is reaped within 20 ms of the kill and the loop passes at most 10 times while its channel is hung up; with the worker stopped, the 200 records admitted, every lock set held and the stop requested, all 200 terminals are handed to the callback queue in one wake within 7 ms (more contexts than one 128-visit pass covers); after the worker is continued and reaped and the locks are released, the stop returns within 100 ms and every record completes once |
 | stop-downstream | record-stop.db with every FLNK pointed through a Channel Access link at a record in another lockset, and actual outer UDP drop-all, two processes; the downstream record's lock is held past the drain budget while the runtime stops: the stop completes with every record completed once, the drain succeeded and the worker reaped, no downstream processing while held, and eleven downstream processings (one per link; Base keeps one pending put per CA link) on Base's CA link thread after the release; held through the IOC shutdown instead, the snmp3 stop completes first and Base's CA link shutdown waits for the lock; the downstream count after that release is reported, not asserted |
 | live-detach | record-stop.db and actual outer UDP drop-all, two processes; an input and an output record are replaced through Base's own link put while their requests are in flight, after they complete, after the operator stop, and, in the second process, during the record drain of a stop whose completions the full Base callback queue refuses: Base refuses every attempt, each record keeps its context and binding, and each in-flight request completes once with a communication alarm |
 | repeat-detach | record-stop.db ai/ao plus the baseline databases; idle isolated shutdown, first detach at AfterCloseLinks, two real INP and two real OUT puts, retained contexts at BeforeFree and zero contexts after testdbCleanup; every refusal preserves the original full INST_IO text/type and dset with null dpvt/context record pointers |
@@ -803,6 +807,7 @@ into these groups:
 | Counting and identity | never-sent-overcount, behind-flag-always, take-without-identity |
 | Never-sent message | never-sent-message-always, never-sent-message-absent, never-sent-message-any-outcome, never-sent-message-not-reset |
 | Queue report | report-never-sent-miscounted |
+| Wake and timers | see Wake And Timer Controls below |
 | Queued deadline | queued-deadline-restart, queued-deadline-extended |
 | Restart | rebuild-reuses-scheduler |
 | Stop in flight | stop-queued-not-selected, waveform-busy-held, drain-without-retry |
@@ -817,6 +822,39 @@ required T1-T14 matrix belong to the canonical
 close R6 or advertise record support. Receipts retain source/product/library
 hashes, request identities, alarms/UDF/publication state, actual child exits and
 cleanup observations without credentials.
+
+### Wake And Timer Controls
+
+These 17 controls each remove one rule of the readiness-driven servicing loop. They run with `--d7-controls` against an instrumented build made after the last source change; the build receipt lists 18 products, including `snmp3LifecycleTest`. Each control must pass its named case on the unmodified products and fail on its defective copy:
+
+```bash
+WAKE="grace-timer-omitted grace-offered-after-containment partial-timer-omitted reap-poll-uniform reap-backstop-omitted write-readiness-omitted next-wake-without-poll"
+WAKE="$WAKE retry-timer-omitted retry-spins stop-notifier-omitted drain-ignores-wake more-omitted"
+WAKE="$WAKE channel-readiness-omitted channel-pollin-omitted admit-signal-omitted poll-spins stale-wake-kept"
+python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --d7-controls $WAKE --output work/r6-wake-controls
+```
+
+A qualification or lifecycle cell has no named check. The harness counts a non-zero exit as detection, and the driver's stderr message names the condition: `cell/run/<case>-4/qualification.stderr` for qualification cells, `cell/cell.stderr` for `stale-wake-kept`. The runner also reports `qualification:return`, `real-qualification-complete` and `every-worker-exact-reap` as failed in those cells because the driver ends early. `write-readiness-omitted` reports the generic "actual progress deadline exceeded" of the driver's wait helper; the other qualification messages name the condition. For record cells the table lists every check that fails on the defective copy; the first is the named check and the others fail together with it.
+
+| Control | Case | Failing check or message | What is removed |
+| --- | --- | --- | --- |
+| grace-timer-omitted | qualification `ipc-hold-retired` | "retire grace is not the supervisor's next timer" | The retire grace (deadline plus 1 s) of an answered, unretired member as an event timer. |
+| grace-offered-after-containment | qualification `ipc-hold-retired` | "a past event timer remained after containment" | The condition that the grace is offered only until the worker is contained. |
+| partial-timer-omitted | qualification `ipc-partial-timeout` | "partial-frame limit was not an event timer before the containment" | The 1 s partial-frame limit of a ready worker as an event timer. |
+| reap-poll-uniform | qualification `timers` | "contained worker is not polled for its exit soon" | The 10 ms exit poll of a contained worker (the backstop interval is used instead). |
+| reap-backstop-omitted | qualification `timers` | "idle worker is not polled at the backstop interval" | The 100 ms backstop poll of an idle live worker. |
+| write-readiness-omitted | qualification `ipc-full-channel` | "actual progress deadline exceeded" | The write flag of a channel with unsent bytes in the wait set. |
+| next-wake-without-poll | qualification `timers` | "loop wake time does not include the backstop poll" | The exit poll from the loop's wake time (`Supervisor::nextWake`). |
+| retry-timer-omitted | record `stop-enqueue-failed` | `enqueue-retry-passes-on-timer-without-spinning`, also `release-within-budget-completes-every-record-once` | The bounded retry timer for refused callback enqueues. |
+| retry-spins | record `stop-enqueue-failed` | `enqueue-retry-passes-on-timer-without-spinning` alone | The wait before a refused enqueue is retried. |
+| stop-notifier-omitted | record `stop-enqueue-failed` | `release-settles-stop-without-waiting-for-bound`, also `release-within-budget-completes-every-record-once` | The wake raised when a terminal is released while stopping. |
+| drain-ignores-wake | record `stop-enqueue-failed` | `drain-returns-on-completion-wake`; the late mode also fails `records-late:return`, `release-after-stop-bound-completes-every-record-once` and `retained-records-finalized-once-at-cleanup` | The drain's wait on the completion notification (it sleeps a fixed time). |
+| more-omitted | record `wake-loop` | `burst-of-contexts-handed-over-in-one-wake` alone | The continuation after a 128-visit pass until every context has been visited. |
+| channel-readiness-omitted | record `wake-loop` | `hung-up-channel-reaps-at-once-without-spinning`, also `single-read-completes-without-waiting-for-the-poll` | The worker channels in the loop's wait set. |
+| channel-pollin-omitted | record `wake-loop` | `single-read-completes-without-waiting-for-the-poll` alone | Read readiness of the worker channels (write readiness and hang-up remain). |
+| admit-signal-omitted | record `wake-loop` | `single-read-completes-without-waiting-for-the-poll` alone | The wake raised by an admission. |
+| poll-spins | record `wake-loop` | `idle-service-passes-within-bound`, also `hung-up-channel-reaps-at-once-without-spinning` | The wait of the exit poll (it is always due). |
+| stale-wake-kept | lifecycle `snmp3LifecycleTest module` | "runtime thread left before any stop request" | The clearing of a wake left from the previous activation at start. |
 
 ### Repeated Detach Controls
 

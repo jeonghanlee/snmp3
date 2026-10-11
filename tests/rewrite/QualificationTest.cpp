@@ -22,6 +22,9 @@ void check(bool value,const char* name)
 { ++checks; if(!value)throw std::runtime_error(name); }
 void rejects(const std::function<void()>& call)
 { bool failed=false; try { call(); } catch(const std::exception&) { failed=true; } check(failed,"rejection absent"); }
+// A timer that came due during the last 1 ms wait is acted on by the next step; one that is older than
+// that stays in the past because it cannot act, which makes the servicing loop spin.
+bool notStale(uint64_t timer) { return timer==UINT64_MAX || timer+5000>monotonicUs(); }
 volatile sig_atomic_t interrupts=0;
 void interrupt(int) { ++interrupts; }
 struct Fixture {
@@ -267,11 +270,28 @@ void nativeDeadline(Fixture& f)
     f.read(b[0],ipc::Outcome::Complete,-123); f.read(b[1],ipc::Outcome::Complete,-123); f.settle();
     check(std::count_if(f.observed.begin(),f.observed.end(),[](const SupervisionEvent& e){return e.code==13 && e.address==1;})==1,"expired queued batch dispatched");
 }
-void ipcFault(Fixture& f)
+void ipcFault(Fixture& f,const std::string& mode)
 {
     const auto a=f.handles.at(f.handles.count("Address4Set") ? "Address4Set":"Address4Read").front(),b=f.handles.at("Address6Read").front();
     f.admit({a},f.handles.count("Address4Set") ? std::vector<Value>{Value::integer(777)}:std::vector<Value>{},5000,monotonicUs());
     f.admit({b},{},5000,monotonicUs());
+    if(mode=="ipc-partial-timeout") {
+        // A frame that stops after one byte arms the partial-frame limit of a ready worker (1 s), well
+        // before the 5 s request deadline, and the supervisor learns it without any further event.
+        const auto contained=[&]{ return std::any_of(f.observed.begin(),f.observed.end(),
+                                      [](const SupervisionEvent& e){return e.address==1 && e.code==6;}); };
+        f.until([&]{ const auto now=monotonicUs(); return contained() || f.owner->nextTimer()<now+1100000; },3000);
+        check(!contained(),"partial-frame limit was not an event timer before the containment");
+        const auto now=monotonicUs(),timer=f.owner->nextTimer();
+        check(timer>now && timer<=now+1000000,"partial-frame timer outside the ready-worker limit");
+        // The plan's number: the partial-frame containment follows its timer within 50 ms.
+        f.until([&]{return contained();},3000);
+        uint64_t at=0;
+        for(const auto& e:f.observed)if(e.address==1 && e.code==6) { at=e.at; break; }
+        check(at>=timer && at<=timer+50000,"partial-frame limit acted later than 50 ms after its timer");
+        std::printf("{\"event\":\"timer_lateness\",\"case\":\"partial-frame\",\"late_us\":%llu}\n",
+                    (unsigned long long)(at-timer));
+    }
     f.read(a,ipc::Outcome::ChannelFailure); f.read(b,ipc::Outcome::Complete,-123); f.settle();
 }
 void fullChannel(Fixture& f)
@@ -280,6 +300,8 @@ void fullChannel(Fixture& f)
     f.scheduler->limits("127.0.0.1",2,ipc::MaxBytes);
     f.admit({a},{Value::octets(std::vector<uint8_t>(1048576,255))},100,monotonicUs());
     f.admit({b},{},5000,monotonicUs());
+    // The reader has stopped, so the channel keeps unsent bytes and the loop must wait for write readiness.
+    f.until([&]{ for(const auto& d:f.owner->descriptors())if(d.write)return true; return false; },3000);
     f.read(a,ipc::Outcome::Deadline);
     check(f.scheduler->snapshot(1).count==1 && f.scheduler->snapshot(1).retirementPending==1,"full IPC released live Q");
     f.read(b,ipc::Outcome::Complete,-123); f.settle();
@@ -344,7 +366,65 @@ void liveRace(Fixture& f)
     std::printf("{\"event\":\"live_race\",\"accepted\":%u,\"consumed\":%zu,\"rejected\":%u}\n",accepted.load(),consumed.size(),rejected.load());
 }
 
-uint64_t eventAt(const std::vector<SupervisionEvent>& events,uint32_t code,uint64_t after,uint64_t epoch=0)
+uint64_t eventAt(const std::vector<SupervisionEvent>& events,uint32_t code,uint64_t after,uint64_t epoch=0);
+// Idle, contained and hung-up workers: which timers and wait descriptors the supervisor reports.
+void idleTimers(Fixture& f)
+{
+    const auto idle=[&]{
+        const auto now=monotonicUs();
+        check(f.owner->nextTimer()==UINT64_MAX,"idle supervisor holds an event timer");
+        check(f.owner->nextPoll(now)==now+100000,"idle worker is not polled at the backstop interval");
+        check(f.owner->nextWake(now)==now+100000,"loop wake time does not include the backstop poll");
+        const auto set=f.owner->descriptors();
+        check(set.size()==2 && !set[0].write && !set[1].write,"idle channels are not waited on for reading only");
+    };
+    idle();
+    const auto a=f.handles.at("Address4Read");
+    f.signal(1,SIGSTOP);
+    f.admit({a[0]},{},100,monotonicUs()); f.read(a[0],ipc::Outcome::Deadline);
+    const auto contained=monotonicUs();
+    check(f.worker(1).pid>0 && f.owner->nextPoll(contained)==contained+10000,"contained worker is not polled for its exit soon");
+    check(f.owner->nextWake(contained)<=contained+10000,"loop wake time does not include the exit poll");
+    f.until([&]{return f.worker(1).reaps==1;},4000);
+    f.ready(); f.settle(); idle();
+    // A worker killed from outside hangs its channel up; the dead channel leaves the wait set.
+    f.signal(2,SIGKILL);
+    f.until([&]{return f.owner->descriptors().size()==1;},3000);
+    f.until([&]{return f.worker(2).reaps==1;},4000);
+    f.ready(); f.settle(); idle();
+}
+// An answered, consumed member whose Retired frame never arrives is contained when the retire grace
+// after its deadline ends; that time is the supervisor's next timer.
+void graceTimer(Fixture& f)
+{
+    const auto a=f.handles.at("Address4Read").front(); const auto origin=monotonicUs();
+    const uint64_t deadline=origin+400000;
+    f.admit({a},{},400,origin);
+    f.read(a,ipc::Outcome::Complete,-123);
+    check(f.scheduler->snapshot(1).retirementPending==1,"answered member is not retirement-pending");
+    check(f.owner->nextTimer()==deadline+1000000,"retire grace is not the supervisor's next timer");
+    check(f.owner->nextWake(monotonicUs())<=monotonicUs()+100000,"idle backstop is not part of the loop's wake time");
+    // The worker is stopped, so once it is contained it neither exits nor closes its channel until the
+    // supervisor kills it: the grace has acted and no timer in the past may remain.
+    // The worker has sent its Retired frame by now and the proxy has withheld it.
+    const auto settled=monotonicUs()+200000;
+    f.until([&]{return monotonicUs()>=settled;},1000);
+    f.signal(1,SIGSTOP);
+    f.until([&]{return eventAt(f.observed,6,origin)!=0;},4000);
+    const auto contained=eventAt(f.observed,6,origin);
+    check(contained>=deadline+1000000,"worker contained before the retire grace ended");
+    // The plan's number: the containment follows the end of the grace within 50 ms.
+    check(contained<=deadline+1000000+50000,"worker contained later than 50 ms after the retire grace ended");
+    std::printf("{\"event\":\"timer_lateness\",\"case\":\"retire-grace\",\"late_us\":%llu}\n",
+                (unsigned long long)(contained-(deadline+1000000)));
+    unsigned ticks=0;
+    f.until([&]{ ++ticks; if(f.worker(1).reaps>0)return true;
+                 check(notStale(f.owner->nextTimer()),"a past event timer remained after containment"); return false; },4000);
+    check(ticks>50,"containment window was not observed");
+    f.settle();
+}
+
+uint64_t eventAt(const std::vector<SupervisionEvent>& events,uint32_t code,uint64_t after,uint64_t epoch)
 {
     for(const auto& e:events)if(e.address==1 && e.code==code && e.at>=after && (!epoch || e.epoch==epoch))return e.at;
     return 0;
@@ -439,7 +519,9 @@ int main(int argc,char** argv)
                 else if(mode=="ipc-stale-behind")staleBehind(f);
                 else if(mode=="native-expiry" || mode=="discovery-expiry")nativeDeadline(f);
                 else if(mode=="ipc-full-channel")fullChannel(f);
-                else if(mode=="ipc-malformed" || mode=="ipc-truncated" || mode=="ipc-partial-timeout" || mode=="ipc-bad-set" || mode=="ipc-oversize")ipcFault(f);
+                else if(mode=="ipc-malformed" || mode=="ipc-truncated" || mode=="ipc-partial-timeout" || mode=="ipc-bad-set" || mode=="ipc-oversize")ipcFault(f,mode);
+                else if(mode=="timers")idleTimers(f);
+                else if(mode=="ipc-hold-retired")graceTimer(f);
                 else if(mode=="crashes")crashes(f);
                 else if(mode=="ambiguous" && argc==7)ambiguous(f,argv[6]);
                 else throw std::runtime_error("qualification mode rejected");

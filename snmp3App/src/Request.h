@@ -64,6 +64,14 @@ struct RecordSnapshot {
     bool entryOpen=false,drainFailed=false,detachAllowed=false;
 };
 
+// One bounded visit pass. more: contexts remain that this activation has not visited since the
+// pass began, so the caller continues without waiting. retry: a callback enqueue failed and the
+// entry must be offered again on a bounded timer.
+// Bound on the delay before a failed callback enqueue is offered again.
+const uint64_t ServiceRetryUs=10000;
+struct ServiceOutcome {
+    bool more=false,retry=false;
+};
 // Context storage outlives Base callback queue references and isolated record teardown.
 class Requests {
 public:
@@ -76,7 +84,7 @@ public:
     void start(std::shared_ptr<Scheduler> owner);
     void admit(RecordContext& context, const std::vector<Value>& payload);
     bool completing(RecordContext& context);
-    void service();
+    ServiceOutcome service();
     bool drain();
     void permitDetach();
     void queuesDestroyed();
@@ -91,6 +99,8 @@ private:
     std::list<std::unique_ptr<RecordContext>>::iterator cursor;
     std::shared_ptr<Scheduler> activation;
     uint64_t entered=0,enqueueFailures=0,completions=0;
+    size_t visited=0;
+    bool refused=false;
     bool initializing=true,entryOpen=false,producers=false;
     bool drainFailed=false,detachAllowed=false;
 };

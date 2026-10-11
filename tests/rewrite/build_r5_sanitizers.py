@@ -43,6 +43,9 @@ def build(output):
     jobs.append(("snmp3RecordTest", [tests / "RecordTest.cpp", tests / ("O." + ARCH) /
                  "snmp3RecordTest_registerRecordDeviceDriver.cpp"], [],
                  ["-lsnmp3", "-lsnmp3Wire", "-ldbRecStd", "-ldbCore", "-lca", "-lCom"], False))
+    jobs.append(("snmp3LifecycleTest", [tests / "LifecycleTest.cpp", tests / ("O." + ARCH) /
+                 "snmp3LifecycleTest_registerRecordDeviceDriver.cpp"], [],
+                 ["-lsnmp3", "-lsnmp3Wire", "-ldbRecStd", "-ldbCore", "-lca", "-lCom"], False))
     jobs.append(("snmp3Ioc", [src / "Main.cpp", src / ("O." + ARCH) /
                  "snmp3Ioc_registerRecordDeviceDriver.cpp"], [],
                  ["-lsnmp3", "-lsnmp3Wire", "-ldbRecStd", "-ldbCore", "-lca", "-lCom"], False))

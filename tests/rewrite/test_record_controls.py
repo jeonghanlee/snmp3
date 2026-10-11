@@ -130,7 +130,8 @@ D7_CONTROLS = {
                            [("if(definition.kind==RecordKind::Waveform)as<waveformRecord>(context.record).busy=FALSE;",
                              "if(definition.kind==RecordKind::Waveform)as<waveformRecord>(context.record).busy=TRUE;")]),
     "drain-without-retry": ("record", "stop-enqueue-failed", "release-after-stop-bound-completes-every-record-once",
-                            [("    do {\n        service();\n", "    do {\n")]),
+                            [("        ServiceOutcome outcome;\n        do { outcome=service(); } while(outcome.more);\n",
+                             "        ServiceOutcome outcome;\n")]),
     "detach-always-allowed": ("record", "live-detach", "live-replacement-refused-while-request-in-flight",
                               [("    if(!detachAllowed)return false;\n    if(context.record && context.record->dpvt==&context)",
                                 "    if(context.record && context.record->dpvt==&context)")]),
@@ -243,7 +244,7 @@ REPEAT_CONTROLS.update({
         [("case initHookBeforeFree: isolatedCleanup=true; return;",
           "case initHookBeforeFree: snmp3::Requests::instance().queuesDestroyed(); isolatedCleanup=true; return;")]),
     "repeat-cleanup-retains-contexts": ("Request.cpp", "repeat-detach-cleanup-contexts-zero",
-        [("    contexts.clear(); cursor=contexts.end(); activation.reset();", "    cursor=contexts.end(); activation.reset();")]),
+        [("    contexts.clear(); cursor=contexts.end(); visited=0; activation.reset();", "    cursor=contexts.end(); visited=0; activation.reset();")]),
     "repeat-cleanup-not-stopped": ("Runtime.cpp", "repeat-detach-cleanup-stopped",
         [("current.state = drained && (!supervisor || supervisor->reconcile()) ? State::Stopped:State::IncompleteStopped;",
           "current.state = drained && (!supervisor || supervisor->reconcile()) ? State::IncompleteStopped:State::IncompleteStopped;")]),
@@ -282,6 +283,61 @@ for name, (source, mode, check, edits) in SUPPORT_CONTROLS.items():
     D7_CONTROLS[name] = ("record", "support-transition", check, edits)
 
 
+# Wake and timer controls: each removes one rule of the readiness-driven servicing loop and must fail the
+# real-path cell that passes on the unmodified products.
+WAKE_CONTROLS = {
+    "grace-timer-omitted": ("Supervisor.cpp", "qualification", "ipc-hold-retired", None, [
+        ("timer=std::min(timer,scheduler->earliestAction(a.status.address,!a.origin));",
+         "timer=std::min(timer,scheduler->earliestDeadline(a.status.address));")]),
+    "grace-offered-after-containment": ("Supervisor.cpp", "qualification", "ipc-hold-retired", None, [
+        ("scheduler->earliestAction(a.status.address,!a.origin)", "scheduler->earliestAction(a.status.address,true)")]),
+    "next-wake-without-poll": ("Supervisor.cpp", "qualification", "timers", None, [
+        ("return std::min(nextTimer(),nextPoll(now));", "return nextTimer();")]),
+    "partial-timer-omitted": ("Supervisor.cpp", "qualification", "ipc-partial-timeout", None, [
+        ("        if(a.status.pid && a.channel && a.channel->partial())\n"
+         "            timer=std::min(timer,ipc::add(a.channel->partialOrigin(),a.status.ready ? 1000000u:5000000u));\n", "")]),
+    "reap-poll-uniform": ("Supervisor.cpp", "qualification", "timers", None, [
+        ("ipc::add(now,a.origin ? ReapPollUs:ReapBackstopUs)", "ipc::add(now,ReapBackstopUs)")]),
+    "reap-backstop-omitted": ("Supervisor.cpp", "qualification", "timers", None, [
+        ("ipc::add(now,a.origin ? ReapPollUs:ReapBackstopUs)", "ipc::add(now,a.origin ? ReapPollUs:UINT64_MAX/4)")]),
+    "write-readiness-omitted": ("Supervisor.cpp", "qualification", "ipc-full-channel", None, [
+        ("result.push_back({a.channel->descriptor(),a.channel->writing()});",
+         "result.push_back({a.channel->descriptor(),false});")]),
+}
+WAKE_CONTROLS.update({
+    "retry-timer-omitted": ("Runtime.cpp", "record", "stop-enqueue-failed", "enqueue-retry-passes-on-timer-without-spinning", [
+        ("self.pause(self.supervisor->nextWake(after),outcome.retry,UINT64_MAX);",
+         "self.pause(self.supervisor->nextWake(after),false,UINT64_MAX);")]),
+    "stale-wake-kept": ("Runtime.cpp", "lifecycle", "module", None, [
+        ("        ready.tryWait();\n        wake.clear();\n", "        ready.tryWait();\n")]),
+    "channel-pollin-omitted": ("Runtime.cpp", "record", "wake-loop", "single-read-completes-without-waiting-for-the-poll", [
+        ("entry.fd=channel.fd; entry.events=POLLIN|(channel.write ? POLLOUT:0); set.push_back(entry);",
+         "entry.fd=channel.fd; entry.events=(channel.write ? POLLOUT:0); set.push_back(entry);")]),
+    "admit-signal-omitted": ("Runtime.cpp", "record", "wake-loop", "single-read-completes-without-waiting-for-the-poll", [
+        ("auto admitted=owner->admit(handles,payload,budgetMs,monotonicUs()); wake.signal(); return admitted;",
+         "auto admitted=owner->admit(handles,payload,budgetMs,monotonicUs()); return admitted;")]),
+    "retry-spins": ("Runtime.cpp", "record", "stop-enqueue-failed", "enqueue-retry-passes-on-timer-without-spinning", [
+        ("if(retry)wait=std::min<uint64_t>(wait,ServiceRetryUs);", "if(retry)wait=0;")]),
+    "stop-notifier-omitted": ("Scheduler.cpp", "record", "stop-enqueue-failed", "release-settles-stop-without-waiting-for-bound", [
+        ("notify=!accepting && notifier;", "notify=false;")]),
+    "more-omitted": ("Request.cpp", "record", "wake-loop", "burst-of-contexts-handed-over-in-one-wake", [
+        ("    if(visited>=contexts.size())visited=0;\n    else outcome.more=true;",
+         "    if(visited>=contexts.size())visited=0;\n    else outcome.more=false;")]),
+    "channel-readiness-omitted": ("Runtime.cpp", "record", "wake-loop", "hung-up-channel-reaps-at-once-without-spinning", [
+        ("    if(supervisor)for(const auto& channel:supervisor->descriptors()) {\n"
+         "        entry.fd=channel.fd; entry.events=POLLIN|(channel.write ? POLLOUT:0); set.push_back(entry);\n    }\n", "")]),
+    "poll-spins": ("Supervisor.cpp", "record", "wake-loop", "idle-service-passes-within-bound", [
+        ("if(a.status.pid)timer=std::min(timer,ipc::add(now,a.origin ? ReapPollUs:ReapBackstopUs));",
+         "if(a.status.pid)timer=std::min(timer,now);")]),
+    "drain-ignores-wake": ("Request.cpp", "record", "stop-enqueue-failed", "drain-returns-on-completion-wake", [
+        ("changed.wait_for(wait,std::chrono::microseconds(outcome.retry ? ServiceRetryUs:DrainWaitUs));",
+         "wait.unlock(); epicsThreadSleep(1.0); wait.lock();")]),
+})
+for name, (source, kind, cell, check, edits) in WAKE_CONTROLS.items():
+    D7_SOURCES[name] = source
+    D7_CONTROLS[name] = (kind, cell, check, edits)
+
+
 def support_completed(outcome, mode):
     required = ("support-events", "support-" + mode + "-fixture", "support-" + mode + "-base-validation",
                 "support-" + mode + "-storage-lifetime", "support-" + mode + "-cleanup", "support-" + mode + "-stop",
@@ -308,6 +364,8 @@ def run_cell(kind, cell, products, output, sanitizers=True, support_mode=None):
     output.mkdir(mode=0o700, exist_ok=True)
     if kind == "component":
         argv = [str(products / "snmp3SchedulerTest"), cell]
+    elif kind == "lifecycle":
+        argv = [str(products / "snmp3LifecycleTest"), cell]
     elif kind == "qualification":
         argv = [sys.executable, str(ROOT / "tests/rewrite/test_qualification.py"), "--cases", cell,
                 "--products", str(products), "--output", str(output / "run")] + (["--sanitizers"] if sanitizers else [])
@@ -401,7 +459,8 @@ def resolved_support(executable):
 def main_d7(args, jobs, output):
     selected = {Path(job["argv"][-1]).name: job for job in jobs}
     original_products = Path(selected["libsnmp3.so"]["argv"][-1]).parent
-    tests = {"component": "snmp3SchedulerTest", "qualification": "snmp3QualificationTest", "record": "snmp3RecordTest"}
+    tests = {"component": "snmp3SchedulerTest", "qualification": "snmp3QualificationTest", "record": "snmp3RecordTest",
+             "lifecycle": "snmp3LifecycleTest"}
     references = {}
     for name in args.d7_controls:
         kind, cell, check, _ = D7_CONTROLS[name]

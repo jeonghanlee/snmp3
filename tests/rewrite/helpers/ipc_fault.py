@@ -14,7 +14,8 @@ RUNNING = True
 HEADER = struct.Struct("!IHHII6Q")
 MAX_FRAME = 16777216 + HEADER.size
 MODES = ("partial", "coalesced", "stale", "stale-behind", "record-stale", "malformed", "truncated", "partial-timeout",
-         "full-channel", "bad-set", "oversize", "bootstrap-mismatch", "bootstrap-secret", "ready-executable", "ready-library")
+         "full-channel", "bad-set", "oversize", "bootstrap-mismatch", "bootstrap-secret", "ready-executable", "ready-library",
+         "hold-retired")
 
 
 def stop(_signal, _frame):
@@ -109,6 +110,11 @@ class Forwarder:
         emit("actual_frame", direction=direction, kind=kind, length=len(packet),
              activation=fields[5], epoch=fields[6], batch=fields[9], sequence=fields[10])
         target = 1 - direction
+        if self.mode == "hold-retired" and direction == 1 and kind == 5:
+            # The Retired frame is withheld for good; later frames keep a gapless sequence.
+            self.offsets[1] -= 1
+            emit("retired_withheld", batch=fields[9], sequence=fields[10])
+            return
         if self.mode == "record-stale" and direction == 1 and self.stage == "waiting":
             if kind == 4:
                 self.result = packet

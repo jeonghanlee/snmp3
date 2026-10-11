@@ -49,6 +49,13 @@ public:
     void release(const ipc::Identity& terminal);
     bool settled() const;
     uint64_t earliestDeadline(uint64_t address) const;
+    // Earliest time at which expire() acts: a queued or unanswered deadline and, when grace is set, the
+    // retirement grace of an answered member. Once the worker is contained the grace has acted and is
+    // no longer offered, so a past time never keeps the loop from waiting.
+    uint64_t earliestAction(uint64_t address, bool grace) const;
+    // Called without the scheduler lock from release() once admission has closed, so a stopping
+    // servicing loop learns that a terminal was consumed.
+    void setNotifier(void (*function)(void*), void* context);
     static uint64_t fixedGenerationBytes();
     void reserveConfiguration(uint64_t supervisorBytes);
     void closeAdmission(uint64_t address);
@@ -91,6 +98,8 @@ private:
     uint64_t nextHandle=1;
     uint64_t configurationBase=0,configurationBytes=0,registrationBytes=0;
     bool accepting=true;
+    void (*notifier)(void*)=nullptr;
+    void* notifierContext=nullptr;
 };
 }
 #endif

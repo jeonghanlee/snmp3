@@ -17,7 +17,7 @@ CASES = ("typed", "fifo", "deadline", "unsent", "ambiguous", "crashes", "high-fd
          "native-expiry", "discovery-expiry", "ipc-partial", "ipc-coalesced", "ipc-stale",
          "ipc-malformed", "ipc-truncated", "ipc-partial-timeout", "ipc-full-channel", "ipc-bad-set",
          "ipc-oversize", "ipc-bootstrap-mismatch", "ipc-bootstrap-secret", "ipc-ready-executable", "ipc-ready-library", "security-conflict", "immutable",
-         "behind-retirement", "ipc-stale-behind")
+         "behind-retirement", "ipc-stale-behind", "timers", "ipc-hold-retired")
 
 
 def loss_hook(runner, agent_name, marker):
@@ -231,7 +231,7 @@ def execute(output, case, family, products=None, sanitizers=False):
                         "ipc-oversize": "oversized_actual_header", "ipc-bootstrap-mismatch": "bootstrap_mismatch_actual_frame",
                         "ipc-bootstrap-secret": "bootstrap_secret_actual_frame",
                         "ipc-ready-executable": "ready_identity_actual_frame", "ipc-ready-library": "ready_identity_actual_frame",
-                        "ipc-stale-behind": "stale_actual_frame"}[case]
+                        "ipc-stale-behind": "stale_actual_frame", "ipc-hold-retired": "retired_withheld"}[case]
             runner.check("real-IPC-outer-fault-observed", any(e.get("event") == required for e in proxy))
             if case == "ipc-stale-behind":
                 runner.check("forged-successor-result-rejected", any(e.get("code") == 16 for e in observed))

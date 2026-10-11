@@ -2,6 +2,7 @@
 #include "Runtime.h"
 #include <algorithm>
 #include <alarm.h>
+#include <chrono>
 #include <dbCommon.h>
 #include <dbLock.h>
 #include <dbScan.h>
@@ -13,6 +14,7 @@ namespace snmp3 {
 namespace {
 const unsigned ServiceVisits=128;
 const uint64_t DrainBudgetUs=2000000;
+const uint64_t DrainWaitUs=50000;
 const uint64_t ContextStorageLimit=8192;
 void require(bool condition)
 { if(!condition)throw std::runtime_error("record request rejected"); }
@@ -74,7 +76,7 @@ void Requests::start(std::shared_ptr<Scheduler> owner)
     for(const auto& context:contexts)require(!context->active && context->owner==owner && context->record);
     activation=std::move(owner);
     initializing=false; detachAllowed=false; entryOpen=true; producers=true;
-    cursor=contexts.begin();
+    cursor=contexts.begin(); visited=0;
 }
 void Requests::admit(RecordContext& context,const std::vector<Value>& payload)
 {
@@ -93,11 +95,16 @@ bool Requests::completing(RecordContext& context)
            context.terminal.result && context.identity==context.terminal.id &&
            context.owner==activation;
 }
-void Requests::service()
+ServiceOutcome Requests::service()
 {
     std::lock_guard<std::mutex> guard(mutex);
-    if(!producers || contexts.empty())return;
-    for(size_t count=0;count<std::min<size_t>(contexts.size(),ServiceVisits);++count) {
+    ServiceOutcome outcome;
+    if(!producers || contexts.empty()) { visited=0; refused=false; return outcome; }
+    // The retry flag covers every call of one cycle: a refusal in an early call is not forgotten when the
+    // later calls of the cycle find nothing to refuse.
+    if(visited==0)refused=false;
+    const size_t count=std::min<size_t>(contexts.size(),ServiceVisits);
+    for(size_t visit=0;visit<count;++visit) {
         if(cursor==contexts.end())cursor=contexts.begin();
         auto& context=**cursor++;
         if(!context.active || context.callbackState==CallbackState::Queued ||
@@ -112,9 +119,15 @@ void Requests::service()
         context.callbackState=CallbackState::Queued;
         if(callbackRequest(&context.callback)) {
             context.callbackState=CallbackState::Pending;
-            ++enqueueFailures;
+            ++enqueueFailures; refused=true;
         }
     }
+    // A pass over every context completes before the caller waits again.
+    visited+=count;
+    if(visited>=contexts.size())visited=0;
+    else outcome.more=true;
+    outcome.retry=refused;
+    return outcome;
 }
 void Requests::finish(RecordContext& context)
 {
@@ -174,14 +187,14 @@ bool Requests::drain()
     const auto deadline=ipc::add(monotonicUs(),DrainBudgetUs);
     bool drained=false;
     do {
-        service();
-        {
-            std::lock_guard<std::mutex> guard(mutex);
-            drained=!entered && std::none_of(contexts.begin(),contexts.end(),
-                                           [](const std::unique_ptr<RecordContext>& c){ return c->active; });
-        }
+        ServiceOutcome outcome;
+        do { outcome=service(); } while(outcome.more);
+        std::unique_lock<std::mutex> wait(mutex);
+        drained=!entered && std::none_of(contexts.begin(),contexts.end(),
+                                       [](const std::unique_ptr<RecordContext>& c){ return c->active; });
         if(drained)break;
-        epicsThreadSleep(0.001);
+        // finish() and the callback exit notify this condition; the bound covers a failed enqueue.
+        changed.wait_for(wait,std::chrono::microseconds(outcome.retry ? ServiceRetryUs:DrainWaitUs));
     } while(monotonicUs()<deadline);
     std::unique_lock<std::mutex> guard(mutex);
     producers=false; entryOpen=false;
@@ -200,7 +213,7 @@ void Requests::queuesDestroyed()
         require(!context->record);
         if(context->active)finish(*context);
     }
-    contexts.clear(); cursor=contexts.end(); activation.reset();
+    contexts.clear(); cursor=contexts.end(); visited=0; activation.reset();
     initializing=!drainFailed; detachAllowed=false;
 }
 RecordSnapshot Requests::snapshot()

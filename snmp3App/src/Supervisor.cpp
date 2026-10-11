@@ -18,6 +18,9 @@
 namespace snmp3 {
 namespace {
 constexpr uint64_t StopGrace=1000000,StopTerm=1500000,StopBound=2000000;
+// A worker that is exiting or contained is polled for its exit this often; the longer interval is
+// the backstop for any other live worker, whose channel hang-up is the normal wake.
+constexpr uint64_t ReapPollUs=10000,ReapBackstopUs=100000;
 constexpr size_t EventSlots=8192;
 void require(bool value) { if(!value)throw std::runtime_error("worker supervision rejected"); }
 void systemCheck(int error) { if(error)throw std::system_error(error,std::generic_category(),"worker spawn failed"); }
@@ -299,15 +302,31 @@ std::vector<SupervisionEvent> Supervisor::takeEvents()
     std::lock_guard<std::mutex> guard(reportMutex); auto result=std::move(events); events.clear(); events.reserve(EventSlots); return result;
 }
 uint64_t Supervisor::droppedEvents() const { std::lock_guard<std::mutex> guard(reportMutex); return dropped; }
+uint64_t Supervisor::nextPoll(uint64_t now) const
+{
+    uint64_t timer=UINT64_MAX;
+    for(const auto& a:addresses)
+        if(a.status.pid)timer=std::min(timer,ipc::add(now,a.origin ? ReapPollUs:ReapBackstopUs));
+    return timer;
+}
 uint64_t Supervisor::nextTimer() const
 {
     uint64_t timer=stopOrigin ? ipc::add(stopOrigin,StopBound):UINT64_MAX;
     for(const auto& a:addresses) {
-        timer=std::min(timer,scheduler->earliestDeadline(a.status.address));
+        timer=std::min(timer,scheduler->earliestAction(a.status.address,!a.origin));
         if(a.status.pid && a.origin && !a.kill)timer=std::min(timer,ipc::add(a.origin,!a.term ? StopGrace:StopTerm));
         else if(a.status.pid && !a.origin && !a.status.ready)timer=std::min(timer,ipc::add(a.spawned,5000000));
         else if(!a.status.pid && !stopping)timer=std::min(timer,a.attempts.size()<4 ? a.restartAt:ipc::add(a.attempts.front(),60000000));
+        if(a.status.pid && a.channel && a.channel->partial())
+            timer=std::min(timer,ipc::add(a.channel->partialOrigin(),a.status.ready ? 1000000u:5000000u));
     }
     return timer;
+}
+uint64_t Supervisor::nextWake(uint64_t now) const { return std::min(nextTimer(),nextPoll(now)); }
+std::vector<WaitDescriptor> Supervisor::descriptors() const
+{
+    std::vector<WaitDescriptor> result; result.reserve(addresses.size());
+    for(const auto& a:addresses)if(a.channel)result.push_back({a.channel->descriptor(),a.channel->writing()});
+    return result;
 }
 }

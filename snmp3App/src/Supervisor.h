@@ -21,6 +21,11 @@ struct Qualification {
     uint64_t transportAddress=0;
     int transportParent=-1,transportChild=-1;
 };
+// A channel descriptor the servicing loop waits on; write is set while the channel has unsent bytes.
+struct WaitDescriptor {
+    int fd;
+    bool write;
+};
 class Supervisor {
 public:
     Supervisor(std::shared_ptr<Scheduler> scheduler,const std::string& executable,
@@ -35,7 +40,15 @@ public:
     std::vector<WorkerSnapshot> snapshots() const;
     std::vector<SupervisionEvent> takeEvents();
     uint64_t droppedEvents() const;
+    // Absolute time (monotonicUs) of the earliest duty that has no readiness source: deadlines,
+    // retirement grace, partial-frame limits, stop phases, spawn and restart limits; UINT64_MAX when none.
     uint64_t nextTimer() const;
+    // Absolute time of the next poll for a worker exit, which has no readiness source of its own:
+    // soon after a worker was asked to exit and at a backstop interval for any other live worker.
+    uint64_t nextPoll(uint64_t nowUs) const;
+    // The time the servicing loop sleeps until when no readiness arrives: the earlier of the two.
+    uint64_t nextWake(uint64_t nowUs) const;
+    std::vector<WaitDescriptor> descriptors() const;
 private:
     struct Address {
         WorkerSnapshot status;

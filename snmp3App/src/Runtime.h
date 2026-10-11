@@ -3,6 +3,8 @@
 
 #include "BaseVersion.h"
 #include "Supervisor.h"
+#include "Wake.h"
+#include <atomic>
 #include <epicsEvent.h>
 #include <epicsMutex.h>
 #include <epicsThread.h>
@@ -22,6 +24,8 @@ public:
     bool start();
     void stop();
     Snapshot snapshot();
+    // Number of passes the servicing loop has made since process start.
+    uint64_t passCount() const { return passes.load(); }
     void report();
     static const char* stateName(State state);
     uint64_t bind(const std::string& definition);
@@ -41,8 +45,12 @@ private:
     static void run(void*);
     void trace(const char* event);
     void prepare(const ConfigState& config);
+    static void notify(void* runtime);
+    void pause(uint64_t timerUs,bool retry,uint64_t limitUs);
     epicsMutex lifecycleMutex, operationMutex, stateMutex;
-    epicsEvent ready, wake;
+    epicsEvent ready;
+    Wake wake;
+    std::atomic<uint64_t> passes{0};
     epicsThreadId thread;
     Snapshot current;
     std::shared_ptr<Scheduler> scheduler;

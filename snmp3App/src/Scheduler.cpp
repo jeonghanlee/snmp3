@@ -288,11 +288,18 @@ TerminalView Scheduler::take(const ipc::Identity& terminal)
 }
 void Scheduler::release(const ipc::Identity& terminal)
 {
-    std::lock_guard<std::mutex> guard(mutex); auto& a=queues.at(handles.at(terminal.binding).address);
-    auto it=a.generations.find(key(terminal)); require(it!=a.generations.end()); auto& g=*it->second;
-    require(g.command.id==terminal && g.selected && g.borrowed && !g.consumed);
-    std::vector<uint8_t>().swap(g.result.value); g.consumed=true; g.borrowed=false; collect(a,key(terminal));
+    bool notify=false;
+    {
+        std::lock_guard<std::mutex> guard(mutex); auto& a=queues.at(handles.at(terminal.binding).address);
+        auto it=a.generations.find(key(terminal)); require(it!=a.generations.end()); auto& g=*it->second;
+        require(g.command.id==terminal && g.selected && g.borrowed && !g.consumed);
+        std::vector<uint8_t>().swap(g.result.value); g.consumed=true; g.borrowed=false; collect(a,key(terminal));
+        notify=!accepting && notifier;
+    }
+    if(notify)notifier(notifierContext);
 }
+void Scheduler::setNotifier(void (*function)(void*), void* context)
+{ std::lock_guard<std::mutex> guard(mutex); notifier=function; notifierContext=context; }
 bool Scheduler::settled() const
 { std::lock_guard<std::mutex> guard(mutex); return std::all_of(queues.begin(),queues.end(),[](const std::pair<const uint64_t,Address>& a) { return a.second.count==0 && a.second.batch==0; }); }
 uint64_t Scheduler::earliestDeadline(uint64_t address) const
@@ -300,5 +307,17 @@ uint64_t Scheduler::earliestDeadline(uint64_t address) const
     std::lock_guard<std::mutex> guard(mutex); uint64_t deadline=UINT64_MAX;
     for(const auto& entry:queues.at(address).generations)if(!entry.second->selected)deadline=std::min(deadline,entry.second->command.deadline);
     return deadline;
+}
+uint64_t Scheduler::earliestAction(uint64_t address, bool grace) const
+{
+    std::lock_guard<std::mutex> guard(mutex); uint64_t time=UINT64_MAX;
+    const auto& a=queues.at(address);
+    for(const auto& entry:a.generations) {
+        const auto& g=*entry.second;
+        if(!g.selected) { time=std::min(time,g.command.deadline); continue; }
+        const bool answered=g.result.outcome==ipc::Outcome::Complete || g.result.outcome==ipc::Outcome::NativeFailure;
+        if(grace && g.active && !g.retired && answered)time=std::min(time,ipc::add(g.command.deadline,RetireGraceUs));
+    }
+    return time;
 }
 }

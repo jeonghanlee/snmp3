@@ -38,6 +38,7 @@
 #include <cfenv>
 #include <limits>
 #include <atomic>
+#include <chrono>
 #include <thread>
 #include <fstream>
 #include <sstream>
@@ -81,6 +82,7 @@ bool retirementFlow=false;
 bool contract=false;
 bool staleRecord=false;
 bool finalClauses=false;
+bool wakeLoop=false;
 const unsigned BoundaryRows[][6]={{15,16,16,6,7,3},{16,16,15,7,6,4},{39,41,40,8,8,5},
     {40,40,39,6,8,4},{255,256,256,8,6,5},{256,257,255,7,7,4},{32767,32767,32767,8,8,4}};
 const size_t BoundaryLengths[]={0,1,14,15,16,17,38,39,40,41,254,255,256,257,32765,32766,32767};
@@ -2444,6 +2446,11 @@ void stopWithEnqueueFailures()
                                    return v.active==11 && v.pending==11 && v.queued==0 && v.entered==0 &&
                                           v.enqueueFailures>=before.enqueueFailures+11; },3000000);
     const auto held=Requests::instance().snapshot();
+    // While every refused completion is retried, the servicing loop passes on its retry timer: not idle
+    // and not spinning.
+    const auto windowStart=monotonicUs(),passesBefore=Runtime::instance().passCount();
+    until([&]{ return monotonicUs()>=ipc::add(windowStart,300000); },1000000);
+    const auto windowUs=monotonicUs()-windowStart,windowPasses=Runtime::instance().passCount()-passesBefore;
     // After the drain budget expires the stop must return on its own, before the queue is released.
     bool expired=false,returned=false;
     if(expire) {
@@ -2454,7 +2461,16 @@ void stopWithEnqueueFailures()
     if(late)until([&]{ return monotonicUs()>=ipc::add(stopAt,2500000); },3000000);
     const bool stopping=!finished;
     const auto releaseAt=monotonicUs();
-    blocker.release.trigger(); stopper.join();
+    // The last terminal is released by the completion callback that finishes the last record.
+    std::atomic<uint64_t> lastCompletionAt{0};
+    std::thread watcher([&]{
+        const auto target=before.completions+11; const auto end=ipc::add(monotonicUs(),5000000);
+        while(monotonicUs()<end && !lastCompletionAt) {
+            if(Requests::instance().snapshot().completions>=target)lastCompletionAt=monotonicUs();
+            else std::this_thread::sleep_for(std::chrono::microseconds(100));
+        }
+    });
+    blocker.release.trigger(); stopper.join(); watcher.join();
     check(until([&]{ return blocker.noops==8; }),"stop queue fillers did not drain");
     for(auto& e:Runtime::instance().takeSupervisionEvents())events.push_back(e);
     const auto records=Requests::instance().snapshot();
@@ -2466,7 +2482,8 @@ void stopWithEnqueueFailures()
                 "\"held_active\":%llu,\"held_pending\":%llu,\"held_queued\":%llu,\"enqueue_failures_delta\":%llu,"
                 "\"records\":%s,\"stopped\":%u,\"idle\":%u,\"waveform_busy\":%u,\"flnk_delta\":%.0f,\"completions_delta\":%llu,"
                 "\"active_after\":%llu,\"drain_failed\":%s,\"state\":%d,\"restart_accepted\":%s,\"settled\":%s,"
-                "\"stop_at_us\":%llu,\"release_at_us\":%llu,\"stop_duration_us\":%llu,\"reap_at_us\":%llu,\"timeline\":%s}\n",
+                "\"stop_at_us\":%llu,\"release_at_us\":%llu,\"stop_duration_us\":%llu,\"reap_at_us\":%llu,"
+                "\"window_us\":%llu,\"window_passes\":%llu,\"release_to_return_us\":%llu,\"last_completion_to_return_us\":%llu,\"timeline\":%s}\n",
                 mode,retrying?"true":"false",stopping?"true":"false",expired?"true":"false",returned?"true":"false",
                 (unsigned long long)held.active,(unsigned long long)held.pending,(unsigned long long)held.queued,
                 (unsigned long long)(records.enqueueFailures-before.enqueueFailures),
@@ -2474,7 +2491,118 @@ void stopWithEnqueueFailures()
                 (unsigned long long)(records.completions-before.completions),(unsigned long long)records.active,
                 records.drainFailed?"true":"false",int(runtime.state),restart?"true":"false",scheduler->settled()?"true":"false",
                 (unsigned long long)stopAt,(unsigned long long)releaseAt,(unsigned long long)(stoppedAt-stopAt),
-                (unsigned long long)firstAt(events,7),timeline(events).c_str());
+                (unsigned long long)firstAt(events,7),(unsigned long long)windowUs,(unsigned long long)windowPasses,
+                (unsigned long long)(stoppedAt>releaseAt?stoppedAt-releaseAt:0),
+                (unsigned long long)(!lastCompletionAt?999999999ULL:stoppedAt>lastCompletionAt?stoppedAt-lastCompletionAt:0),
+                timeline(events).c_str());
+}
+
+// Loop-level wake cases on the real runtime. Phase one measures the idle service-pass count. Phase two
+// kills the live worker from outside three times and times its reaping: the hung-up channel must wake the
+// loop at once and must not make it spin. Phase three admits every record, holds all their lock sets so
+// that no completion can finish, requests the stop and times how long the loop takes to hand every
+// terminal to Base (more contexts than one visit pass covers), then releases the locks and times how
+// long the stop takes to settle.
+void wakeLoopCells()
+{
+    const unsigned count=200;
+    std::vector<dbCommon*> records;
+    for(unsigned index=0;index<count;++index) {
+        char name[32]; std::snprintf(name,sizeof(name),"Records_W%03u",index); records.push_back(record(name));
+        check(records.back()->dpvt!=nullptr,"wake record has no binding");
+    }
+    std::vector<SupervisionEvent> events;
+    const auto gather=[&]{ for(auto& e:Runtime::instance().takeSupervisionEvents())events.push_back(e); };
+    // The worker is launched and Ready before the first pass is taken.
+    check(until([&]{ gather(); return firstAt(events,3)!=0; }),"wake-loop worker never became Ready");
+    const auto idleStart=monotonicUs(),idleBefore=Runtime::instance().passCount();
+    until([&]{ return monotonicUs()>=ipc::add(idleStart,10000000); },11000000);
+    const auto idleUs=monotonicUs()-idleStart,idlePasses=Runtime::instance().passCount()-idleBefore;
+
+    // Ten single reads against the answering agent, each started on an idle loop: admission, dispatch, the
+    // worker's answer and the completion must each wake the loop without the backstop poll.
+    auto* probe=record("Records_WakeResult");
+    check(probe->dpvt!=nullptr,"wake result record has no binding");
+    std::string results="[";
+    for(unsigned sample=0;sample<10;++sample) {
+        epicsThreadSleep(0.15);
+        const auto started=monotonicUs();
+        { RecordLock lock(probe); probe->udf=FALSE; dbProcess(probe); check(probe->pact,"wake result read was not admitted"); }
+        check(until([&]{ RecordLock lock(probe); return !probe->pact; },5000000),"wake result read did not complete");
+        const auto elapsed=monotonicUs()-started;
+        if(sample)results+=",";
+        results+=std::to_string(elapsed);
+    }
+    results+="]";
+
+    const auto hangBefore=Runtime::instance().passCount();
+    std::string reaps="[",hangPasses="[";
+    uint64_t lastReap=0;
+    for(unsigned round=0;round<3;++round) {
+        // The worker to kill is the one launched after the previous reap and Ready.
+        long long pid=0; uint64_t launchAt=0;
+        check(until([&]{ gather();
+                         for(const auto& e:events)if(e.code==2 && e.pid>0 && e.at>lastReap) { pid=e.pid; launchAt=e.at; }
+                         return pid>0 && firstAt(events,3,launchAt)!=0; },15000000),"wake-loop worker not Ready before kill");
+        const auto killAt=monotonicUs(),killPasses=Runtime::instance().passCount();
+        check(::kill(pid_t(pid),SIGKILL)==0,"wake-loop worker kill failed");
+        uint64_t reapedAt=0;
+        check(until([&]{ gather();
+                         for(const auto& e:events)if(e.code==7 && e.pid==pid)reapedAt=e.at;
+                         return reapedAt!=0; }),"wake-loop worker not reaped");
+        lastReap=reapedAt;
+        if(round) { reaps+=","; hangPasses+=","; }
+        reaps+=std::to_string(reapedAt>killAt?reapedAt-killAt:0);
+        hangPasses+=std::to_string(Runtime::instance().passCount()-killPasses);
+    }
+    reaps+="]"; hangPasses+="]";
+    check(until([&]{ gather(); uint64_t last=0; for(const auto& e:events)if(e.code==2)last=std::max(last,e.at);
+                     return last>lastReap && firstAt(events,3,last)!=0; },15000000),"wake-loop worker not relaunched Ready");
+    const auto hangTotal=Runtime::instance().passCount()-hangBefore;
+
+    for(auto* rec:records) {
+        RecordLock lock(rec); rec->udf=FALSE; dbProcess(rec);
+        check(rec->pact,"wake record was not admitted");
+    }
+    std::vector<std::unique_ptr<RecordLock>> held;
+    for(auto* rec:records)held.emplace_back(new RecordLock(rec));
+    // A stopped worker neither answers nor exits, so no channel event can wake the loop after the stop
+    // request: only the loop's own continuation hands the remaining contexts over.
+    long long workerPid=0; uint64_t workerLaunch=0;
+    gather();
+    for(const auto& e:events)if(e.code==2 && e.pid>0 && e.at>=workerLaunch) { workerPid=e.pid; workerLaunch=e.at; }
+    check(workerPid>0 && ::kill(pid_t(workerPid),SIGSTOP)==0,"wake-loop worker could not be stopped");
+    const auto before=Requests::instance().snapshot();
+    const uint64_t active=before.active;
+    std::atomic<bool> finished{false}; uint64_t stoppedAt=0;
+    const auto stopAt=monotonicUs();
+    std::thread stopper([&]{ Runtime::instance().stop(); stoppedAt=monotonicUs(); finished=true; });
+    uint64_t allQueuedAt=0; RecordSnapshot seen;
+    until([&]{ seen=Requests::instance().snapshot();
+               if(seen.queued+seen.running==active) { allQueuedAt=monotonicUs(); return true; }
+               return false; },3000000);
+    // Keep the locks until the burst has been observed and a little longer, then release them together.
+    until([&]{ return monotonicUs()>=ipc::add(stopAt,300000); },1000000);
+    const bool stillStopping=!finished;
+    // The worker exits on its Close frame once it runs again; the locks are released afterwards, so only
+    // the release can complete the stop.
+    check(::kill(pid_t(workerPid),SIGCONT)==0,"wake-loop worker could not be continued");
+    check(until([&]{ gather(); for(const auto& e:events)if(e.code==7 && e.pid==workerPid)return true; return false; },5000000),
+          "wake-loop stopped worker was not reaped");
+    epicsThreadSleep(0.1);
+    const auto releaseAt=monotonicUs();
+    held.clear(); stopper.join();
+    const auto after=Requests::instance().snapshot();
+    std::printf("{\"event\":\"wake_loop\",\"records\":%u,\"idle_us\":%llu,\"idle_passes\":%llu,\"reap_us\":%s,"
+                "\"result_us\":%s,\"hangup_pass_deltas\":%s,\"hangup_passes\":%llu,\"active_at_stop\":%llu,\"all_queued_us\":%llu,\"queued_seen\":%llu,"
+                "\"running_seen\":%llu,\"pending_seen\":%llu,\"still_stopping_at_release\":%s,"
+                "\"release_to_return_us\":%llu,\"completions_delta\":%llu,\"active_after\":%llu}\n",
+                count,(unsigned long long)idleUs,(unsigned long long)idlePasses,reaps.c_str(),
+                results.c_str(),hangPasses.c_str(),(unsigned long long)hangTotal,(unsigned long long)active,
+                (unsigned long long)(allQueuedAt>stopAt?allQueuedAt-stopAt:0),(unsigned long long)seen.queued,
+                (unsigned long long)seen.running,(unsigned long long)seen.pending,stillStopping?"true":"false",
+                (unsigned long long)(stoppedAt>releaseAt?stoppedAt-releaseAt:0),
+                (unsigned long long)(after.completions-before.completions),(unsigned long long)after.active);
 }
 
 // Points every Timeout record's FLNK at a record in another lockset through a Channel Access link and holds that
@@ -3636,7 +3764,9 @@ int main(int argc,char** argv)
     if(argc!=9)return 2;
     setvbuf(stdout,nullptr,_IOLBF,0);
     try {
-        testPlan(0); check(callbackSetQueueSize(8)==0,"callback queue size setup failed");
+        testPlan(0);
+        { const char* ring=std::getenv("SNMP3_CALLBACK_QUEUE");
+          check(callbackSetQueueSize(ring?std::atoi(ring):8)==0,"callback queue size setup failed"); }
         testdbPrepare(); testdbReadDatabase(argv[4],nullptr,nullptr);
         check(snmp3RecordTest_registerRecordDeviceDriver(pdbbase)==0,"record registrar failed");
         command("snmp3Load("+quoted(argv[1])+","+quoted(argv[2])+")");
@@ -3675,6 +3805,11 @@ int main(int argc,char** argv)
         contract=std::strcmp(argv[8],"contract")==0;
         staleRecord=std::strcmp(argv[8],"stale-record")==0;
         finalClauses=std::strcmp(argv[8],"final-clauses")==0;
+        wakeLoop=std::strcmp(argv[8],"wake-loop")==0;
+        if(wakeLoop) {
+            const char* file=std::getenv("SNMP3_WAKE_DB"); check(file!=nullptr,"wake database absent");
+            testdbReadDatabase(file,nullptr,"P=Records_");
+        }
         if(finalClauses) {
             const std::string root=std::string(argv[5]).substr(0,std::string(argv[5]).find_last_of('/')+1);
             testdbReadDatabase((root+"record-final.db").c_str(),nullptr,"P=Records_");
@@ -3752,7 +3887,7 @@ int main(int argc,char** argv)
         }
         testIocInitOk();
         if(edges)inputEdges();
-        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild && !stopInflight && !stopEnqueueFailed && !stopDownstream && !liveDetach && !repeatDetach && !liveDtype && !supportTransition && !scanProc && !alarmFlow && !chainFlow && !queuedSimm && !boundaries && !retirementFlow && !contract && !staleRecord && !finalClauses) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
+        if(!deadlineQueue && !nearDeadline && !stopQueued && !rebuild && !stopInflight && !stopEnqueueFailed && !stopDownstream && !liveDetach && !repeatDetach && !liveDtype && !supportTransition && !scanProc && !alarmFlow && !chainFlow && !queuedSimm && !boundaries && !retirementFlow && !contract && !staleRecord && !finalClauses && !wakeLoop) { baseline(); pressure("Records_Longin"); pressure("Records_Ao"); }
         if(edges) { capacityAndOrder(); simulation(); outputEdges(); maxPayloadQueue(); }
         if(alarms)nativeTimeouts();
         if(active)activeOutputs();
@@ -3774,6 +3909,7 @@ int main(int argc,char** argv)
         if(stopQueued || rebuild)stopWithQueuedSuccessor();
         if(stopInflight)stopInFlight();
         if(stopEnqueueFailed)stopWithEnqueueFailures();
+        if(wakeLoop)wakeLoopCells();
         if(stopDownstream)stopWithHeldDownstream();
         if(liveDetach)liveDetachCells();
         if(liveDtype)dtypeCells();

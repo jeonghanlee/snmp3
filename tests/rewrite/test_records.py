@@ -14,6 +14,12 @@ from helpers.retired_hold import hold as hold_retired
 DEADLINE_SAMPLE_BUDGET_MS = 1000
 DEADLINE_TRIALS = 3
 NATIVE_TIMEOUT_MS = 10000
+WAKE_RECORDS = 200
+WAKE_BURST_BOUND_US = 7000
+WAKE_REAP_BOUND_US = 20000
+WAKE_RESULT_BOUND_US = 40000
+WAKE_IDLE_PASSES = 130
+WAKE_HANGUP_PASSES = 10
 NEAR_DELAY_MS = 300
 NEAR_MARGINS_MS = (14, 16, 18, 20, 22)
 NEAR_REPEATS = 2
@@ -633,7 +639,7 @@ def main():
     parser.add_argument("--sanitizers", action="store_true")
     parser.add_argument("--case", choices=("baseline", "shutdown", "queued-shutdown", "edges", "alarms", "active", "policy", "numeric",
                                                    "active-unforced", "deadline-queue", "near-deadline",
-                                                   "accounting", "stop-queued", "rebuild", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach", "live-dtype", "support-transition", "scan-proc", "alarm-flow", "chain-flow", "queued-simm", "boundaries", "retirement-flow", "contract", "stale-record", "final-clauses"), default="baseline")
+                                                   "accounting", "stop-queued", "rebuild", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach", "live-dtype", "support-transition", "scan-proc", "alarm-flow", "chain-flow", "queued-simm", "boundaries", "retirement-flow", "contract", "stale-record", "final-clauses", "wake-loop"), default="baseline")
     parser.add_argument("--support-mode", choices=SUPPORT_MODES)
     args = parser.parse_args()
     if args.support_mode is not None and args.case != "support-transition":
@@ -667,7 +673,7 @@ def main():
                          "oid": "1.3.6.1.4.1.53864.4." + str(index) + ".0",
                          "operation": operation, "valueType": tag, "capacity": capacity}
                          for name, index, operation, tag, capacity in specs]}
-        if args.case in ("alarms", "policy", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach"):
+        if args.case in ("alarms", "policy", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach", "wake-loop"):
             dropped, _ = runner.fault("record-response-drop", 4, peer, "drop-all")
             configuration["endpoints"].append({"id": "Dropped", "address": "127.0.0.1",
                                                "port": int(dropped.rsplit(":", 1)[1]), "profile": "Local"})
@@ -816,6 +822,18 @@ def main():
                                               "oid": "1.3.6.1.4.1.53864.4.9.0", "operation": "set",
                                               "valueType": "opaqueFloat", "capacity": 1})
             runner.env["SNMP3_RECORD_QUEUE_BINDING"] = "NearFloatWrite"
+        if args.case == "wake-loop":
+            # Records whose requests the dropped endpoint never answers; one lock set per record, so the test can
+            # hold every record's lock and keep all completions from finishing.
+            rows = "".join(f'record(longin, "$(P)W{index:03d}") {{\n    field(DTYP, "snmp3")\n'
+                           f'    field(INP, "@binding=TimeoutIntegerRead deadline_ms=30000")\n    field(MDEL, "-1")\n}}\n'
+                           for index in range(WAKE_RECORDS))
+            rows += ('record(longin, "$(P)WakeResult") {\n    field(DTYP, "snmp3")\n'
+                     '    field(INP, "@binding=IntegerRead deadline_ms=5000")\n    field(MDEL, "-1")\n}\n')
+            database = output / "record-wake.db"
+            database.write_text(rows)
+            runner.env["SNMP3_WAKE_DB"] = str(database)
+            runner.env["SNMP3_CALLBACK_QUEUE"] = "512"
         config = output / "records.json"
         write_json(config, configuration)
         fixtures = [ROOT / "tests/rewrite/db/records.db", ROOT / "tests/rewrite/db/record-output.db"]
@@ -1050,7 +1068,7 @@ def main():
             libraries, events = execute("records")
         summary = next((event for event in events if event.get("event") == "record_summary"), {})
         # Queue cases skip the baseline and pressure phases; their records are checked per trial below.
-        if args.case not in QUEUE_CASES + ("stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach", "live-dtype", "support-transition", "scan-proc", "alarm-flow", "chain-flow", "queued-simm", "boundaries", "retirement-flow", "contract", "stale-record", "final-clauses"):
+        if args.case not in QUEUE_CASES + ("wake-loop", "stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach", "live-dtype", "support-transition", "scan-proc", "alarm-flow", "chain-flow", "queued-simm", "boundaries", "retirement-flow", "contract", "stale-record", "final-clauses"):
             runner.check("actual-eleven-record-path", summary.get("records") == 11 and summary.get("checks", 0) > 100)
             completions = [event for event in events if event.get("event") == "record_completed"]
             runner.check("actual-record-identities", bool(completions) and all(event["activation"] == 1 and
@@ -1566,6 +1584,36 @@ def main():
             runner.check("stop-inflight-drain-succeeds-and-worker-reaped",
                          stop.get("drain_failed") is False and stop.get("state") == 4 and stop.get("settled") is True and
                          stop.get("reap_at_us", 0) > 0 and stop.get("retirement_pending_after") == 0)
+        if args.case == "wake-loop":
+            cells = [event for event in events if event.get("event") == "wake_loop"]
+            cell = cells[0] if len(cells) == 1 else {}
+            runner.check("wake-loop-observed", len(cells) == 1 and cell.get("records") == WAKE_RECORDS)
+            # Idle: the loop passes only on its reaping backstop (every 100 ms), not on a busy cycle; the bound
+            # is the plan's 130 passes in 10 s.
+            runner.check("idle-service-passes-within-bound",
+                         cell.get("idle_us", 0) >= 9500000 and cell.get("idle_passes", 10 ** 9) <= WAKE_IDLE_PASSES)
+            # A single read started on an idle loop: admission, dispatch, the worker's answer and the completion
+            # each wake the loop, so none waits for the backstop poll.
+            samples = cell.get("result_us", [])
+            runner.check("single-read-completes-without-waiting-for-the-poll",
+                         len(samples) == 10 and all(0 < value <= WAKE_RESULT_BOUND_US for value in samples))
+            # A worker killed from outside hangs its channel up; the loop wakes at once, reaps it within the
+            # plan's 20 ms and passes at most 10 times while the channel is hung up.
+            reaps = cell.get("reap_us", [])
+            deltas = cell.get("hangup_pass_deltas", [])
+            runner.check("hung-up-channel-reaps-at-once-without-spinning",
+                         len(reaps) == 3 and all(0 < value <= WAKE_REAP_BOUND_US for value in reaps) and
+                         len(deltas) == 3 and all(0 <= value <= WAKE_HANGUP_PASSES for value in deltas))
+            # More contexts than one visit pass covers become ready together; all of them are handed to the
+            # callback queue without a further event.
+            runner.check("burst-of-contexts-handed-over-in-one-wake",
+                         cell.get("active_at_stop", 0) > 128 and cell.get("pending_seen") == 0 and
+                         cell.get("queued_seen", 0) + cell.get("running_seen", 0) == cell.get("active_at_stop") and
+                         0 < cell.get("all_queued_us", 0) <= WAKE_BURST_BOUND_US)
+            runner.check("stop-settles-when-locks-release",
+                         cell.get("still_stopping_at_release") is True and
+                         0 < cell.get("release_to_return_us", 0) <= 100000 and
+                         cell.get("completions_delta") == cell.get("active_at_stop") and cell.get("active_after") == 0)
         if args.case == "stop-enqueue-failed":
             stops = {event["mode"]: event for event in events if event.get("event") == "stop_enqueue_failed"}
             cleanups = [event for event in events if event.get("event") == "stop_enqueue_failed_cleanup"]
@@ -1584,6 +1632,17 @@ def main():
                          within.get("flnk_delta") == 11 and within.get("stopped") == 11 and within.get("idle") == 11 and
                          within.get("waveform_busy") == 0 and len(rows) == 11 and
                          all(row["pact"] == 0 and row["sevr"] == "INVALID" and row["published"] is False for row in rows))
+            # Wake rules of the servicing loop: the refused completions are retried on a bounded timer (the
+            # loop passes on it, neither idle nor spinning) and the release is noticed without waiting for the
+            # stop bound.
+            runner.check("enqueue-retry-passes-on-timer-without-spinning",
+                         within.get("window_us", 0) >= 250000 and 10 <= within.get("window_passes", 0) <= 100)
+            # The plan's numbers: a stop settles within 50 ms of the last released terminal, and the drain
+            # returns within 5 ms of it.
+            runner.check("release-settles-stop-without-waiting-for-bound",
+                         0 <= within.get("last_completion_to_return_us", 10 ** 9) <= 50000)
+            runner.check("drain-returns-on-completion-wake",
+                         0 <= late.get("last_completion_to_return_us", 10 ** 9) <= 5000)
             rows = late.get("records", [])
             # The release lands after the supervisor stop bound and before the drain budget ends, so only the drain
             # can still enqueue the refused completions.
@@ -1711,6 +1770,8 @@ def main():
         inputs += [ROOT / "tests/rewrite/db/record-alarms.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case in ("stop-inflight", "stop-enqueue-failed", "stop-downstream", "live-detach", "repeat-detach"):
         inputs += [ROOT / "tests/rewrite/db/record-stop.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
+    if args.case == "wake-loop":
+        inputs += [output / "record-wake.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case in ("active", "active-unforced", "queued-simm"):
         inputs += [ROOT / "tests/rewrite/db/record-active.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case == "accounting":
