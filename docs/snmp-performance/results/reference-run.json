@@ -1924,5 +1924,16 @@
  "outlet_layout_instance_1": {
   "nmc2": 5,
   "nmc3": -1
+ },
+ "wake_up_variant_fixture": {
+  "description": "Interval per record of 100 records through the module IOC, worker and native path, SNMPv3, median of three sweeps; variant = the three fixed 10 ms waits (worker poll, servicing thread wait, failure-path wait) set to 1 ms in a copy of the module",
+  "module_as_shipped_ms": {
+   "rtt0": 30.8,
+   "rtt20": 51.1
+  },
+  "waits_1ms_ms": {
+   "rtt0": 3.3,
+   "rtt20": 23.4
+  }
  }
 }

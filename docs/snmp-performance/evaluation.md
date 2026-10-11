@@ -92,8 +92,9 @@ is a fixed delay on each response through an outer UDP relay.
 ### Module path with the wake-up waits shortened (fixture agent, SNMPv3 authPriv)
 
 Interval per record of 100 records through the module IOC, worker and native path, median of three
-sweeps. The variant is a copy of the module in which the three fixed 10 ms waits (the worker poll
-and the two waits of the servicing thread) were set to 1 ms; nothing else differs.
+sweeps. The variant is a copy of the module in which the three fixed 10 ms waits (the worker poll,
+the wait of the servicing thread and the wait of its failure path) were set to 1 ms; nothing else
+differs.
 
 | Added RTT | Module as shipped | Waits set to 1 ms |
 | --- | --- | --- |
