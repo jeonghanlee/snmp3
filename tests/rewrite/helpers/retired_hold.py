@@ -15,27 +15,46 @@ WALL = 0x40000000
 TIMEOUT = 12
 
 
-def hold(child, worker, marker):
-    """Trace only the identified owned worker; never alter its registers or bytes."""
+def hold(child, worker, marker, windows=1):
+    """Trace only the identified owned worker; never alter its registers or bytes.
+
+    Holds `windows` consecutive Retired sends. Window 1 uses the markers `.held` and `.release`;
+    window n > 1 uses `.held.n` and `.release.n`. The top-level receipt fields describe window 1,
+    `windows_held` lists every window and the trace detaches after the last release."""
     receipt = {"worker_pid": None, "attached": False, "held": False, "released": False,
-               "detached": False, "error": None, "cleanup_error": None}
+               "detached": False, "error": None, "cleanup_error": None, "windows_held": []}
+    window = 1
     pid, attached, stopped = None, False, False
     deadline = time.monotonic() + TIMEOUT
 
     def path(suffix):
         return Path(str(marker) + suffix)
 
+    def numbered(base, number):
+        return path(base if number == 1 else f"{base}.{number}")
+
     def wait_stop(end):
+        # A blocking wait with an interval timer for the bound: sleeping between polls would add a
+        # millisecond to every traced syscall and move the timing of the code under test.
         nonlocal stopped
-        while time.monotonic() < end:
-            found, status = os.waitpid(pid, os.WNOHANG | WALL)
-            if found:
-                if not os.WIFSTOPPED(status):
-                    raise RuntimeError("worker exited while traced")
-                stopped = True
-                return status
-            time.sleep(0.001)
-        raise TimeoutError("worker trace stop deadline exceeded")
+        remaining = end - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("worker trace stop deadline exceeded")
+
+        def expired(signum, frame):
+            raise TimeoutError("worker trace stop deadline exceeded")
+
+        previous = signal.signal(signal.SIGALRM, expired)
+        signal.setitimer(signal.ITIMER_REAL, remaining)
+        try:
+            _, status = os.waitpid(pid, WALL)
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, previous)
+        if not os.WIFSTOPPED(status):
+            raise RuntimeError("worker exited while traced")
+        stopped = True
+        return status
 
     try:
         if platform.system() != "Linux" or platform.machine() != "x86_64":
@@ -91,17 +110,24 @@ def hold(child, worker, marker):
             fields = struct.unpack("!IHHII6Q", header)
             if fields[:3] != (0x46534e35, 1, 5):
                 continue
-            receipt.update(held=True, held_ns=time.monotonic_ns(), activation=fields[5],
-                           epoch=fields[6], address=fields[7], revision=fields[8], batch=fields[9],
-                           sequence=fields[10], syscall=number, send_bytes=args[2])
-            path(".held").write_text("held\n")
-            while not path(".release").exists():
+            seen = dict(held_ns=time.monotonic_ns(), activation=fields[5], epoch=fields[6], address=fields[7],
+                        revision=fields[8], batch=fields[9], sequence=fields[10], syscall=number, send_bytes=args[2])
+            if window == 1:
+                receipt.update(held=True, **seen)
+            numbered(".held", window).write_text("held\n")
+            while not numbered(".release", window).exists():
                 if child.poll() is not None or time.monotonic() >= deadline:
                     raise RuntimeError("Retired release marker absent")
                 time.sleep(0.001)
+            seen["released_ns"] = time.monotonic_ns()
+            receipt["windows_held"].append(seen)
+            if window < windows:
+                window += 1
+                deadline = time.monotonic() + TIMEOUT
+                continue
             ptrace(DETACH, pid)
             attached, stopped = False, False
-            receipt.update(released=True, detached=True, released_ns=time.monotonic_ns())
+            receipt.update(released=True, detached=True, released_ns=seen["released_ns"])
             return receipt
         raise TimeoutError("actual Retired send not observed")
     except BaseException as error:

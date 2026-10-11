@@ -831,13 +831,16 @@ def main():
                 forced = False
                 try:
                     if "SNMP3_RETIRED_HOLD" in environment:
-                        trace = hold_retired(child, runner.products / "snmp3Worker", Path(environment["SNMP3_RETIRED_HOLD"]))
+                        windows = 7 if args.case == "accounting" else 1
+                        trace = hold_retired(child, runner.products / "snmp3Worker", Path(environment["SNMP3_RETIRED_HOLD"]),
+                                             windows)
                         write_json(output / (tag + ".retired.json"), trace)
                         runner.check(tag + ":retired-hold", all(trace.get(key) for key in
                                      ("attached", "held", "released", "detached")) and
                                      not trace.get("error") and not trace.get("cleanup_error") and
-                                     trace.get("activation") == 1 and
-                                     (trace.get("batch", 0) > 1 if args.case == "retirement-flow" else trace.get("batch") == 1))
+                                     trace.get("activation") == 1 and len(trace.get("windows_held", [])) == windows and
+                                     (trace.get("batch", 0) > 1 if args.case == "retirement-flow" else
+                                      True if args.case == "accounting" else trace.get("batch") == 1))
                     code = child.wait(timeout=180 if args.case in ("numeric", "scan-proc", "chain-flow", "boundaries") + QUEUE_CASES else 30)
                 except subprocess.TimeoutExpired:
                     forced = True
@@ -875,7 +878,8 @@ def main():
             for trial in range(1, DEADLINE_TRIALS + 1):
                 before = proxy_sets("queue-response-drop")
                 libraries, trial_events = execute(f"records-sample-{trial}", {"SNMP3_RECORD_BUDGET_MS": str(DEADLINE_SAMPLE_BUDGET_MS),
-                                                                              "SNMP3_RECORD_TRIAL": f"sample-{trial}"})
+                                                                              "SNMP3_RECORD_TRIAL": f"sample-{trial}",
+                                                                              "SNMP3_RETIRED_HOLD": str(output / f"hold-sample-{trial}")})
                 for event in trial_events:
                     if event.get("event") == "deadline_queue":
                         event["proxy_sets"] = proxy_sets("queue-response-drop") - before
@@ -892,7 +896,8 @@ def main():
             for label, budget in budgets:
                 before = proxy_sets("queue-response-drop")
                 libraries, trial_events = execute(f"records-{label}", {"SNMP3_RECORD_BUDGET_MS": str(budget),
-                                                                       "SNMP3_RECORD_TRIAL": label})
+                                                                       "SNMP3_RECORD_TRIAL": label,
+                                                                       "SNMP3_RETIRED_HOLD": str(output / f"hold-{label}")})
                 for event in trial_events:
                     if event.get("event") == "deadline_queue":
                         event["proxy_sets"] = proxy_sets("queue-response-drop") - before
@@ -912,7 +917,8 @@ def main():
             for repeat in range(1, NEAR_REPEATS + 1):
                 for margin in NEAR_MARGINS_MS:
                     libraries, trial_events = execute(f"records-near-{margin}ms-{repeat}",
-                                                      {"SNMP3_RECORD_BUDGET_MS": str(NEAR_DELAY_MS + margin)})
+                                                      {"SNMP3_RECORD_BUDGET_MS": str(NEAR_DELAY_MS + margin),
+                                                       "SNMP3_RETIRED_HOLD": str(output / f"hold-near-{margin}ms-{repeat}")})
                     for event in trial_events:
                         if event.get("event") == "near_deadline":
                             event["margin_ms"] = margin
@@ -1036,6 +1042,10 @@ def main():
             for event in events:
                 if event.get("event") == "stop_queued":
                     event["proxy_sets"] = proxy_sets("queue-response-drop") - before
+        elif args.case == "accounting":
+            # Seven actual Retired sends (two per trial and one in the limited phase) are traced; the first of each trial and the limited one are held so the
+            # two-generation window does not depend on the worker's own delay between Result and Retired.
+            libraries, events = execute("records", {"SNMP3_RETIRED_HOLD": str(output / "hold-accounting")})
         else:
             libraries, events = execute("records")
         summary = next((event for event in events if event.get("event") == "record_summary"), {})
@@ -1516,6 +1526,11 @@ def main():
             events.append({"event": "near_deadline_summary", "trials": len(trials), "contained_after_result": contained,
                            "status": "observed" if contained else "not observed", "grace_exercised": exercised,
                            "grace_status": "run" if exercised else "not run"})
+            # The Retired send is held past the budget, so every trial whose result arrived before the
+            # budget exercises the grace and none is contained after its success.
+            before = [event for event in trials if event["result_us"] and event["result_us"] < event["deadline_us"]]
+            runner.check("near-deadline-grace-exercised-in-every-early-trial", bool(before) and
+                         all(event["grace_exercised"] and not event["contained_after_result"] for event in before))
         if args.case == "accounting":
             windows = [event for event in events if event.get("event") == "accounting_window"]
             observed = [event for event in windows if event["observed"]]
@@ -1698,11 +1713,15 @@ def main():
         inputs += [ROOT / "tests/rewrite/db/record-stop.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case in ("active", "active-unforced", "queued-simm"):
         inputs += [ROOT / "tests/rewrite/db/record-active.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
+    if args.case == "accounting":
+        inputs += [ROOT / "tests/rewrite/helpers/retired_hold.py", ROOT / "tests/rewrite/helpers/runtime_thread_limit.py"]
     if args.case == "queued-simm":
         inputs += [ROOT / "tests/rewrite/db/record-queued-simm.db", ROOT / "tests/rewrite/helpers/retired_hold.py",
                    ROOT / "tests/rewrite/helpers/runtime_thread_limit.py"]
     if args.case in QUEUE_CASES:
         inputs += [ROOT / "tests/rewrite/db/record-queue.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
+    if args.case in ("near-deadline", "deadline-queue"):
+        inputs += [ROOT / "tests/rewrite/helpers/retired_hold.py", ROOT / "tests/rewrite/helpers/runtime_thread_limit.py"]
     if args.case == "policy":
         inputs += [ROOT / "tests/rewrite/db/record-policy.db", ROOT / "tests/rewrite/helpers/udp_fault.py"]
     if args.case == "numeric":

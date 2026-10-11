@@ -2057,6 +2057,31 @@ void retirementTrial()
         (unsigned long long)held.count,(unsigned long long)held.bytes,(unsigned long long)consumed.count,(unsigned long long)consumed.bytes,
         terminal,sent?"true":"false",sourcePackets,monitor.emptyComm.load(),monitor.neverSent.load(),timeline(events).c_str());
 }
+// Holds consecutive actual worker Retired sends through the external helper named by SNMP3_RETIRED_HOLD,
+// so a case that needs a generation admitted behind a retirement does not depend on the worker's own
+// delay between Result and Retired. Window 1 is released by ".release", window n by ".release.n";
+// without the variable the object is inert and the case runs on the worker's natural timing.
+struct RetiredWindows {
+    std::string marker;
+    unsigned released=0;
+    void attach(pid_t worker)
+    {
+        const char* path=std::getenv("SNMP3_RETIRED_HOLD");
+        if(path==nullptr)return;
+        marker=path;
+        { std::ofstream stream(marker+".pid.next"); stream<<worker<<"\n"; stream.close(); check(bool(stream),"worker marker write failed"); }
+        check(std::rename((marker+".pid.next").c_str(),(marker+".pid").c_str())==0,"worker marker rename failed");
+        check(until([&]{return std::ifstream(marker+".attached").good();}),"Retired helper did not attach");
+    }
+    void release(unsigned window)
+    {
+        if(marker.empty())return;
+        std::ofstream stream(marker+(window==1?std::string(".release"):".release."+std::to_string(window)));
+        stream<<"release\n";
+        released=window;
+    }
+    ~RetiredWindows() { for(unsigned window=released+1;window<=8 && !marker.empty();++window)release(window); }
+};
 // One deadline trial on the outer-UDP drop-all path: the first SET expires at the record budget
 // while a second write waits for Base reprocessing. Prints the Deadline-to-Ready interval of the
 // relaunched worker, the second generation's admission time and whether it was dispatched.
@@ -2067,17 +2092,30 @@ void deadlineTrial(const char* label)
     check(context!=nullptr,"deadline-queue record has no binding");
     const auto before=Requests::instance().snapshot().completions;
     const auto packets=delayedSets();
-    Runtime::instance().takeSupervisionEvents();
+    // The actual Retired send of the first generation is held until the second generation has been
+    // admitted behind it, so that state does not depend on the worker's delay between Result and Retired.
+    RetiredWindows hold;
+    {
+        pid_t worker=0;
+        for(const auto& e:Runtime::instance().takeSupervisionEvents())if(e.code==2 && e.pid>0)worker=pid_t(e.pid);
+        if(std::getenv("SNMP3_RETIRED_HOLD")!=nullptr) { check(worker>0,"deadline-queue worker identity absent"); hold.attach(worker); }
+    }
+    auto holder=Runtime::instance().schedulerOwner();
     const auto firstAdmittedAt=monotonicUs();
     { RecordLock lock(rec); rec->udf=FALSE; reinterpret_cast<aoRecord*>(rec)->val=1.5; dbProcess(rec);
       check(rec->pact,"deadline-queue first SET was not admitted"); }
     check(until([&]{return delayedSets()>packets;}),"deadline-queue SET packet not observed");
     const double latest=2.5; const auto putAt=monotonicUs(); put("Records_QueueAo.VAL",DBR_DOUBLE,&latest);
     const auto admittedAt=pollGeneration(rec,2,[&]{
+        if(!hold.marker.empty()) {
+            const auto q=holder->snapshot(1);
+            if(q.count==2 && q.retirementPending==1 && q.queued==1)hold.release(1);
+        }
         return Requests::instance().snapshot().completions>=before+1 && !rec->pact && !rec->rpro &&
                ((context->identity.generation>=2 && Requests::instance().snapshot().completions>=before+2) ||
                 rec->stat==WRITE_ALARM);
     },30000000);
+    hold.release(1);
     check(until([&]{return context->owner->settled();},30000000),"deadline-queue trial retained native ownership");
     std::vector<SupervisionEvent> events;
     until([&]{ for(auto& e:Runtime::instance().takeSupervisionEvents())events.push_back(e);
@@ -2122,12 +2160,25 @@ void nearDeadlineTrial()
     auto* rec=record("Records_QueueAo");
     auto* context=static_cast<RecordContext*>(rec->dpvt);
     check(context!=nullptr,"near-deadline record has no binding");
-    Runtime::instance().takeSupervisionEvents();
+    // With SNMP3_RETIRED_HOLD the actual Retired send is held until the record budget has passed, so the
+    // grace window between the deadline and the retirement is exercised on the real path and does not
+    // depend on the worker's own delay between Result and Retired.
+    RetiredWindows hold;
+    {
+        pid_t worker=0;
+        for(const auto& e:Runtime::instance().takeSupervisionEvents())if(e.code==2 && e.pid>0)worker=pid_t(e.pid);
+        if(std::getenv("SNMP3_RETIRED_HOLD")!=nullptr) { check(worker>0,"near-deadline worker identity absent"); hold.attach(worker); }
+    }
     uint64_t admittedAt=0;
     { RecordLock lock(rec); rec->udf=FALSE; reinterpret_cast<aoRecord*>(rec)->val=1.5;
       admittedAt=monotonicUs(); dbProcess(rec); check(rec->pact,"near-deadline SET was not admitted"); }
     const auto deadlineAt=ipc::add(admittedAt,ipc::multiply(context->definition.budgetMs,1000));
     check(until([&]{RecordLock lock(rec); return !rec->pact;},30000000),"near-deadline record did not complete");
+    if(!hold.marker.empty()) {
+        // 100 ms after the budget: inside the 1000 ms retire grace, so the held Retired is accepted.
+        check(until([&]{return monotonicUs()>=ipc::add(deadlineAt,100000);},5000000),"near-deadline budget did not pass");
+        hold.release(1);
+    }
     check(until([&]{return context->owner->settled();},30000000),"near-deadline trial retained native ownership");
     std::vector<SupervisionEvent> events;
     until([&]{ for(auto& e:Runtime::instance().takeSupervisionEvents())events.push_back(e); return firstAt(events,5)!=0 || firstAt(events,7)!=0; },3000000);
@@ -2160,13 +2211,22 @@ bool settledAfterReprocess(dbCommon* rec,uint64_t before)
 }
 // Two-generation reservation accounting: while the second generation waits behind the first one's
 // retirement the address holds both charges; with a count limit of one, Base's reprocess is rejected
-// synchronously and a later explicit request is admitted once the limit is raised.
+// synchronously and a later explicit request is admitted once the limit is raised. Each trial and the
+// limited phase hold the first generation's actual Retired send (windows 1, 3 and 5, and 7) until its
+// observation is made; the second generation's Retired send of a trial (windows 2, 4 and 6) is not held.
 void accountingTrials()
 {
     constexpr unsigned Trials=3;
     auto* rec=record("Records_ActiveAo");
     auto* context=static_cast<RecordContext*>(rec->dpvt);
     auto scheduler=Runtime::instance().schedulerOwner();
+    RetiredWindows hold;
+    if(std::getenv("SNMP3_RETIRED_HOLD")!=nullptr) {
+        pid_t worker=0;
+        for(const auto& e:Runtime::instance().takeSupervisionEvents())if(e.code==2 && e.pid>0)worker=pid_t(e.pid);
+        check(worker>0,"accounting worker identity absent");
+        hold.attach(worker);
+    }
     for(unsigned trial=1;trial<=Trials;++trial) {
         const auto before=Requests::instance().snapshot().completions,base=context->identity.generation;
         const auto packets=delayedSets();
@@ -2178,7 +2238,7 @@ void accountingTrials()
         QueueSnapshot peak; bool window=false;
         until([&]{
             const auto q=scheduler->snapshot(1);
-            if(!window && q.count==2 && q.retirementPending==1 && q.queued==1) { peak=q; window=true; }
+            if(!window && q.count==2 && q.retirementPending==1 && q.queued==1) { peak=q; window=true; hold.release(2*trial-1); hold.release(2*trial); }
             RecordLock lock(rec); return settledAfterReprocess(rec,before);
         },8000000);
         check(until([&]{return context->owner->settled();}),"accounting trial retained native ownership");
@@ -2199,6 +2259,7 @@ void accountingTrials()
     check(until([&]{return delayedSets()>packets;}),"limited SET packet not observed");
     const double latest=2.5; put("Records_ActiveAo.VAL",DBR_DOUBLE,&latest);
     check(until([&]{RecordLock lock(rec); return settledAfterReprocess(rec,before);}),"limited reprocess did not settle");
+    hold.release(2*Trials+1);
     std::string limited;
     { RecordLock lock(rec);
       limited=std::string("\"limited_generations\":")+std::to_string(context->identity.generation-base)+
