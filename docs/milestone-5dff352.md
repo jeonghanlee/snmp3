@@ -9,7 +9,7 @@ Remote tracker: none associated with this register
 Recorded date: 2026-10-01
 Source baseline: `5dff352b9e86abfca74a74c4adc4fc8c1e48079f`
 
-Next session entry point: `docs/milestone-5dff352.md`, M14 Group record requests and wake on readiness on the record path. The evaluation and procedure are in `docs/snmp-performance/`; the direct reference run and the record-database run through the current module, both with no other client on the devices, were recorded on 2026-10-10. The owner direction is recorded as D15 and D16 (declared groups coalesced at dispatch with one deadline per request, waking on readiness). The detailed plan for M14 exists as a draft; the next step is its review and acceptance, then a separate implementation authorization. M7 Local AP8932 Execution Scope and Verification Results stays as before: both local implementation reviews are complete; retain the qualified local IOC and evidence, and obtain owner direction for the remaining comparator, compatibility and hardware scope before extending execution. Full M7 remains Blocked, G2 Open and M11 Deferred. No commit, push, sibling change, equipment operation, memory or handoff is authorized by that acceptance.
+Next session entry point: `docs/milestone-5dff352.md`, M14 Group record requests and wake on readiness on the record path. The evaluation and procedure are in `docs/snmp-performance/`; the direct reference run and the record-database run through the current module, both with no other client on the devices, were recorded on 2026-10-10. The owner direction is recorded as D15 and D16 (declared groups coalesced at dispatch with one deadline per request, waking on readiness). The detailed plan for M14 was accepted on 2026-10-10 (Plan Acceptance in its detail); implementation was authorized on 2026-10-10 and SA0 (test preparation) of Stage A is complete (see T4 in Verification Results; SA1 is next); equipment runs and git commits need their own authorization. M7 Local AP8932 Execution Scope and Verification Results stays as before: both local implementation reviews are complete; retain the qualified local IOC and evidence, and obtain owner direction for the remaining comparator, compatibility and hardware scope before extending execution. Full M7 remains Blocked, G2 Open and M11 Deferred. No commit, push, sibling change, equipment operation, memory or handoff is authorized by that acceptance.
 
 ## Scope
 
@@ -1700,7 +1700,7 @@ The D7-D9 revisions of the M5 and M6 Implementation Plans (2026-10-03) needed ow
 | M11 | Deferred record verification cells | Carry-forward | Deferred | No | D13 | Deferred by D13 on 2026-10-05; the cells run when the owner asks for Channel Access, long-write, delayed-simulation or rebuild/reuse record verification; [detail](#m11---deferred-record-verification-cells) |
 | M12 | Stop duration with a blocked callback queue | Carry-forward | Open | No | none | Owner decision on whether the stop bound and the record drain budget may overlap or skip waits that cannot progress, recorded with its date; then the change verified by the `stop-enqueue-failed` case or the observation kept by decision; [detail](#m12---stop-duration-with-a-blocked-callback-queue) |
 | M13 | PowerNet-MIB 4.6.0 review for the AP8932 database | Carry-forward | Open | No | none | Owner decision to adopt 4.6.0 or keep 4.4.6 recorded with its date, and any `rPDU2Adv*` scope decided; adoption verified by regeneration and a new run of the database's integration test; [detail](#m13---powernet-mib-460-review-for-the-ap8932-database) |
-| M14 | Group record requests and wake on readiness on the record path | Carry-forward | Not started | Yes | D15, D16 | Direction recorded as D15 and D16 (2026-10-10); then the monitoring set of the evaluation read through the module within 1.5 times the direct Net-SNMP pass at the same group size on each device class, with the sustained schedule criteria met and the existing runners passing, or the owner exception of the Completion Criteria recorded for a missed bound; [detail](#m14---group-record-requests-and-wake-on-readiness-on-the-record-path) |
+| M14 | Group record requests and wake on readiness on the record path | Carry-forward | In progress | No | D15, D16 | Direction recorded as D15 and D16 (2026-10-10); then the monitoring set of the evaluation read through the module within 1.5 times the direct Net-SNMP pass at the same group size on each device class, with the sustained schedule criteria met and the existing runners passing, or the owner exception of the Completion Criteria recorded for a missed bound; [detail](#m14---group-record-requests-and-wake-on-readiness-on-the-record-path) |
 | M15 | Secret material management for SNMPv3 device access | Carry-forward | Open | No | none | Owner decision on creation, location, rotation and repository exclusion recorded with its date; procedure documented and verified by a scan of tracked files and history; [detail](#m15---secret-material-management-for-snmpv3-device-access) |
 
 ### Backlog Details
@@ -1964,7 +1964,7 @@ Superseded Plan Artifacts: none
 Origin: 5dff352 / M14
 Identity History: none
 GitHub Issue: none
-Status: Not started (direction chosen by D15 and D16 on 2026-10-10; detailed plan draft, plan acceptance none, implementation authorization none)
+Status: In progress (direction chosen by D15 and D16 on 2026-10-10; plan accepted and implementation authorized on 2026-10-10; equipment operation needs its own authorization; SA0 test changes complete on 2026-10-10, SA1 next)
 
 ##### Terms
 
@@ -2038,9 +2038,9 @@ Out of scope: writes (SET) path timing, other device models, changing the Net-SN
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-10-10, owner acceptance of the plan of this section as committed in `131842c`: Stage A (wake on readiness, inventory rows a to j and l to o, cases A1 to A14 with their acceptance numbers), Stage B (declared groups, SB0 to SB3, cases B1 to B10, T6) and the measurement tools of step 2, with the closure outcomes of the Completion Criteria and with these values provisional until confirmed where stated: the second client factor 1.25, the hold constants 0.5 ms and 2 ms (confirmed or changed at SB0), K of 32 on NMC2 and 28 on NMC3, and the idle bounds 130 and 30 (confirmed at SA3). The most probable closure is the owner exception for a missed 1.5 times bound.
+Implementation Authorization: 2026-10-10, explicit owner authority to implement the accepted plan of this section in this repository (product source, tests, tools and documents); not authorized by it: equipment operation (the baseline, T2 and T3 need their own authorization and a person present), any git commit or push, changes in the database repository, and any material deviation from the plan, which stops for owner direction
 Superseded Plan Artifacts: none
 
 
@@ -2092,7 +2092,7 @@ Rules for every code sub-step. After each code sub-step (SA1, SA2, SB0, SB1, SB2
 | T1 | Not run | Linux host, fixture agent | Pending | Current module baseline: about 30 ms per record at zero added round trip, `docs/snmp-performance/results/reference-run.json` |
 | T2 | Not run | Hardware of two card generations, no other client on the devices | Pending | Earlier evidence (a serial-chain database, not the tool's baseline), no other client, 2026-10-10: 48 to 204 ms per object (NMC2) and 48 to 61 ms (NMC3) through a record database; one-object module path with a legacy client present: 362 to 396 ms per record (NMC2) and 32 ms (NMC3). Direct grouped: `docs/snmp-performance/evaluation.md` |
 | T3 | Not run | Hardware of two card generations, no other client on the devices | Pending | Earlier evidence (one request chain per tier, not the tool's baseline) through a record database of the monitoring set, 900 s per unit, no other client, 2026-10-10: NMC3 loss 0 of 13316, no overrun, cycles 1.81 s, 1.10 s and 14.97 s for the 5 s, 10 s and 60 s tiers (direct grouped 33, 41 and 164 ms); NMC2 loss 6 of 13070, state tier 23 overruns, slow cycle p95 63.2 s (direct grouped 757, 929 and 4389 ms); no second-client probe through the module |
-| T4 | Not run | Linux host | Pending | none |
+| T4 | 2026-10-10, SA0 (test changes only; product sources unchanged) | Linux host, ordinary products, repository tree and `poll(&fd,1,0)` copy of the tree | PASS for SA0: the whole T4 set (28 `test_records.py` cases and 10 other drivers, 38 executions) exits 0 on both trees, 539 s on the repository tree and 487 s on the copy; the three lag-dependent cases `accounting`, `near-deadline` and `deadline-queue` pass on both, and `near-deadline` exercises the grace in every trial on the copy. Controls `report-never-sent-miscounted` and `queued-deadline-restart` (ASan/UBSan products, 17 built) each pass on the reference and fail their named check on the defective copy, on both trees. `queued-deadline-restart` does not depend on the lag; it fails four named checks on its defective copy. Stage A product steps (SA1 to SA3) not started | Driver `<local>/sa0-t4.sh`, per-execution `summary.tsv` in `<local>/sa0-t4-repo/` and `<local>/sa0-t4-poll0/`; controls `<local>/sa0-controls/results.json` (repository tree, sanitizer build `<local>/sa0-san/`) and `<local>/sa0-controls-poll0/results.json` (copy, build `<local>/sa0-san-poll0/`) |
 | T5 | Not run | Linux host | Pending | none |
 | T6 | Not run | Linux host, fixture agent | Pending | none |
 
