@@ -216,14 +216,19 @@ def main():
         process("Ca_ShortIn")
         runner.check("short-string-CA-SET-GET", value("Ca_ShortIn") == "short-wire")
 
+        def complete_lines(name):
+            # A file written by a running process can end inside a line: only lines closed by a newline are read.
+            text = (output / name).read_text()
+            return text[:text.rfind("\n") + 1].splitlines()
+
         def proxy_events(kind, command=None):
-            return [event for event in (json.loads(line) for line in
-                    (output / "ca-response-delay.stdout").read_text().splitlines() if line.startswith("{"))
+            return [event for event in (json.loads(line) for line in complete_lines("ca-response-delay.stdout")
+                                        if line.startswith("{"))
                     if event.get("event") == kind and (command is None or event.get("command") == command)]
 
         def agent_values(index):
-            return [event for event in (json.loads(line) for line in
-                    (output / "agent-ipv4-1.stdout").read_text().splitlines() if line.startswith("{"))
+            return [event for event in (json.loads(line) for line in complete_lines("agent-ipv4-1.stdout")
+                                        if line.startswith("{"))
                     if event.get("event") == "agent_set_value" and event.get("index") == index and
                     event.get("context") == 0]
 
