@@ -22,6 +22,9 @@ public:
     std::shared_ptr<Native> open(const Profile& profile, const Endpoint& endpoint,
                                  const Capabilities& expected);
     void service(unsigned maximumWaitMs);
+    // As service(), and also returns when the channel descriptor is readable, or writable while
+    // channelWrite is set. A maximumWaitUs of UINT64_MAX waits for readiness or a library timer only.
+    void service(uint64_t maximumWaitUs, int channel, bool channelWrite);
     std::vector<NativeEvent> takeEvents();
     uint64_t droppedEvents() const;
 private:

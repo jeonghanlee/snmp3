@@ -37,14 +37,15 @@ private:
     void batch();
     void completion(NativeResult result);
     void local(ipc::Outcome outcome,uint16_t native=0,int64_t status=0,int64_t index=0);
-    void output();
+    bool output();
+    uint64_t nextTimer() const;
     void closeNative();
     void events();
     void queue(ipc::Kind kind,uint64_t batch,std::vector<uint8_t> body={});
     ipc::Channel channel;
     ipc::Header identity, incoming;
     uint64_t received=0, sent=0, lastBatch=0, lastAdmission=0;
-    uint64_t activeBatch=0, deadline=0;
+    uint64_t activeBatch=0, deadline=0, startedAt=0;
     uint32_t faultCategory=2;
     bool initialized=false, reading=false, keep=false, streaming=false;
     bool closing=false, resultReady=false, resultSent=false, retiredSent=false, closedSent=false;
@@ -189,25 +190,38 @@ void AddressWorker::input(uint64_t now)
         }
     }
 }
-void AddressWorker::output()
+// True when a frame was queued, bytes were written or the batch state was released, so the caller
+// enters again: Result, Retired and Closed follow one another without waiting for another event.
+bool AddressWorker::output()
 {
+    bool progress=false; const auto before=channel.bytesSent();
     if(!channel.writing()) {
-        if(resultReady && !resultSent) { queue(ipc::Kind::Result,activeBatch,std::move(resultFrame)); resultSent=true; }
+        if(resultReady && !resultSent) { queue(ipc::Kind::Result,activeBatch,std::move(resultFrame)); resultSent=true; progress=true; }
         else if(resultSent && !retiredSent) {
             std::vector<ipc::Command>().swap(commands);
-            queue(ipc::Kind::Retired,activeBatch,ipc::encodeRetired(retired)); retiredSent=true;
+            queue(ipc::Kind::Retired,activeBatch,ipc::encodeRetired(retired)); retiredSent=true; progress=true;
         }
-        if(closing && !activeBatch && !channel.writing() && !closedSent) { queue(ipc::Kind::Closed,0); closedSent=true; }
+        if(closing && !activeBatch && !channel.writing() && !closedSent) { queue(ipc::Kind::Closed,0); closedSent=true; progress=true; }
     }
     size_t quota=ipc::IoBytes; channel.write(quota);
     if(retiredSent && !channel.writing()) {
         std::vector<ipc::Identity>().swap(retired); activeBatch=deadline=0;
-        resultReady=resultSent=retiredSent=false;
+        resultReady=resultSent=retiredSent=false; progress=true;
     }
+    return progress || channel.bytesSent()!=before;
+}
+// Absolute time of the earliest duty that has no readiness source; UINT64_MAX when none.
+uint64_t AddressWorker::nextTimer() const
+{
+    uint64_t timer=UINT64_MAX;
+    if(!initialized)timer=ipc::add(startedAt,5000000);
+    if(channel.partial())timer=std::min(timer,ipc::add(channel.partialOrigin(),initialized ? 1000000u:5000000u));
+    if(activeBatch && !resultReady)timer=std::min(timer,deadline);
+    return timer;
 }
 int AddressWorker::run()
 {
-    const auto origin=nowUs();
+    const auto origin=nowUs(); startedAt=origin;
     try {
         for(;;) {
             const auto now=nowUs();
@@ -219,12 +233,21 @@ int AddressWorker::run()
                     for(auto& session:sessions)session.second->close();
                     if(!resultReady)local(closing ? ipc::Outcome::Stopping:ipc::Outcome::Deadline);
                 }
-                native->service(0); events();
+                events();
             }
-            output();
+            while(output()) {}
             if(closedSent && !channel.writing())return 0;
-            pollfd fd{channel.descriptor(),short(POLLIN|(channel.writing() ? POLLOUT:0)),0};
-            poll(&fd,1,10);
+            // Sleep until the channel or a library socket is ready, a library timer is due, or the worker's
+            // own earliest duty (bootstrap, partial-frame limit, batch deadline) is due.
+            const auto timer=nextTimer(),after=nowUs();
+            if(native) {
+                native->service(timer==UINT64_MAX ? UINT64_MAX:timer>after ? timer-after:0,
+                                channel.descriptor(),channel.writing());
+                events();
+            } else {
+                pollfd fd{channel.descriptor(),short(POLLIN|(channel.writing() ? POLLOUT:0)),0};
+                poll(&fd,1,timer==UINT64_MAX ? -1:timer>after ? int((timer-after+999)/1000):0);
+            }
         }
     } catch(...) {
         uint32_t detail=0;

@@ -115,34 +115,53 @@ void Service::close(Session& session)
         finish(*entry.second, std::move(result));
     }
 }
-void Service::poll(unsigned maximumWaitMs)
+void Service::poll(unsigned maximumWaitMs) { poll(uint64_t(maximumWaitMs)*1000, -1, false); }
+void Service::poll(uint64_t maximumWaitUs, int channel, bool channelWrite)
 {
     check();
-    netsnmp_large_fd_set descriptors;
-    netsnmp_large_fd_set_init(&descriptors, FD_SETSIZE);
-    NETSNMP_LARGE_FD_ZERO(&descriptors);
+    netsnmp_large_fd_set readable, writable;
+    netsnmp_large_fd_set_init(&readable, FD_SETSIZE);
+    netsnmp_large_fd_set_init(&writable, FD_SETSIZE);
+    NETSNMP_LARGE_FD_ZERO(&readable);
+    NETSNMP_LARGE_FD_ZERO(&writable);
     int count = 0;
-    timeval timeout = {static_cast<long>(maximumWaitMs / 1000),
-                       static_cast<long>((maximumWaitMs % 1000) * 1000)};
+    timeval timeout = {0, 0};
+    // Block stays 1 until a session reports a pending library timer; then timeout is that timer.
+    int block = 1;
     std::vector<std::shared_ptr<Session>> active;
     for (auto& entry : sessions) {
         auto session = entry.lock();
         if (!session || !session->handle || session->closing) continue;
-        int block = 0;
-        snmp_sess_select_info2(session->handle, &count, &descriptors, &timeout, &block);
+        snmp_sess_select_info2(session->handle, &count, &readable, &timeout, &block);
         active.push_back(std::move(session));
     }
+    if (channel >= 0) {
+        NETSNMP_LARGE_FD_SET(channel, &readable);
+        if (channelWrite) NETSNMP_LARGE_FD_SET(channel, &writable);
+        if (channel >= count) count = channel + 1;
+    }
+    uint64_t waitUs = UINT64_MAX;
+    if (!block) waitUs = uint64_t(timeout.tv_sec) * 1000000 + uint64_t(timeout.tv_usec);
+    if (maximumWaitUs < waitUs) waitUs = maximumWaitUs;
+    timeval span = {0, 0};
+    timeval* bound = nullptr;
+    if (waitUs != UINT64_MAX) {
+        span.tv_sec = static_cast<long>(waitUs / 1000000);
+        span.tv_usec = static_cast<long>(waitUs % 1000000);
+        bound = &span;
+    }
     enter();
-    const int ready = netsnmp_large_fd_set_select(count, &descriptors, nullptr, nullptr, &timeout);
+    const int ready = netsnmp_large_fd_set_select(count, &readable, channelWrite ? &writable : nullptr, nullptr, bound);
     if (ready < 0) event(errno == EINTR ? "wait_interrupted" : "wait_failed", 0, 0, 0, errno);
     for (auto& session : active) {
         if (ready > 0) {
-            const int result = snmp_sess_read2(session->handle, &descriptors);
+            const int result = snmp_sess_read2(session->handle, &readable);
             event("native_read", session->identity.session, 0, 0, result);
         }
         snmp_sess_timeout(session->handle);
     }
-    netsnmp_large_fd_set_cleanup(&descriptors);
+    netsnmp_large_fd_set_cleanup(&readable);
+    netsnmp_large_fd_set_cleanup(&writable);
     leave();
 }
 }}
@@ -158,6 +177,8 @@ std::shared_ptr<Native> Worker::open(const Profile& profile, const Endpoint& end
     return std::shared_ptr<Native>(new Native(detail::open(*state, profile, endpoint, expected)));
 }
 void Worker::service(unsigned maximumWaitMs) { state->poll(maximumWaitMs); }
+void Worker::service(uint64_t maximumWaitUs, int channel, bool channelWrite)
+{ state->poll(maximumWaitUs, channel, channelWrite); }
 std::vector<NativeEvent> Worker::takeEvents()
 {
     state->check();

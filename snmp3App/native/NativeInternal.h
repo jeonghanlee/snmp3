@@ -57,6 +57,9 @@ struct Service {
     void finish(Request& request, NativeResult result);
     void close(Session& session);
     void poll(unsigned maximumWaitMs);
+    // Waits for a library socket, the owner's channel (read, and write while it has unsent bytes), a
+    // library timer or maximumWaitUs (UINT64_MAX: none), then serves what is ready.
+    void poll(uint64_t maximumWaitUs, int channel, bool channelWrite);
     void reserve(uint64_t bytes);
     void release(uint64_t bytes);
 };
