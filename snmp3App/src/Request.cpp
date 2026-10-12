@@ -135,7 +135,7 @@ void Requests::finish(RecordContext& context)
     context.terminal=TerminalView();
     context.staged.reset(); std::string().swap(context.text);
     context.active=false; context.callbackState=CallbackState::Idle;
-    ++completions; changed.notify_all();
+    ++completions; ++changes; changed.notify_all();
 }
 void Requests::callback(epicsCallback* callback)
 {
@@ -145,7 +145,7 @@ void Requests::callback(epicsCallback* callback)
         std::lock_guard<std::mutex> guard(self.mutex);
         if(!self.entryOpen) {
             context.callbackState=CallbackState::Inert;
-            self.changed.notify_all(); return;
+            ++self.changes; self.changed.notify_all(); return;
         }
         if(context.callbackState!=CallbackState::Queued || !context.active ||
            !context.terminal.result || !(context.identity==context.terminal.id))return;
@@ -179,7 +179,7 @@ void Requests::callback(epicsCallback* callback)
     }
     {
         std::lock_guard<std::mutex> guard(self.mutex);
-        --self.entered; self.changed.notify_all();
+        --self.entered; ++self.changes; self.changed.notify_all();
     }
 }
 bool Requests::drain()
@@ -187,6 +187,8 @@ bool Requests::drain()
     const auto deadline=ipc::add(monotonicUs(),DrainBudgetUs);
     bool drained=false;
     do {
+        uint64_t seen=0;
+        { std::lock_guard<std::mutex> guard(mutex); seen=changes; }
         ServiceOutcome outcome;
         do { outcome=service(); } while(outcome.more);
         std::unique_lock<std::mutex> wait(mutex);
@@ -194,7 +196,8 @@ bool Requests::drain()
                                        [](const std::unique_ptr<RecordContext>& c){ return c->active; });
         if(drained)break;
         // finish() and the callback exit notify this condition; the bound covers a failed enqueue.
-        changed.wait_for(wait,std::chrono::microseconds(outcome.retry ? ServiceRetryUs:DrainWaitUs));
+        // A change that arrived since `seen` (even during the service pass above) ends the wait at once.
+        changed.wait_for(wait,std::chrono::microseconds(outcome.retry ? ServiceRetryUs:DrainWaitUs),[&]{ return changes!=seen; });
     } while(monotonicUs()<deadline);
     std::unique_lock<std::mutex> guard(mutex);
     producers=false; entryOpen=false;

@@ -95,6 +95,9 @@ private:
     void finish(RecordContext& context);
     std::mutex mutex;
     std::condition_variable changed;
+    // Incremented under the mutex with every notification of `changed`, so a wait that began after a
+    // notification arrived during a service pass does not sleep through it.
+    uint64_t changes=0;
     std::list<std::unique_ptr<RecordContext>> contexts;
     std::list<std::unique_ptr<RecordContext>>::iterator cursor;
     std::shared_ptr<Scheduler> activation;
