@@ -2518,6 +2518,9 @@ void wakeLoopCells()
     const auto idleStart=monotonicUs(),idleBefore=Runtime::instance().passCount();
     until([&]{ return monotonicUs()>=ipc::add(idleStart,10000000); },11000000);
     const auto idleUs=monotonicUs()-idleStart,idlePasses=Runtime::instance().passCount()-idleBefore;
+    // The idle worker prints its iteration count every 10 s: the wait runs on until two such lines of the
+    // same worker exist, whose difference is its iteration count over 10 s.
+    until([&]{ return monotonicUs()>=ipc::add(idleStart,22000000); },23000000);
 
     // Ten single reads against the answering agent, each started on an idle loop: admission, dispatch, the
     // worker's answer and the completion must each wake the loop without the backstop poll.

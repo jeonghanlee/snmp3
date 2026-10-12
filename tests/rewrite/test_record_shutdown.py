@@ -131,7 +131,8 @@ def retained_checks(check, observed):
 def report(text):
     result = {}
     fields = {"runtime": ("state", *RUNTIME_FIELDS), "records": REQUEST_FIELDS,
-              "worker": ("address", "epoch", "pid", "ready", "closing", "batch", "launches", "reaps", "forced")}
+              "worker": ("address", "epoch", "pid", "ready", "closing", "batch", "launches", "reaps", "forced"),
+              "loop": ("passes",)}
     for kind, required in fields.items():
         lines = re.findall(r"snmp3 " + kind + r": ([^\n]+)", text)
         if len(lines) != 1:
@@ -310,7 +311,7 @@ def run_case(case, output, products, sanitizers):
         workers = worker_identities(ioc, products)
         runner.check(case + "-actual-owned-worker", len(workers) == 1)
         shell("snmp3RuntimeReport")
-        if not wait_for(lambda: "snmp3 worker:" in stdout()):
+        if not wait_for(lambda: re.search(r"snmp3 loop: passes=\d+\n", stdout()) is not None):
             raise RuntimeError("runtime report missing")
         before = report(stdout())
         write_json(output / "before-exit.json", before)

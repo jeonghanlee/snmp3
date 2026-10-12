@@ -19,6 +19,7 @@ WAKE_BURST_BOUND_US = 7000
 WAKE_REAP_BOUND_US = 20000
 WAKE_RESULT_BOUND_US = 40000
 WAKE_IDLE_PASSES = 130
+WAKE_WORKER_IDLE_ITERATIONS = 30
 WAKE_HANGUP_PASSES = 10
 WAKE_RESULT_FRAME_US = 2000
 NEAR_DELAY_MS = 300
@@ -860,7 +861,7 @@ def main():
                                      trace.get("activation") == 1 and len(trace.get("windows_held", [])) == windows and
                                      (trace.get("batch", 0) > 1 if args.case == "retirement-flow" else
                                       True if args.case == "accounting" else trace.get("batch") == 1))
-                    code = child.wait(timeout=180 if args.case in ("numeric", "scan-proc", "chain-flow", "boundaries") + QUEUE_CASES else 30)
+                    code = child.wait(timeout=180 if args.case in ("numeric", "scan-proc", "chain-flow", "boundaries") + QUEUE_CASES else 60 if args.case == "wake-loop" else 30)
                 except subprocess.TimeoutExpired:
                     forced = True
                     child.kill()
@@ -1593,6 +1594,20 @@ def main():
             # is the plan's 130 passes in 10 s.
             runner.check("idle-service-passes-within-bound",
                          cell.get("idle_us", 0) >= 9500000 and cell.get("idle_passes", 10 ** 9) <= WAKE_IDLE_PASSES)
+            # The idle worker's own iteration count over 10 s: the difference of two consecutive idle lines of one
+            # worker (printed every 10 s of idleness), normalised to the time between them.
+            loop_lines = {}
+            for line in (output / "workers.stderr").read_text().splitlines():
+                parts = line.split()
+                if len(parts) == 7 and parts[0] == "worker_loop" and parts[1] == "idle":
+                    loop_lines.setdefault(parts[6], []).append((int(parts[3]), int(parts[2])))
+            rates = []
+            for samples_of_worker in loop_lines.values():
+                for (first_at, first_count), (second_at, second_count) in zip(samples_of_worker, samples_of_worker[1:]):
+                    if 9500000 <= second_at - first_at <= 10500000:
+                        rates.append((second_count - first_count) * 10000000 / (second_at - first_at))
+            runner.check("worker-idle-iterations-within-bound",
+                         len(rates) >= 1 and all(0 <= rate <= WAKE_WORKER_IDLE_ITERATIONS for rate in rates))
             # A single read started on an idle loop: admission, dispatch, the worker's answer and the completion
             # each wake the loop, so none waits for the backstop poll.
             samples = cell.get("result_us", [])

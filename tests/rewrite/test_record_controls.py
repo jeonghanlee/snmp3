@@ -164,7 +164,7 @@ D7_CONTROLS = {
     "refused-detach-perturbs-pending-handle": ("record", "live-detach", "live-replacement-refused-during-record-drain",
                                                [("    if(!detachAllowed)return false;\n    if(context.record && context.record->dpvt==&context)", "    if(!detachAllowed){ if(context.callbackState==CallbackState::Pending)++context.handle; return false; }\n    if(context.record && context.record->dpvt==&context)")]),
     "completion-counted-twice": ("record", "live-detach", "in-flight-request-completes-once-after-refusal",
-                                 [("    ++completions; changed.notify_all();", "    completions+=2; changed.notify_all();")]),
+                                 [("    ++completions; ++changes; changed.notify_all();", "    completions+=2; ++changes; changed.notify_all();")]),
     "retried-completion-leaves-record-active": ("record", "live-detach", "live-replacement-refused-during-record-drain",
                                                 [("            record->rset->process(record);\n",
                                                   "            record->rset->process(record);\n            if(self.enqueueFailures)record->pact=TRUE;\n")]),
@@ -330,6 +330,11 @@ WAKE_CONTROLS.update({
         ("    if (channel >= 0) {\n        NETSNMP_LARGE_FD_SET(channel, &readable);\n",
          "    if (!block) {\n        const uint64_t timer = uint64_t(timeout.tv_sec) * 1000000 + uint64_t(timeout.tv_usec);\n"
          "        if (timer < waitUs) waitUs = timer;\n    }\n    if (channel >= 0) {\n        NETSNMP_LARGE_FD_SET(channel, &readable);\n")]),
+    "worker-idle-report-timer-omitted": ("WorkerMain.cpp", "record", "wake-loop", "worker-idle-iterations-within-bound", [
+        ("    if(idleReportAt!=UINT64_MAX)timer=std::min(timer,idleReportAt);\n", "")]),
+    "worker-idle-spins": ("WorkerMain.cpp", "record", "wake-loop", "worker-idle-iterations-within-bound", [
+        ("    if(idleReportAt!=UINT64_MAX)timer=std::min(timer,idleReportAt);\n",
+         "    if(idleReportAt!=UINT64_MAX)timer=0;\n")]),
     "worker-channel-read-omitted": ("Worker.cpp", "qualification", "ipc-forward", None, [
         ("        NETSNMP_LARGE_FD_SET(channel, &readable);\n", "")]),
     "retry-timer-omitted": ("Runtime.cpp", "record", "stop-enqueue-failed", "enqueue-retry-passes-on-timer-without-spinning", [
@@ -357,7 +362,7 @@ WAKE_CONTROLS.update({
         ("if(a.status.pid)timer=std::min(timer,ipc::add(now,a.origin ? ReapPollUs:ReapBackstopUs));",
          "if(a.status.pid)timer=std::min(timer,now);")]),
     "drain-ignores-wake": ("Request.cpp", "record", "stop-enqueue-failed", "drain-returns-on-completion-wake", [
-        ("changed.wait_for(wait,std::chrono::microseconds(outcome.retry ? ServiceRetryUs:DrainWaitUs));",
+        ("changed.wait_for(wait,std::chrono::microseconds(outcome.retry ? ServiceRetryUs:DrainWaitUs),[&]{ return changes!=seen; });",
          "wait.unlock(); epicsThreadSleep(1.0); wait.lock();")]),
 })
 for name, (source, kind, cell, check, edits) in WAKE_CONTROLS.items():
