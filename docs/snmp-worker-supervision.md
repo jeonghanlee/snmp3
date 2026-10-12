@@ -154,6 +154,86 @@ predecessor in `retirementPending` and the queued successor in `queued`, so
 `count` is 2. Worker reports identify address, epoch, PID,
 ready/closing, active batch, launches, reaps and forced signals.
 
+### Runtime report lines
+
+`snmp3RuntimeReport` prints these lines in this order; `snmp3 queue:` and
+`snmp3 worker:` repeat once per address.
+
+| Line | Fields |
+| --- | --- |
+| `snmp3 runtime:` | `state` is Cold, Starting, Running, Stopping, Stopped, IncompleteStopped or Failed; `admission` is 1 while new requests are accepted; `activation` counts starts; `created`, `exited` and `joined` count the servicing thread over all activations |
+| `snmp3 records:` | the counters and flags of the record contexts, listed in the next table |
+| `snmp3 queue:` | per address, as described above; `countLimit` and `byteLimit` are the live limits of that address (see `snmp3QueueLimit`) against which `count` and `bytes` are charged |
+| `snmp3 worker:` | per address: address, epoch, PID, `ready`, `closing`, active `batch`, `launches`, `reaps` and `forced` signals |
+| `snmp3 loop:` | `passes`, the number of passes of the servicing loop since the process started |
+
+Fields of `snmp3 records:`:
+
+| Field | Meaning |
+| --- | --- |
+| `contexts` | attached records |
+| `active` | records with a request in progress |
+| `pending` | completions whose callback enqueue was refused and is offered again on a timer |
+| `queued` | callbacks waiting in Base's callback queue |
+| `running` | contexts whose callback is executing |
+| `inert` | callbacks that arrived after callback entry was closed; they leave their record untouched |
+| `entered` | callbacks that have entered record processing and not left it; it can be 1 while `running` is 0, because it falls only after the record lock is released |
+| `enqueueFailures`, `completions` | cumulative counts |
+| `entryOpen` | 1 from start until the stop's drain closes callback entry; 0 before the first start |
+| `drainFailed` | 1 when the stop's drain ended at its 2000 ms budget with work left; it stays 1 and refuses a later start |
+| `detachAllowed` | 1 only after the AtShutdown hook has permitted detach following a stop; it stays 0 after `snmp3Stop` alone |
+
+The `snmp3 queue:` lines of all addresses print first, then the `snmp3 worker:` lines.
+
+One pass of the servicing loop steps the supervisor, visits the record
+requests, and then waits for the next wake (see the timer table). The counter
+never resets (a restart of the runtime does not clear it), stays 0 when the configuration has no endpoint,
+and is meaningful while `state=Running`: read it twice a known
+time apart and divide the difference by the elapsed seconds. With a live worker
+and no work the loop passes about 10 times per second (100 passes in 10 s were
+measured; the regression bound is 130 in 10 s). A much higher rate means work or
+a busy loop: a refused callback enqueue legitimately raises it to about 100 passes
+per second while `pending` in `snmp3 records:` is above 0, and so does a worker
+that is being contained or is exiting (its exit poll is 10 ms). A busy loop is a
+rate above 13 passes per second with `count` and `active` of `snmp3 queue:` 0 on
+every address, `batch` of `snmp3 worker:` 0 and `pending` of `snmp3 records:` 0.
+Measure the idle rate over a window of at least 10 s with a live worker (`pid`
+not 0, `ready=1`, `closing=0`); the bound of 130 is per 10 s and scales with the
+window.
+
+An address worker whose stderr is kept writes one line
+`worker_loop <reason> <iterations> <monotonic us> <address> <epoch> <pid>`:
+reason `ready` once the worker has queued its Ready frame, `idle` every 10 s while it has no
+active batch, and `exit` at a normal or faulted exit (none when a signal ends
+the process). `iterations` counts the worker's loop iterations from its start;
+`monotonic us` is the host's monotonic clock and is comparable only on one host
+and boot. Two idle lines about 10 s apart belong to one idle period, and the
+difference of their `iterations` is the iteration count in that time: a healthy
+idle worker shows 1 per 10 s (the regression bound is 30). A longer gap means
+the idle period was interrupted, usually by work. A test reads two idle lines of
+one worker 9.5 to 10.5 s apart: the first idle line comes 10 s after Ready and the
+second 20 s after, so it observes for at least 20 s after Ready; the case waits 22 s. The `wake-loop`
+case does this and checks `worker-idle-iterations-within-bound` in the
+`workers.stderr` file of its output directory
+(`python3 tests/rewrite/test_records.py --case wake-loop --output <new directory>`). Address and epoch are 0 before Bootstrap is read,
+for example `worker_loop exit 1 4660666880910 0 0 473547`. Production
+redirects worker stderr to /dev/null, and only the test products can keep it:
+`Runtime::setQualification` takes a `Qualification` whose `stderrPath` is an absolute file path and must be called
+before the first record binding or the start (the configuration freeze ends the
+right to change it). The path is checked when the runtime starts, so a bad path
+or mode makes the start fail with state Failed and not the call. The directory
+must be owned by the IOC user with mode 0700; the file is created with mode 0600,
+and an existing file must already be a regular file of that user with mode 0600.
+Every worker of the activation appends to that one file, so lines of several
+addresses interleave and the same stream also carries the `native_event` lines.
+`RecordTest.cpp`, `RuntimeTest.cpp`, `StartupTest.cpp` and `ShutdownTest.cpp` call
+`setQualification`; `QualificationTest.cpp` passes the same structure to the
+supervisor directly. A call with the value already set returns without an error
+even after the freeze, and loading the configuration alone does not freeze. A
+configuration with no endpoint builds no supervisor, so the path is not checked.
+The parent directory is taken from the path, so a file directly under `/` fails.
+A production IOC has no setting for it.
+
 ## Charge and storage limits
 
 For each binding, O is four times the OID arc count, V is 8 plus maximum Value
@@ -238,7 +318,12 @@ to discard pinned USM material.
 
 | Timer or fairness rule | Value |
 | --- | --- |
-| Idle wait | At most 10 ms and no later than due timer |
+| Servicing loop wait | Until a worker channel is readable, a channel with unsent bytes is writable, an admission, a stop request, a live queue-limit change or a terminal released after the stop has stopped accepting work signals the loop, or the earliest timer is due. With a live worker the poll below is never more than 100 ms away, so an idle loop passes about 10 times per second. Without a worker process the loop wakes on the restart backoff, a request deadline or the stop bound; it has no timed wake only when the configuration has no endpoint (then `passes` stays 0). A refused callback enqueue limits the wait to 10 ms |
+| Exit poll of a contained or exiting worker | 10 ms |
+| Exit poll of a live worker | 100 ms; a worker's exit is normally noticed through its channel hang-up, and the poll is the fallback |
+| Worker wait | Until its channel or a library socket is ready, a library timer is due, or its earliest own duty is due: Ready limit, partial frame, batch deadline, idle count line |
+| Retry of a refused callback enqueue | 10 ms |
+| Record drain wait | Ended at once by a completion, an inert callback (one that arrives after callback entry is closed) or a callback exit; otherwise 10 ms while a refused enqueue is retried and 50 ms without one; 2000 ms budget. When only the drain retries, the stop returns within 5 ms of the last record completion (`last_completion_to_return_us`, check `drain-returns-on-completion-wake` of the `stop-enqueue-failed` case); while the loop runs, within 50 ms |
 | Per address/direction/iteration | 65536 bytes and 64 complete frames; round-robin |
 | Partial non-bootstrap frame | 1000 ms from first byte; request deadline can be earlier |
 | Bootstrap/Ready | 5000 ms from spawn; admission expiry remains independent |
@@ -258,6 +343,27 @@ addresses remain independently serviced. A new epoch follows actual old PID reap
 Normal native close and forced termination are separate observations. These
 timers assume runnable OS threads; an unreaped process is retained as incomplete
 ownership, never represented as successful cleanup.
+
+The waits are built in three places. The servicing loop waits in `Runtime::pause`
+(`Runtime.cpp`) until `Supervisor::nextWake` (the earlier of `nextTimer`, which holds the
+event timers, and `nextPoll`, the exit poll of each live worker), a worker channel
+descriptor or the `Wake` descriptor is ready. The address worker waits in
+`Worker::service` (`native/Worker.cpp`) until its channel or a library socket is
+ready or `AddressWorker::nextTimer()` (`native/WorkerMain.cpp`) is due; before its
+native session exists it waits with a plain `poll()` on the channel and the same
+timer. The record drain waits on a condition variable in `Requests::drain`
+(`Request.cpp`), whose durations are in the timer table. A duty that is not part
+of the matching `nextTimer` is acted on only at the next wake: in the supervisor
+the 100 ms poll when a worker is alive (without one, a signal or a channel event),
+in the worker a channel or socket event, because the worker has no poll of its
+own. An event that must wake the loop signals `Wake` (an admission, a stop and a
+queue-limit change do). The scheduler also calls the notifier when a terminal is
+released after the stop has lowered the scheduler's accepting flag (the same stop
+sets `admission=0` in the report first and lowers the flag a moment later); the
+release makes the stop settle, and the loop evaluates that once per pass. A new duty therefore changes its `nextTimer`, the
+timer table above and the `wake-loop` case of `tests/rewrite/test_records.py`
+(bounds of 130 loop passes and 30 worker iterations per 10 s), with a control in
+`tests/rewrite/README.md`, Wake And Timer Controls.
 
 AfterFinishDevSup freezes Config and starts the servicing owner before Base
 initial processing. The IOC hook performs no synchronous native discovery.

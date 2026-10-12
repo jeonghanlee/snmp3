@@ -243,7 +243,7 @@ the DSET performs no request until actual record processing.
 | `snmp3Load(config, nativeProbe)` | Whole-file load or IOC shell error |
 | `snmp3ConfigReport` | Revision, frozen flag, and definition counts |
 | `snmp3Report` | `owned-worker-transport; recordSupport=available` capability |
-| `snmp3RuntimeReport` | Lifecycle, pending reservation and worker state/counters |
+| `snmp3RuntimeReport` | Lifecycle, pending reservation, worker state/counters and the servicing-loop pass count (`snmp3 loop:`; fields in Runtime report lines of `snmp-worker-supervision.md`) |
 | `snmp3Stop` | Freeze, admission closure, worker containment and one thread join |
 | `snmp3WorkerPath(path)` | Absolute actual worker product before freeze |
 | `snmp3QueueLimit(address,count,bytes)` | Live count 1-16384 and bytes 1-67108864; preserve accepted work |

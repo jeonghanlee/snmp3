@@ -51,7 +51,9 @@ a request reaches its deadline before it is transmitted, the entered callback's
 prepare step stages AMSG `deadline before send` and the callback applies it
 through Base's alarm message call before the record process.
 `snmp3RuntimeReport` prints the address queue counters, including the
-generations admitted behind a retirement.
+generations admitted behind a retirement, and the number of servicing-loop
+passes (`snmp3 loop:`); the fields are described in Runtime report lines of
+`snmp-worker-supervision.md`.
 
 The native worker holds no record pointers. Transport owners and schedulers
 write no record fields. Profiles and contexts retain distinct sessions within

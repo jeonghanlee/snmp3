@@ -18,8 +18,9 @@ the IOC or another address. Accepted requests own bounded data and must have
 admission-based deadlines. Consumption can precede actual native unwind, while
 native retirement can precede consumption; either condition alone is insufficient
 to release storage. Missing SET acknowledgement does not establish no side effect. Retirement
-trails a terminal by about one worker poll, so a Base reprocess requested by a
-put during that interval met a handle that still held its previous generation.
+trails a terminal by the write of one frame (the worker sends Retired in the same pass
+as Result, once Result is fully written), so a Base reprocess requested by a put during that interval meets a
+handle that still holds its previous generation.
 
 ## Decision
 

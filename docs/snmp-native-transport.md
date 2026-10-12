@@ -58,6 +58,11 @@ Request storage owns binding handles, SET values and callback context. Caller
 mutation of the submitted vectors does not alter the accepted operation.
 
 `Worker::service(maximumWaitMs)` services native sockets and deadlines.
+`Worker::service(maximumWaitUs, channel, channelWrite)` adds one caller descriptor, the
+worker's IPC channel (in the write set while bytes are unsent), to the same wait: the call
+returns when that channel or a library socket is ready, a library timer is due, the
+bound passes (microseconds; `UINT64_MAX` is no bound), or the wait is interrupted or
+fails, and the caller reads the channel itself.
 `takeEvents()` transfers accumulated diagnostic events to the caller. Events
 include native operations, session/token identity, monotonic times and actual
 socket FD. Callers should consume events. The default local Worker retains its component
@@ -159,8 +164,12 @@ EPICS field conversion and precision policies remain separate integration work.
 
 The owner initializes and separately zeros a dynamic large-FD set, merges
 interests/deadlines from every active single-session handle, then calls the
-native large-FD select/read APIs. It services every active session's native
-timeout after socket activity or EINTR. Tests exercise successful traffic and
+native large-FD select/read APIs. Each session reports its own pending timer,
+so an idle session never discards the timer of another; the earliest timer
+and the caller's bound set the wait. A failed wait other than EINTR sleeps
+10 ms, so a repeating failure cannot become a busy loop. It services every
+active session's native timeout after each return from the wait: socket activity,
+a due timer, EINTR or a failed wait. Tests exercise successful traffic and
 timeout with an actual socket FD above FD_SETSIZE, plus mixed deadlines while
 another session continues receiving traffic.
 
