@@ -41,14 +41,15 @@ private:
     uint64_t nextTimer() const;
     void closeNative();
     void events();
+    void count(const char* reason);
     void queue(ipc::Kind kind,uint64_t batch,std::vector<uint8_t> body={});
     ipc::Channel channel;
     ipc::Header identity, incoming;
     uint64_t received=0, sent=0, lastBatch=0, lastAdmission=0;
-    uint64_t activeBatch=0, deadline=0, startedAt=0;
+    uint64_t activeBatch=0, deadline=0, startedAt=0, iterations=0, idleReportAt=UINT64_MAX;
     uint32_t faultCategory=2;
     bool initialized=false, reading=false, keep=false, streaming=false;
-    bool closing=false, resultReady=false, resultSent=false, retiredSent=false, closedSent=false;
+    bool closing=false, resultReady=false, resultSent=false, retiredSent=false, closedSent=false, readyCounted=false;
     std::shared_ptr<const Configuration> config;
     ipc::BatchReader::Definitions definitions;
     std::unique_ptr<ipc::BatchReader> decoder;
@@ -72,6 +73,13 @@ void AddressWorker::events()
                      event.operation,event.detail,(long long)event.monotonicUs,
                      (unsigned long long)identity.address,(unsigned long long)identity.epoch,(long long)getpid());
     if(native->droppedEvents())std::fprintf(stderr,"native_dropped %llu\n",(unsigned long long)native->droppedEvents());
+}
+// Cumulative loop iterations at Ready, once for every 10 s of idleness and at exit. Production redirects
+// stderr to /dev/null; qualification retains the line to bound the idle iteration count.
+void AddressWorker::count(const char* reason)
+{
+    std::fprintf(stderr,"worker_loop %s %llu %lld %llu %llu %lld\n",reason,(unsigned long long)iterations,(long long)nowUs(),
+                 (unsigned long long)identity.address,(unsigned long long)identity.epoch,(long long)getpid());
 }
 void AddressWorker::closeNative()
 {
@@ -217,6 +225,7 @@ uint64_t AddressWorker::nextTimer() const
     if(!initialized)timer=ipc::add(startedAt,5000000);
     if(channel.partial())timer=std::min(timer,ipc::add(channel.partialOrigin(),initialized ? 1000000u:5000000u));
     if(activeBatch && !resultReady)timer=std::min(timer,deadline);
+    if(idleReportAt!=UINT64_MAX)timer=std::min(timer,idleReportAt);
     return timer;
 }
 int AddressWorker::run()
@@ -236,9 +245,16 @@ int AddressWorker::run()
                 events();
             }
             while(output()) {}
-            if(closedSent && !channel.writing())return 0;
+            ++iterations;
+            if(initialized && !readyCounted) { readyCounted=true; count("ready"); }
+            if(initialized && !closing && !activeBatch) {
+                const auto idleNow=nowUs();
+                if(idleReportAt==UINT64_MAX)idleReportAt=ipc::add(idleNow,10000000);
+                else if(idleNow>=idleReportAt) { count("idle"); idleReportAt=ipc::add(idleNow,10000000); }
+            } else idleReportAt=UINT64_MAX;
+            if(closedSent && !channel.writing()) { count("exit"); return 0; }
             // Sleep until the channel or a library socket is ready, a library timer is due, or the worker's
-            // own earliest duty (bootstrap, partial-frame limit, batch deadline) is due.
+            // own earliest duty (bootstrap, partial-frame limit, batch deadline, idle count line) is due.
             const auto timer=nextTimer(),after=nowUs();
             if(native) {
                 native->service(timer==UINT64_MAX ? UINT64_MAX:timer>after ? timer-after:0,
@@ -256,6 +272,7 @@ int AddressWorker::run()
         catch(const std::system_error& error) { if(error.code().value()>0)detail=uint32_t(error.code().value()); }
         catch(...) {}
         if(native) { closing=true; closeNative(); }
+        count("exit");
         if(identity.activation && !channel.writing()) {
             ipc::Writer fault(8,8); fault.u32(faultCategory); fault.u32(detail);
             try { queue(ipc::Kind::Fault,0,fault.finish()); size_t quota=ipc::IoBytes; channel.write(quota); } catch(...) {}
