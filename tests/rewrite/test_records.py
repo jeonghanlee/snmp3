@@ -20,6 +20,7 @@ WAKE_REAP_BOUND_US = 20000
 WAKE_RESULT_BOUND_US = 40000
 WAKE_IDLE_PASSES = 130
 WAKE_HANGUP_PASSES = 10
+WAKE_RESULT_FRAME_US = 2000
 NEAR_DELAY_MS = 300
 NEAR_MARGINS_MS = (14, 16, 18, 20, 22)
 NEAR_REPEATS = 2
@@ -1597,6 +1598,19 @@ def main():
             samples = cell.get("result_us", [])
             runner.check("single-read-completes-without-waiting-for-the-poll",
                          len(samples) == 10 and all(0 < value <= WAKE_RESULT_BOUND_US for value in samples))
+            # The supervisor accepts a Result frame within the plan's 2 ms of the worker's native completion:
+            # paired by order, each accepted time stamp with the latest worker completion before it.
+            completions = []
+            for line in (output / "workers.stderr").read_text().splitlines():
+                parts = line.split()
+                if len(parts) >= 7 and parts[0] == "native_event" and parts[1] == "terminal":
+                    completions.append(int(parts[6]))
+            gaps = []
+            for accepted in cell.get("result_accepted_us", []):
+                earlier = [value for value in completions if value <= accepted]
+                gaps.append(accepted - earlier[-1] if earlier else None)
+            runner.check("result-frame-accepted-within-2ms-of-completion",
+                         len(gaps) == 10 and all(gap is not None and 0 <= gap <= WAKE_RESULT_FRAME_US for gap in gaps))
             # A worker killed from outside hangs its channel up; the loop wakes at once, reaps it within the
             # plan's 20 ms and passes at most 10 times while the channel is hung up.
             reaps = cell.get("reap_us", [])

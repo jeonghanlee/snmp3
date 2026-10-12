@@ -367,6 +367,73 @@ void liveRace(Fixture& f)
 }
 
 uint64_t eventAt(const std::vector<SupervisionEvent>& events,uint32_t code,uint64_t after,uint64_t epoch=0);
+// The worker never receives its Bootstrap: its own 5 s limit ends it, with no help from the supervisor.
+void withheldBootstrap(Fixture& f)
+{
+    f.until([&]{ for(const auto& s:f.owner->snapshots())if(s.address==1 && s.reaps>=1)return true; return false; },9000);
+}
+// A real worker with a 400 ms request deadline against an agent that never answers, and a proxy that
+// withholds every Close frame: the worker's own deadline timer ends the request.
+void heldClose(Fixture& f)
+{
+    const auto a=f.handles.at("Address4Read").front();
+    f.admit({a},{},400,monotonicUs());
+    f.read(a,ipc::Outcome::Deadline);
+    f.settle();
+}
+// The library retransmits an unanswered request when its own timer is due (timeoutMs 300, one retry):
+// the request fails after both attempts, and the outer proxy records when each attempt arrived.
+void retransmit(Fixture& f)
+{
+    const auto a=f.handles.at("Address4Read").front();
+    f.admit({a},{},5000,monotonicUs());
+    f.read(a,ipc::Outcome::NativeFailure);
+    f.settle();
+}
+// Two endpoints of one address in one worker: the first one's request is pending (its agent drops every
+// answer) while the second session is idle and opened later. The library's retransmit timer of the first
+// session must still wake the worker, so the request ends by its own timeout and not by the deadline.
+void multisession(Fixture& f)
+{
+    const auto drop=f.handles.at("DropRead").front(),ok=f.handles.at("OkRead").front();
+    f.admit({drop},{},8000,monotonicUs());
+    f.read(drop,ipc::Outcome::NativeFailure);
+    f.settle();
+    f.admit({ok},{},3000,monotonicUs());
+    f.read(ok,ipc::Outcome::Complete,-123);
+    f.settle();
+    const auto started=monotonicUs();
+    f.admit({drop},{},6000,started);
+    f.read(drop,ipc::Outcome::NativeFailure);
+    check(monotonicUs()-started<5000000,"request ended by its deadline and not by the library timeout");
+    f.settle();
+}
+// 100 SET members and then 100 GET members of one octet string in one batch each: the Batch and the
+// Result frame are each larger than one 64 KiB read, and the socket buffers are small and read slowly.
+void bulk(Fixture& f)
+{
+    constexpr unsigned Count=100;
+    f.scheduler->limits("127.0.0.1",1024,ipc::MaxBytes);
+    const auto config=f.scheduler->configuration();
+    const auto setBinding=f.config.bind("BulkSet"),readBinding=f.config.bind("BulkRead");
+    std::vector<uint64_t> sets,reads;
+    for(unsigned i=0;i<Count;++i) {
+        const auto s=f.scheduler->registerBinding(setBinding),r=f.scheduler->registerBinding(readBinding);
+        f.specs[s]=&config->bindings.at("BulkSet"); f.specs[r]=&config->bindings.at("BulkRead");
+        sets.push_back(s); reads.push_back(r);
+    }
+    std::vector<uint8_t> pattern(600); for(size_t i=0;i<pattern.size();++i)pattern[i]=uint8_t(i*7+3);
+    std::vector<Value> values(Count,Value::octets(pattern));
+    f.admit(sets,values,30000,monotonicUs());
+    for(const auto handle:sets)f.read(handle,ipc::Outcome::Complete);
+    f.settle();
+    f.admit(reads,{},30000,monotonicUs());
+    for(const auto handle:reads) {
+        const auto value=f.read(handle,ipc::Outcome::Complete);
+        check(value.octets()==pattern,"bulk octet string mismatch");
+    }
+    f.settle();
+}
 // Idle, contained and hung-up workers: which timers and wait descriptors the supervisor reports.
 void idleTimers(Fixture& f)
 {
@@ -508,6 +575,7 @@ int main(int argc,char** argv)
             Fixture f(argv);
             if(mode=="unsent")unsent(f);
             else if(mode=="ipc-bootstrap-mismatch" || mode=="ipc-bootstrap-secret" || mode=="ipc-ready-executable" || mode=="ipc-ready-library")bootstrapFault(f);
+            else if(mode=="ipc-withhold-bootstrap")withheldBootstrap(f);
             else {
                 f.ready();
                 if(mode=="typed" || mode=="immutable")typed(f);
@@ -519,7 +587,12 @@ int main(int argc,char** argv)
                 else if(mode=="ipc-stale-behind")staleBehind(f);
                 else if(mode=="native-expiry" || mode=="discovery-expiry")nativeDeadline(f);
                 else if(mode=="ipc-full-channel")fullChannel(f);
-                else if(mode=="ipc-malformed" || mode=="ipc-truncated" || mode=="ipc-partial-timeout" || mode=="ipc-bad-set" || mode=="ipc-oversize")ipcFault(f,mode);
+                else if(mode=="ipc-malformed" || mode=="ipc-truncated" || mode=="ipc-partial-timeout" || mode=="ipc-bad-set" || mode=="ipc-oversize" || mode=="ipc-stall-batch")ipcFault(f,mode);
+                else if(mode=="native-retransmit")retransmit(f);
+                else if(mode=="native-multisession")multisession(f);
+                else if(mode=="ipc-forward")fifo(f);
+                else if(mode=="ipc-hold-close")heldClose(f);
+                else if(mode=="ipc-bulk")bulk(f);
                 else if(mode=="timers")idleTimers(f);
                 else if(mode=="ipc-hold-retired")graceTimer(f);
                 else if(mode=="crashes")crashes(f);

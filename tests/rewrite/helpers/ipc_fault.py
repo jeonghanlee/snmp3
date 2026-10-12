@@ -15,7 +15,7 @@ HEADER = struct.Struct("!IHHII6Q")
 MAX_FRAME = 16777216 + HEADER.size
 MODES = ("partial", "coalesced", "stale", "stale-behind", "record-stale", "malformed", "truncated", "partial-timeout",
          "full-channel", "bad-set", "oversize", "bootstrap-mismatch", "bootstrap-secret", "ready-executable", "ready-library",
-         "hold-retired")
+         "hold-retired", "withhold-bootstrap", "stall-batch", "hold-close", "forward", "slow-reader")
 
 
 def stop(_signal, _frame):
@@ -110,6 +110,23 @@ class Forwarder:
         emit("actual_frame", direction=direction, kind=kind, length=len(packet),
              activation=fields[5], epoch=fields[6], batch=fields[9], sequence=fields[10])
         target = 1 - direction
+        if self.mode == "withhold-bootstrap" and direction == 0 and kind in (1, 6):
+            # Neither the Bootstrap nor the supervisor's later Close reaches the worker, so only its own
+            # bootstrap limit can end it before the supervisor's SIGTERM.
+            emit("bootstrap_withheld" if kind == 1 else "close_withheld")
+            return
+        if self.mode == "stall-batch" and direction == 0 and (kind == 3 or self.changed):
+            # One byte of the first Batch reaches the worker and nothing follows it: the worker's own
+            # partial-frame limit is then the only thing that can act.
+            if not self.changed:
+                self.changed = True
+                self.enqueue(target, packet[:1])
+                emit("batch_stalled", delivered=1, batch=fields[9])
+            return
+        if self.mode == "hold-close" and direction == 0 and kind == 6:
+            # The Close frame never arrives, so only the worker's own batch deadline can end the request.
+            emit("close_withheld", sequence=fields[10])
+            return
         if self.mode == "hold-retired" and direction == 1 and kind == 5:
             # The Retired frame is withheld for good; later frames keep a gapless sequence.
             self.offsets[1] -= 1
@@ -276,7 +293,10 @@ class Forwarder:
             for transport in read:
                 direction = self.sockets.index(transport)
                 try:
-                    data = transport.recv(64 if self.mode == "full-channel" and direction == 0 else 65536)
+                    data = transport.recv(64 if self.mode == "full-channel" and direction == 0 else
+                                          2048 if self.mode == "slow-reader" else 65536)
+                    if self.mode == "slow-reader":
+                        time.sleep(0.002)
                 except ConnectionResetError:
                     data = b""
                 if not data:

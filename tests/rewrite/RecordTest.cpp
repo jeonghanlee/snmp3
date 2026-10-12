@@ -2523,17 +2523,24 @@ void wakeLoopCells()
     // worker's answer and the completion must each wake the loop without the backstop poll.
     auto* probe=record("Records_WakeResult");
     check(probe->dpvt!=nullptr,"wake result record has no binding");
-    std::string results="[";
+    std::string results="[",acceptedAt="[";
     for(unsigned sample=0;sample<10;++sample) {
         epicsThreadSleep(0.15);
+        gather();
         const auto started=monotonicUs();
         { RecordLock lock(probe); probe->udf=FALSE; dbProcess(probe); check(probe->pact,"wake result read was not admitted"); }
         check(until([&]{ RecordLock lock(probe); return !probe->pact; },5000000),"wake result read did not complete");
         const auto elapsed=monotonicUs()-started;
-        if(sample)results+=",";
-        results+=std::to_string(elapsed);
+        // The supervisor's own time stamp of accepting the Result frame, to be paired with the worker's
+        // time stamp of the native completion.
+        gather();
+        uint64_t accepted=0;
+        for(const auto& e:events)if(e.code==4 && e.at>=started)accepted=e.at;
+        check(accepted!=0,"wake result frame acceptance not observed");
+        if(sample) { results+=","; acceptedAt+=","; }
+        results+=std::to_string(elapsed); acceptedAt+=std::to_string(accepted);
     }
-    results+="]";
+    results+="]"; acceptedAt+="]";
 
     const auto hangBefore=Runtime::instance().passCount();
     std::string reaps="[",hangPasses="[";
@@ -2594,11 +2601,11 @@ void wakeLoopCells()
     held.clear(); stopper.join();
     const auto after=Requests::instance().snapshot();
     std::printf("{\"event\":\"wake_loop\",\"records\":%u,\"idle_us\":%llu,\"idle_passes\":%llu,\"reap_us\":%s,"
-                "\"result_us\":%s,\"hangup_pass_deltas\":%s,\"hangup_passes\":%llu,\"active_at_stop\":%llu,\"all_queued_us\":%llu,\"queued_seen\":%llu,"
+                "\"result_us\":%s,\"result_accepted_us\":%s,\"hangup_pass_deltas\":%s,\"hangup_passes\":%llu,\"active_at_stop\":%llu,\"all_queued_us\":%llu,\"queued_seen\":%llu,"
                 "\"running_seen\":%llu,\"pending_seen\":%llu,\"still_stopping_at_release\":%s,"
                 "\"release_to_return_us\":%llu,\"completions_delta\":%llu,\"active_after\":%llu}\n",
                 count,(unsigned long long)idleUs,(unsigned long long)idlePasses,reaps.c_str(),
-                results.c_str(),hangPasses.c_str(),(unsigned long long)hangTotal,(unsigned long long)active,
+                results.c_str(),acceptedAt.c_str(),hangPasses.c_str(),(unsigned long long)hangTotal,(unsigned long long)active,
                 (unsigned long long)(allQueuedAt>stopAt?allQueuedAt-stopAt:0),(unsigned long long)seen.queued,
                 (unsigned long long)seen.running,(unsigned long long)seen.pending,stillStopping?"true":"false",
                 (unsigned long long)(stoppedAt>releaseAt?stoppedAt-releaseAt:0),

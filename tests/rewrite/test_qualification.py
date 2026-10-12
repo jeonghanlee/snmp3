@@ -17,7 +17,9 @@ CASES = ("typed", "fifo", "deadline", "unsent", "ambiguous", "crashes", "high-fd
          "native-expiry", "discovery-expiry", "ipc-partial", "ipc-coalesced", "ipc-stale",
          "ipc-malformed", "ipc-truncated", "ipc-partial-timeout", "ipc-full-channel", "ipc-bad-set",
          "ipc-oversize", "ipc-bootstrap-mismatch", "ipc-bootstrap-secret", "ipc-ready-executable", "ipc-ready-library", "security-conflict", "immutable",
-         "behind-retirement", "ipc-stale-behind", "timers", "ipc-hold-retired")
+         "behind-retirement", "ipc-stale-behind", "timers", "ipc-hold-retired",
+         "ipc-withhold-bootstrap", "ipc-stall-batch", "ipc-hold-close", "ipc-forward", "ipc-bulk",
+         "native-retransmit", "native-multisession")
 
 
 def loss_hook(runner, agent_name, marker):
@@ -61,6 +63,15 @@ def configure(runner, case, family=4):
             endpoints.append({"id": name, "address": "127.0.0.1", "port": int(peer.rsplit(":", 1)[1]), "profile": name})
             bindings.append({"id": name + "Read", "endpoint": name, "oid": "1.3.6.1.4.1.53864.4.1.0",
                              "operation": "get", "valueType": "integer", "capacity": 1})
+    elif case == "native-multisession":
+        peer, paths = runner.agent(family)
+        dropped, _ = runner.fault("native-response-drop", family, peer, "drop-all")
+        profiles.append({"id": "P", "version": "2c", "communityFile": str(paths["community"]),
+                         "timeoutMs": 1000, "retries": 2, "maxVarbinds": 16})
+        for name, target in (("Drop", dropped), ("Ok", peer)):
+            endpoints.append({"id": name, "address": "127.0.0.1", "port": int(target.rsplit(":", 1)[1]), "profile": "P"})
+            bindings.append({"id": name + "Read", "endpoint": name, "oid": "1.3.6.1.4.1.53864.4.1.0",
+                             "operation": "get", "valueType": "integer", "capacity": 1})
     elif case in ("typed", "immutable"):
         peer, paths = runner.agent(family)
         second, second_paths = runner.agent(family, "8000000001020305")
@@ -92,7 +103,11 @@ def configure(runner, case, family=4):
             name = "Address" + str(current_family)
             profiles.append({"id": name, "version": "2c", "communityFile": str(paths["community"]),
                              "timeoutMs": 5000, "retries": 0, "maxVarbinds": 16})
-            if current_family == 4 and case in ("native-expiry", "discovery-expiry"):
+            if case == "ipc-bulk":
+                profiles[-1]["maxVarbinds"] = 128
+            if case == "native-retransmit":
+                profiles[-1].update(timeoutMs=300, retries=1)
+            if current_family == 4 and case in ("native-expiry", "discovery-expiry", "ipc-hold-close", "native-retransmit"):
                 peer, _ = runner.fault("native-response-drop", 4, peer, "drop-all")
                 if case == "discovery-expiry":
                     profiles[-1].pop("communityFile")
@@ -103,6 +118,10 @@ def configure(runner, case, family=4):
                               "port": int(peer.rsplit(":", 1)[1]), "profile": name})
             bindings.append({"id": name + "Read", "endpoint": name, "oid": "1.3.6.1.4.1.53864.4.1.0",
                              "operation": "get", "valueType": "integer", "capacity": 1})
+            if current_family == 4 and case == "ipc-bulk":
+                for bulk_id, bulk_operation in (("BulkSet", "set"), ("BulkRead", "get")):
+                    bindings.append({"id": bulk_id, "endpoint": name, "oid": "1.3.6.1.4.1.53864.4.6.0",
+                                     "operation": bulk_operation, "valueType": "octets", "capacity": 1024})
             if current_family == 4 and case in ("ipc-full-channel", "ipc-bad-set"):
                 bulk = case == "ipc-full-channel"
                 bindings.append({"id": "Address4Set", "endpoint": name, "oid": "1.3.6.1.4.1.53864.4.6.0" if bulk else "1.3.6.1.4.1.53864.4.1.0",
@@ -153,9 +172,14 @@ def execute(output, case, family, products=None, sanitizers=False):
         if case.startswith("ipc-"):
             parent, left = socket.socketpair()
             child, right = socket.socketpair()
+            if case == "ipc-bulk":
+                # Small send buffers on the owner's and the worker's ends, read slowly by the proxy, so
+                # that every large frame meets a full buffer in both directions.
+                parent.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
+                child.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
             sockets = [parent, left, child, right]
             proxy_argv = [sys.executable, str(ROOT / "tests/rewrite/helpers/ipc_fault.py"),
-                          "--mode", case[4:], "--parent-fd", str(left.fileno()), "--worker-fd", str(right.fileno())]
+                          "--mode", "slow-reader" if case == "ipc-bulk" else case[4:], "--parent-fd", str(left.fileno()), "--worker-fd", str(right.fileno())]
             stdout = (output / "ipc-proxy.stdout").open("wb")
             stderr = (output / "ipc-proxy.stderr").open("wb")
             process = subprocess.Popen(proxy_argv, stdout=stdout, stderr=stderr, env=runner.env,
@@ -216,6 +240,12 @@ def execute(output, case, family, products=None, sanitizers=False):
             runner.check("short-successor-expired-unsent", behind.get("short_sent") is False)
             runner.check("backoff-restarted-after-matched-retired",
                          0 < behind.get("second_backoff_us", 0) < 400000 and behind.get("first_backoff_us", 0) < 400000)
+        if case == "native-retransmit":
+            packets = [json.loads(line) for line in (output / "native-response-drop.stdout").read_text().splitlines()]
+            requests = [e for e in packets if e.get("event") == "fault_request" and not e.get("discovery")]
+            gap = (requests[1]["monotonic_ns"] - requests[0]["monotonic_ns"]) / 1e6 if len(requests) >= 2 else None
+            # The library's retransmit timer (300 ms) is due: the second attempt follows within 50 ms of it.
+            runner.check("library-retransmit-timer-fires-at-its-time", len(requests) == 2 and gap is not None and 295 <= gap <= 350)
         if case in ("native-expiry", "discovery-expiry"):
             packets = [json.loads(line) for line in (output / "native-response-drop.stdout").read_text().splitlines()]
             requests = [e for e in packets if e.get("event") == "fault_request"]
@@ -231,8 +261,46 @@ def execute(output, case, family, products=None, sanitizers=False):
                         "ipc-oversize": "oversized_actual_header", "ipc-bootstrap-mismatch": "bootstrap_mismatch_actual_frame",
                         "ipc-bootstrap-secret": "bootstrap_secret_actual_frame",
                         "ipc-ready-executable": "ready_identity_actual_frame", "ipc-ready-library": "ready_identity_actual_frame",
-                        "ipc-stale-behind": "stale_actual_frame", "ipc-hold-retired": "retired_withheld"}[case]
+                        "ipc-stale-behind": "stale_actual_frame", "ipc-hold-retired": "retired_withheld",
+                        "ipc-withhold-bootstrap": "bootstrap_withheld", "ipc-stall-batch": "batch_stalled",
+                        "ipc-hold-close": "close_withheld", "ipc-forward": "actual_frame",
+                        "ipc-bulk": "actual_frame"}[case]
             runner.check("real-IPC-outer-fault-observed", any(e.get("event") == required for e in proxy))
+            frames = [e for e in proxy if e.get("event") == "actual_frame"]
+            if case == "ipc-withhold-bootstrap":
+                # The worker ends itself at its own 5 s bootstrap limit; the supervisor's SIGTERM follows
+                # one second later, so a worker gone at 5 s was ended by its own timer.
+                bootstrap = next((e for e in frames if e["direction"] == 0 and e["kind"] == 1), None)
+                eof = next((e for e in proxy if e.get("event") == "actual_eof" and e["direction"] == 1), None)
+                gap = (eof["monotonic_ns"] - bootstrap["monotonic_ns"]) / 1e9 if bootstrap and eof else None
+                runner.check("worker-bootstrap-limit-ends-worker-at-5s", gap is not None and 4.9 <= gap <= 5.05)
+            if case == "ipc-stall-batch":
+                stalled = next((e for e in proxy if e.get("event") == "batch_stalled"), None)
+                fault = next((e for e in frames if stalled and e["direction"] == 1 and e["kind"] == 8 and
+                              e["monotonic_ns"] > stalled["monotonic_ns"]), None)
+                gap = (fault["monotonic_ns"] - stalled["monotonic_ns"]) / 1e9 if fault else None
+                runner.check("worker-partial-frame-limit-acts-at-1s", gap is not None and 1.0 <= gap <= 1.05)
+            if case == "ipc-hold-close":
+                batch = next((e for e in frames if e["direction"] == 0 and e["kind"] == 3), None)
+                result = next((e for e in frames if batch and e["direction"] == 1 and e["kind"] == 4 and
+                               e["monotonic_ns"] > batch["monotonic_ns"]), None)
+                gap = (result["monotonic_ns"] - batch["monotonic_ns"]) / 1e6 if result else None
+                runner.check("worker-batch-deadline-acts-without-close", gap is not None and 390 <= gap <= 450)
+            if case == "ipc-forward":
+                gaps, pending = [], None
+                for e in frames:
+                    if e["direction"] != 1:
+                        continue
+                    if e["kind"] == 4:
+                        pending = e["monotonic_ns"]
+                    elif e["kind"] == 5 and pending is not None:
+                        gaps.append((e["monotonic_ns"] - pending) / 1e6)
+                        pending = None
+                runner.check("retired-follows-result-within-5ms", len(gaps) >= 3 and all(0 <= g <= 5 for g in gaps))
+            if case == "ipc-bulk":
+                runner.check("frame-larger-than-64KiB-both-directions-complete",
+                             any(e["direction"] == 0 and e["kind"] == 3 and e["length"] > 65536 for e in frames) and
+                             any(e["direction"] == 1 and e["kind"] == 4 and e["length"] > 65536 for e in frames))
             if case == "ipc-stale-behind":
                 runner.check("forged-successor-result-rejected", any(e.get("code") == 16 for e in observed))
                 admitted = [e for e in events if e.get("event") == "stale_behind_admitted"]

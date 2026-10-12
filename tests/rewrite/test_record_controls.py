@@ -283,6 +283,9 @@ for name, (source, mode, check, edits) in SUPPORT_CONTROLS.items():
     D7_CONTROLS[name] = ("record", "support-transition", check, edits)
 
 
+# Worker sources a control may alter, and the products each one rebuilds.
+NATIVE_SOURCES = {"WorkerMain.cpp": ("snmp3Worker",), "Worker.cpp": ("libsnmp3Native.so", "snmp3Worker")}
+
 # Wake and timer controls: each removes one rule of the readiness-driven servicing loop and must fail the
 # real-path cell that passes on the unmodified products.
 WAKE_CONTROLS = {
@@ -305,6 +308,30 @@ WAKE_CONTROLS = {
          "result.push_back({a.channel->descriptor(),false});")]),
 }
 WAKE_CONTROLS.update({
+    "worker-bootstrap-limit-omitted": ("WorkerMain.cpp", "qualification", "ipc-withhold-bootstrap", None, [
+        ("    if(!initialized)timer=ipc::add(startedAt,5000000);\n", "")]),
+    "worker-partial-limit-omitted": ("WorkerMain.cpp", "qualification", "ipc-stall-batch", None, [
+        ("    if(channel.partial())timer=std::min(timer,ipc::add(channel.partialOrigin(),initialized ? 1000000u:5000000u));\n", "")]),
+    "worker-deadline-timer-omitted": ("WorkerMain.cpp", "qualification", "ipc-hold-close", None, [
+        ("    if(activeBatch && !resultReady)timer=std::min(timer,deadline);\n", "")]),
+    "worker-write-readiness-omitted": ("WorkerMain.cpp", "qualification", "ipc-bulk", None, [
+        ("channel.descriptor(),channel.writing());", "channel.descriptor(),false);")]),
+    "worker-output-reentry-omitted": ("WorkerMain.cpp", "qualification", "ipc-forward", None, [
+        ("            while(output()) {}\n", "            output();\n")]),
+    "worker-library-timer-omitted": ("Worker.cpp", "qualification", "native-retransmit", None, [
+        ("            if (timer < waitUs) waitUs = timer;\n", "")]),
+    "worker-block-carried-over": ("Worker.cpp", "qualification", "native-multisession", None, [
+        ("    std::vector<std::shared_ptr<Session>> active;\n    for (auto& entry : sessions) {\n",
+         "    std::vector<std::shared_ptr<Session>> active;\n    timeval timeout = {0, 0};\n    int block = 1;\n    for (auto& entry : sessions) {\n"),
+        ("        timeval timeout = {0, 0};\n        int block = 1;\n        snmp_sess_select_info2(session->handle, &count, &readable, &timeout, &block);\n"
+         "        if (!block) {\n            const uint64_t timer = uint64_t(timeout.tv_sec) * 1000000 + uint64_t(timeout.tv_usec);\n"
+         "            if (timer < waitUs) waitUs = timer;\n        }\n",
+         "        snmp_sess_select_info2(session->handle, &count, &readable, &timeout, &block);\n"),
+        ("    if (channel >= 0) {\n        NETSNMP_LARGE_FD_SET(channel, &readable);\n",
+         "    if (!block) {\n        const uint64_t timer = uint64_t(timeout.tv_sec) * 1000000 + uint64_t(timeout.tv_usec);\n"
+         "        if (timer < waitUs) waitUs = timer;\n    }\n    if (channel >= 0) {\n        NETSNMP_LARGE_FD_SET(channel, &readable);\n")]),
+    "worker-channel-read-omitted": ("Worker.cpp", "qualification", "ipc-forward", None, [
+        ("        NETSNMP_LARGE_FD_SET(channel, &readable);\n", "")]),
     "retry-timer-omitted": ("Runtime.cpp", "record", "stop-enqueue-failed", "enqueue-retry-passes-on-timer-without-spinning", [
         ("self.pause(self.supervisor->nextWake(after),outcome.retry,UINT64_MAX);",
          "self.pause(self.supervisor->nextWake(after),false,UINT64_MAX);")]),
@@ -487,7 +514,9 @@ def main_d7(args, jobs, output):
         item.mkdir(mode=0o700)
         products = item / "products"
         products.mkdir(mode=0o700)
-        source = ROOT / "snmp3App/src" / D7_SOURCES.get(name, "Scheduler.cpp")
+        source_name = D7_SOURCES.get(name, "Scheduler.cpp")
+        native_products = NATIVE_SOURCES.get(source_name, ())
+        source = ROOT / ("snmp3App/native" if native_products else "snmp3App/src") / source_name
         text = source.read_text()
         for old, new in edits:
             if text.count(old) != 1:
@@ -512,12 +541,16 @@ def main_d7(args, jobs, output):
         write_json(item / "mutation.json", {"control": name, "source": str(source), "original_sha256": digest(source),
                    "mutated_sha256": digest(replacement), "edits": edits, "cell": [kind, cell], "check": check,
                    "additional_mutations": additional_mutations})
-        rebuilt = ("libsnmp3.so", tests[kind])
+        rebuilt = ("libsnmp3.so", tests[kind]) + native_products
         for existing in original_products.iterdir():
             if existing.name not in rebuilt:
                 (products / existing.name).symlink_to(existing)
         defective = compile_product(selected["libsnmp3.so"], original_products, products, source, replacement, item, extra)
         executable = compile_product(selected[tests[kind]], original_products, products, source, replacement, item, extra)
+        # A worker source is rebuilt into the worker or the native library; the library comes first so that
+        # the worker links the defective copy and resolves it from its own directory.
+        for native_product in native_products:
+            compile_product(selected[native_product], original_products, products, source, replacement, item, extra)
         loaded = Path(resolved_support(executable)).resolve() == defective.resolve()
         mode = SUPPORT_CONTROLS[name][1] if name in SUPPORT_CONTROLS else None
         key = (kind, cell, mode) if mode else (kind, cell)
