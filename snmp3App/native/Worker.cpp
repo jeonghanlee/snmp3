@@ -4,6 +4,7 @@
 #include <cerrno>
 #include <atomic>
 #include <cstring>
+#include <unistd.h>
 
 namespace snmp3 { namespace detail {
 namespace {
@@ -125,14 +126,20 @@ void Service::poll(uint64_t maximumWaitUs, int channel, bool channelWrite)
     NETSNMP_LARGE_FD_ZERO(&readable);
     NETSNMP_LARGE_FD_ZERO(&writable);
     int count = 0;
-    timeval timeout = {0, 0};
-    // Block stays 1 until a session reports a pending library timer; then timeout is that timer.
-    int block = 1;
+    uint64_t waitUs = maximumWaitUs;
     std::vector<std::shared_ptr<Session>> active;
     for (auto& entry : sessions) {
         auto session = entry.lock();
         if (!session || !session->handle || session->closing) continue;
+        // Each session reports its own pending library timer: a session without a request sets block
+        // back to 1, which would discard the timer an earlier session reported through a shared value.
+        timeval timeout = {0, 0};
+        int block = 1;
         snmp_sess_select_info2(session->handle, &count, &readable, &timeout, &block);
+        if (!block) {
+            const uint64_t timer = uint64_t(timeout.tv_sec) * 1000000 + uint64_t(timeout.tv_usec);
+            if (timer < waitUs) waitUs = timer;
+        }
         active.push_back(std::move(session));
     }
     if (channel >= 0) {
@@ -140,9 +147,6 @@ void Service::poll(uint64_t maximumWaitUs, int channel, bool channelWrite)
         if (channelWrite) NETSNMP_LARGE_FD_SET(channel, &writable);
         if (channel >= count) count = channel + 1;
     }
-    uint64_t waitUs = UINT64_MAX;
-    if (!block) waitUs = uint64_t(timeout.tv_sec) * 1000000 + uint64_t(timeout.tv_usec);
-    if (maximumWaitUs < waitUs) waitUs = maximumWaitUs;
     timeval span = {0, 0};
     timeval* bound = nullptr;
     if (waitUs != UINT64_MAX) {
@@ -152,7 +156,12 @@ void Service::poll(uint64_t maximumWaitUs, int channel, bool channelWrite)
     }
     enter();
     const int ready = netsnmp_large_fd_set_select(count, &readable, channelWrite ? &writable : nullptr, nullptr, bound);
-    if (ready < 0) event(errno == EINTR ? "wait_interrupted" : "wait_failed", 0, 0, 0, errno);
+    if (ready < 0) {
+        const int failure = errno;
+        event(failure == EINTR ? "wait_interrupted" : "wait_failed", 0, 0, 0, failure);
+        // A wait that keeps failing must not turn the caller into a busy loop.
+        if (failure != EINTR) ::usleep(10000);
+    }
     for (auto& session : active) {
         if (ready > 0) {
             const int result = snmp_sess_read2(session->handle, &readable);
