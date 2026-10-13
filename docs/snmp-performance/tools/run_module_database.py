@@ -35,9 +35,9 @@ nor merged with the loss of the same record in the next cycle. A direct pass tha
 returned fewer passes than asked stops the run and gives no ratio. The numbers of a stopped run are those taken
 at the moment of the stop, before the IOC shut down.
 
---groups on writes one group per chunk, but the shipped product accepts the `group` field only from the grouped
-release, and the chunks are still chained from the last member: pass times in that mode are not valid until the
-per-chunk counter exists (it is built and verified with the grouped release).
+--groups on writes one group per chunk and ends a chunk by a counter (`C###_Cnt`, `C###_Chk`, reset by
+`C###_Rst` when the chunk is triggered) instead of the last member, because the members complete from one
+result on parallel callback threads.
 
 Child processes (camonitor, caRepeater, the second client, the direct pass, the fixture agent and proxy) die with
 this process; a killed tool leaves no results document. Exit codes: 0 finished, 1 error (also a refused start),
@@ -146,14 +146,22 @@ def chunks_of(rows, k, tiers):
     return result
 
 
-def tier_database(rows, k, deadline_ms, once, tiers):
-    """Returns (database text, chunk end markers, last marker per tier, chunks)."""
+def tier_database(rows, k, deadline_ms, once, tiers, groups="off"):
+    """Returns (database text, chunk end markers, last marker per tier, chunks).
+
+    With groups "on" the members of a chunk complete from one result on parallel callback threads, so the last
+    member of the list is not the last to finish: every member records into a per-chunk counter by FLNK, the
+    counter is reset when the chunk is triggered, and a check record fires the end of the chunk when the count
+    equals the number of members."""
     chunks = chunks_of(rows, k, tiers)
     lines, markers, tier_end = [], [], {}
     lines.append(marker("Pass_Start"))
     for position, (tier, members) in enumerate(chunks):
         last_of_tier = position + 1 == len(chunks) or chunks[position + 1][0] != tier
-        lines += fanout(f"C{position:03d}_Trig", [f"O{i:03d}" for i in members])
+        triggered = [f"O{i:03d}" for i in members]
+        if groups == "on":
+            triggered.insert(0, f"C{position:03d}_Rst")
+        lines += fanout(f"C{position:03d}_Trig", triggered)
         done = f"C{position:03d}_Done"
         markers.append(done)
         lines.append(marker(done))
@@ -164,9 +172,20 @@ def tier_database(rows, k, deadline_ms, once, tiers):
         if position + 1 < len(chunks) and (once or not last_of_tier):
             successors.append(f"C{position + 1:03d}_Trig")
         lines += fanout(f"C{position:03d}_End", successors)
-        for index, member in enumerate(members):
-            lines.append(record(member, rows[member], deadline_ms,
-                                flnk=f"C{position:03d}_End" if index + 1 == len(members) else None))
+        if groups == "on":
+            count, check, reset = (f"C{position:03d}_Cnt", f"C{position:03d}_Chk", f"C{position:03d}_Rst")
+            lines.append(f'record(calcout, "{reset}") {{\n    field(CALC, "0")\n    field(OUT, "{count}.VAL NPP")\n}}')
+            lines.append(f'record(calcout, "{count}") {{\n    field(INPA, "{count}")\n    field(CALC, "A+1")\n'
+                         f'    field(MDEL, "-1")\n    field(FLNK, "{check}")\n}}')
+            lines.append(f'record(calcout, "{check}") {{\n    field(INPA, "{count}")\n'
+                         f'    field(CALC, "A=={len(members)}")\n    field(OOPT, "When Non-zero")\n'
+                         f'    field(OUT, "C{position:03d}_End.PROC PP")\n}}')
+            for member in members:
+                lines.append(record(member, rows[member], deadline_ms, flnk=count))
+        else:
+            for index, member in enumerate(members):
+                lines.append(record(member, rows[member], deadline_ms,
+                                    flnk=f"C{position:03d}_End" if index + 1 == len(members) else None))
     if once:
         lines += fanout("Pass_Trig", ["Pass_Start", "C000_Trig"])
     else:
@@ -556,7 +575,45 @@ def end_run(result, reason, invalid):
     result["ended_early"] = "unsent" if invalid and not reason else reason
 
 
-def run_once(case, env, record_names, markers, tier_end, args, requests, rest, chunk_of, result, ioc):
+def counter_check(path, start_line, counters, stamps):
+    """Problems found in the chunk counters of one pass (--groups on), [] when the counters are sound.
+
+    counters is [(counter record, [member records], count, end marker)]: the counter must count 1..count once
+    each (the reset to 0 may also be posted), every member must complete no later than the last count of its
+    chunk, the end marker of the chunk must not be posted before that last count, and no member of the next
+    chunk may complete before it (so the next chunk starts after the end)."""
+    values = {name: [] for name, _, _, _ in counters}
+    for line in read_text(path).splitlines()[start_line:]:
+        parsed = parse_line(line)
+        if parsed and parsed[0] in values and parsed[2]:
+            try:
+                values[parsed[0]].append((parsed[1], int(float(parsed[2][0]))))
+            except ValueError:
+                values[parsed[0]].append((parsed[1], None))
+    problems, previous_end = [], None
+    for name, members, count, done in counters:
+        counted = [(stamp, value) for stamp, value in values[name] if value != 0]
+        if [value for _, value in counted] != list(range(1, count + 1)):
+            problems.append(f"{name}: counts {[v for _, v in counted]} instead of 1..{count}")
+            previous_end = None
+            continue
+        end = counted[-1][0]
+        ended = stamps.get(done, [])
+        if not ended or ended[-1] < end:
+            problems.append(f"{name}: the end marker {done} was posted before the last count")
+        seen = [stamp for member in members for stamp in stamps.get(member, [])]
+        if len(seen) != count:
+            problems.append(f"{name}: {len(seen)} member completions instead of {count}")
+        elif max(seen) > end:
+            problems.append(f"{name}: a member completed after the last count")
+        if previous_end is not None and seen and min(seen) < previous_end:
+            problems.append(f"{name}: a member completed before the previous chunk ended")
+        previous_end = end
+    return problems
+
+
+def run_once(case, env, record_names, markers, tier_end, args, requests, rest, chunk_of, result, ioc,
+             counters=None):
     for index in range(args.passes):
         baseline = read_text(case / "monitor.out").count("\n")
         watch = Watch(case / "monitor.out", baseline, chunk_of)
@@ -584,6 +641,8 @@ def run_once(case, env, record_names, markers, tier_end, args, requests, rest, c
         row = {"pass_ms": pass_ms, "tier_ms": tiers, "chunk_ms": chunk_ms, "chunks_done": chunks_done,
                "finished": finished, "caput_returncode": putter.returncode,
                "wall_ms": (time.monotonic() - started) * 1000, "watch": watch.numbers()}
+        if counters:
+            row["counter_problems"] = counter_check(case / "monitor.out", baseline, counters, stamps)
         result["passes"].append(row)
         if reason or invalid:
             # The numbers above were taken before the IOC is closed; its shutdown is not part of the run.
@@ -713,6 +772,11 @@ def run_tiers(case, env, rows, chunks, markers, tier_end, args, requests, rest, 
               direct, k, tiers_text, ioc, result):
     names = ["Pass_Start"] + markers
     record_names = [f"O{i:03d}" for i in range(len(rows))]
+    counters = None
+    if args.groups == "on" and args.once:
+        counters = [(f"C{position:03d}_Cnt", [f"O{i:03d}" for i in members], len(members), markers[position])
+                    for position, (_, members) in enumerate(chunks)]
+        names = names + [name for name, _, _, _ in counters]
     flags = [] if args.once else [f"S_{tier}" for tier in TIERS if tier in tier_end]
     # Every record's value (posted at every processing) and message are monitored for the stop rules.
     watch_pvs = record_names + [f"{n}.AMSG" for n in record_names]
@@ -723,7 +787,8 @@ def run_tiers(case, env, rows, chunks, markers, tier_end, args, requests, rest, 
     result.update({"passes": [], "stopped": None, "invalid": False, "ended_early": None})
     try:
         if args.once:
-            run_once(case, env, record_names, markers, tier_end, args, requests, rest, chunk_of, result, ioc)
+            run_once(case, env, record_names, markers, tier_end, args, requests, rest, chunk_of, result, ioc,
+                     counters)
             if direct and not result["ended_early"]:
                 time.sleep(max(rest, 3.0))
                 result["direct"] = direct_pass(direct, args.passes, k, tiers_text)
@@ -784,7 +849,8 @@ def startup_error(case, error):
 def summarize_once(result, rows):
     """Valid passes and their statistics; also called when the case ended with an error."""
     good = [p["pass_ms"] for p in result.get("passes", [])
-            if p.get("finished") and p.get("alarms") and not p["alarms"]["lost"]
+            if p.get("finished") and p.get("alarms") and not p.get("counter_problems")
+            and not p["alarms"]["lost"]
             and not p["alarms"]["unsent"] and not p["alarms"]["read"]]
     result["valid_passes"] = len(good)
     if good:
@@ -846,7 +912,7 @@ def run_case(bench, args, rows, label, agent_port, version, delay, target=None):
         if shape == "flat":
             text, names = flat_database(args.n, args.deadline_ms)
         else:
-            text, markers, tier_end, chunks = tier_database(rows, k, args.deadline_ms, args.once, tiers)
+            text, markers, tier_end, chunks = tier_database(rows, k, args.deadline_ms, args.once, tiers, args.groups)
         (case / "records.db").write_text(text)
         config = case / "config.json"
         config.write_text(json.dumps(configuration(rows, shape, args.groups, chunks, profile, address, port,

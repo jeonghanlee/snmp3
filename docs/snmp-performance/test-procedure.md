@@ -268,8 +268,12 @@ tool on the tree before declared groups (the tree after Stage A, recorded in `en
 output) in `--groups off` mode is the module baseline of T2 and T3: it is expected to exceed the
 1.5 ratio (the fixture diagnostic gives about 26), and it is recorded as the baseline. `--groups on` writes one group per chunk; a product without declared groups rejects
 the `group` field ("unknown configuration field") and the case ends with an `error` row. With a
-product that accepts it, pass times are not valid until the chunk-end counter of the tool is built
-and verified with the grouped configuration.
+product that accepts it, a chunk ends when its counter record reaches the number of its members
+(the members complete on parallel callback threads, so the last member of the list is not the
+last to finish). In `--once` mode the tool reads the counters and the end markers of every pass and
+lists a violation in `counter_problems` of the pass: a count sequence other than 1 to K, a member
+that completes after the last count or before the previous chunk ended, or an end marker posted
+before the last count. A pass with a problem is not a valid pass.
 Decision rule 5 above states an absolute ratio for the direct phases; T3 compares the module
 ratio with the direct ratio of the same session: the module ratio is at most 1.25 times the direct
 ratio, and a pair whose ratio lies between 1.15 and 1.35 is repeated once and the median of the two
