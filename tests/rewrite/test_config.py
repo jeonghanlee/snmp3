@@ -143,17 +143,20 @@ def main():
         component("V3.2_4_5_8_9_positive", "positive", good, probe, replacement_path)
         component("V3.1_parser_limits", "json-limits")
 
-        def negative(name, document, bad_probe=probe, raw=False):
+        def negative(name, document, bad_probe=probe, raw=False, reason=None):
             bad = write_case(name, document, raw=raw)
-            component(name, "negative", good, probe, bad, bad_probe)
+            if reason is None:
+                component(name, "negative", good, probe, bad, bad_probe)
+            else:
+                component(name, "negative-reason", good, probe, bad, bad_probe, reason)
 
-        def changed(name, section, index, key, value):
+        def changed(name, section, index, key, value, reason=None):
             document = copy.deepcopy(seed)
             if value is None:
                 document[section][index].pop(key, None)
             else:
                 document[section][index][key] = value
-            negative(name, document)
+            negative(name, document, reason=reason)
 
         strict = json.dumps(seed)
         for name, text in {
@@ -223,6 +226,24 @@ def main():
         for value in (0, 2, 1.5):
             changed("bad-scalar-capacity-" + str(value).replace(".", "-"), "bindings", 0, "capacity", value)
         changed("bad-octet-capacity", "bindings", 2, "capacity", 1024 * 1024 + 1)
+        changed("group-on-set", "bindings", 1, "group", "Batch", reason="group member must be a get binding")
+        for value, reason in ((1, "configuration string rejected"), (True, "configuration string rejected"),
+                              ("bad\x00group", "configuration string rejected"),
+                              ("", "configuration identifier rejected"), ("g" * 65, "configuration identifier rejected"),
+                              ("bad/group", "configuration identifier rejected"),
+                              ("non ascii", "configuration identifier rejected")):
+            changed("bad-group-" + str(len(results["checks"])), "bindings", 0, "group", value, reason=reason)
+        document = copy.deepcopy(seed)
+        document["bindings"][0]["group"] = document["bindings"][2]["group"] = "Batch"
+        negative("group-two-endpoints", document, reason="group spans endpoints")
+        document = copy.deepcopy(seed)
+        document["bindings"] = [{**seed["bindings"][0], "id": f"Member{index}", "group": "Batch"}
+                                for index in range(33)]
+        negative("group-over-maxvarbinds", document, reason="group exceeds profile maxVarbinds")
+        document = copy.deepcopy(seed)
+        document["bindings"] = [{**seed["bindings"][2], "id": f"Large{index}", "endpoint": "Device",
+                                 "group": "Batch", "capacity": 1024 * 1024} for index in range(2)]
+        negative("group-over-frame", document, reason="group exceeds the request frame")
         for field in ("user", "securityLevel", "authAlgorithm", "authSecretFile", "privAlgorithm", "privSecretFile",
                       "contextName", "securityEngineId", "contextEngineId"):
             changed("v2-forbids-" + field, "profiles", 1, field, "unused")
@@ -309,6 +330,11 @@ def main():
         document["bindings"] = [{**seed["bindings"][0], "id": "Type_" + tag, "valueType": tag,
                                  "capacity": 128 if tag == "oid" else 1} for tag in VALUE_TYPES]
         positive_cases["binding-types"] = document
+        document = copy.deepcopy(seed)
+        document["bindings"] = [{**seed["bindings"][0], "id": f"Member{index}", "group": "Batch"}
+                                for index in range(32)]
+        document["bindings"].append({**seed["bindings"][2], "id": "Alone", "group": "Single"})
+        positive_cases["group-at-maxvarbinds"] = document
         positive_cases["empty-config"] = {"schema": 1, "profiles": [], "endpoints": [], "bindings": []}
         document = copy.deepcopy(seed)
         for index in range(4096 - len(document["profiles"])):

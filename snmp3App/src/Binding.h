@@ -36,6 +36,9 @@ struct Endpoint {
 };
 struct BindingDefinition {
     std::string id, endpoint;
+    // Optional group label; the bindings with one label are read in one request. Empty means ungrouped.
+    // It is configuration only: the worker protocol does not carry it.
+    std::string group;
     std::vector<uint32_t> oid;
     Operation operation = Operation::Get;
     ValueType valueType = ValueType::Integer;

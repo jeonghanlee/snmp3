@@ -148,11 +148,15 @@ void positive(const char* file, const char* probe, const char* replacement)
     for (auto& caller : callers) caller.join();
     expect(valid && concurrent.snapshot().frozen && held->definition().id == "Read", "concurrent snapshot/load/bind/freeze");
 }
-void negative(const char* good, const char* probe, const char* bad, const char* badProbe)
+void negative(const char* good, const char* probe, const char* bad, const char* badProbe, const char* reason = NULL)
 {
     snmp3::Config config; config.load(good, probe);
     const auto before = config.snapshot();
-    expect(rejects([&] { config.load(bad, badProbe); }), "candidate rejected");
+    std::string message;
+    expect(rejects([&] {
+        try { config.load(bad, badProbe); } catch (const std::exception& error) { message = error.what(); throw; }
+    }), "candidate rejected");
+    if (reason) expect(message == reason, "rejection reason");
     const auto after = config.snapshot();
     expect(after.revision == before.revision && after.configuration == before.configuration && !after.frozen,
            "entire previous snapshot retained");
@@ -207,6 +211,7 @@ int main(int argc, char** argv)
     try {
         if (argc == 5 && std::strcmp(argv[1], "positive") == 0) positive(argv[2], argv[3], argv[4]);
         else if (argc == 6 && std::strcmp(argv[1], "negative") == 0) negative(argv[2], argv[3], argv[4], argv[5]);
+        else if (argc == 7 && std::strcmp(argv[1], "negative-reason") == 0) negative(argv[2], argv[3], argv[4], argv[5], argv[6]);
         else if (argc == 4 && std::strcmp(argv[1], "accept") == 0) accepted(argv[2], argv[3]);
         else if (argc == 2 && !std::strcmp(argv[1], "json-limits")) jsonLimits();
         else if (argc == 7 && (!std::strcmp(argv[1], "race-freeze") || !std::strcmp(argv[1], "race-bind")))

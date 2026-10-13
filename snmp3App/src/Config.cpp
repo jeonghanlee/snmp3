@@ -1,4 +1,5 @@
 #include "Config.h"
+#include "Ipc.h"
 #include "Json.h"
 
 #include <algorithm>
@@ -273,6 +274,33 @@ ValueType valueType(const std::string& value)
     return found->second;
 }
 
+// A group is read in one request: every member is a GET on one endpoint, the declared count fits the profile
+// and the request and the largest response fit one IPC frame.
+void validateGroups(const Configuration& configuration)
+{
+    struct Totals { std::string endpoint; size_t count = 0; uint64_t request = 8, response = 8; };
+    std::map<std::string, Totals> groups;
+    for (const auto& entry : configuration.bindings) {
+        const BindingDefinition& binding = entry.second;
+        if (binding.group.empty()) continue;
+        if (binding.operation != Operation::Get) reject("group member must be a get binding");
+        auto found = groups.find(binding.group);
+        if (found == groups.end()) found = groups.emplace(binding.group, Totals()).first;
+        Totals& total = found->second;
+        if (total.count && total.endpoint != binding.endpoint) reject("group spans endpoints");
+        total.endpoint = binding.endpoint;
+        ++total.count;
+        total.request = ipc::add(total.request, 48);
+        total.response = ipc::add(total.response, ipc::add(48, ipc::responseBytes(binding)));
+    }
+    for (const auto& entry : groups) {
+        const Totals& total = entry.second;
+        const Endpoint& endpoint = configuration.endpoints.at(total.endpoint);
+        if (total.count > configuration.profiles.at(endpoint.profile).maxVarbinds) reject("group exceeds profile maxVarbinds");
+        if (total.count > ipc::MaxMembers || total.request > ipc::DataBytes || total.response > ipc::DataBytes)
+            reject("group exceeds the request frame");
+    }
+}
 std::shared_ptr<Configuration> candidate(const std::string& file, const std::string& executable)
 {
     char* resolved = realpath(file.c_str(), NULL);
@@ -345,8 +373,9 @@ std::shared_ptr<Configuration> candidate(const std::string& file, const std::str
         if (!result->endpoints.emplace(name, std::move(endpoint)).second) reject("duplicate endpoint");
     }
     for (const Json& item : array(root, "bindings")) {
-        fields(item, {"id", "endpoint", "oid", "operation", "valueType", "capacity"});
+        fields(item, {"id", "endpoint", "group", "oid", "operation", "valueType", "capacity"});
         BindingDefinition binding; binding.id = id(item, "id"); binding.endpoint = id(item, "endpoint");
+        if (present(item, "group")) binding.group = id(item, "group");
         binding.oid = oid(string(item, "oid"));
         const std::string operation = string(item, "operation");
         if (operation == "get") binding.operation = Operation::Get;
@@ -360,6 +389,7 @@ std::shared_ptr<Configuration> candidate(const std::string& file, const std::str
         const std::string name = binding.id;
         if (!result->bindings.emplace(name, std::move(binding)).second) reject("duplicate binding");
     }
+    validateGroups(*result);
     return result;
 }
 epicsThreadOnceId once = EPICS_THREAD_ONCE_INIT;
