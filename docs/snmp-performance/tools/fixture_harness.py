@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Shared process helpers for the throughput measurement: agent, UDP delay proxy, secrets."""
 
+import ctypes
 import json
 import os
 from pathlib import Path
@@ -14,6 +15,11 @@ import time
 ROOT = Path(os.environ.get("SNMP3_ROOT", Path(__file__).resolve().parents[3]))
 PRODUCTS = Path(os.environ.get("SNMP3_PRODUCTS", ROOT / "bin" / "linux-x86_64"))
 USER = "benchUser"
+
+
+def die_with_parent():
+    """Child pre-exec hook: the child gets SIGTERM when this process dies, even by SIGKILL."""
+    ctypes.CDLL(None).prctl(1, signal.SIGTERM)
 
 
 def free_port():
@@ -43,7 +49,7 @@ class Bench:
         stdout = (self.output / (name + ".stdout")).open("wb")
         stderr = (self.output / (name + ".stderr")).open("wb")
         child = subprocess.Popen(argv, stdout=stdout, stderr=stderr, env=env or self.env,
-                                 stdin=subprocess.DEVNULL)
+                                 stdin=subprocess.DEVNULL, preexec_fn=die_with_parent)
         self.children.append((name, child, stdout, stderr))
         return child
 

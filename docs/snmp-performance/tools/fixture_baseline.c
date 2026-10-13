@@ -41,19 +41,32 @@ static int callback(int op, netsnmp_session *s, int reqid, netsnmp_pdu *pdu, voi
 
 int main(int argc, char **argv)
 {
-    /* peer version n mode community auth priv user */
+    /* peer version n mode community auth priv user [group [tiers]] */
     netsnmp_session sess, *s;
     void *h;
     const char *mode, *version;
-    unsigned long n, i;
+    unsigned long n, i, group = 0, requests = 0, tier_sizes[16], tier_count = 0;
+    const char *tiers = NULL;
     static const oid object[] = {1, 3, 6, 1, 4, 1, 53864, 4, 1, 0};
     unsigned char community[256], auth[1100], priv[1100];
     size_t clen = 0, alen = 0, plen = 0;
     double t0, t1;
 
-    if (argc != 9) {
-        fprintf(stderr, "usage: baseline PEER VERSION N MODE COMMUNITYFILE AUTHFILE PRIVFILE USER\n");
+    if (argc < 9 || argc > 11) {
+        fprintf(stderr, "usage: baseline PEER VERSION N MODE COMMUNITYFILE AUTHFILE PRIVFILE USER [GROUP [TIERS]]\n");
         return 2;
+    }
+    if (argc >= 10) group = strtoul(argv[9], NULL, 10);
+    if (argc == 11) {
+        const char *cursor;
+        tiers = argv[10];
+        for (cursor = tiers; *cursor && tier_count < 16;) {
+            char *end;
+            tier_sizes[tier_count++] = strtoul(cursor, &end, 10);
+            if (end == cursor) return 2;
+            cursor = *end == ',' ? end + 1 : end;
+        }
+        if (!tier_count || !group) return 2;
     }
     version = argv[2];
     n = strtoul(argv[3], NULL, 10);
@@ -112,11 +125,23 @@ int main(int argc, char **argv)
             if (r) snmp_free_pdu(r);
         }
     } else if (!strcmp(mode, "multi")) {
-        netsnmp_pdu *p = snmp_pdu_create(SNMP_MSG_GET), *r = NULL;
-        for (i = 0; i < n; ++i) snmp_add_null_var(p, object, OID_LENGTH(object));
-        if (snmp_sess_synch_response(h, p, &r) == STAT_SUCCESS && r && r->errstat == SNMP_ERR_NOERROR) done = n;
-        else failed = n;
-        if (r) snmp_free_pdu(r);
+        /* Sequential requests of at most GROUP objects; with TIERS the cut is made tier by tier. */
+        unsigned long tier, remaining, chunk;
+        if (!tiers) { tier_sizes[0] = n; tier_count = 1; }
+        if (!group) group = n;
+        n = 0;
+        for (tier = 0; tier < tier_count; ++tier) {
+            for (remaining = tier_sizes[tier]; remaining; remaining -= chunk) {
+                netsnmp_pdu *p = snmp_pdu_create(SNMP_MSG_GET), *r = NULL;
+                chunk = remaining < group ? remaining : group;
+                for (i = 0; i < chunk; ++i) snmp_add_null_var(p, object, OID_LENGTH(object));
+                if (snmp_sess_synch_response(h, p, &r) == STAT_SUCCESS && r && r->errstat == SNMP_ERR_NOERROR) done += chunk;
+                else failed += chunk;
+                if (r) snmp_free_pdu(r);
+                n += chunk;
+                ++requests;
+            }
+        }
     } else if (!strcmp(mode, "conc")) {
         for (i = 0; i < n; ++i) {
             netsnmp_pdu *p = snmp_pdu_create(SNMP_MSG_GET);
@@ -138,8 +163,12 @@ int main(int argc, char **argv)
     } else return 2;
     t1 = now_ms();
     printf("{\"tool\":\"net-snmp-direct\",\"version\":\"%s\",\"mode\":\"%s\",\"n\":%lu,"
-           "\"elapsed_ms\":%.3f,\"per_request_ms\":%.3f,\"ok\":%ld,\"failed\":%ld}\n",
+           "\"elapsed_ms\":%.3f,\"per_request_ms\":%.3f,\"ok\":%ld,\"failed\":%ld",
            version, mode, n, t1 - t0, (t1 - t0) / (double)n, done, failed);
+    if (!strcmp(mode, "multi"))
+        printf(",\"group\":%lu,\"requests\":%lu,\"tiers\":\"%s\",\"request_ms\":%.3f",
+               group, requests, tiers ? tiers : "", requests ? (t1 - t0) / (double)requests : 0.0);
+    printf("}\n");
     snmp_sess_close(h);
     return failed ? 1 : 0;
 }

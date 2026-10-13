@@ -19,7 +19,14 @@ def main():
     parser.add_argument("--delays", default="0,20,100")
     parser.add_argument("--versions", default="2c,3")
     parser.add_argument("--repeat", type=int, default=3)
+    parser.add_argument("--group", type=int, default=0,
+                        help="largest number of objects in one request of the multi mode (0: one request of N)")
+    parser.add_argument("--tiers", default="",
+                        help="object count of each tier, for example 38,18,302: sequential requests of at most "
+                             "--group objects, tier by tier; only the multi mode runs")
     args = parser.parse_args()
+    if args.tiers and not args.group:
+        parser.error("--tiers needs --group (the largest request of a tier)")
     bench = Bench(args.output)
     results = []
     try:
@@ -27,11 +34,15 @@ def main():
         for delay in [int(d) for d in args.delays.split(",")]:
             port, proxy = bench.proxy(agent_port, delay)
             for version in args.versions.split(","):
-                for mode in ("seq", "conc", "multi"):
+                for mode in (("multi",) if args.tiers else ("seq", "conc", "multi")):
                     for run in range(args.repeat):
                         argv = [str(args.binary), f"udp:127.0.0.1:{port}", version, str(args.n), mode,
                                 str(bench.paths["community"]), str(bench.paths["auth"]),
                                 str(bench.paths["priv"]), USER]
+                        if args.tiers:
+                            argv += [str(args.group), args.tiers]
+                        elif args.group:
+                            argv += [str(args.group)]
                         done = subprocess.run(argv, capture_output=True, text=True, timeout=300)
                         try:
                             row = json.loads(done.stdout.strip().splitlines()[-1])

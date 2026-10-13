@@ -1,7 +1,8 @@
 /* Read-only GET timing sweep: varbinds per PDU (K) and requests in flight (W) over an OID file,
  * plus an idle-latency probe mode. GET only; credentials are read from files, never printed.
  * Stops with exit code 10 when at least two PDUs and more than 0.5 percent of a pass are lost or an SNMP error
- * status (for example tooBig) is returned. */
+ * status (for example tooBig) is returned. The optional last argument tiers=A,B,C cuts the OID file into tiers
+ * of that many OIDs in file order; a PDU then never mixes tiers (at most K OIDs of one tier per PDU). */
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/library/large_fd_set.h>
@@ -12,12 +13,16 @@
 #include <unistd.h>
 
 #define MAXOID 1024
+#define MAXSAMPLES 4096 /* probe samples: one GET per second */
 static oid oids[MAXOID][MAX_OID_LEN];
 static size_t lens[MAXOID], oid_count;
 static double sent_at[MAXOID], latency[MAXOID];
 static int outcome[MAXOID];
 static long errstat_seen;
-static unsigned long next_index, outstanding, finished_count, total_pdus, per_pdu;
+static unsigned long next_index, outstanding, finished_count, total_pdus;
+static unsigned long pdu_first[MAXOID], pdu_size[MAXOID];
+static unsigned long tier_size[16], tier_total;
+static char tier_text[128];
 static void *handle;
 
 static double now_ms(void)
@@ -68,8 +73,8 @@ static int callback(int op, netsnmp_session *s, int reqid, netsnmp_pdu *pdu, voi
 static void send_pdu(unsigned long index)
 {
     netsnmp_pdu *p = snmp_pdu_create(SNMP_MSG_GET);
-    unsigned long k, first = index * per_pdu;
-    for (k = 0; k < per_pdu && first + k < oid_count; ++k)
+    unsigned long k, first = pdu_first[index];
+    for (k = 0; k < pdu_size[index]; ++k)
         snmp_add_null_var(p, oids[first + k], lens[first + k]);
     sent_at[index] = now_ms();
     if (!snmp_sess_async_send(handle, p, callback, (void *)(uintptr_t)index)) {
@@ -87,8 +92,23 @@ static int pass(unsigned long window, unsigned long k)
 {
     double start, total, sorted[MAXOID];
     unsigned long i, ok = 0, exc = 0, lost = 0, errs = 0;
-    per_pdu = k;
-    total_pdus = (oid_count + k - 1) / k;
+    /* PDU table: chunks of at most K OIDs, cut tier by tier when tiers were given. */
+    total_pdus = 0;
+    if (tier_total && tier_total <= 16) {
+        unsigned long tier, start = 0, left, size;
+        for (tier = 0; tier < tier_total; ++tier) {
+            for (left = tier_size[tier]; left; left -= size) {
+                size = left < k ? left : k;
+                pdu_first[total_pdus] = start; pdu_size[total_pdus++] = size;
+                start += size;
+            }
+        }
+    } else {
+        for (i = 0; i < oid_count; i += k) {
+            pdu_first[total_pdus] = i;
+            pdu_size[total_pdus++] = oid_count - i < k ? oid_count - i : k;
+        }
+    }
     memset(outcome, 0, sizeof(outcome));
     next_index = outstanding = finished_count = 0;
     errstat_seen = 0;
@@ -113,10 +133,10 @@ static int pass(unsigned long window, unsigned long k)
         if (outcome[i] == 1) ++ok; else if (outcome[i] == 2) ++exc; else if (outcome[i] == -3) ++errs; else ++lost;
     }
     qsort(sorted, total_pdus, sizeof(double), cmp);
-    printf("{\"window\":%lu,\"k\":%lu,\"pdus\":%lu,\"oids\":%zu,\"total_ms\":%.1f,\"per_oid_ms\":%.3f,"
+    printf("{\"window\":%lu,\"k\":%lu,\"tiers\":\"%s\",\"pdus\":%lu,\"oids\":%zu,\"total_ms\":%.1f,\"per_oid_ms\":%.3f,"
            "\"min_ms\":%.1f,\"p50_ms\":%.1f,\"p95_ms\":%.1f,\"max_ms\":%.1f,\"ok\":%lu,\"exception\":%lu,"
            "\"lost\":%lu,\"error_status\":%lu,\"last_errstat\":%ld}\n",
-           window, k, total_pdus, oid_count, total, total / oid_count, sorted[0], sorted[total_pdus / 2],
+           window, k, tier_total ? tier_text : "", total_pdus, oid_count, total, total / oid_count, sorted[0], sorted[total_pdus / 2],
            sorted[(total_pdus * 95) / 100 >= total_pdus ? total_pdus - 1 : (total_pdus * 95) / 100],
            sorted[total_pdus - 1], ok, exc, lost, errs, errstat_seen);
     fflush(stdout);
@@ -130,7 +150,7 @@ static int pass(unsigned long window, unsigned long k)
 
 int main(int argc, char **argv)
 {
-    /* mode peer user authalg privalg authfile privfile oidfile timeoutms repeats combos */
+    /* mode peer user authalg privalg authfile privfile oidfile timeoutms repeats combos [tiers=A,B,C] */
     netsnmp_session sess;
     unsigned char auth[1100], priv[1100];
     size_t alen, plen;
@@ -138,8 +158,9 @@ int main(int argc, char **argv)
     FILE *file;
     unsigned long repeats, r, i;
 
-    if (argc != 12) {
-        fprintf(stderr, "usage: device_sweep MODE PEER USER AUTH PRIV AUTHFILE PRIVFILE OIDFILE TIMEOUTMS REPEATS COMBOS\n");
+    if (argc != 12 && argc != 13) {
+        fprintf(stderr, "usage: device_sweep MODE PEER USER AUTH PRIV AUTHFILE PRIVFILE OIDFILE TIMEOUTMS REPEATS COMBOS "
+                        "[tiers=A,B,C]\n");
         return 2;
     }
     alen = slurp(argv[6], auth, sizeof(auth));
@@ -162,6 +183,20 @@ int main(int argc, char **argv)
     }
     fclose(file);
     if (!oid_count) return 2;
+    if (argc == 13) {
+        const char *cursor;
+        unsigned long sum = 0;
+        if (strncmp(argv[12], "tiers=", 6) || strlen(argv[12]) - 6 >= sizeof(tier_text)) return 2;
+        strcpy(tier_text, argv[12] + 6);
+        for (cursor = tier_text; *cursor && tier_total < 16;) {
+            char *end;
+            tier_size[tier_total] = strtoul(cursor, &end, 10);
+            if (end == cursor || !tier_size[tier_total]) return 2;
+            sum += tier_size[tier_total++];
+            cursor = *end == ',' ? end + 1 : end;
+        }
+        if (!tier_total || sum != oid_count) { fprintf(stderr, "tiers do not add up to the OID file\n"); return 2; }
+    }
     repeats = strtoul(argv[10], NULL, 10);
     netsnmp_ds_set_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_DONT_READ_CONFIGS, 1);
     netsnmp_ds_set_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_DONT_PERSIST_STATE, 1);
@@ -189,14 +224,16 @@ int main(int argc, char **argv)
     if (!handle) { snmp_perror("snmp_sess_open"); return 4; }
     if (!strcmp(argv[1], "probefor")) {
         /* COMBOS is a duration in seconds: one GET of the first OID per second until it elapses. */
-        double sorted[MAXOID], begin = now_ms(), limit = strtod(argv[11], NULL) * 1000.0;
+        static double sorted[MAXSAMPLES];
+        double begin = now_ms(), limit = strtod(argv[11], NULL) * 1000.0;
         unsigned long n = 0, stops = 0;
-        oid_count = 1;
-        while (now_ms() - begin < limit && n < MAXOID) {
+        oid_count = 1; tier_total = 0;
+        while (now_ms() - begin < limit && n < MAXSAMPLES) {
             if (pass(1, 1)) ++stops;
             sorted[n++] = latency[0];
             sleep(1);
         }
+        if (!n) { printf("{\"probefor\":0,\"p50_ms\":0.0,\"p95_ms\":0.0,\"max_ms\":0.0,\"stops\":%lu}\n", stops); snmp_sess_close(handle); return 0; }
         qsort(sorted, n, sizeof(double), cmp);
         printf("{\"probefor\":%lu,\"p50_ms\":%.1f,\"p95_ms\":%.1f,\"max_ms\":%.1f,\"stops\":%lu}\n", n,
                sorted[n / 2], sorted[(n * 95) / 100 >= n ? n - 1 : (n * 95) / 100], sorted[n - 1], stops);
@@ -206,14 +243,16 @@ int main(int argc, char **argv)
     if (!strcmp(argv[1], "probe")) {
         /* COMBOS is the number of probes, one per second, each the first OID of the file. */
         unsigned long n = strtoul(argv[11], NULL, 10);
-        double sorted[MAXOID];
+        static double sorted[MAXSAMPLES];
         unsigned long lostc = 0;
-        oid_count = 1;
-        for (i = 0; i < n && i < MAXOID; ++i) {
+        oid_count = 1; tier_total = 0;
+        if (n > MAXSAMPLES) n = MAXSAMPLES;
+        for (i = 0; i < n && i < MAXSAMPLES; ++i) {
             if (pass(1, 1)) ++lostc;
             sorted[i] = latency[0];
             sleep(1);
         }
+        if (!n) { printf("{\"probe\":0,\"p50_ms\":0.0,\"p95_ms\":0.0,\"max_ms\":0.0,\"stops\":%lu}\n", lostc); snmp_sess_close(handle); return 0; }
         qsort(sorted, n, sizeof(double), cmp);
         printf("{\"probe\":%lu,\"p50_ms\":%.1f,\"p95_ms\":%.1f,\"max_ms\":%.1f,\"stops\":%lu}\n", n,
                sorted[n / 2], sorted[(n * 95) / 100 >= n ? n - 1 : (n * 95) / 100], sorted[n - 1], lostc);
@@ -221,7 +260,12 @@ int main(int argc, char **argv)
         return 0;
     }
     /* Warm-up: one request for discovery and time synchronization, not reported. */
-    { size_t keep = oid_count; oid_count = 1; if (pass(1, 1)) return 10; oid_count = keep; }
+    {
+        size_t keep = oid_count, keep_tiers = tier_total;
+        oid_count = 1; tier_total = 0;
+        if (pass(1, 1)) return 10;
+        oid_count = keep; tier_total = keep_tiers;
+    }
     sleep(2);
     for (r = 0; r < repeats; ++r) {
         char *copy = strdup(argv[11]), *tok;
