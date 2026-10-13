@@ -12,12 +12,12 @@ namespace {
 unsigned checks=0;
 void check(bool value) { ++checks; if(!value)throw std::runtime_error("scheduler assertion failed"); }
 void rejects(const std::function<void()>& f) { bool failed=false; try { f(); } catch(const std::exception&) { failed=true; } check(failed); }
-std::shared_ptr<const Configuration> configuration()
+std::shared_ptr<const Configuration> configuration(unsigned reads=3)
 {
     auto c=std::make_shared<Configuration>(); Profile p; p.id="Default"; p.community={'f'}; p.maxVarbinds=1024; c->profiles[p.id]=p;
     Endpoint e; e.id="Main"; e.profile=p.id; e.address="127.0.0.1"; c->endpoints[e.id]=e;
     e.id="Peer"; e.address="127.0.0.2"; c->endpoints[e.id]=e;
-    for(unsigned i=0;i<3;++i) {
+    for(unsigned i=0;i<reads;++i) {
         BindingDefinition b; b.id="Read"+std::to_string(i); b.endpoint=i==2 ? "Peer":"Main"; b.oid={1,3,6,1,4,1,53864,1,0}; c->bindings[b.id]=b;
     }
     return c;
@@ -259,6 +259,29 @@ void takeIdentity()
     auto next=id; next.generation+=1; check(s.take(next).result==nullptr);
     consume(s,id,ipc::Outcome::Complete); check(s.retired(1,d.batch,identities(d))); check(s.settled());
 }
+// Admission statistics: a burst is a run of admission calls less than 5 ms apart; a refused call and the
+// other address do not disturb the counters of an address.
+void admissionBursts()
+{
+    Scheduler s(configuration(8),1,1); std::vector<uint64_t> h;
+    for(unsigned i=0;i<8;++i)h.push_back(handle(s,"Read"+std::to_string(i)));
+    auto before=s.snapshot(1); check(before.admissions==0 && before.bursts==0 && before.burstSpanMaxUs==0 && before.burstGapMaxUs==0);
+    s.admit({h[0]},{},100,1000); s.admit({h[1]},{},100,2000);
+    auto r=s.snapshot(1); check(r.admissions==2 && r.bursts==1 && r.burstSpanMaxUs==1000 && r.burstGapMaxUs==1000);
+    // A call exactly 5000 us after the previous one starts a new burst.
+    s.admit({h[3]},{},100,7000);
+    r=s.snapshot(1); check(r.admissions==3 && r.bursts==2 && r.burstSpanMaxUs==1000 && r.burstGapMaxUs==1000);
+    // The span runs from the first call of the burst and the gap is the largest one, not the last.
+    s.admit({h[4]},{},100,7300); s.admit({h[5]},{},100,9800); s.admit({h[6]},{},100,9900);
+    r=s.snapshot(1); check(r.admissions==6 && r.bursts==2 && r.burstSpanMaxUs==2900 && r.burstGapMaxUs==2500);
+    s.admit({h[7]},{},100,20000);
+    r=s.snapshot(1); check(r.admissions==7 && r.bursts==3 && r.burstSpanMaxUs==2900 && r.burstGapMaxUs==2500);
+    rejects([&]{s.admit({h[0]},{},100,20100);});
+    r=s.snapshot(1); check(r.admissions==7 && r.bursts==3);
+    s.admit({h[2]},{},100,1000);
+    const auto peer=s.snapshot(2); check(peer.admissions==1 && peer.bursts==1 && peer.burstSpanMaxUs==0 && peer.burstGapMaxUs==0);
+    r=s.snapshot(1); check(r.admissions==7);
+}
 }
 
 int main(int argc,char** argv)
@@ -270,7 +293,7 @@ int main(int argc,char** argv)
         {"frame-bounds",frameBounds},{"aliases-and-race",aliasesAndRace},
         {"admission-behind-retirement",admissionBehindRetirement},{"containment-grace",containmentGrace},
         {"two-generation-lifecycle",twoGenerationLifecycle},{"forged-retirement",forgedRetirement},
-        {"grace-outcomes",graceOutcomes},{"grace-exclusion",graceExclusion},{"behind-classification",behindClassification},{"take-identity",takeIdentity}};
+        {"grace-outcomes",graceOutcomes},{"grace-exclusion",graceExclusion},{"behind-classification",behindClassification},{"take-identity",takeIdentity},{"admission-bursts",admissionBursts}};
     if(argc>2) { std::fprintf(stderr,"Usage: snmp3SchedulerTest [cell]\n"); return 2; }
     try {
         if(argc==2) {

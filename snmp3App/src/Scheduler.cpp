@@ -19,6 +19,8 @@ namespace {
 // A member whose request already succeeded or failed natively is contained only when its Retired
 // frame is still missing this long after the deadline.
 constexpr uint64_t RetireGraceUs=1000000;
+// Two admission calls closer than this belong to one admission burst of the address statistics.
+constexpr uint64_t BurstGapUs=5000;
 void require(bool v) { if(!v)throw std::runtime_error("scheduler request rejected"); }
 uint64_t next(uint64_t& value)
 {
@@ -124,6 +126,11 @@ std::vector<ipc::Identity> Scheduler::admit(const std::vector<uint64_t>& ids, co
         for(auto& entry:candidates) { a.generations.emplace(entry.first,std::move(entry.second)); inserted.push_back(entry.first); }
     } catch(...) { for(auto id:inserted)a.generations.erase(id); throw; }
     a.queue.swap(queue); a.count+=ids.size(); a.bytes+=total; a.nextAdmission=admission;
+    if(a.admissions && nowUs>=a.lastAdmissionUs && nowUs-a.lastAdmissionUs<BurstGapUs) {
+        a.burstGapMaxUs=std::max(a.burstGapMaxUs,nowUs-a.lastAdmissionUs);
+        a.burstSpanMaxUs=std::max(a.burstSpanMaxUs,nowUs-a.burstStartUs);
+    } else { ++a.bursts; a.burstStartUs=nowUs; }
+    ++a.admissions; a.lastAdmissionUs=nowUs;
     a.behindAdmitted+=std::count(behind.begin(),behind.end(),true);
     for(auto id:ids)++handles.at(id).generation;
     return admitted;
@@ -148,6 +155,7 @@ QueueSnapshot Scheduler::snapshot(uint64_t address) const
         }
     }
     r.behindAdmitted=a.behindAdmitted; r.behindNeverSent=a.behindNeverSent;
+    r.admissions=a.admissions; r.bursts=a.bursts; r.burstSpanMaxUs=a.burstSpanMaxUs; r.burstGapMaxUs=a.burstGapMaxUs;
     return r;
 }
 std::vector<uint64_t> Scheduler::addresses() const

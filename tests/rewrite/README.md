@@ -795,6 +795,7 @@ D7="$D7 queued-deadline-extended rebuild-reuses-scheduler stop-queued-not-select
 D7="$D7 detach-allowed-when-idle stop-permits-detach detach-allowed-while-pending refused-detach-raises-alarm refused-detach-perturbs-active-handle"
 D7="$D7 entry-reported-open-after-stop detach-reported-allowed-after-stop drain-always-failed refused-detach-toggles-active-handle refused-detach-toggles-idle-handle refused-detach-perturbs-stopped-handle refused-detach-perturbs-pending-handle completion-counted-twice"
 D7="$D7 retried-completion-leaves-record-active refusal-releases-record refusal-releases-record-with-alarm"
+D7="$D7 admission-burst-gap-inclusive admission-burst-span-from-last admission-gap-keeps-last"
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --d7-controls $D7 --output work/r6-d7-controls
 ```
 

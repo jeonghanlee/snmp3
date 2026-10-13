@@ -250,6 +250,9 @@ void Runtime::report()
                     (unsigned long long)queue.undelivered,(unsigned long long)queue.retirementPending,
                     (unsigned long long)queue.behindRetirement,(unsigned long long)queue.behindAdmitted,
                     (unsigned long long)queue.behindNeverSent);
+        std::printf("snmp3 admit: address=%llu admissions=%llu bursts=%llu burstSpanMaxUs=%llu burstGapMaxUs=%llu\n",
+                    (unsigned long long)id,(unsigned long long)queue.admissions,(unsigned long long)queue.bursts,
+                    (unsigned long long)queue.burstSpanMaxUs,(unsigned long long)queue.burstGapMaxUs);
     }
     if(supervisor)for(const auto& worker:supervisor->snapshots())
         std::printf("snmp3 worker: address=%llu epoch=%llu pid=%lld ready=%u closing=%u batch=%llu launches=%llu reaps=%llu forced=%llu\n",

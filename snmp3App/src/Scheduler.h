@@ -12,6 +12,10 @@ struct QueueSnapshot {
     uint64_t address=0, count=0, bytes=0, countLimit=ipc::DefaultCount, byteLimit=ipc::DefaultBytes;
     uint64_t queued=0, active=0, undelivered=0, retirementPending=0;
     uint64_t behindRetirement=0, behindAdmitted=0, behindNeverSent=0;
+    // Admission statistics per address: a burst is a run of admission calls each less than 5 ms after
+    // the previous one; the span is the first to the last call of a burst, the gap the largest distance
+    // between two consecutive calls inside a burst. Values are microseconds of the admission clock.
+    uint64_t admissions=0, bursts=0, burstSpanMaxUs=0, burstGapMaxUs=0;
     bool accepting=false;
 };
 struct Dispatch {
@@ -80,6 +84,7 @@ private:
         uint64_t countLimit=ipc::DefaultCount, byteLimit=ipc::DefaultBytes;
         uint64_t count=0, bytes=0, nextAdmission=1, nextBatch=1, batch=0;
         uint64_t behindAdmitted=0, behindNeverSent=0;
+        uint64_t admissions=0, bursts=0, burstSpanMaxUs=0, burstGapMaxUs=0, burstStartUs=0, lastAdmissionUs=0;
         bool accepting=true;
         std::deque<Key> queue;
         std::vector<Key> active;
