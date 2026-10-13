@@ -156,14 +156,15 @@ ready/closing, active batch, launches, reaps and forced signals.
 
 ### Runtime report lines
 
-`snmp3RuntimeReport` prints these lines in this order; `snmp3 queue:` and
-`snmp3 worker:` repeat once per address.
+`snmp3RuntimeReport` prints these lines in this order; `snmp3 queue:`,
+`snmp3 admit:` and `snmp3 worker:` repeat once per address.
 
 | Line | Fields |
 | --- | --- |
 | `snmp3 runtime:` | `state` is Cold, Starting, Running, Stopping, Stopped, IncompleteStopped or Failed; `admission` is 1 while new requests are accepted; `activation` counts starts; `created`, `exited` and `joined` count the servicing thread over all activations |
 | `snmp3 records:` | the counters and flags of the record contexts, listed in the next table |
 | `snmp3 queue:` | per address, as described above; `countLimit` and `byteLimit` are the live limits of that address (see `snmp3QueueLimit`) against which `count` and `bytes` are charged |
+| `snmp3 admit:` | per address, printed after its `snmp3 queue:` line: the admission statistics described below |
 | `snmp3 worker:` | per address: address, epoch, PID, `ready`, `closing`, active `batch`, `launches`, `reaps` and `forced` signals |
 | `snmp3 loop:` | `passes`, the number of passes of the servicing loop since the process started |
 
@@ -183,7 +184,24 @@ Fields of `snmp3 records:`:
 | `drainFailed` | 1 when the stop's drain ended at its 2000 ms budget with work left; it stays 1 and refuses a later start |
 | `detachAllowed` | 1 only after the AtShutdown hook has permitted detach following a stop; it stays 0 after `snmp3Stop` alone |
 
-The `snmp3 queue:` lines of all addresses print first, then the `snmp3 worker:` lines.
+The `snmp3 queue:` and `snmp3 admit:` lines of each address print first, address by address, then the
+`snmp3 worker:` lines.
+
+Fields of `snmp3 admit:`. A burst is a run of admission calls, each less than 5 ms after the previous one;
+a call that adds several generations counts once. All values only grow while the scheduler lives; times are in
+microseconds of the admission clock.
+
+| Field | Meaning |
+| --- | --- |
+| `address` | the address of the line |
+| `admissions` | admission calls accepted for the address; a refused call is not counted |
+| `bursts` | runs of calls less than 5 ms apart, counting a run of one call |
+| `burstSpanMaxUs` | the largest time from the first to the last call of one burst |
+| `burstGapMaxUs` | the largest time between two consecutive calls inside one burst |
+
+Requests that are admitted one after another because each waits for the previous result (a chain of
+records) join one burst when the previous result arrives in less than 5 ms, so the statistic of a chained
+database on a fast agent can show a span of several results.
 
 One pass of the servicing loop steps the supervisor, visits the record
 requests, and then waits for the next wake (see the timer table). The counter
