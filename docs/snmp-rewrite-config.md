@@ -141,6 +141,7 @@ profile and context identities for the same address.
 | --- | --- | --- |
 | `id` | String | Required definition ID |
 | `endpoint` | String | Required existing endpoint ID |
+| `group` | String | Optional group label, 1-64 characters from the definition ID alphabet |
 | `oid` | String | Required numeric dotted OID |
 | `operation` | String | Required `get` or `set` |
 | `valueType` | String | Required type from the table below |
@@ -149,6 +150,17 @@ profile and context identities for the same address.
 An object identifier (OID) has 2-128 unsigned 32-bit arcs. A leading dot is
 optional. The first arc is 0, 1, or 2; the second is at most 39 when the first
 is 0 or 1. Empty arcs, negative values, and symbolic names are rejected.
+
+A group is the set of bindings that carry the same `group` label. The loader
+rejects a configuration in which a group:
+
+- contains a `set` binding;
+- spans two endpoints;
+- has more bindings than the `maxVarbinds` of the profile of its endpoint;
+- would need a request or a largest response above the 2 MiB IPC data limit.
+
+The label is kept with the binding definition. The worker protocol does not
+carry it.
 
 | `valueType` | Capacity limit | Owned value representation |
 | --- | --- | --- |
