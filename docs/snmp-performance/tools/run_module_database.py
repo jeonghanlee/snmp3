@@ -246,6 +246,7 @@ class Ioc:
         self.case = case
         self.env = env
         self.closed = False
+        self.admission = []
         self.repeater = popen([str(CA / "caRepeater")], env=env, stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL)
         self.out = (case / "ioc.stdout").open("wb")
@@ -278,8 +279,12 @@ class Ioc:
             if read_text(self.case / "ioc.stdout").count("snmp3 loop:") > mark:
                 break
             time.sleep(0.05)
-        loop = [line for line in read_text(self.case / "ioc.stdout").splitlines()
-                if line.startswith("snmp3 loop:")]
+        lines = read_text(self.case / "ioc.stdout").splitlines()
+        loop = [line for line in lines if line.startswith("snmp3 loop:")]
+        # A report ends with its loop line, so the newest report is what follows the loop line before it.
+        ends = [i for i, line in enumerate(lines) if line.startswith("snmp3 loop:")]
+        block = lines[(ends[-2] + 1 if len(ends) > 1 else 0):(ends[-1] if ends else len(lines))]
+        self.admission = [admit_fields(line) for line in block if line.startswith("snmp3 admit:")]
         return int(loop[-1].split("passes=")[1]) if loop else None
 
     def close(self):
@@ -329,6 +334,18 @@ def parse_line(line):
     except ValueError:
         return None
     return parts[0], stamp, parts[3:]
+
+
+def admit_fields(line):
+    """{field: integer} of one `snmp3 admit:` report line."""
+    return {key: int(value) for key, value in (token.split("=") for token in line.split()[2:])}
+
+
+def hold_constants(admit, quiet_floor_us=500, hold_floor_us=2000, owner_limit_us=5000):
+    """Quiet gap and hold bound of the plan rule from the admission statistics of one address."""
+    quiet = max(quiet_floor_us, 2 * admit["burstGapMaxUs"])
+    hold = max(hold_floor_us, 1.5 * admit["burstSpanMaxUs"], quiet)
+    return {"quiet_gap_us": quiet, "hold_bound_us": hold, "owner_decision": quiet > owner_limit_us or hold > owner_limit_us}
 
 
 def parse_stamps(path, start_line):
@@ -889,6 +906,7 @@ def run_case(bench, args, rows, label, agent_port, version, delay, target=None):
             result["chunks"] = len(chunks)
             result["requests_per_pass"] = requests
         result["loop_passes"] = {"before": before, "after": ioc.report()}
+        result["admission"] = [dict(row, **hold_constants(row)) for row in ioc.admission]
     except Exception as error:  # noqa: BLE001 - the case row records the failure instead of losing the document
         result["error"] = f"{type(error).__name__}: {error}"
     finally:
