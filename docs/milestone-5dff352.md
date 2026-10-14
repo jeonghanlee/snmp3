@@ -47,7 +47,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | M6 | R6: record DSET, conversion, completion and FLNK | Milestone | Complete | No | M1, M2, M3, M4, M5, D5, D6, D7, D8, D11, D12, D13, G1, G5 | Required real-path verification and capability landed at ade4c58; D13/M11 exclusions and dated limits retained; [detail](#m6---r6-record-integration) |
 | M7 | R7: APC startup/DB migration and comparison | Milestone | Blocked | No | M6, D1, G2 | Actual v2c/v3, CA/PVA, comparator and nested startup error observations; [detail](#m7---r7-apc-migration-and-comparison) |
 | M8 | R8: integrated five-OS and resource qualification | Milestone | Blocked | No | M6, M7, G3 | Full identified-source matrix and measured resource acceptance; [detail](#m8---r8-integrated-qualification) |
-| M9 | mdBook documentation | Milestone | Blocked | No | M1, M2, M3, M4, M5, D4, D14, G4 | Curated book builds and rendered navigation/links match current behavior; [detail](#m9---mdbook-documentation) |
+| M9 | mdBook documentation | Milestone | Not started | Yes | M1, M2, M3, M4, M5, D4, D14, D19, G4 | Curated book builds and rendered navigation/links match current behavior; [detail](#m9---mdbook-documentation) |
 | M10 | Negative-control harness outcome classification | Carry-forward | Open | No | none | Owner scope decision recorded and each listed outcome either classified by an executed run or kept by decision; [detail](#m10---negative-control-harness-outcome-classification) |
 | M12 | Stop duration with a blocked callback queue | Carry-forward | Open | No | none | Owner decision on whether the stop bound and the record drain budget may overlap or skip waits that cannot progress, recorded with its date; then the change verified by the `stop-enqueue-failed` case or the observation kept by decision; [detail](#m12---stop-duration-with-a-blocked-callback-queue) |
 | M13 | PowerNet-MIB 4.6.0 review for the AP8932 database | Carry-forward | Open | No | none | Owner decision to adopt 4.6.0 or keep 4.4.6 recorded with its date, and any `rPDU2Adv*` scope decided; adoption verified by regeneration and a new run of the database's integration test; [detail](#m13---powernet-mib-460-review-for-the-ap8932-database) |
@@ -57,7 +57,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | G1 | R6 detailed-plan acceptance and execution authorization | External gate | Complete | No | none | Explicit acceptance and separate authorization recorded; [detail](#g1---r6-authorization) |
 | G2 | R7 detailed-plan acceptance and execution authorization | External gate | Open | No | none | Target, comparator and permitted equipment scope approved; [detail](#g2---r7-authorization) |
 | G3 | R8 detailed-plan acceptance and execution authorization | External gate | Open | No | none | OS environments, instruments and resource acceptance policy approved; [detail](#g3---r8-authorization) |
-| G4 | mdBook detailed-plan acceptance and execution authorization | External gate | Open | No | none | Layout, toolchain, build and publication boundary approved; [detail](#g4---mdbook-authorization) |
+| G4 | mdBook detailed-plan acceptance and execution authorization | External gate | Complete | No | none | Layout, toolchain, build and publication boundary approved; [detail](#g4---mdbook-authorization) |
 | G5 | D7-D9 M5/M6 plan revision acceptance and execution authorization | External gate | Complete | No | none | Revised M5 and M6 plans accepted and separately authorized; [detail](#g5---d7-d9-revision-authorization) |
 
 ### Decisions
@@ -81,6 +81,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | D15 | Revise D3 for declared groups: bindings of one declared group on one endpoint are coalesced into one request with one deadline and a member result each (read as coalescing at dispatch by D16), bounded by `maxVarbinds` and the response-size limit; bindings outside a group keep D3 (exact equal absolute deadlines). Wake the worker and the servicing thread on socket and pipe readiness instead of fixed 10 ms waits. This scope adds no result cache stage, no multi-object binding and no requests in flight. | 2026-10-10 |
 | D16 | Read D15 as coalescing at dispatch: each record is admitted on its own with its own deadline. When the worker of the address is ready, idle and not stopping and the queue front is a member of a declared group of more than one binding, the dispatcher holds the request until the contiguous front run holds a generation of every declared binding (the group is whole), no further member of that group has arrived for the quiet gap (0.5 ms), or the hold bound (2 ms) has passed since the admission of the queue-front member; the constants were confirmed at SB0 on 2026-10-13 from the admission statistics of plan step 4 by the rule stated there (values unchanged: quiet gap 0.5 ms, hold bound 2 ms; the measurement is in the T5 row of Verification Results). It then sends the contiguous members of that group in one request. The earliest deadline among the dispatched members becomes the deadline of the request and of every dispatched member, so completion, expiry and the retire grace give all members the same outcome. A queued member whose deadline has passed is expired on its own by the expiry that runs before each dispatch and is no longer in the queue; the rest leave together. Requests of other groups, of other tiers or of ungrouped bindings in the queue end the batch and do not extend the hold, and an ungrouped binding never joins a group's batch. A group of one behaves as an ungrouped binding and is not held. Members put back at the queue front after a worker loss leave without a new hold. Retries inside the worker are bounded by the request deadline. | 2026-10-10 |
 | D18 | Keep the hold constants of D16 (quiet gap 0.5 ms, hold bound 2 ms) after the fixture measurement of coinciding tiers, whose largest in-burst gap of 0.56 ms and span of 2.6 ms would give 1.1 ms and 3.9 ms by the rule of plan step 4 and split no group in the run; decide again from the admission statistics of the device baseline (`snmp3 admit:` line read by `run_module_database.py`) before M14 is closed. | 2026-10-13 |
+| D19 | Build the snmp3 book with the fixed-tag image `jeonghanlee/mdbook:0.5.4` (mdBook 0.5.4, no preprocessor or plugin; the image definition is kept in the Dockerfiles repository) for the local build and for any later automation, and handle the files under `docs/` that are not Markdown as follows: the files that no page links to (tools, PowerNet evidence) are removed from the output after the build, the data files that a page links to (`results/reference-run.json`, `inputs/ap8932-oids.tsv`) are linked by repository URL, and `{{#include}}` quotes code in a page where one is needed; no file is moved out of `docs/`. | 2026-10-13 |
 
 ### Assignment History
 
@@ -1534,7 +1535,7 @@ Superseded Plan Artifacts: none
 Origin: 5dff352 / M9
 Identity History: none
 GitHub Issue: none associated with this register
-Status: Blocked
+Status: Not started (G4 Complete on 2026-10-14)
 
 ##### Summary
 
@@ -1554,21 +1555,22 @@ Out of scope: implementing or publishing the book through this register update, 
 ##### Dependencies And Decisions
 
 - M1-M5 provide current product documentation; D4 assigns this milestone. It need not wait for M6-M8, except that M5's reclosure under D7 needed the current-product executions of M6 step 7, which were recorded on 2026-10-03/04 and completed M5 on 2026-10-05; later implemented behavior updates the maintained chapters.
-- G4 remains Open; resume as Not started after layout/toolchain/build scope and implementation are approved. Publication is not authorized by this assignment.
+- G4 is Complete (plan acceptance 2026-10-13, implementation authorization 2026-10-14); this row resumes as Not started. Publication is not authorized by this assignment.
 - D14 (2026-10-10) records the layout and page-organization direction only. The plan stays draft, plan acceptance and implementation authorization stay none.
+- D19 (2026-10-13, owner) selects the toolchain (the image `jeonghanlee/mdbook:0.5.4`, mdBook 0.5.4, no plugin) and the handling of non-Markdown files. Observed on a build of a copy of `docs/` (not tracked): the image builds it with the same HTML set as mdBook 0.4.48; every non-Markdown file under `src` is copied to the output (17 files: tools, PowerNet evidence, one results file, one input file), and `.ignore`, `.mdbookignore` and `.gitignore` do not exclude any of them. Build automation, the publication boundary and acceptance of the chapter list remain open.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-10-13, owner acceptance of the plan of this section with D14 and D19: the toolchain is the fixed-tag image `jeonghanlee/mdbook:0.5.4`; the local build is documented and build automation is proposed in a document only; publication is excluded and decided separately; the chapter list is the one of step 1
+Implementation Authorization: 2026-10-14, owner authorization to implement the accepted plan of this section (book configuration and navigation, the documentation changes of step 2, the local build and the automation proposal of step 3). It does not authorize publication, a hosting target, installing tools, or any git or remote action
 Superseded Plan Artifacts: none
 
-1. The in-place layout is fixed by D14. Select the identified compatible toolchain and write the curated chapter list by page type; propose automation and publication boundaries explicitly. The chapter list under consideration: an introduction that states scope, readers, verification status and the tutorial decision; concepts (architecture, worker ownership and supervision, native transport, request time between module and device); procedures (configure at startup, start the IOC and check workers, verify against a fixture agent, measure request performance of a device); reference (startup configuration fields, module contract and record support, IOC commands and reports); a glossary; an appendix (design decisions, PowerNet-MIB review).
-2. After G4 closes, add the book configuration/navigation/build support and generated-output exclusions; split documents that mix page types at their existing locations, add a Scope and an Out of scope declaration to each page, replace links that leave `docs/` with repository URLs, and remove history words and title-case headings, keeping the maintained document content.
-3. Run the real build and inspect rendered navigation/links and documented commands. Implement a publication phase only if separately approved.
+1. The in-place layout is fixed by D14 and the toolchain by D19. The curated chapter list by page type, accepted on 2026-10-13, is: an introduction that states scope, readers, verification status and the tutorial decision; concepts (architecture, worker ownership and supervision, native transport, request time between module and device); procedures (configure at startup, start the IOC and check workers, verify against a fixture agent, measure request performance of a device); reference (startup configuration fields, module contract and record support, IOC commands and reports); a glossary; an appendix (design decisions, PowerNet-MIB review).
+2. With G4 Complete (plan accepted 2026-10-13, implementation authorized 2026-10-14), add the book configuration/navigation/build support and generated-output exclusions, the post-build removal of the files that no page links to and the repository-URL links for the two data files (D19); split documents that mix page types at their existing locations, add a Scope and an Out of scope declaration to each page, replace links that leave `docs/` with repository URLs, and remove history words and title-case headings, keeping the maintained document content.
+3. Run the real build and inspect rendered navigation/links and documented commands. Write the build automation as a proposal document that names the same image tag. A publication phase and the automation itself are implemented only if separately approved.
 
-The inspected epics-ioc-runner example uses root `book.toml`, `src = "docs"`, `docs/SUMMARY.md`, `public/` output and a container-based documentation workflow. The inspected epicsarchiverap-maven example uses `docs/book/book.toml`, dedicated `docs/book/src/SUMMARY.md`, a version/checksum-pinned Dockerfile and a Pages workflow using that same image. These are alternative planning inputs; neither layout nor its tool versions is selected for snmp3 by this record.
+Toolchain and non-Markdown files are fixed by D19. The inspected epics-ioc-runner example uses root `book.toml`, `src = "docs"`, `docs/SUMMARY.md`, `public/` output and a container-based documentation workflow. The inspected epicsarchiverap-maven example uses `docs/book/book.toml`, dedicated `docs/book/src/SUMMARY.md`, a version/checksum-pinned Dockerfile and a Pages workflow using that same image. These are alternative planning inputs; neither layout nor its tool versions is selected for snmp3 by this record.
 
 ##### Test Plan
 
@@ -2142,7 +2144,7 @@ The owner must accept M8 environments, real-path matrix, supported instrumentati
 
 Origin: 5dff352 / G4
 GitHub Issue: none associated with this register
-Status: Open
+Status: Complete (2026-10-14)
 
 ##### Summary
 
@@ -2157,10 +2159,12 @@ The owner assigned mdBook work on 2026-10-01 and chose the in-place layout and p
 | Observed At | Result | Evidence |
 | --- | --- | --- |
 | 2026-10-01 | Pending | mdBook milestone assignment is recorded; no detailed-plan acceptance or implementation/publication authority is recorded. |
+| 2026-10-13 | Partial | The owner selected the toolchain and the handling of non-Markdown files (D19) and accepted the M9 plan (build automation as a proposal only, publication excluded, chapter list as in step 1). |
+| 2026-10-14 | Complete | The owner authorized the implementation of the accepted M9 plan; publication stays unauthorized. |
 
 ##### Closure Evidence
 
-- none.
+- Completion Date: 2026-10-14. Plan acceptance of 2026-10-13 and the separate implementation authorization of 2026-10-14, both recorded in the M9 detail (Plan Acceptance and Implementation Authorization).
 
 #### G5 - D7-D9 Revision Authorization
 
