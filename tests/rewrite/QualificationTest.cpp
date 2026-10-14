@@ -233,6 +233,49 @@ void groupTimer(Fixture& f)
     f.read(a[0],ipc::Outcome::Complete,-123); f.read(g[0],ipc::Outcome::Complete,-123);
     f.settle();
 }
+// A group request that never gets its answer expires every member at the earliest deadline of its members,
+// not at the later ones, and is one native request.
+void groupExpiry(Fixture& f)
+{
+    const auto a=f.handles.at("GroupA"),b=f.handles.at("GroupB"),c=f.handles.at("GroupC");
+    f.admit({a[0]},{},300,monotonicUs());
+    f.tick();
+    f.admit({b[0]},{},3000,monotonicUs());
+    f.admit({c[0]},{},4000,monotonicUs());
+    const auto start=monotonicUs();
+    for(const auto handle:{a[0],b[0],c[0]})f.read(handle,ipc::Outcome::Deadline);
+    check(monotonicUs()-start<1500000,"group members expired at a later member deadline");
+    f.settle();
+    check(std::count_if(f.observed.begin(),f.observed.end(),[](const SupervisionEvent& e){return e.address==1 && e.code==13;})==1,"group was not one request");
+}
+// A worker lost while it holds a group request gives every member the same failure, and the next group
+// request completes on the replacement worker.
+void groupCrash(Fixture& f)
+{
+    const auto a=f.handles.at("GroupA"),b=f.handles.at("GroupB"),c=f.handles.at("GroupC");
+    f.signal(1,SIGSTOP);
+    f.admit({a[0]},{},5000,monotonicUs());
+    f.tick();
+    f.admit({b[0]},{},5000,monotonicUs());
+    f.admit({c[0]},{},5000,monotonicUs());
+    f.until([&]{return f.worker(1).batch!=0;});
+    f.signal(1,SIGKILL);
+    std::vector<ipc::Outcome> outcomes;
+    for(const auto handle:{a[0],b[0],c[0]}) {
+        TerminalView view;
+        f.until([&]{view=f.take(handle); return view.result;});
+        outcomes.push_back(view.result->outcome); f.scheduler->release(view.id);
+    }
+    check(outcomes[0]==outcomes[1] && outcomes[1]==outcomes[2],"group members ended differently");
+    check(outcomes[0]==ipc::Outcome::WorkerFailure || outcomes[0]==ipc::Outcome::ChannelFailure,"unexpected group failure outcome");
+    f.until([&]{return f.worker(1).reaps==1;}); f.ready(); f.settle();
+    f.admit({a[1]},{},5000,monotonicUs());
+    f.tick();
+    f.admit({b[1]},{},5000,monotonicUs());
+    f.admit({c[1]},{},5000,monotonicUs());
+    for(const auto handle:{a[1],b[1],c[1]})f.read(handle,ipc::Outcome::Complete,-123);
+    f.settle();
+}
 void deadline(Fixture& f)
 {
     const auto a=f.handles.at("Address4Read"),b=f.handles.at("Address6Read"); f.signal(1,SIGSTOP);
@@ -619,6 +662,8 @@ int main(int argc,char** argv)
                 else if(mode=="deadline")deadline(f);
                 else if(mode=="group-batch")groupBatch(f);
                 else if(mode=="group-timer")groupTimer(f);
+                else if(mode=="group-expiry")groupExpiry(f);
+                else if(mode=="group-crash")groupCrash(f);
                 else if(mode=="behind-retirement")behindRetirement(f);
                 else if(mode=="ipc-stale-behind")staleBehind(f);
                 else if(mode=="native-expiry" || mode=="discovery-expiry")nativeDeadline(f);

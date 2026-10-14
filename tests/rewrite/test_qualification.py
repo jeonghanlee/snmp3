@@ -19,7 +19,7 @@ CASES = ("typed", "fifo", "deadline", "unsent", "ambiguous", "crashes", "high-fd
          "ipc-oversize", "ipc-bootstrap-mismatch", "ipc-bootstrap-secret", "ipc-ready-executable", "ipc-ready-library", "security-conflict", "immutable",
          "behind-retirement", "ipc-stale-behind", "timers", "ipc-hold-retired",
          "ipc-withhold-bootstrap", "ipc-stall-batch", "ipc-hold-close", "ipc-forward", "ipc-bulk",
-         "native-retransmit", "native-multisession", "group-batch", "group-timer")
+         "native-retransmit", "native-multisession", "group-batch", "group-timer", "group-expiry", "group-crash")
 
 
 def loss_hook(runner, agent_name, marker):
@@ -107,7 +107,7 @@ def configure(runner, case, family=4):
                 profiles[-1]["maxVarbinds"] = 128
             if case == "native-retransmit":
                 profiles[-1].update(timeoutMs=300, retries=1)
-            if current_family == 4 and case in ("native-expiry", "discovery-expiry", "ipc-hold-close", "native-retransmit"):
+            if current_family == 4 and case in ("native-expiry", "discovery-expiry", "ipc-hold-close", "native-retransmit", "group-expiry"):
                 peer, _ = runner.fault("native-response-drop", 4, peer, "drop-all")
                 if case == "discovery-expiry":
                     profiles[-1].pop("communityFile")
@@ -118,7 +118,7 @@ def configure(runner, case, family=4):
                               "port": int(peer.rsplit(":", 1)[1]), "profile": name})
             bindings.append({"id": name + "Read", "endpoint": name, "oid": "1.3.6.1.4.1.53864.4.1.0",
                              "operation": "get", "valueType": "integer", "capacity": 1})
-            if current_family == 4 and case in ("group-batch", "group-timer"):
+            if current_family == 4 and case in ("group-batch", "group-timer", "group-expiry", "group-crash"):
                 for member in ("GroupA", "GroupB", "GroupC"):
                     bindings.append({"id": member, "endpoint": name, "group": "G", "oid": "1.3.6.1.4.1.53864.4.1.0",
                                      "operation": "get", "valueType": "integer", "capacity": 1})
@@ -222,6 +222,10 @@ def execute(output, case, family, products=None, sanitizers=False):
                         if '"event":"agent_handler"' in line]
             groups = Counter(e["request_id"] for e in handlers)
             runner.check("actual-native-unequal-FIFO-and-equal-batch", list(groups.values()) == [1, 1, 2])
+        if case == "group-expiry":
+            packets = [json.loads(line) for line in (output / "native-response-drop.stdout").read_text().splitlines()]
+            requests = [e for e in packets if e.get("event") == "fault_request" and not e.get("discovery")]
+            runner.check("actual-one-native-request-for-the-group", len(requests) == 1)
         if case == "group-batch":
             handlers = [json.loads(line) for line in (output / "agent-ipv4-1.stdout").read_text().splitlines()
                         if '"event":"agent_handler"' in line]

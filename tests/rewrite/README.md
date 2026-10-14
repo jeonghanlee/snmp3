@@ -799,6 +799,7 @@ D7="$D7 admission-burst-gap-inclusive admission-burst-span-from-last admission-g
 D7="$D7 group-hold-omitted group-quiet-gap-ignored group-bound-ignored group-whole-counts-records group-put-back-held"
 D7="$D7 group-other-group-joins group-deadlines-must-match group-deadline-not-shared ungrouped-equal-deadlines-split"
 D7="$D7 group-of-one-grouped group-hold-omitted-wire group-hold-timer-omitted group-hold-timer-busy"
+D7="$D7 group-deadline-not-shared-wire"
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --d7-controls $D7 --output work/r6-d7-controls
 ```
 
