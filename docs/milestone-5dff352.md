@@ -31,7 +31,7 @@ written by `run_module_database.py` are UTC.
 
 Observed results below are retained executions, not new tests performed when this register was written. Current receipts are local JSON records under `<local>/name-change-20261001/`; they identify source, product and loaded-library hashes. Receipt digests below fix the selected records. The shipped [verification procedures](../tests/rewrite/README.md) provide the actual runners. Private receipts and this register are not intended as mdBook operator chapters.
 
-The current configuration receipt records wrong-owner secret-file testing as NOT RUN: a differently owned regular fixture was unavailable. The earlier owner-assisted PASS is not transferred to renamed products. ASan/UBSan results cover the executed new code; dependencies are uninstrumented and leak checks are disabled. The standard-record fixture does not establish SNMP record I/O. M6 Current Required Verification Results and Closure Evidence identify accepted record/FLNK/callback observations, deferred cells and explicit limits; dated earlier results retain their historical product identities. APC hardware/consumer behavior, two-OS qualification, TSan and sustained resource acceptance remain later work.
+The current configuration receipt records wrong-owner secret-file testing as NOT RUN: a differently owned regular fixture was unavailable. The earlier owner-assisted PASS is not transferred to renamed products. ASan/UBSan results cover the executed new code; dependencies are uninstrumented and leak checks are disabled. The standard-record fixture does not establish SNMP record I/O. M6 Current Required Verification Results and Closure Evidence identify accepted record/FLNK/callback observations, deferred cells and explicit limits; dated earlier results retain their historical product identities. APC hardware/consumer behavior, multi-OS qualification, TSan and sustained resource acceptance remain later work.
 
 ## Milestone
 
@@ -46,7 +46,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | M5 | R5: address queues, IPC and worker supervision | Milestone | Complete | No | M3, M4, D3, D7, D9, D10, G5 | Actual isolated worker, deadline, recovery and IOC qualification, including the D7 per-handle bound and D9 containment/backoff rules; [detail](#m5---r5-address-worker-supervision) |
 | M6 | R6: record DSET, conversion, completion and FLNK | Milestone | Complete | No | M1, M2, M3, M4, M5, D5, D6, D7, D8, D11, D12, D13, G1, G5 | Required real-path verification and capability landed at ade4c58; D13/M11 exclusions and dated limits retained; [detail](#m6---r6-record-integration) |
 | M7 | R7: APC startup/DB migration and comparison | Milestone | Blocked | No | M6, D1, G2 | Actual v2c/v3, CA/PVA, comparator and nested startup error observations; [detail](#m7---r7-apc-migration-and-comparison) |
-| M8 | R8: integrated two-OS and resource qualification | Milestone | Blocked | No | M6, M7, G3 | Full identified-source matrix and measured resource acceptance; [detail](#m8---r8-integrated-qualification) |
+| M8 | R8: integrated five-OS and resource qualification | Milestone | Blocked | No | M6, M7, G3 | Full identified-source matrix and measured resource acceptance; [detail](#m8---r8-integrated-qualification) |
 | M9 | mdBook documentation | Milestone | Blocked | No | M1, M2, M3, M4, M5, D4, D14, G4 | Curated book builds and rendered navigation/links match current behavior; [detail](#m9---mdbook-documentation) |
 | M10 | Negative-control harness outcome classification | Carry-forward | Open | No | none | Owner scope decision recorded and each listed outcome either classified by an executed run or kept by decision; [detail](#m10---negative-control-harness-outcome-classification) |
 | M12 | Stop duration with a blocked callback queue | Carry-forward | Open | No | none | Owner decision on whether the stop bound and the record drain budget may overlap or skip waits that cannot progress, recorded with its date; then the change verified by the `stop-enqueue-failed` case or the observation kept by decision; [detail](#m12---stop-duration-with-a-blocked-callback-queue) |
@@ -399,7 +399,7 @@ Provide dependable record I/O through the owned scheduler/native path. Preserve 
 
 Inputs: ai, longin, int64in, stringin, lsi and waveform. Outputs: ao, longout, int64out, stringout and lso. Add immutable record bindings, checked conversions, record-driven admission, terminal delivery, callback accounting and safe record-context teardown. Qualify the complete record/DSET/Runtime/Scheduler/IPC/worker/native/agent path on the current Base 7.0.10 installation.
 
-Out of scope: legacy syntax adapters, manual FLNK execution, custom native security/crypto, installed Base changes, new record types, I/O Intr scanning, automatic SET readback, APC deployment, two-OS/sustained resource acceptance, mdBook implementation, installation, equipment operations and Git/remote mutations.
+Out of scope: legacy syntax adapters, manual FLNK execution, custom native security/crypto, installed Base changes, new record types, I/O Intr scanning, automatic SET readback, APC deployment, multi-OS/sustained resource acceptance, mdBook implementation, installation, equipment operations and Git/remote mutations.
 
 ##### Completion Criteria
 
@@ -1480,17 +1480,17 @@ Status: Blocked
 
 ##### Summary
 
-Qualify the complete identified implementation across both selected OS environments, consumer/fault paths, supported sanitizers and sustained resource measurements.
+Qualify the complete identified implementation across the five selected OS environments (Debian 13, Rocky 8.10, Rocky 10.2, Ubuntu 24 LTS and Ubuntu 26 LTS), consumer/fault paths, supported sanitizers and sustained resource measurements.
 
 ##### Scope
 
-Debian 13 and Rocky 8.10 full record/native/lifecycle/fault/consumer matrices; actual negative controls; ASan/UBSan/TSan where the unchanged environment supports execution; 300-second warmup and 3600-second mixed traffic. Measure IOC and every worker RSS, FD, threads, CPU, sessions, queues and completion counts, and map accepted requirements to actual evidence.
+Debian 13, Rocky 8.10, Rocky 10.2, Ubuntu 24 LTS and Ubuntu 26 LTS full record/native/lifecycle/fault/consumer matrices on each; actual negative controls; ASan/UBSan/TSan where the unchanged environment supports execution; 300-second warmup and 3600-second mixed traffic. Measure IOC and every worker RSS, FD, threads, CPU, sessions, queues and completion counts, and map accepted requirements to actual evidence.
 
 Out of scope: silently accepting unsupported sanitizer cells, inferring total memory from module storage bounds, package/image changes and release publishing.
 
 ##### Completion Criteria
 
-- Complete real-path matrices identify source/products/libraries on both OSes and retain actual control failures and cleanup observations.
+- Complete real-path matrices identify source/products/libraries on every listed OS and retain actual control failures and cleanup observations.
 - Resource thresholds are accepted from observed trends; unavailable cells have explicit dispositions and are never reported as PASS.
 
 ##### Dependencies And Decisions
@@ -1506,14 +1506,14 @@ Plan Acceptance: none
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. Define identified normal/instrumented products, both OS environments, actual negative controls and measurement/acceptance rules.
+1. Define identified normal/instrumented products, the five OS environments, actual negative controls and measurement/acceptance rules.
 2. After prerequisites and G3 complete, run the full shipped paths and sustained workload, then map each requirement to current evidence and explicit limits.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Full integration | Complete real record/native/lifecycle/fault/consumer matrix with actual negative controls. | Debian 13 and Rocky 8.10 | Every approved contract has identified actual execution evidence. |
+| T1 | Full integration | Complete real record/native/lifecycle/fault/consumer matrix with actual negative controls. | Debian 13, Rocky 8.10, Rocky 10.2, Ubuntu 24 LTS and Ubuntu 26 LTS | Every approved contract has identified actual execution evidence on each. |
 | T2 | Instrumented integration | Separate supported ASan/UBSan/TSan products exercise the complete shipped paths. | Selected unchanged OS images | New-path defects fail their cells; instrumentation boundaries are explicit. |
 | T3 | Sustained resources | Actual 300-second warmup and 3600-second mixed traffic; monitor IOC and all workers. | Approved measurement environments | No missed ownership/cleanup; measured trends satisfy separately accepted thresholds. |
 
@@ -1521,7 +1521,7 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Planned two-OS complete implementation | Pending | Current component results are not this integrated qualification. |
+| T1 | Not run | Planned five-OS complete implementation | Pending | Current component results are not this integrated qualification. |
 | T2 | Not run | Planned supported full-path instrumented products | Pending | none |
 | T3 | Not run | Planned sustained workload | Pending | none |
 
@@ -2132,6 +2132,7 @@ The owner must accept M8 environments, real-path matrix, supported instrumentati
 | Observed At | Result | Evidence |
 | --- | --- | --- |
 | 2026-10-01 | Pending | No detailed R8 acceptance or execution authorization is recorded. |
+| 2026-10-13 | Partial | The owner stated the OS environments of M8, all required for verification: Debian 13, Rocky 8.10, Rocky 10.2, Ubuntu 24 LTS and Ubuntu 26 LTS. The real-path matrix, the supported instrumentation and the resource measurement and acceptance policy are still to be accepted; no acceptance or execution authorization is recorded. |
 
 ##### Closure Evidence
 
