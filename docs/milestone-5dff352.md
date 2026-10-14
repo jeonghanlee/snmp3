@@ -46,7 +46,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | M5 | R5: address queues, IPC and worker supervision | Milestone | Complete | No | M3, M4, D3, D7, D9, D10, G5 | Actual isolated worker, deadline, recovery and IOC qualification, including the D7 per-handle bound and D9 containment/backoff rules; [detail](#m5---r5-address-worker-supervision) |
 | M6 | R6: record DSET, conversion, completion and FLNK | Milestone | Complete | No | M1, M2, M3, M4, M5, D5, D6, D7, D8, D11, D12, D13, G1, G5 | Required real-path verification and capability landed at ade4c58; D13/M11 exclusions and dated limits retained; [detail](#m6---r6-record-integration) |
 | M7 | R7: APC startup/DB migration and comparison | Milestone | Blocked | No | M6, D1, G2 | Actual v2c/v3, CA/PVA, comparator and nested startup error observations; [detail](#m7---r7-apc-migration-and-comparison) |
-| M8 | R8: integrated five-OS and resource qualification | Milestone | Blocked | No | M6, M7, G3 | Full identified-source matrix and measured resource acceptance; [detail](#m8---r8-integrated-qualification) |
+| M8 | R8: integrated five-OS and resource qualification | Milestone | Not started | No | M6, M7, G3 | Full identified-source matrix and measured resource acceptance; [detail](#m8---r8-integrated-qualification) |
 | M9 | mdBook documentation | Milestone | Not started | Yes | M1, M2, M3, M4, M5, D4, D14, D19, G4 | Curated book builds and rendered navigation/links match current behavior; [detail](#m9---mdbook-documentation) |
 | M10 | Negative-control harness outcome classification | Carry-forward | Open | No | none | Owner scope decision recorded and each listed outcome either classified by an executed run or kept by decision; [detail](#m10---negative-control-harness-outcome-classification) |
 | M12 | Stop duration with a blocked callback queue | Carry-forward | Open | No | none | Owner decision on whether the stop bound and the record drain budget may overlap or skip waits that cannot progress, recorded with its date; then the change verified by the `stop-enqueue-failed` case or the observation kept by decision; [detail](#m12---stop-duration-with-a-blocked-callback-queue) |
@@ -56,7 +56,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | M16 | Failure path of the servicing loop: entry and test | Carry-forward | Complete | No | none | Owner decision to start the analysis (or to retire the row) recorded with its date; then the analysis recorded of which failures can reach the failure handler of the servicing loop and how a case enters it without a product test hook, or the row retired by that decision; a case added by the analysis is verified as in the Completion Criteria of the detail; [detail](#m16---failure-path-of-the-servicing-loop-entry-and-test) |
 | G1 | R6 detailed-plan acceptance and execution authorization | External gate | Complete | No | none | Explicit acceptance and separate authorization recorded; [detail](#g1---r6-authorization) |
 | G2 | R7 detailed-plan acceptance and execution authorization | External gate | Open | No | none | Target, comparator and permitted equipment scope approved; [detail](#g2---r7-authorization) |
-| G3 | R8 detailed-plan acceptance and execution authorization | External gate | Open | No | none | OS environments, instruments and resource acceptance policy approved; [detail](#g3---r8-authorization) |
+| G3 | R8 detailed-plan acceptance and execution authorization | External gate | Complete | No | none | OS environments, instruments and resource acceptance policy approved; [detail](#g3---r8-authorization) |
 | G4 | mdBook detailed-plan acceptance and execution authorization | External gate | Complete | No | none | Layout, toolchain, build and publication boundary approved; [detail](#g4---mdbook-authorization) |
 | G5 | D7-D9 M5/M6 plan revision acceptance and execution authorization | External gate | Complete | No | none | Revised M5 and M6 plans accepted and separately authorized; [detail](#g5---d7-d9-revision-authorization) |
 
@@ -82,6 +82,8 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | D16 | Read D15 as coalescing at dispatch: each record is admitted on its own with its own deadline. When the worker of the address is ready, idle and not stopping and the queue front is a member of a declared group of more than one binding, the dispatcher holds the request until the contiguous front run holds a generation of every declared binding (the group is whole), no further member of that group has arrived for the quiet gap (0.5 ms), or the hold bound (2 ms) has passed since the admission of the queue-front member; the constants were confirmed at SB0 on 2026-10-13 from the admission statistics of plan step 4 by the rule stated there (values unchanged: quiet gap 0.5 ms, hold bound 2 ms; the measurement is in the T5 row of Verification Results). It then sends the contiguous members of that group in one request. The earliest deadline among the dispatched members becomes the deadline of the request and of every dispatched member, so completion, expiry and the retire grace give all members the same outcome. A queued member whose deadline has passed is expired on its own by the expiry that runs before each dispatch and is no longer in the queue; the rest leave together. Requests of other groups, of other tiers or of ungrouped bindings in the queue end the batch and do not extend the hold, and an ungrouped binding never joins a group's batch. A group of one behaves as an ungrouped binding and is not held. Members put back at the queue front after a worker loss leave without a new hold. Retries inside the worker are bounded by the request deadline. | 2026-10-10 |
 | D18 | Keep the hold constants of D16 (quiet gap 0.5 ms, hold bound 2 ms) after the fixture measurement of coinciding tiers, whose largest in-burst gap of 0.56 ms and span of 2.6 ms would give 1.1 ms and 3.9 ms by the rule of plan step 4 and split no group in the run; decide again from the admission statistics of the device baseline (`snmp3 admit:` line read by `run_module_database.py`) before M14 is closed. | 2026-10-13 |
 | D19 | Build the snmp3 book with the fixed-tag image `jeonghanlee/mdbook:0.5.4` (mdBook 0.5.4, no preprocessor or plugin; the image definition is kept in the Dockerfiles repository) for the local build and for any later automation, and handle the files under `docs/` that are not Markdown as follows: the files that no page links to (tools, PowerNet evidence) are removed from the output after the build, the data files that a page links to (`results/reference-run.json`, `inputs/ap8932-oids.tsv`) are linked by repository URL, and `{{#include}}` quotes code in a page where one is needed; no file is moved out of `docs/`. | 2026-10-13 |
+| D20 | Provide the five OS environments of M8 (Debian 13, Rocky 8.10, Rocky 10.2, Ubuntu 24 LTS and Ubuntu 26 LTS) as five virtual machines requested from the cloud-provision session, one VM per environment, each carrying the EPICS-env-distribution 1.3.0 tree of its OS. Recorded only: no request has been sent, and the request (platform, resources, duration, access, follow-up) is prepared and sent after the M8 plan is accepted. | 2026-10-14 |
+| D21 | Shape the integrated qualification of M8: the whole T4 set and the controls run on each of the five environments on the ordinary products; ASan and UBSan products run on Debian 13 and Rocky 8.10 only; TSan is excluded (no build tool exists) and its cells are recorded as not applicable, never as PASS; a new sampler records the RSS, file descriptors, threads and CPU of the IOC and of every worker every 10 s during 300 s of warm-up and 3600 s of mixed load (the module database tool schedule of 5, 10 and 60 s against the fixture agent); the first run only records trends and the owner accepts the thresholds from them; preparation (sampler, environments) may proceed before M7 ends and the execution starts after M7 is Complete and G3 is Complete. | 2026-10-14 |
 
 ### Assignment History
 
@@ -1477,7 +1479,7 @@ Evidence identities: build receipt SHA256 `3a082f6c0f791facb731ccba39b3af39046e3
 Origin: 5dff352 / M8
 Identity History: none
 GitHub Issue: none associated with this register
-Status: Blocked
+Status: Not started (G3 Complete on 2026-10-14; Ready only after M7 is Complete)
 
 ##### Summary
 
@@ -1485,7 +1487,7 @@ Qualify the complete identified implementation across the five selected OS envir
 
 ##### Scope
 
-Debian 13, Rocky 8.10, Rocky 10.2, Ubuntu 24 LTS and Ubuntu 26 LTS full record/native/lifecycle/fault/consumer matrices on each; actual negative controls; ASan/UBSan/TSan where the unchanged environment supports execution; 300-second warmup and 3600-second mixed traffic. Measure IOC and every worker RSS, FD, threads, CPU, sessions, queues and completion counts, and map accepted requirements to actual evidence.
+Debian 13, Rocky 8.10, Rocky 10.2, Ubuntu 24 LTS and Ubuntu 26 LTS full record/native/lifecycle/fault/consumer matrices on each; actual negative controls on the ordinary products of each environment; ASan/UBSan products on Debian 13 and Rocky 8.10 only (D21); TSan excluded, its cells recorded as not applicable and never reported as PASS; 300-second warmup and 3600-second mixed traffic (module database tool schedule of 5, 10 and 60 s against the fixture agent). Measure IOC and every worker RSS, FD, threads, CPU, sessions, queues and completion counts every 10 s with a sampler built for this milestone, and map accepted requirements to actual evidence. The first run records trends only; thresholds are accepted by the owner from the observed trends.
 
 Out of scope: silently accepting unsupported sanitizer cells, inferring total memory from module storage bounds, package/image changes and release publishing.
 
@@ -1497,17 +1499,17 @@ Out of scope: silently accepting unsupported sanitizer cells, inferring total me
 ##### Dependencies And Decisions
 
 - M6 and M7 supply the complete record and consumer paths.
-- G3 remains Open; resume as Not started after environments, measurement policy and execution are approved.
+- G3 is Complete (plan acceptance and execution authorization 2026-10-14); this row resumes as Not started and becomes Ready when M7 is Complete. D20 (2026-10-14) fixes how the environments are provided (virtual machines from the cloud-provision session).
 - This is qualification, not a versioned release or deployment milestone.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-10-14, owner acceptance of the plan of this section with D20 and D21: five environments as five VMs, the whole T4 set and the controls on each, ASan/UBSan on Debian 13 and Rocky 8.10 only, TSan excluded and recorded as not applicable, the sampler and the 300 s plus 3600 s load, thresholds accepted by the owner from the first run
+Implementation Authorization: 2026-10-14, owner authorization to prepare and execute the accepted plan: build the sampler, request the five VMs from the cloud-provision session, and run the matrices, the instrumented products and the sustained workload on them; the runs start only after M7 is Complete. It does not authorize equipment operation, installation on other hosts, publication, or any git or remote action
 Superseded Plan Artifacts: none
 
-1. Define identified normal/instrumented products, the five OS environments, actual negative controls and measurement/acceptance rules.
+1. Define identified normal/instrumented products, the five OS environments (five VMs from the cloud-provision session, D20), actual negative controls and measurement/acceptance rules (D21), and build the resource sampler; preparation may proceed before M7 ends, the VM request is sent after the plan is accepted.
 2. After prerequisites and G3 complete, run the full shipped paths and sustained workload, then map each requirement to current evidence and explicit limits.
 
 ##### Test Plan
@@ -1515,8 +1517,8 @@ Superseded Plan Artifacts: none
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
 | T1 | Full integration | Complete real record/native/lifecycle/fault/consumer matrix with actual negative controls. | Debian 13, Rocky 8.10, Rocky 10.2, Ubuntu 24 LTS and Ubuntu 26 LTS | Every approved contract has identified actual execution evidence on each. |
-| T2 | Instrumented integration | Separate supported ASan/UBSan/TSan products exercise the complete shipped paths. | Selected unchanged OS images | New-path defects fail their cells; instrumentation boundaries are explicit. |
-| T3 | Sustained resources | Actual 300-second warmup and 3600-second mixed traffic; monitor IOC and all workers. | Approved measurement environments | No missed ownership/cleanup; measured trends satisfy separately accepted thresholds. |
+| T2 | Instrumented integration | Separate ASan/UBSan products exercise the complete shipped paths; TSan cells are recorded as not applicable (D21). | Debian 13 and Rocky 8.10 VMs | New-path defects fail their cells; instrumentation boundaries are explicit. |
+| T3 | Sustained resources | Actual 300-second warmup and 3600-second mixed traffic; the sampler records IOC and all workers every 10 s. | The five VMs (D20) | No missed ownership/cleanup; the first run records trends, and the thresholds are accepted by the owner from them and checked in the next run. |
 
 ##### Verification Results
 
@@ -2119,7 +2121,7 @@ The owner must accept the identified M7 migration/comparison plan and authorize 
 
 Origin: 5dff352 / G3
 GitHub Issue: none associated with this register
-Status: Open
+Status: Complete (2026-10-14)
 
 ##### Summary
 
@@ -2135,10 +2137,12 @@ The owner must accept M8 environments, real-path matrix, supported instrumentati
 | --- | --- | --- |
 | 2026-10-01 | Pending | No detailed R8 acceptance or execution authorization is recorded. |
 | 2026-10-13 | Partial | The owner stated the OS environments of M8, all required for verification: Debian 13, Rocky 8.10, Rocky 10.2, Ubuntu 24 LTS and Ubuntu 26 LTS. The real-path matrix, the supported instrumentation and the resource measurement and acceptance policy are still to be accepted; no acceptance or execution authorization is recorded. |
+| 2026-10-14 | Partial | The owner decided that the environments are provided as virtual machines requested from the cloud-provision session (D20); recorded only, no request sent. |
+| 2026-10-14 | Complete | The owner accepted the M8 plan (D20, D21; TSan cells not applicable by explicit disposition) and separately authorized its preparation and execution; the runs start after M7 is Complete. |
 
 ##### Closure Evidence
 
-- none.
+- Completion Date: 2026-10-14. Plan acceptance and the separate execution authorization of 2026-10-14, recorded in the M8 detail (Plan Acceptance and Implementation Authorization); the explicit disposition of the unavailable cells is D21 (TSan excluded and not applicable).
 
 #### G4 - mdBook Authorization
 
