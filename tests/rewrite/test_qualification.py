@@ -19,7 +19,7 @@ CASES = ("typed", "fifo", "deadline", "unsent", "ambiguous", "crashes", "high-fd
          "ipc-oversize", "ipc-bootstrap-mismatch", "ipc-bootstrap-secret", "ipc-ready-executable", "ipc-ready-library", "security-conflict", "immutable",
          "behind-retirement", "ipc-stale-behind", "timers", "ipc-hold-retired",
          "ipc-withhold-bootstrap", "ipc-stall-batch", "ipc-hold-close", "ipc-forward", "ipc-bulk",
-         "native-retransmit", "native-multisession")
+         "native-retransmit", "native-multisession", "group-batch", "group-timer")
 
 
 def loss_hook(runner, agent_name, marker):
@@ -118,6 +118,10 @@ def configure(runner, case, family=4):
                               "port": int(peer.rsplit(":", 1)[1]), "profile": name})
             bindings.append({"id": name + "Read", "endpoint": name, "oid": "1.3.6.1.4.1.53864.4.1.0",
                              "operation": "get", "valueType": "integer", "capacity": 1})
+            if current_family == 4 and case in ("group-batch", "group-timer"):
+                for member in ("GroupA", "GroupB", "GroupC"):
+                    bindings.append({"id": member, "endpoint": name, "group": "G", "oid": "1.3.6.1.4.1.53864.4.1.0",
+                                     "operation": "get", "valueType": "integer", "capacity": 1})
             if current_family == 4 and case == "ipc-bulk":
                 for bulk_id, bulk_operation in (("BulkSet", "set"), ("BulkRead", "get")):
                     bindings.append({"id": bulk_id, "endpoint": name, "oid": "1.3.6.1.4.1.53864.4.6.0",
@@ -218,6 +222,11 @@ def execute(output, case, family, products=None, sanitizers=False):
                         if '"event":"agent_handler"' in line]
             groups = Counter(e["request_id"] for e in handlers)
             runner.check("actual-native-unequal-FIFO-and-equal-batch", list(groups.values()) == [1, 1, 2])
+        if case == "group-batch":
+            handlers = [json.loads(line) for line in (output / "agent-ipv4-1.stdout").read_text().splitlines()
+                        if '"event":"agent_handler"' in line]
+            groups = Counter(e["request_id"] for e in handlers)
+            runner.check("actual-native-one-request-for-group-then-partial", list(groups.values()) == [3, 1])
         if case == "ambiguous":
             packets = [json.loads(line) for line in (output / "set-response-drop.stdout").read_text().splitlines()]
             runner.check("one-actual-SET-no-replay", sum(e.get("event") == "fault_request" and

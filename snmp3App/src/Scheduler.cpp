@@ -21,6 +21,10 @@ namespace {
 constexpr uint64_t RetireGraceUs=1000000;
 // Two admission calls closer than this belong to one admission burst of the address statistics.
 constexpr uint64_t BurstGapUs=5000;
+// A held group leaves when it is whole, when no further member arrived for the quiet gap, or when the hold
+// bound has passed since the admission of its queue-front member.
+constexpr uint64_t QuietGapUs=500;
+constexpr uint64_t HoldBoundUs=2000;
 void require(bool v) { if(!v)throw std::runtime_error("scheduler request rejected"); }
 uint64_t next(uint64_t& value)
 {
@@ -44,7 +48,10 @@ Scheduler::Scheduler(std::shared_ptr<const Configuration> value, uint64_t rev, u
     require(unique.size()<=64);
     uint64_t id=0;
     for(const auto& k:unique) { keys[k]=++id; queues[id].key=k; }
-    id=0; for(const auto& b:config->bindings)definitions[b.first]=++id;
+    id=0; for(const auto& b:config->bindings) {
+        definitions[b.first]=++id;
+        if(!b.second.group.empty())++declared[b.second.group];
+    }
 }
 uint64_t Scheduler::registerBinding(std::shared_ptr<const Binding> b,
                                     uint64_t retainedBytes, uint64_t generationBytes)
@@ -110,6 +117,7 @@ std::vector<ipc::Identity> Scheduler::admit(const std::vector<uint64_t>& ids, co
         auto g=std::unique_ptr<Generation>(new Generation);
         g->command.definition=h.definition; g->command.id.binding=id; g->command.id.generation=h.generation+1;
         g->command.id.admission=admission++; g->command.deadline=deadline; g->command.operation=operation;
+        g->admittedUs=nowUs;
         g->q=ipc::add(ipc::charge(b),h.generationBytes); g->behind=behind[index]; require(ipc::add(8+48,ipc::responseBytes(b))<=ipc::DataBytes);
         if(operation==Operation::Set) {
             auto encoded=ipc::encodeValue(values[index]); ipc::Reader check(encoded);
@@ -164,9 +172,30 @@ const std::string& Scheduler::key(uint64_t address) const { return queues.at(add
 bool Scheduler::compatible(uint64_t first, uint64_t following, const Generation& a, const Generation& b) const
 {
     const auto& x=*handles.at(first).binding; const auto& y=*handles.at(following).binding;
-    return a.command.deadline==b.command.deadline && a.command.operation==b.command.operation &&
-           x.endpoint().id==y.endpoint().id && x.profile().id==y.profile().id;
+    if(a.command.operation!=b.command.operation || x.endpoint().id!=y.endpoint().id || x.profile().id!=y.profile().id)return false;
+    // A group of one counts as ungrouped.
+    const auto grouped=[&](uint64_t handle){ const auto& name=groupOf(handle); return !name.empty() && declared.at(name)>1; };
+    const bool left=grouped(first), right=grouped(following);
+    if(left || right)return left && right && groupOf(first)==groupOf(following);
+    return a.command.deadline==b.command.deadline;
 }
+uint64_t Scheduler::holdLocked(const Address& a) const
+{
+    if(a.queue.empty())return 0;
+    const auto front=a.queue.front(); const auto& first=*a.generations.at(front);
+    const auto& group=groupOf(front.first);
+    if(group.empty() || declared.at(group)<=1 || first.recovered)return 0;
+    std::set<std::string> bindings; uint64_t latest=first.admittedUs;
+    for(const auto& id:a.queue) {
+        if(groupOf(id.first)!=group)break;
+        bindings.insert(handles.at(id.first).binding->definition().id);
+        latest=std::max(latest,a.generations.at(id)->admittedUs);
+    }
+    if(bindings.size()>=declared.at(group))return 0;
+    return std::min(ipc::add(latest,QuietGapUs),ipc::add(first.admittedUs,HoldBoundUs));
+}
+uint64_t Scheduler::holdRelease(uint64_t address) const
+{ std::lock_guard<std::mutex> guard(mutex); return holdLocked(queues.at(address)); }
 Dispatch Scheduler::dispatch(uint64_t address, uint64_t nowUs)
 {
     std::lock_guard<std::mutex> guard(mutex); auto& a=queues.at(address); Dispatch d; d.address=address;
@@ -174,6 +203,8 @@ Dispatch Scheduler::dispatch(uint64_t address, uint64_t nowUs)
     if(a.nextBatch==UINT64_MAX) { a.accepting=false; return d; }
     const auto first=a.queue.front(); const auto& initial=*a.generations.at(first);
     if(initial.command.deadline<=nowUs)return d;
+    const auto release=holdLocked(a);
+    if(release && nowUs<release)return d;
     const auto maximum=std::min<unsigned>(handles.at(first.first).binding->profile().maxVarbinds,ipc::MaxMembers);
     uint64_t commandBytes=8,resultBytes=8;
     for(auto id:a.queue) {
@@ -185,6 +216,11 @@ Dispatch Scheduler::dispatch(uint64_t address, uint64_t nowUs)
         d.commands.push_back(g.command); commandBytes=request; resultBytes=response;
     }
     require(!d.commands.empty()); std::vector<Key> active; active.reserve(d.commands.size());
+    // One request has one deadline: the earliest of its members, so completion, expiry and the retire grace
+    // give every member the same outcome.
+    uint64_t earliest=UINT64_MAX;
+    for(const auto& c:d.commands)earliest=std::min(earliest,c.deadline);
+    for(auto& c:d.commands) { c.deadline=earliest; a.generations.at(key(c.id))->command.deadline=earliest; }
     for(const auto& c:d.commands)active.push_back(key(c.id));
     d.batch=next(a.nextBatch); a.batch=d.batch; a.active=std::move(active);
     for(auto id:a.active) { a.generations.at(id)->active=true; require(a.queue.front()==id); a.queue.pop_front(); }
@@ -268,7 +304,7 @@ void Scheduler::reaped(uint64_t address)
     std::deque<Key> recovered;
     for(auto id:a.active) {
         auto& g=*a.generations.at(id);
-        if(!g.selected && !g.sent && accepting) { g.active=false; recovered.push_back(id); }
+        if(!g.selected && !g.sent && accepting) { g.active=false; g.recovered=true; recovered.push_back(id); }
         else { select(g,ipc::Outcome::WorkerFailure); std::vector<uint8_t>().swap(g.command.value); g.active=false; g.retired=true; collect(a,id); }
     }
     // Recover only zero-byte commands at their original FIFO positions.

@@ -89,6 +89,29 @@ D7_CONTROLS = {
     "admission-gap-keeps-last": ("component", "admission-bursts", None,
                                  [("a.burstGapMaxUs=std::max(a.burstGapMaxUs,nowUs-a.lastAdmissionUs);",
                                    "a.burstGapMaxUs=nowUs-a.lastAdmissionUs;")]),
+    "group-hold-omitted": ("component", "group-hold", None,
+                          [('if(release && nowUs<release)return d;', 'if(false && release && nowUs<release)return d;')]),
+    "group-quiet-gap-ignored": ("component", "group-hold", None,
+                               [('return std::min(ipc::add(latest,QuietGapUs),ipc::add(first.admittedUs,HoldBoundUs));', 'return ipc::add(first.admittedUs,HoldBoundUs);')]),
+    "group-bound-ignored": ("component", "group-hold-bound", None,
+                           [('return std::min(ipc::add(latest,QuietGapUs),ipc::add(first.admittedUs,HoldBoundUs));', 'return ipc::add(latest,QuietGapUs);')]),
+    "group-whole-counts-records": ("component", "group-caps", None,
+                                  [('bindings.insert(handles.at(id.first).binding->definition().id);', 'bindings.insert(std::to_string(id.first)+"/"+std::to_string(id.second));')]),
+    "group-put-back-held": ("component", "group-hold", None,
+                           [('if(group.empty() || declared.at(group)<=1 || first.recovered)return 0;', 'if(group.empty() || declared.at(group)<=1)return 0;')]),
+    "group-other-group-joins": ("component", "group-batches", None,
+                               [('if(left || right)return left && right && groupOf(first)==groupOf(following);', 'if(left || right)return left && right;')]),
+    "group-deadlines-must-match": ("component", "group-batches", None,
+                                  [('if(left || right)return left && right && groupOf(first)==groupOf(following);', 'if(left || right)return left && right && groupOf(first)==groupOf(following) && a.command.deadline==b.command.deadline;')]),
+    "group-deadline-not-shared": ("component", "group-batches", None,
+                                 [('for(auto& c:d.commands) { c.deadline=earliest; a.generations.at(key(c.id))->command.deadline=earliest; }', '(void)earliest;')]),
+    "ungrouped-equal-deadlines-split": ("component", "group-batches", None,
+                                       [('    return a.command.deadline==b.command.deadline;\n}\nuint64_t Scheduler::holdLocked', '    return false;\n}\nuint64_t Scheduler::holdLocked')]),
+    "group-of-one-grouped": ("component", "group-batches", None,
+                             [('const auto grouped=[&](uint64_t handle){ const auto& name=groupOf(handle); return !name.empty() && declared.at(name)>1; };',
+                               'const auto grouped=[&](uint64_t handle){ const auto& name=groupOf(handle); return !name.empty(); };')]),
+    "group-hold-omitted-wire": ("qualification", "group-batch", None,
+                                [("if(release && nowUs<release)return d;", "if(false && release && nowUs<release)return d;")]),
     "stop-one-generation": ("record", "stop-queued", "queued-successor-completes-stopping-once", [BINDING_LOOKUP[1]]),
     "grace-native-failure": ("component", "grace-outcomes", None,
                              [("const bool answered=g.selected && (g.result.outcome==ipc::Outcome::Complete || g.result.outcome==ipc::Outcome::NativeFailure);",
@@ -296,6 +319,11 @@ NATIVE_SOURCES = {"WorkerMain.cpp": ("snmp3Worker",), "Worker.cpp": ("libsnmp3Na
 # Wake and timer controls: each removes one rule of the readiness-driven servicing loop and must fail the
 # real-path cell that passes on the unmodified products.
 WAKE_CONTROLS = {
+    "group-hold-timer-omitted": ("Supervisor.cpp", "qualification", "group-batch", None, [
+        ("            if(release)timer=std::min(timer,release);\n", "")]),
+    "group-hold-timer-busy": ("Supervisor.cpp", "qualification", "group-timer", None, [
+        ("if(a.status.pid && a.status.ready && !a.origin && !stopping && !a.status.batch) {",
+         "if(a.status.pid && a.status.ready && !a.origin && !stopping) {")]),
     "grace-timer-omitted": ("Supervisor.cpp", "qualification", "ipc-hold-retired", None, [
         ("timer=std::min(timer,scheduler->earliestAction(a.status.address,!a.origin));",
          "timer=std::min(timer,scheduler->earliestDeadline(a.status.address));")]),

@@ -283,6 +283,159 @@ void admissionBursts()
     r=s.snapshot(1); check(r.admissions==7);
 }
 }
+std::shared_ptr<const Configuration> groupConfiguration(unsigned maxVarbinds=1024)
+{
+    auto c=std::make_shared<Configuration>(); Profile p; p.id="Default"; p.community={'f'}; p.maxVarbinds=maxVarbinds; c->profiles[p.id]=p;
+    Endpoint e; e.id="Main"; e.profile=p.id; e.address="127.0.0.1"; c->endpoints[e.id]=e;
+    const auto add=[&](const std::string& id, const std::string& group, ValueType type=ValueType::Integer, size_t capacity=1) {
+        BindingDefinition b; b.id=id; b.endpoint="Main"; b.group=group; b.valueType=type; b.capacity=capacity;
+        b.oid={1,3,6,1,4,1,53864,1,0}; c->bindings[id]=b;
+    };
+    for(unsigned i=0;i<3;++i)add("Ga"+std::to_string(i),"Ga");
+    for(unsigned i=0;i<2;++i)add("Hb"+std::to_string(i),"Hb");
+    for(unsigned i=0;i<6;++i)add("Gc"+std::to_string(i),"Gc");
+    for(unsigned i=0;i<3;++i)add("Big"+std::to_string(i),"Big",ValueType::Octets,800000);
+    add("Solo","Solo"); add("U0",""); add("U1","");
+    return c;
+}
+uint64_t groupHandle(Scheduler& s, const std::string& id)
+{ auto c=s.configuration(); return s.registerBinding(std::make_shared<const Binding>(c,c->bindings.at(id))); }
+// Member of a declared group: the earliest deadline is the one of the request, other groups and ungrouped
+// bindings do not join, and ungrouped bindings with equal deadlines still do.
+void groupBatches()
+{
+    Scheduler s(groupConfiguration(),1,1);
+    const auto g0=groupHandle(s,"Ga0"),g1=groupHandle(s,"Ga1"),g2=groupHandle(s,"Ga2"),h0=groupHandle(s,"Hb0"),h1=groupHandle(s,"Hb1");
+    const auto u0=groupHandle(s,"U0"),u1=groupHandle(s,"U1");
+    s.admit({g0},{},100,1000); s.admit({g1},{},200,1100); s.admit({g2},{},300,1200);
+    auto d=s.dispatch(1,1200); check(d.commands.size()==3);
+    for(const auto& c:d.commands)check(c.deadline==101000);
+    s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),1300)); check(s.retired(1,d.batch,identities(d)));
+    for(const auto& c:d.commands)consume(s,c.id,ipc::Outcome::Complete);
+    // Another group ends the batch, and does not join even with an equal deadline.
+    s.admit({g0},{},100,2000); s.admit({g1},{},100,2000); s.admit({g2},{},100,2000); s.admit({h0},{},100,2000); s.admit({h1},{},100,2000);
+    d=s.dispatch(1,2000); check(d.commands.size()==3 && d.commands[0].id.binding==g0 && d.commands[2].id.binding==g2);
+    s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),2100)); check(s.retired(1,d.batch,identities(d)));
+    for(const auto& c:d.commands)consume(s,c.id,ipc::Outcome::Complete);
+    d=s.dispatch(1,2100); check(d.commands.size()==2 && d.commands[0].id.binding==h0 && d.commands[1].id.binding==h1);
+    s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),2200)); check(s.retired(1,d.batch,identities(d)));
+    for(const auto& c:d.commands)consume(s,c.id,ipc::Outcome::Complete);
+    // Ungrouped bindings with equal deadlines coalesce; unequal ones and a group member do not.
+    s.admit({u0},{},100,3000); s.admit({u1},{},100,3000);
+    d=s.dispatch(1,3000); check(d.commands.size()==2);
+    s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),3100)); check(s.retired(1,d.batch,identities(d)));
+    for(const auto& c:d.commands)consume(s,c.id,ipc::Outcome::Complete);
+    s.admit({u0},{},100,4000); s.admit({u1},{},200,4000);
+    d=s.dispatch(1,4000); check(d.commands.size()==1 && d.commands[0].deadline==104000);
+    s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),4100)); check(s.retired(1,d.batch,identities(d)));
+    consume(s,d.commands[0].id,ipc::Outcome::Complete);
+    s.admit({g0},{},100,5000); // ungrouped u1 (deadline 204000) is first and a group member never joins it
+    d=s.dispatch(1,5000); check(d.commands.size()==1 && d.commands[0].id.binding==u1);
+    s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),5100)); check(s.retired(1,d.batch,identities(d)));
+    consume(s,d.commands[0].id,ipc::Outcome::Complete);
+    // A group of one counts as ungrouped: it coalesces with an ungrouped binding of an equal deadline.
+    d=s.dispatch(1,6000); check(d.commands.size()==1 && d.commands[0].id.binding==g0);
+    s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),6100)); check(s.retired(1,d.batch,identities(d)));
+    consume(s,d.commands[0].id,ipc::Outcome::Complete);
+    const auto solo=groupHandle(s,"Solo");
+    s.admit({solo},{},100,7000); s.admit({u0},{},100,7000);
+    d=s.dispatch(1,7000); check(d.commands.size()==2 && d.commands[0].id.binding==solo && d.commands[1].id.binding==u0);
+}
+// The hold: whole group, quiet gap, hold bound, group of one, put back after a worker loss, other groups.
+void groupHold()
+{
+    Scheduler s(groupConfiguration(),1,1);
+    const auto g0=groupHandle(s,"Ga0"),g1=groupHandle(s,"Ga1"),g2=groupHandle(s,"Ga2"),h0=groupHandle(s,"Hb0"),solo=groupHandle(s,"Solo");
+    check(s.holdRelease(1)==0);
+    s.admit({solo},{},100,1000); check(s.holdRelease(1)==0); auto d=s.dispatch(1,1000); check(d.commands.size()==1);
+    s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),1001)); check(s.retired(1,d.batch,identities(d))); consume(s,d.commands[0].id,ipc::Outcome::Complete);
+    // Quiet gap: nothing arrives after the first member.
+    s.admit({g0},{},100,10000); check(s.holdRelease(1)==10500);
+    check(s.dispatch(1,10499).commands.empty()); d=s.dispatch(1,10500); check(d.commands.size()==1);
+    s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),10600)); check(s.retired(1,d.batch,identities(d))); consume(s,d.commands[0].id,ipc::Outcome::Complete);
+    // An arrival moves the release; the whole group leaves at once.
+    s.admit({g0},{},100,20000); s.admit({g1},{},100,20400); check(s.holdRelease(1)==20900);
+    check(s.dispatch(1,20800).commands.empty());
+    s.admit({g2},{},100,20800); check(s.holdRelease(1)==0); d=s.dispatch(1,20800); check(d.commands.size()==3);
+    s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),20900)); check(s.retired(1,d.batch,identities(d)));
+    for(const auto& c:d.commands)consume(s,c.id,ipc::Outcome::Complete);
+    // Another group's request ends the run and does not extend the hold of the front.
+    s.admit({g0},{},100,30000); s.admit({h0},{},100,30300);
+    check(s.holdRelease(1)==30500); d=s.dispatch(1,30500); check(d.commands.size()==1 && d.commands[0].id.binding==g0);
+    s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),30600)); check(s.retired(1,d.batch,identities(d))); consume(s,d.commands[0].id,ipc::Outcome::Complete);
+    // The member h0 alone is a partial group of two: held from its own admission.
+    check(s.holdRelease(1)==30800); d=s.dispatch(1,30800); check(d.commands.size()==1 && d.commands[0].id.binding==h0);
+    s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),30900)); check(s.retired(1,d.batch,identities(d))); consume(s,d.commands[0].id,ipc::Outcome::Complete);
+    // Put back after a worker loss: no new hold.
+    s.admit({g0},{},100,40000); d=s.dispatch(1,40500); check(d.commands.size()==1);
+    s.workerLost(1,ipc::Outcome::WorkerFailure); s.reaped(1);
+    check(s.holdRelease(1)==0); d=s.dispatch(1,40501); check(d.commands.size()==1 && d.commands[0].id.binding==g0);
+}
+// The bound: a group that keeps receiving members leaves at the hold bound after its first admission.
+void groupHoldBound()
+{
+    Scheduler s(groupConfiguration(),1,1); std::vector<uint64_t> c;
+    for(unsigned i=0;i<6;++i)c.push_back(groupHandle(s,"Gc"+std::to_string(i)));
+    for(unsigned i=0;i<5;++i)s.admit({c[i]},{},100,1000+400*i);
+    // The newest arrival at 2600 would release at 3100; the bound of the first (1000+2000) is earlier.
+    check(s.holdRelease(1)==3000); check(s.dispatch(1,2999).commands.empty());
+    auto d=s.dispatch(1,3000); check(d.commands.size()==5);
+}
+// Caps: maxVarbinds, the response frame and several records of one binding.
+void groupCaps()
+{
+    Scheduler s(groupConfiguration(2),1,1);
+    const auto g0=groupHandle(s,"Ga0"),g1=groupHandle(s,"Ga1"),g2=groupHandle(s,"Ga2");
+    s.admit({g0},{},100,1000); s.admit({g1},{},100,1000); s.admit({g2},{},100,1000);
+    auto d=s.dispatch(1,1000); check(d.commands.size()==2);
+    s.transmitted(1,d.batch); check(s.complete(1,d.batch,results(d),1100)); check(s.retired(1,d.batch,identities(d)));
+    for(const auto& c:d.commands)consume(s,c.id,ipc::Outcome::Complete);
+    // The remainder is a partial group whose bound has passed: it leaves without a new wait.
+    d=s.dispatch(1,4000); check(d.commands.size()==1 && d.commands[0].id.binding==g2);
+    Scheduler frame(groupConfiguration(),1,1); frame.limits("127.0.0.1",16,ipc::MaxBytes);
+    const auto b0=groupHandle(frame,"Big0"),b1=groupHandle(frame,"Big1"),b2=groupHandle(frame,"Big2");
+    frame.admit({b0},{},100,1000); frame.admit({b1},{},100,1000); frame.admit({b2},{},100,1000);
+    d=frame.dispatch(1,1000); check(d.commands.size()==2);
+    // Two records of one binding do not make a whole group of three.
+    Scheduler twice(groupConfiguration(),1,1);
+    const auto r0=groupHandle(twice,"Ga0"),r0b=groupHandle(twice,"Ga0"),r1=groupHandle(twice,"Ga1");
+    twice.admit({r0},{},100,1000); twice.admit({r0b},{},100,1000); twice.admit({r1},{},100,1000);
+    check(twice.holdRelease(1)==1500); check(twice.dispatch(1,1000).commands.empty());
+    check(twice.dispatch(1,1500).commands.size()==3);
+}
+// A member past its deadline is expired alone before dispatch and the others leave together; a result after
+// the earliest deadline gives every member the same outcome.
+void groupExpiry()
+{
+    Scheduler s(groupConfiguration(),1,1);
+    const auto g0=groupHandle(s,"Ga0"),g1=groupHandle(s,"Ga1"),g2=groupHandle(s,"Ga2");
+    const auto first=s.admit({g0},{},1,1000).front(); s.admit({g1},{},100,1000); s.admit({g2},{},100,1000);
+    check(!s.expire(1,2500)); consume(s,first,ipc::Outcome::Deadline);
+    auto d=s.dispatch(1,2500); check(d.commands.size()==2 && d.commands[0].deadline==101000 && d.commands[1].deadline==101000);
+    s.transmitted(1,d.batch);
+    // A result between the earliest and a later member deadline: one deadline for the request.
+    Scheduler t(groupConfiguration(),1,1);
+    const auto a=groupHandle(t,"Ga0"),b=groupHandle(t,"Ga1"),c=groupHandle(t,"Ga2");
+    const auto ia=t.admit({a},{},10,1000).front(),ib=t.admit({b},{},500,1000).front(),ic=t.admit({c},{},500,1000).front();
+    auto e=t.dispatch(1,1000); check(e.commands.size()==3 && e.commands[1].deadline==11000);
+    t.transmitted(1,e.batch); check(t.complete(1,e.batch,results(e),20000));
+    consume(t,ia,ipc::Outcome::Deadline); consume(t,ib,ipc::Outcome::Deadline); consume(t,ic,ipc::Outcome::Deadline);
+    check(t.retired(1,e.batch,identities(e)));
+}
+// A member behind the retirement of its own handle waits for it and counts in the whole-group test.
+void groupBehindRetirement()
+{
+    Scheduler s(groupConfiguration(),1,1);
+    const auto g0=groupHandle(s,"Ga0"),g1=groupHandle(s,"Ga1"),g2=groupHandle(s,"Ga2");
+    s.admit({g0},{},100,1000); s.admit({g1},{},100,1000); s.admit({g2},{},100,1000);
+    auto d=s.dispatch(1,1000); check(d.commands.size()==3); s.transmitted(1,d.batch);
+    check(s.complete(1,d.batch,results(d),1100));
+    for(const auto& c:d.commands)consume(s,c.id,ipc::Outcome::Complete);
+    s.admit({g0},{},100,2000); s.admit({g1},{},100,2000); s.admit({g2},{},100,2000);
+    check(s.snapshot(1).behindRetirement==3 && s.dispatch(1,2000).commands.empty());
+    check(s.retired(1,d.batch,identities(d)));
+    check(s.holdRelease(1)==0); auto next=s.dispatch(1,2000); check(next.commands.size()==3);
+}
 
 int main(int argc,char** argv)
 {
@@ -293,7 +446,9 @@ int main(int argc,char** argv)
         {"frame-bounds",frameBounds},{"aliases-and-race",aliasesAndRace},
         {"admission-behind-retirement",admissionBehindRetirement},{"containment-grace",containmentGrace},
         {"two-generation-lifecycle",twoGenerationLifecycle},{"forged-retirement",forgedRetirement},
-        {"grace-outcomes",graceOutcomes},{"grace-exclusion",graceExclusion},{"behind-classification",behindClassification},{"take-identity",takeIdentity},{"admission-bursts",admissionBursts}};
+        {"grace-outcomes",graceOutcomes},{"grace-exclusion",graceExclusion},{"behind-classification",behindClassification},{"take-identity",takeIdentity},{"admission-bursts",admissionBursts},
+        {"group-batches",groupBatches},{"group-hold",groupHold},{"group-hold-bound",groupHoldBound},{"group-caps",groupCaps},
+        {"group-expiry",groupExpiry},{"group-behind-retirement",groupBehindRetirement}};
     if(argc>2) { std::fprintf(stderr,"Usage: snmp3SchedulerTest [cell]\n"); return 2; }
     try {
         if(argc==2) {

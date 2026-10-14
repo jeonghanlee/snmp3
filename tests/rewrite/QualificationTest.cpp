@@ -199,6 +199,40 @@ void fifo(Fixture& f)
     f.settle();
     check(std::count_if(f.observed.begin(),f.observed.end(),[](const SupervisionEvent& e){return e.address==1 && e.code==13;})==3,"unequal deadlines batched");
 }
+// Members of one declared group with different deadlines leave in one native request, and a partial group
+// leaves alone once its quiet gap has passed.
+void groupBatch(Fixture& f)
+{
+    const auto a=f.handles.at("GroupA"),b=f.handles.at("GroupB"),c=f.handles.at("GroupC"); const auto origin=monotonicUs();
+    f.admit({a[0]},{},5000,origin);
+    // One servicing pass sees the first member alone: the group is held, not sent, and its release time is
+    // a timer of the loop.
+    f.tick();
+    check(f.owner->nextTimer()<ipc::add(origin,3000),"held group is not a loop timer");
+    f.admit({b[0]},{},3000,monotonicUs());
+    f.admit({c[0]},{},4000,monotonicUs());
+    for(const auto handle:{a[0],b[0],c[0]})f.read(handle,ipc::Outcome::Complete,-123);
+    f.settle();
+    f.admit({a[1]},{},5000,monotonicUs());
+    f.read(a[1],ipc::Outcome::Complete,-123);
+    f.settle();
+    check(std::count_if(f.observed.begin(),f.observed.end(),[](const SupervisionEvent& e){return e.address==1 && e.code==13;})==2,"group and partial group batches");
+}
+// The release time of a held group wakes the loop only while its worker could take the batch: with a batch
+// in flight the past release time must not turn the loop into a spin.
+void groupTimer(Fixture& f)
+{
+    const auto a=f.handles.at("Address4Read"),g=f.handles.at("GroupA");
+    f.signal(1,SIGSTOP);
+    f.admit({a[0]},{},5000,monotonicUs());
+    f.until([&]{return f.worker(1).batch!=0;});
+    f.admit({g[0]},{},5000,monotonicUs());
+    for(unsigned i=0;i<6;++i)f.tick();
+    check(f.owner->nextTimer()>ipc::add(monotonicUs(),1000000),"held group of a busy worker is a loop timer");
+    f.signal(1,SIGCONT);
+    f.read(a[0],ipc::Outcome::Complete,-123); f.read(g[0],ipc::Outcome::Complete,-123);
+    f.settle();
+}
 void deadline(Fixture& f)
 {
     const auto a=f.handles.at("Address4Read"),b=f.handles.at("Address6Read"); f.signal(1,SIGSTOP);
@@ -583,6 +617,8 @@ int main(int argc,char** argv)
                 else if(mode=="live-race")liveRace(f);
                 else if(mode=="fifo" || mode=="high-fd" || mode=="ipc-partial" || mode=="ipc-coalesced" || mode=="ipc-stale")fifo(f);
                 else if(mode=="deadline")deadline(f);
+                else if(mode=="group-batch")groupBatch(f);
+                else if(mode=="group-timer")groupTimer(f);
                 else if(mode=="behind-retirement")behindRetirement(f);
                 else if(mode=="ipc-stale-behind")staleBehind(f);
                 else if(mode=="native-expiry" || mode=="discovery-expiry")nativeDeadline(f);

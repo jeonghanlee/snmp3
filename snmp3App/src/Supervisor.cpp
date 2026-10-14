@@ -314,6 +314,11 @@ uint64_t Supervisor::nextTimer() const
     uint64_t timer=stopOrigin ? ipc::add(stopOrigin,StopBound):UINT64_MAX;
     for(const auto& a:addresses) {
         timer=std::min(timer,scheduler->earliestAction(a.status.address,!a.origin));
+        // A held group wakes the loop at its release time, only while its worker could take the batch.
+        if(a.status.pid && a.status.ready && !a.origin && !stopping && !a.status.batch) {
+            const auto release=scheduler->holdRelease(a.status.address);
+            if(release)timer=std::min(timer,release);
+        }
         if(a.status.pid && a.origin && !a.kill)timer=std::min(timer,ipc::add(a.origin,!a.term ? StopGrace:StopTerm));
         else if(a.status.pid && !a.origin && !a.status.ready)timer=std::min(timer,ipc::add(a.spawned,5000000));
         else if(!a.status.pid && !stopping)timer=std::min(timer,a.attempts.size()<4 ? a.restartAt:ipc::add(a.attempts.front(),60000000));

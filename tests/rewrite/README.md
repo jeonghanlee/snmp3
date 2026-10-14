@@ -796,6 +796,9 @@ D7="$D7 detach-allowed-when-idle stop-permits-detach detach-allowed-while-pendin
 D7="$D7 entry-reported-open-after-stop detach-reported-allowed-after-stop drain-always-failed refused-detach-toggles-active-handle refused-detach-toggles-idle-handle refused-detach-perturbs-stopped-handle refused-detach-perturbs-pending-handle completion-counted-twice"
 D7="$D7 retried-completion-leaves-record-active refusal-releases-record refusal-releases-record-with-alarm"
 D7="$D7 admission-burst-gap-inclusive admission-burst-span-from-last admission-gap-keeps-last"
+D7="$D7 group-hold-omitted group-quiet-gap-ignored group-bound-ignored group-whole-counts-records group-put-back-held"
+D7="$D7 group-other-group-joins group-deadlines-must-match group-deadline-not-shared ungrouped-equal-deadlines-split"
+D7="$D7 group-of-one-grouped group-hold-omitted-wire group-hold-timer-omitted group-hold-timer-busy"
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --d7-controls $D7 --output work/r6-d7-controls
 ```
 

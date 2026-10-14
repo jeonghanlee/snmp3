@@ -53,6 +53,10 @@ public:
     void release(const ipc::Identity& terminal);
     bool settled() const;
     uint64_t earliestDeadline(uint64_t address) const;
+    // Time at which the held queue front of an address may leave: zero when nothing is held (an ungrouped
+    // binding, a group of one, a whole group, a member put back after a worker loss). The time can already
+    // be past; dispatch() holds only while it lies in the future.
+    uint64_t holdRelease(uint64_t address) const;
     // Earliest time at which expire() acts: a queued or unanswered deadline and, when grace is set, the
     // retirement grace of an answered member. Once the worker is contained the grace has acted and is
     // no longer offered, so a past time never keeps the loop from waiting.
@@ -71,8 +75,10 @@ private:
     struct Generation {
         ipc::Command command;
         ipc::Result result;
-        uint64_t q=0;
-        bool selected=false, borrowed=false, consumed=false, retired=false, sent=false, active=false, behind=false;
+        uint64_t q=0, admittedUs=0;
+        // recovered: put back at the queue front after a worker loss, so it leaves without a new hold.
+        bool selected=false, borrowed=false, consumed=false, retired=false, sent=false, active=false, behind=false,
+             recovered=false;
     };
     struct Handle {
         std::shared_ptr<const Binding> binding;
@@ -94,11 +100,14 @@ private:
     void collect(Address& a, const Key& id);
     bool matches(const Address& a, uint64_t batch, const std::vector<ipc::Identity>& ids) const;
     bool compatible(uint64_t first, uint64_t next, const Generation& a, const Generation& b) const;
+    const std::string& groupOf(uint64_t handle) const { return handles.at(handle).binding->definition().group; }
+    uint64_t holdLocked(const Address& a) const;
     std::shared_ptr<const Configuration> config;
     const uint64_t revision, activation;
     mutable std::mutex mutex;
     std::map<uint64_t,Address> queues;
     std::map<std::string,uint64_t> keys,definitions;
+    std::map<std::string,size_t> declared;
     std::map<uint64_t,Handle> handles;
     uint64_t nextHandle=1;
     uint64_t configurationBase=0,configurationBytes=0,registrationBytes=0;
