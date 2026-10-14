@@ -9,7 +9,7 @@ Remote tracker: none associated with this register
 Recorded date: 2026-10-01
 Source baseline: `5dff352b9e86abfca74a74c4adc4fc8c1e48079f`
 
-Next session entry point: `docs/milestone-5dff352.md`, M14 Group record requests and wake on readiness on the record path. The evaluation and procedure are in `docs/snmp-performance/`; the direct reference run and the record-database run through the current module, both with no other client on the devices, were recorded on 2026-10-10. The owner direction is recorded as D15 and D16 (declared groups coalesced at dispatch with one deadline per request, waking on readiness). The detailed plan for M14 was accepted on 2026-10-10 (Plan Acceptance in its detail); implementation was authorized on 2026-10-10 and SA0 (test preparation), SA1 (servicing loop), SA2 (worker) and SA3 (observation and bounds) of Stage A are complete, and A12 and the diagnostic T1 at 0 ms are measured with the tool of step 2, which closes Stage A; SB0 to SB3 of Stage B (admission statistics and the confirmed hold constants, D16; the `group` field with its configuration errors and the chunk-end counter of the tool; grouped dispatch with the hold and the earliest deadline; failure and expiry of a group request with the contract text) are complete; A10 is closed by code review, is not a Stage A closure condition and is reopened for analysis under M16 (see T4 and T5 in Verification Results; the tool of step 2, `run_module_database.py`, is built and its reproduction check and the T1 diagnostic are in T1 and T5; the device baseline of step 2 (equipment, owner authorization and a person present) and the Stage B measurements (T6, and T1 in `--groups on` mode at 20 and 100 ms) follow); equipment runs and git commits need their own authorization. M7 Local AP8932 Execution Scope and Verification Results stays as before: both local implementation reviews are complete; retain the qualified local IOC and evidence, and obtain owner direction for the remaining comparator, compatibility and hardware scope before extending execution. Full M7 remains Blocked, G2 Open and M11 Deferred. No commit, push, sibling change, equipment operation, memory or handoff is authorized by that acceptance.
+Next session entry point: `docs/milestone-5dff352.md`. Ready rows: M7 (APC migration and comparison; G2 Complete on 2026-10-14, target scope D22, equipment runs need the owner go each time) and M9 (mdBook documentation; G4 Complete on 2026-10-14, publication not authorized). M14 (grouped record requests and wake on readiness) is In progress: Stage A and Stage B code steps SB0 to SB3 are done and the fixture results are recorded; the device baseline of step 2 needs the owner go for equipment with a person present, then the decision on the hold constants (D18). M8 (integrated five-OS qualification) is Not started and waits for M7; its preparation (the resource sampler and the five VMs from the cloud-provision session, D20) is authorized. M10, M12, M13 and M15 are Open and need owner decisions; M11 is Deferred in the Backlog. Equipment operation and git commits need their own authorization; no memory or handoff is authorized by this record.
 
 ## Scope
 
@@ -45,7 +45,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | M4 | R4: native SNMP adapter | Milestone | Complete | No | M3 | Actual GET/SET, security, response and native lifetime tests; [detail](#m4---r4-native-snmp-adapter) |
 | M5 | R5: address queues, IPC and worker supervision | Milestone | Complete | No | M3, M4, D3, D7, D9, D10, G5 | Actual isolated worker, deadline, recovery and IOC qualification, including the D7 per-handle bound and D9 containment/backoff rules; [detail](#m5---r5-address-worker-supervision) |
 | M6 | R6: record DSET, conversion, completion and FLNK | Milestone | Complete | No | M1, M2, M3, M4, M5, D5, D6, D7, D8, D11, D12, D13, G1, G5 | Required real-path verification and capability landed at ade4c58; D13/M11 exclusions and dated limits retained; [detail](#m6---r6-record-integration) |
-| M7 | R7: APC startup/DB migration and comparison | Milestone | Blocked | No | M6, D1, G2 | Actual v2c/v3, CA/PVA, comparator and nested startup error observations; [detail](#m7---r7-apc-migration-and-comparison) |
+| M7 | R7: APC startup/DB migration and comparison | Milestone | Not started | Yes | M6, D1, G2 | Actual v2c/v3, CA/PVA, comparator and nested startup error observations; [detail](#m7---r7-apc-migration-and-comparison) |
 | M8 | R8: integrated five-OS and resource qualification | Milestone | Not started | No | M6, M7, G3 | Full identified-source matrix and measured resource acceptance; [detail](#m8---r8-integrated-qualification) |
 | M9 | mdBook documentation | Milestone | Not started | Yes | M1, M2, M3, M4, M5, D4, D14, D19, G4 | Curated book builds and rendered navigation/links match current behavior; [detail](#m9---mdbook-documentation) |
 | M10 | Negative-control harness outcome classification | Carry-forward | Open | No | none | Owner scope decision recorded and each listed outcome either classified by an executed run or kept by decision; [detail](#m10---negative-control-harness-outcome-classification) |
@@ -55,7 +55,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | M15 | Secret material management for SNMPv3 device access | Carry-forward | Open | No | none | Owner decision on creation, location, rotation and repository exclusion recorded with its date; procedure documented and verified by a scan of tracked files and history; [detail](#m15---secret-material-management-for-snmpv3-device-access) |
 | M16 | Failure path of the servicing loop: entry and test | Carry-forward | Complete | No | none | Owner decision to start the analysis (or to retire the row) recorded with its date; then the analysis recorded of which failures can reach the failure handler of the servicing loop and how a case enters it without a product test hook, or the row retired by that decision; a case added by the analysis is verified as in the Completion Criteria of the detail; [detail](#m16---failure-path-of-the-servicing-loop-entry-and-test) |
 | G1 | R6 detailed-plan acceptance and execution authorization | External gate | Complete | No | none | Explicit acceptance and separate authorization recorded; [detail](#g1---r6-authorization) |
-| G2 | R7 detailed-plan acceptance and execution authorization | External gate | Open | No | none | Target, comparator and permitted equipment scope approved; [detail](#g2---r7-authorization) |
+| G2 | R7 detailed-plan acceptance and execution authorization | External gate | Complete | No | none | Target, comparator and permitted equipment scope approved; [detail](#g2---r7-authorization) |
 | G3 | R8 detailed-plan acceptance and execution authorization | External gate | Complete | No | none | OS environments, instruments and resource acceptance policy approved; [detail](#g3---r8-authorization) |
 | G4 | mdBook detailed-plan acceptance and execution authorization | External gate | Complete | No | none | Layout, toolchain, build and publication boundary approved; [detail](#g4---mdbook-authorization) |
 | G5 | D7-D9 M5/M6 plan revision acceptance and execution authorization | External gate | Complete | No | none | Revised M5 and M6 plans accepted and separately authorized; [detail](#g5---d7-d9-revision-authorization) |
@@ -84,6 +84,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | D19 | Build the snmp3 book with the fixed-tag image `jeonghanlee/mdbook:0.5.4` (mdBook 0.5.4, no preprocessor or plugin; the image definition is kept in the Dockerfiles repository) for the local build and for any later automation, and handle the files under `docs/` that are not Markdown as follows: the files that no page links to (tools, PowerNet evidence) are removed from the output after the build, the data files that a page links to (`results/reference-run.json`, `inputs/ap8932-oids.tsv`) are linked by repository URL, and `{{#include}}` quotes code in a page where one is needed; no file is moved out of `docs/`. | 2026-10-13 |
 | D20 | Provide the five OS environments of M8 (Debian 13, Rocky 8.10, Rocky 10.2, Ubuntu 24 LTS and Ubuntu 26 LTS) as five virtual machines requested from the cloud-provision session, one VM per environment, each carrying the EPICS-env-distribution 1.3.0 tree of its OS. Recorded only: no request has been sent, and the request (platform, resources, duration, access, follow-up) is prepared and sent after the M8 plan is accepted. | 2026-10-14 |
 | D21 | Shape the integrated qualification of M8: the whole T4 set and the controls run on each of the five environments on the ordinary products; ASan and UBSan products run on Debian 13 and Rocky 8.10 only; TSan is excluded (no build tool exists) and its cells are recorded as not applicable, never as PASS; a new sampler records the RSS, file descriptors, threads and CPU of the IOC and of every worker every 10 s during 300 s of warm-up and 3600 s of mixed load (the module database tool schedule of 5, 10 and 60 s against the fixture agent); the first run only records trends and the owner accepts the thresholds from them; preparation (sampler, environments) may proceed before M7 ends and the execution starts after M7 is Complete and G3 is Complete. | 2026-10-14 |
+| D22 | Fix the target scope of M7: (1) the target is the AP8932 24-outlet class only, AP7800B is out of scope; (2) the module is measured anew with the build that carries the grouping (the numbers of the build before grouping stay a reference of the earlier state), and the legacy IOC is measured again in the same window on the same units when the owner approves that run separately; (3) the APC candidate (database, generator, tests) is written by the apcpdu session in its own repository and snmp3 keeps the reusable tests and this register; (4) equipment: the two read-only GET runs of 2026-10-10 (one unit of each card class, 900 s each, the legacy lab IOC stopped by the owner, build before grouping) were run on the owner instruction of 2026-10-09/10 and are recorded as such; further runs are GET only on the same two units, with no write, command, installation or firmware action, and each new run needs the owner go; (5) the accepted differences are scaling in the database, a negative reading as NaN with INVALID, DISABLE alarm on every public record when a unit is lost, and an outlet layout of -1 as notAvailable; other differences wait for observations. | 2026-10-14 |
 
 ### Assignment History
 
@@ -1341,7 +1342,7 @@ Separate second-person reader review 2: PASS, zero unresolved reader-action or t
 Origin: 5dff352 / M7
 Identity History: none
 GitHub Issue: none associated with this register
-Status: Blocked
+Status: Not started (G2 Complete on 2026-10-14)
 
 ##### Summary
 
@@ -1363,15 +1364,15 @@ Out of scope: E2D parser migration, implicit legacy translation, final-value-onl
 ##### Dependencies And Decisions
 
 - M6 supplies actual record support; D1 fixes the interface direction.
-- G2 remains Open; resume as Not started when approved. Its target/equipment boundary must be explicit before any live operation.
+- G2 is Complete (plan acceptance and execution authorization 2026-10-14); this row resumes as Not started. D22 (2026-10-14) fixes the target scope and the equipment boundary: every live run needs the owner go.
 - Decision Date: 2026-10-01. Add nested startup error propagation qualification to this milestone; exclude E2D work. Existing single-script configuration tests do not establish the installed nested-loader acceptance result.
 - Decision Date: 2026-10-09. Prepare the draft using the owner-identified sibling apcpdu repository. This identifies source material, not an approved hardware target, comparator product, cross-repository implementation or permitted equipment action.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-10-14, owner acceptance of the plan of this section (P001 to P007 and the open choices resolved by D22: AP8932 24-outlet class only, the module measured anew with the grouping build, the apcpdu session as writer of the APC candidate, GET only on the two units, four accepted differences)
+Implementation Authorization: 2026-10-14, owner authorization of P001 to P005 and P007 without equipment (preparation, loopback verification, records) and of P006 on the two AP8932 units as GET-only runs, each run needing the owner go; no write, command, installation, firmware, production IOC restart, publication, or git or remote action
 Superseded Plan Artifacts: none
 
 The following is a reviewable proposal, not an executable authorization. The canonical detail owns the maintained plan; the session reference is `<local>/review_sessions/20261003_013534_rpro-admission/plan/plan20261009_091421_codex_gpt6_root_apc-migration.md`. Independent third-person draft review 1 is PASS, with zero unresolved findings; reader review 2 identified the historical-scope correction recorded below. Report: `<local>/review_sessions/20261003_013534_rpro-admission/reviews/rev20261009_092303_subagent_gpt6_thread_plan_r1_m7-plan.md`, SHA256 `8ec9314c1cec744d816bac0ec2d2a37a9e3893726af0212d0dc913cf062c9f2e`. The review read both whole targets and independently checked 43 APC source files, 43 distinct template OID names and ten scaled source declarations; these are offline source checks, not runtime verification. Audit: `<local>/m7-plan-review-r1/audit.json`, SHA256 `3daaab46799d5ba298a6e0e37d870978fcbacea210e5d713a12f872022d249d8`. The reviewed canonical SHA256 was `765f03c867fef01683c07be9f2fa7e6bb5500d94915b4994235f5f9298e5753b`; At the technical-review checkpoint, only the review-status paragraph and next entry changed to record that result. The Local AP8932 Execution Scope below was added afterward under auth20261009_154800 and was not part of review 1's frozen target. Full M7 acceptance and implementation authorization remain none; bounded local acceptance and authorization are recorded separately below. Reader review 2 (fup20261009_155223, SHA256 `99a72da9892b2cb4a98d20b1d87cdb807142555129881a6fdb902a4d691766c8`) identified this historical-scope defect as F-m7-local-reader-001; bounded review 3 PASS verifies the correction, with no unresolved reader findings. Report: `<local>/review_sessions/20261003_013534_rpro-admission/reviews/fup20261009_155418_subagent_gpt6_thread_plan_r1_on_fup20261009_155223.md`, SHA256 `8c9c037bfb02f6638f09174a1e3592a41d4b91d9abefac39c727e23c5218f0c0`. The local reader gate is complete; auth20261009_154800 authorizes only the bounded local execution.
@@ -1406,11 +1407,11 @@ The source inventory includes `apcpduApp/iocsh/pdu_rpdu2g.iocsh`, `pdu_ap7800b.i
 
 | Choice | Alternatives and consequence | State |
 | --- | --- | --- |
-| Required target/variants | AP8932/rPDU2 with selected 16/24-outlet/sensor options; AP7800B; or both. Broader selection increases the DB and equipment matrix. Record the actual card/firmware class separately. | Owner selection pending; inventory is not acceptance |
-| Comparator | Preserve products from apcpdu `54345c7` with the identified installed legacy driver, or choose another explicitly identified deployed baseline. The latter needs its own source/product correspondence. | Proposed source located; product selection pending |
-| Repository/build boundary | Develop the APC candidate in an isolated apcpdu checkout while snmp3 owns reusable tests, or first produce a local integration example within snmp3. An example alone does not establish deployed APC migration. | Owner selection pending; no external checkout edit authorized |
-| Equipment scope | Local-only preparation; real-equipment reads; or a named set of writes and recovery actions. A smaller authorization leaves the remaining hardware checks pending. | No equipment actions authorized |
-| Compatibility differences | Accept explicit new timing/string/alarm semantics, or preserve selected public behavior through the APC DB layer. Neither option may reintroduce legacy syntax parsing or silently change snmp3's accepted contract. | Exact differences require baseline observations and review |
+| Required target/variants | AP8932/rPDU2 with selected 16/24-outlet/sensor options; AP7800B; or both. Broader selection increases the DB and equipment matrix. Record the actual card/firmware class separately. | Decided by D22: AP8932 24-outlet class only; AP7800B out of scope |
+| Comparator | Preserve products from apcpdu `54345c7` with the identified installed legacy driver, or choose another explicitly identified deployed baseline. The latter needs its own source/product correspondence. | Decided by D22: the module is measured anew with the grouping build; the legacy IOC is measured in the same window only on a separately approved run |
+| Repository/build boundary | Develop the APC candidate in an isolated apcpdu checkout while snmp3 owns reusable tests, or first produce a local integration example within snmp3. An example alone does not establish deployed APC migration. | Decided by D22: the apcpdu session writes the APC candidate in its own repository; snmp3 keeps the reusable tests and this register |
+| Equipment scope | Local-only preparation; real-equipment reads; or a named set of writes and recovery actions. A smaller authorization leaves the remaining hardware checks pending. | Decided by D22: GET only on the two units; the two runs of 2026-10-10 recorded; each new run needs the owner go |
+| Compatibility differences | Accept explicit new timing/string/alarm semantics, or preserve selected public behavior through the APC DB layer. Neither option may reintroduce legacy syntax parsing or silently change snmp3's accepted contract. | Decided by D22 for four differences; the others wait for observations |
 
 M6 is a completed behavioral dependency. G2 is the remaining external acceptance/authorization condition; the source inventory is not an additional execution gate. Plans and read-only source checks may proceed while G2 is Open. No new library installation, firmware operation, production IOC restart, service configuration edit, Git/remote mutation, memory or handoff write is included in this draft.
 
@@ -1439,7 +1440,7 @@ Local verification checks build/registration/library identity; correct Model, ph
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
 | T1 | APC integration | Real new-module startup/DB, v2c/v3 agents and identified CA/PVA consumers. | Approved target and identified firmware/source | Correct values, writes, alarms and recovery through the new interface. |
-| T2 | External comparison | Independent baseline/new observation of SET values/order/retries and response/record phases. | Same approved comparison conditions | Differences are attributable and no final-value-only equivalence is asserted. |
+| T2 | External comparison | Independent observation of the module build that carries the grouping, repeated in the same window as a legacy IOC run when the owner approves that run; SET values, order and retries are observed only on the loopback fixture (D22 excludes writes on the units). | Same approved comparison conditions | Differences are attributable and no final-value-only equivalence is asserted. |
 | T3 | Installed startup integration | Run the shipped nested device loader and enclosing startup script with the actual installed IOC and driver. Inject invalid local configuration at the first device and after an earlier valid device; also run valid SNMPv1/v2c/v3 cases. Inspect process exit, `iocInit` and interactive-shell observations, and all captured logs for credential sentinels. | Approved unchanged installation; identified IOC, driver, native helper and script hashes; disposable local configuration/secret fixtures | Both error positions terminate with nonzero exit before `iocInit` and interactive-shell entry; valid cases reach `iocInit`; no credential values appear in logs. No internal parser, wrapper or IOC main substitutes. |
 | T4 | Configuration and mapping | Expand shipped APC substitutions; inventory selected public PVs and numeric OID/type/operation/capacity mappings. Load the complete multi-device candidate through the real parser; test duplicate IDs, missing references and replacement/freeze errors. | Identified MIB, generated DB and native helper; loopback-only endpoints | Every selected device remains represented before binding; invalid input is rejected without publishing a partial candidate; no deployed secret appears in fixtures/logs. |
 | T5 | Record completion and conversion | Use real snmp3 APC records with delayed/reordered/dropped replies; observe raw and derived records, units, alarms, PACT and FLNK, scanner pause/resume and same-value recovery. | Selected actual DB/loader variants and outer agents | Scaling occurs exactly once; derived publications use the intended completed input; retained/stale values and asynchronous ordering remain explicit; no false simultaneous-sample claim. |
@@ -1453,7 +1454,7 @@ The initial authorized local AP8932 subset ran on 2026-10-09 UTC using Base 7.0.
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Physical target not approved | Pending | No equipment operation |
+| T1 | Not run for the current module | Two AP8932 units of the two card classes, GET only | Pending | Two read-only runs of 2026-10-10 (900 s each, build before grouping, owner instruction of 2026-10-09/10) are a reference of the earlier state and are not a result of the current module; the run with the grouping build needs the owner go (D22) |
 | T2 | Not run | Comparator not approved | Pending | No legacy/new comparator run |
 | T3 | 2026-10-09 UTC | Generated application and nested loaders, disposable loopback configuration | Local subset PASS: first/later invalid configuration exits 1 before iocInit and stdin shell sentinel. v1/v2c/v3 configuration-only acceptance passes; only v2c communication reaches iocInit. Full installed loader matrix remains open. | `<local>/ap8932-test-05/result.json`, valid/reject IOC logs |
 | T4 | 2026-10-09 UTC | Actual committed substitutions expanded by installed msi; numeric OIDs from committed MIB | Local subset PASS: 400 original record names/types registered, 178 bindings, nine conversions and 100 group fields. Multi-device replacement/freeze and full invalid-input cases not run here. | `<local>/ap8932-build-02/inventory.json`, `original.db`, `db/ap8932.db`; real registration/CA checks |
@@ -2097,7 +2098,7 @@ The detailed R6 record/conversion/completion/test plan was accepted and separate
 
 Origin: 5dff352 / G2
 GitHub Issue: none associated with this register
-Status: Open
+Status: Complete (2026-10-14)
 
 ##### Summary
 
@@ -2112,10 +2113,12 @@ The owner must accept the identified M7 migration/comparison plan and authorize 
 | Observed At | Result | Evidence |
 | --- | --- | --- |
 | 2026-10-01 | Pending | No detailed R7 acceptance or execution authorization is recorded. |
+| 2026-10-14 | Partial | The owner decided the target scope (D22): AP8932 only, new measurement with the grouping build, the apcpdu session as writer of the APC candidate, GET only on the two units, four accepted differences. The plan acceptance and the separate execution authorization are not recorded. |
+| 2026-10-14 | Complete | The owner accepted the M7 plan and separately authorized its execution: P001 to P005 and P007 without equipment, and P006 on the two units as GET-only runs with the owner go for each run. |
 
 ##### Closure Evidence
 
-- none.
+- Completion Date: 2026-10-14. Plan acceptance and the separate execution authorization of 2026-10-14, recorded in the M7 detail (Plan Acceptance and Implementation Authorization) with the target scope of D22. Installation and firmware changes remain excluded.
 
 #### G3 - R8 Authorization
 
