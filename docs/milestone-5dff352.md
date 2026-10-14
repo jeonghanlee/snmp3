@@ -53,7 +53,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | M13 | PowerNet-MIB 4.6.0 review for the AP8932 database | Carry-forward | Open | No | none | Owner decision to adopt 4.6.0 or keep 4.4.6 recorded with its date, and any `rPDU2Adv*` scope decided; adoption verified by regeneration and a new run of the database's integration test; [detail](#m13---powernet-mib-460-review-for-the-ap8932-database) |
 | M14 | Group record requests and wake on readiness on the record path | Carry-forward | In progress | No | D15, D16 | Direction recorded as D15 and D16 (2026-10-10); then the monitoring set of the evaluation read through the module within 1.5 times the direct Net-SNMP pass at the same group size on each device class, with the sustained schedule criteria met and the existing runners passing, or the owner exception of the Completion Criteria recorded for a missed bound; [detail](#m14---group-record-requests-and-wake-on-readiness-on-the-record-path) |
 | M15 | Secret material management for SNMPv3 device access | Carry-forward | Open | No | none | Owner decision on creation, location, rotation and repository exclusion recorded with its date; procedure documented and verified by a scan of tracked files and history; [detail](#m15---secret-material-management-for-snmpv3-device-access) |
-| M16 | Failure path of the servicing loop: entry and test | Carry-forward | Open | No | none | Owner decision to start the analysis (or to retire the row) recorded with its date; then the analysis recorded of which failures can reach the failure handler of the servicing loop and how a case enters it without a product test hook, or the row retired by that decision; a case added by the analysis is verified as in the Completion Criteria of the detail; [detail](#m16---failure-path-of-the-servicing-loop-entry-and-test) |
+| M16 | Failure path of the servicing loop: entry and test | Carry-forward | Complete | No | none | Owner decision to start the analysis (or to retire the row) recorded with its date; then the analysis recorded of which failures can reach the failure handler of the servicing loop and how a case enters it without a product test hook, or the row retired by that decision; a case added by the analysis is verified as in the Completion Criteria of the detail; [detail](#m16---failure-path-of-the-servicing-loop-entry-and-test) |
 | G1 | R6 detailed-plan acceptance and execution authorization | External gate | Complete | No | none | Explicit acceptance and separate authorization recorded; [detail](#g1---r6-authorization) |
 | G2 | R7 detailed-plan acceptance and execution authorization | External gate | Open | No | none | Target, comparator and permitted equipment scope approved; [detail](#g2---r7-authorization) |
 | G3 | R8 detailed-plan acceptance and execution authorization | External gate | Open | No | none | OS environments, instruments and resource acceptance policy approved; [detail](#g3---r8-authorization) |
@@ -2003,7 +2003,7 @@ Superseded Plan Artifacts: none
 Origin: 5dff352 / M16
 Identity History: none
 GitHub Issue: none
-Status: Open (unresolved scope: whether and how the failure handler of the servicing loop can be entered by a case)
+Status: Complete (owner decision of 2026-10-13: the failure handler of the servicing loop stays verified by code review and the analysis recorded in Dependencies And Decisions; no case, hook or product change)
 
 ##### Summary
 
@@ -2034,6 +2034,9 @@ Out of scope: changes to the loop's behaviour when it is not failing; the wake r
 ##### Dependencies And Decisions
 
 - Origin: M14 case A10, closed by code review under the owner direction of 2026-10-11.
+- 2026-10-13, owner decision: start the analysis (plan step 1). It authorizes reading the code and recording the result; it does not authorize a case, a hook or a product change.
+- 2026-10-13, analysis (code of `Runtime::run`, `Supervisor::step`, `Requests::service`, `Scheduler`, at the commit `541cff5`). The loop body is: `wake.clear()` (a `read` retried on EINTR, cannot throw), `Supervisor::step`, `Requests::service`, `Supervisor::finished`, `Supervisor::nextWake` and `Runtime::pause`. Contained by a handler of its own: `input`, `output` (including `Scheduler::complete`, `retired`, `dispatch`, the frame decoding and `event`) and `launch` of each address, whose exception becomes a ChannelFailure or WorkerFailure of that address and a reset channel. Not contained, so an exception reaches the outer failure handler: `Scheduler::expire`, `contain` and `reap` (which calls `Scheduler::reaped` and allocates a deque), the copy of the published status under the report mutex, every statement of `Requests::service` (`take`, the `require` on the terminal identity), `finished` (`Scheduler::settled`), `nextWake` (`Scheduler::earliestAction` and `holdRelease`, which allocates a set per pass, and `ipc::add`) and the vectors of `Runtime::pause` and `descriptors`. What can make them throw: an allocation failure (`std::bad_alloc`), a failed mutex lock (`std::system_error`) or an invariant violated inside the scheduler or the record requests (`require`, `at`). No input of the shipped path (configuration, a device answer, a malformed or hostile frame, a worker fault, a full channel, descriptor exhaustion of `launch`) reaches them: frame and worker faults end in the per-address handler, and descriptor exhaustion fails `launch`, which is contained. Ways to enter the handler by a case: (a) a product hook (an environment variable or a test function that throws in the loop): a product change made for a test; (b) a memory limit of the IOC process (`RLIMIT_AS` or `RLIMIT_DATA`): the failing allocation is not deterministic and can fall in any thread, including code that aborts (`cantProceed`) instead of throwing; (c) an interposed allocator that fails one allocation of the servicing thread (a preloaded library that fails the next `operator new` of the thread named `snmp3Runtime` after a trigger file appears): no product change, deterministic, but not usable on the instrumented build, which already interposes the allocator. The handler itself was read: it sets Failed and closes admission, requests the stop and steps for at most 2 s, each of `step`, `service` and `pause` inside its own `try`.
+- 2026-10-13, owner decision (plan step 2): keep the code review of 2026-10-11 and the analysis above as the only verification of the failure handler. No case, no interposed allocator and no test hook is added, and no product change is made. The handler is therefore not executed by any test; the reason is that no input of the shipped path reaches it.
 
 ##### Implementation Plan
 
@@ -2056,11 +2059,11 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Linux host | Pending | The code review of M14 case A10 (2026-10-11) found the handler correct if reached |
+| T1 | 2026-10-13 | Linux host | Waived by the owner decision of 2026-10-13 | No case was built; the failure handler stays verified by the code review of 2026-10-11 and the analysis of 2026-10-13 (found correct if reached) |
 
 ##### Closure Evidence
 
-- none
+- Completion Date: 2026-10-13. Retirement of the check T1 by the owner decision of 2026-10-13 (Decision Date); the waived check is T1, a case that enters the failure handler of the servicing loop. Evidence: the analysis in Dependencies And Decisions (commit `541cff5` of the code analysed) and the third-person code review of M14 case A10 of 2026-10-11.
 
 #### G1 - R6 Authorization
 
