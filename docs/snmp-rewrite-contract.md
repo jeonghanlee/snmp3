@@ -140,6 +140,27 @@ a Deadline, the worker is contained, reaped and relaunched, and the successor is
 dispatched only if its budget outlasts reap, restart backoff, relaunch and Ready;
 otherwise it expires unsent.
 
+### Declared groups
+
+A binding can carry a `group` label (see the configuration reference). Records
+of the bindings of one group are still admitted one by one, each with its own
+`deadline_ms`; the dispatcher sends the members that are queued together as one
+native request. Three consequences are part of the contract:
+
+- **One deadline per request.** A request of a group has the earliest deadline of
+  its members. A member with a later `deadline_ms` can therefore be reported
+  COMM/INVALID before its own budget has passed, because another member of its
+  request expired first. A member whose own deadline has passed before dispatch is
+  expired alone with `deadline before send` and does not shorten the request of
+  the others.
+- **Failures are shared.** A timeout, a worker loss or a native failure of the
+  group request gives every member the same outcome, so K records of a group
+  fail together where K single requests would fail one at a time. The loss count
+  of a monitoring set read in groups is counted per request, not per record.
+- **A short wait for the rest of the group.** The first member of a group can
+  wait up to 2 ms in the queue (0.5 ms after the last member arrived) so that
+  the group leaves whole; this wait is part of the request budget.
+
 With an outer UDP drop-all fault, the time from containment to a Ready worker
 was about 0.4 s on ordinary builds (362 to 403 ms over the recorded runs) and
 about 0.7 s on instrumented builds (710 to 745 ms), including the first 250 ms
