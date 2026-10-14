@@ -2148,7 +2148,7 @@ Status: Complete (2026-10-14)
 
 ##### Summary
 
-The owner assigned mdBook work on 2026-10-01 and chose the in-place layout and page organization on 2026-10-10 (D14). The toolchain, build, publication boundary, plan acceptance and implementation authorization remain pending; assignment does not authorize publication.
+The owner assigned mdBook work on 2026-10-01, chose the in-place layout and page organization on 2026-10-10 (D14) and the toolchain and the handling of non-Markdown files on 2026-10-13 (D19). The plan was accepted on 2026-10-13 and its implementation authorized on 2026-10-14, which closes this gate. Publication and hosting are not authorized by this gate and are decided separately.
 
 ##### Completion Criteria
 
