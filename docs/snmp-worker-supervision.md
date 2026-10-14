@@ -110,11 +110,33 @@ one monotonic origin and a positive integer budget of 1-600000 ms. Its uint64
 deadline includes queueing, bootstrap, IPC, discovery and native service.
 
 Dispatch at most one native batch per address. Take a contiguous compatible FIFO
-prefix with the exact same absolute deadline, endpoint/profile/session and
-operation. Respect maxVarbinds and both frame limits. Equal budgets with different
-origins do not imply equal deadlines; no rounding, skipping or extension occurs.
+prefix with the same endpoint/profile/session and operation. Two ungrouped
+bindings (and a group of one binding, which counts as ungrouped) are compatible
+only with the exact same absolute deadline; two members of one declared group
+are compatible whatever their deadlines. A group member never joins an ungrouped
+request or the request of another group, and the batch ends at such a request
+(no look-ahead). Respect maxVarbinds and both frame limits; several records of
+one binding can exceed the declared count, so the cap applies to groups too and
+the remainder leaves in the next request. Equal budgets with different origins do
+not imply equal deadlines; no rounding, skipping or extension occurs.
 Atomic admission publishes all members or none, but does not promise one SNMP
 transaction. Each member has its own count, Q and positional owned result.
+
+One request has one deadline. A request of a declared group carries the earliest
+deadline among its members, written into the dispatched commands and into the
+member generations, so completion, expiry and the retire grace give every member
+the same outcome. A member whose own deadline has already passed is expired alone
+before dispatch and leaves the queue; the others leave together.
+
+A declared group is held at the queue front while its worker is ready, idle and
+not stopping. The front run of the group (contiguous members of that group) leaves
+when it holds a generation of every declared binding, when no further member of the
+group has been admitted for 0.5 ms (quiet gap), or when 2 ms have passed since the
+admission of the front member (hold bound), whichever comes first. A group of one
+binding and a member put back at the queue front after a worker loss are not held.
+`Scheduler::holdRelease` returns the release time (zero when nothing is held); the
+supervisor includes it in `nextTimer` only for a ready, idle worker that is not
+stopping, so a busy worker does not wake the loop.
 
 The first successfully transmitted Batch byte makes every batch member ambiguous
 for recovery. Only zero-byte work survives worker replacement with its original
@@ -340,6 +362,7 @@ to discard pinned USM material.
 | Exit poll of a contained or exiting worker | 10 ms |
 | Exit poll of a live worker | 100 ms; a worker's exit is normally noticed through its channel hang-up, and the poll is the fallback |
 | Worker wait | Until its channel or a library socket is ready, a library timer is due, or its earliest own duty is due: Ready limit, partial frame, batch deadline, idle count line |
+| Hold of a declared group at the queue front | Released when the group is whole, 0.5 ms after the last admission of a member (quiet gap) or 2 ms after the admission of the front member (hold bound); a timer only for a ready, idle worker that is not stopping |
 | Retry of a refused callback enqueue | 10 ms |
 | Record drain wait | Ended at once by a completion, an inert callback (one that arrives after callback entry is closed) or a callback exit; otherwise 10 ms while a refused enqueue is retried and 50 ms without one; 2000 ms budget. When only the drain retries, the stop returns within 5 ms of the last record completion (`last_completion_to_return_us`, check `drain-returns-on-completion-wake` of the `stop-enqueue-failed` case); while the loop runs, within 50 ms |
 | Per address/direction/iteration | 65536 bytes and 64 complete frames; round-robin |
