@@ -48,6 +48,12 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | M7 | R7: APC startup/DB migration and comparison | Milestone | Blocked | No | M6, D1, G2 | Actual v2c/v3, CA/PVA, comparator and nested startup error observations; [detail](#m7---r7-apc-migration-and-comparison) |
 | M8 | R8: integrated two-OS and resource qualification | Milestone | Blocked | No | M6, M7, G3 | Full identified-source matrix and measured resource acceptance; [detail](#m8---r8-integrated-qualification) |
 | M9 | mdBook documentation | Milestone | Blocked | No | M1, M2, M3, M4, M5, D4, D14, G4 | Curated book builds and rendered navigation/links match current behavior; [detail](#m9---mdbook-documentation) |
+| M10 | Negative-control harness outcome classification | Carry-forward | Open | No | none | Owner scope decision recorded and each listed outcome either classified by an executed run or kept by decision; [detail](#m10---negative-control-harness-outcome-classification) |
+| M12 | Stop duration with a blocked callback queue | Carry-forward | Open | No | none | Owner decision on whether the stop bound and the record drain budget may overlap or skip waits that cannot progress, recorded with its date; then the change verified by the `stop-enqueue-failed` case or the observation kept by decision; [detail](#m12---stop-duration-with-a-blocked-callback-queue) |
+| M13 | PowerNet-MIB 4.6.0 review for the AP8932 database | Carry-forward | Open | No | none | Owner decision to adopt 4.6.0 or keep 4.4.6 recorded with its date, and any `rPDU2Adv*` scope decided; adoption verified by regeneration and a new run of the database's integration test; [detail](#m13---powernet-mib-460-review-for-the-ap8932-database) |
+| M14 | Group record requests and wake on readiness on the record path | Carry-forward | In progress | No | D15, D16 | Direction recorded as D15 and D16 (2026-10-10); then the monitoring set of the evaluation read through the module within 1.5 times the direct Net-SNMP pass at the same group size on each device class, with the sustained schedule criteria met and the existing runners passing, or the owner exception of the Completion Criteria recorded for a missed bound; [detail](#m14---group-record-requests-and-wake-on-readiness-on-the-record-path) |
+| M15 | Secret material management for SNMPv3 device access | Carry-forward | Open | No | none | Owner decision on creation, location, rotation and repository exclusion recorded with its date; procedure documented and verified by a scan of tracked files and history; [detail](#m15---secret-material-management-for-snmpv3-device-access) |
+| M16 | Failure path of the servicing loop: entry and test | Carry-forward | Open | No | none | Owner decision to start the analysis (or to retire the row) recorded with its date; then the analysis recorded of which failures can reach the failure handler of the servicing loop and how a case enters it without a product test hook, or the row retired by that decision; a case added by the analysis is verified as in the Completion Criteria of the detail; [detail](#m16---failure-path-of-the-servicing-loop-entry-and-test) |
 | G1 | R6 detailed-plan acceptance and execution authorization | External gate | Complete | No | none | Explicit acceptance and separate authorization recorded; [detail](#g1---r6-authorization) |
 | G2 | R7 detailed-plan acceptance and execution authorization | External gate | Open | No | none | Target, comparator and permitted equipment scope approved; [detail](#g2---r7-authorization) |
 | G3 | R8 detailed-plan acceptance and execution authorization | External gate | Open | No | none | OS environments, instruments and resource acceptance policy approved; [detail](#g3---r8-authorization) |
@@ -74,6 +80,17 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | D14 | Build the snmp3 book in place: root `book.toml` with `src = "docs"`, `docs/SUMMARY.md` and a generated-output directory excluded from tracking. Organize chapters by reader goal and page type (introduction, concepts, procedures, reference, glossary, appendix); split documents that mix page types at their existing locations without keeping a second copy; replace links to files outside `docs/` with repository URLs; keep milestone and private records out of navigation. Toolchain, build automation and publication remain with G4. | 2026-10-10 |
 | D15 | Revise D3 for declared groups: bindings of one declared group on one endpoint are coalesced into one request with one deadline and a member result each (read as coalescing at dispatch by D16), bounded by `maxVarbinds` and the response-size limit; bindings outside a group keep D3 (exact equal absolute deadlines). Wake the worker and the servicing thread on socket and pipe readiness instead of fixed 10 ms waits. This scope adds no result cache stage, no multi-object binding and no requests in flight. | 2026-10-10 |
 | D16 | Read D15 as coalescing at dispatch: each record is admitted on its own with its own deadline. When the worker of the address is ready, idle and not stopping and the queue front is a member of a declared group of more than one binding, the dispatcher holds the request until the contiguous front run holds a generation of every declared binding (the group is whole), no further member of that group has arrived for the quiet gap (0.5 ms), or the hold bound (2 ms) has passed since the admission of the queue-front member; the constants were confirmed at SB0 on 2026-10-13 from the admission statistics of plan step 4 by the rule stated there (values unchanged: quiet gap 0.5 ms, hold bound 2 ms; the measurement is in the T5 row of Verification Results). It then sends the contiguous members of that group in one request. The earliest deadline among the dispatched members becomes the deadline of the request and of every dispatched member, so completion, expiry and the retire grace give all members the same outcome. A queued member whose deadline has passed is expired on its own by the expiry that runs before each dispatch and is no longer in the queue; the rest leave together. Requests of other groups, of other tiers or of ungrouped bindings in the queue end the batch and do not extend the hold, and an ungrouped binding never joins a group's batch. A group of one behaves as an ungrouped binding and is not held. Members put back at the queue front after a worker loss leave without a new hold. Retries inside the worker are bounded by the request deadline. | 2026-10-10 |
+
+### Assignment History
+
+| Work Identity | From Canonical | To Canonical | Target Commit | Authority Moved At |
+| --- | --- | --- | --- | --- |
+| 5dff352 / M14 | `docs/milestone-5dff352.md`, `## Backlog` | `docs/milestone-5dff352.md`, `## Milestone` | this synchronization commit | this synchronization commit |
+| 5dff352 / M10 | `docs/milestone-5dff352.md`, `## Backlog` | `docs/milestone-5dff352.md`, `## Milestone` | this synchronization commit | this synchronization commit |
+| 5dff352 / M12 | `docs/milestone-5dff352.md`, `## Backlog` | `docs/milestone-5dff352.md`, `## Milestone` | this synchronization commit | this synchronization commit |
+| 5dff352 / M13 | `docs/milestone-5dff352.md`, `## Backlog` | `docs/milestone-5dff352.md`, `## Milestone` | this synchronization commit | this synchronization commit |
+| 5dff352 / M15 | `docs/milestone-5dff352.md`, `## Backlog` | `docs/milestone-5dff352.md`, `## Milestone` | this synchronization commit | this synchronization commit |
+| 5dff352 / M16 | `docs/milestone-5dff352.md`, `## Backlog` | `docs/milestone-5dff352.md`, `## Milestone` | this synchronization commit | this synchronization commit |
 
 ### Milestone Details
 
@@ -1572,144 +1589,6 @@ The inspected epics-ioc-runner example uses root `book.toml`, `src = "docs"`, `d
 
 - none; assignment records documentation work, not implementation or publication acceptance.
 
-#### G1 - R6 Authorization
-
-Origin: 5dff352 / G1
-GitHub Issue: none associated with this register
-Status: Complete
-
-##### Summary
-
-The detailed R6 record/conversion/completion/test plan was accepted and separately authorized for implementation on 2026-10-01. This gate applies only to M6 and does not establish product verification.
-
-##### Completion Criteria
-
-- D5/D6 record the accepted IEEE ao-to-OpaqueFloat rounding and all other precision/capacity error-rejection policies. Record acceptance of the identified current M6 plan and separate implementation authorization with their decision dates and exact scope.
-
-##### Verification Results
-
-| Observed At | Result | Evidence |
-| --- | --- | --- |
-| 2026-10-01 | Complete | Separate plan acceptance and explicit implementation authorization recorded for the reviewed M6 plan; reviewed document SHA256 `cb80ae8c978ad5b06e4ae046ca4ac648f5f29634c13e3e5709c6096f6c77eecb`. |
-
-##### Closure Evidence
-
-- 2026-10-01: M6 plan accepted and separately authorized for implementation; scope is the eleven-record integration, T1-T14 and required documentation. R7-R8, mdBook implementation, installation, equipment operations and Git/remote mutations remain excluded.
-
-#### G2 - R7 Authorization
-
-Origin: 5dff352 / G2
-GitHub Issue: none associated with this register
-Status: Open
-
-##### Summary
-
-The owner must accept the identified M7 migration/comparison plan and authorize its exact target, credentials/consumer handling and permitted equipment actions.
-
-##### Completion Criteria
-
-- Record accepted target/comparator scope and separate implementation/operation authorization; installation and firmware changes remain excluded unless explicitly added.
-
-##### Verification Results
-
-| Observed At | Result | Evidence |
-| --- | --- | --- |
-| 2026-10-01 | Pending | No detailed R7 acceptance or execution authorization is recorded. |
-
-##### Closure Evidence
-
-- none.
-
-#### G3 - R8 Authorization
-
-Origin: 5dff352 / G3
-GitHub Issue: none associated with this register
-Status: Open
-
-##### Summary
-
-The owner must accept M8 environments, real-path matrix, supported instrumentation and resource measurement/acceptance policy, then authorize execution.
-
-##### Completion Criteria
-
-- Record acceptance and separate execution authorization for the identified qualification plan and explicit unavailable-cell/resource dispositions.
-
-##### Verification Results
-
-| Observed At | Result | Evidence |
-| --- | --- | --- |
-| 2026-10-01 | Pending | No detailed R8 acceptance or execution authorization is recorded. |
-
-##### Closure Evidence
-
-- none.
-
-#### G4 - mdBook Authorization
-
-Origin: 5dff352 / G4
-GitHub Issue: none associated with this register
-Status: Open
-
-##### Summary
-
-The owner assigned mdBook work on 2026-10-01 and chose the in-place layout and page organization on 2026-10-10 (D14). The toolchain, build, publication boundary, plan acceptance and implementation authorization remain pending; assignment does not authorize publication.
-
-##### Completion Criteria
-
-- Record acceptance and separate implementation authorization for the identified M9 plan. Any hosting/publication decision names its scope separately.
-
-##### Verification Results
-
-| Observed At | Result | Evidence |
-| --- | --- | --- |
-| 2026-10-01 | Pending | mdBook milestone assignment is recorded; no detailed-plan acceptance or implementation/publication authority is recorded. |
-
-##### Closure Evidence
-
-- none.
-
-#### G5 - D7-D9 Revision Authorization
-
-Origin: 5dff352 / G5
-GitHub Issue: none associated with this register
-Status: Complete
-
-##### Summary
-
-The D7-D9 revisions of the M5 and M6 Implementation Plans (2026-10-03) needed owner acceptance and separate implementation authorization before M5 steps 4-6, M6 steps 7-8 or any remaining M6 T1-T14 work proceeded; both were recorded on 2026-10-03. This gate does not establish product verification.
-
-##### Completion Criteria
-
-- Record acceptance of the revised M5 and M6 plans and separate implementation authorization with their decision dates, exact scope and the commit that carries the accepted text, in this gate and in each plan's `Plan Acceptance` and `Implementation Authorization` fields.
-
-##### Verification Results
-
-| Observed At | Result | Evidence |
-| --- | --- | --- |
-| 2026-10-03 | Complete | Owner acceptance of the revised M5 and M6 plans and separate implementation authorization; accepted text carried by `c065755d7677e168c6fadae560012b7d9b1dfc47`. |
-
-##### Closure Evidence
-
-- 2026-10-03: revised M5 and M6 plans accepted and separately authorized for implementation; scope is M5 steps 4-6 with T1-T7 and M6 steps 7-8 with the remaining T1-T14 qualification. R7-R8, mdBook implementation, installation, equipment operations and Git/remote mutations remain excluded.
-
-## Backlog
-
-### Work
-
-| ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
-| --- | --- | --- | --- | --- | --- | --- |
-| M10 | Negative-control harness outcome classification | Carry-forward | Open | No | none | Owner scope decision recorded and each listed outcome either classified by an executed run or kept by decision; [detail](#m10---negative-control-harness-outcome-classification) |
-| M11 | Deferred record verification cells | Carry-forward | Deferred | No | D13 | Deferred by D13 on 2026-10-05; the cells run when the owner asks for Channel Access, long-write, delayed-simulation or rebuild/reuse record verification; [detail](#m11---deferred-record-verification-cells) |
-| M12 | Stop duration with a blocked callback queue | Carry-forward | Open | No | none | Owner decision on whether the stop bound and the record drain budget may overlap or skip waits that cannot progress, recorded with its date; then the change verified by the `stop-enqueue-failed` case or the observation kept by decision; [detail](#m12---stop-duration-with-a-blocked-callback-queue) |
-| M13 | PowerNet-MIB 4.6.0 review for the AP8932 database | Carry-forward | Open | No | none | Owner decision to adopt 4.6.0 or keep 4.4.6 recorded with its date, and any `rPDU2Adv*` scope decided; adoption verified by regeneration and a new run of the database's integration test; [detail](#m13---powernet-mib-460-review-for-the-ap8932-database) |
-| M14 | Group record requests and wake on readiness on the record path | Carry-forward | In progress | No | D15, D16 | Direction recorded as D15 and D16 (2026-10-10); then the monitoring set of the evaluation read through the module within 1.5 times the direct Net-SNMP pass at the same group size on each device class, with the sustained schedule criteria met and the existing runners passing, or the owner exception of the Completion Criteria recorded for a missed bound; [detail](#m14---group-record-requests-and-wake-on-readiness-on-the-record-path) |
-| M15 | Secret material management for SNMPv3 device access | Carry-forward | Open | No | none | Owner decision on creation, location, rotation and repository exclusion recorded with its date; procedure documented and verified by a scan of tracked files and history; [detail](#m15---secret-material-management-for-snmpv3-device-access) |
-| M16 | Failure path of the servicing loop: entry and test | Carry-forward | Open | No | none | Owner decision to start the analysis (or to retire the row) recorded with its date; then the analysis recorded of which failures can reach the failure handler of the servicing loop and how a case enters it without a product test hook, or the row retired by that decision; a case added by the analysis is verified as in the Completion Criteria of the detail; [detail](#m16---failure-path-of-the-servicing-loop-entry-and-test) |
-
-### Backlog Details
-
-The eight rewrite checkpoints and mdBook work are assigned under Milestone.
-
 #### M10 - Negative-control harness outcome classification
 
 Origin: 5dff352 / M10
@@ -1779,63 +1658,6 @@ Superseded Plan Artifacts: none
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | Not run | Linux host, sanitizer products | Pending | none |
-
-##### Closure Evidence
-
-- none
-
-#### M11 - Deferred record verification cells
-
-Origin: 5dff352 / M11
-Identity History: none
-GitHub Issue: none
-Status: Deferred (D13, 2026-10-05)
-
-##### Summary
-
-Record verification cells that M6 planned but D13 moved out of M6 on 2026-10-05, so that M6 can close on the executed cells. They are not executed and the record support does not claim them.
-
-##### Scope
-
-- Channel Access variants: signed-minimum int64 access for int64in/int64out (M6 T2, T4), maximum-capacity lsi/lso `VAL$` access (M6 T3) and ao/longout writes over Channel Access (M6 T4).
-- Long active client writes of M6 T7 as that row names them; their definition is fixed when the work starts.
-- The mode change of a delayed output simulation (M6 T8).
-- Isolated rebuild or reuse beyond the D7 clause that the `rebuild` case closes, including delayed or abandoned queued completions, lsi/lso pointer-backed buffers and retained maximum-capacity payloads (M6 T12).
-
-Out of scope: every other M6 cell, which D13 executes under M6.
-
-##### Completion Criteria
-
-- Each cell above has a real-path receipt on identified ordinary and instrumented products, or an owner decision retires it with its date.
-
-##### Dependencies And Decisions
-
-- D13 (2026-10-05) defers these cells and excludes them from the M6 Completion Criteria and Test Plan.
-
-##### Implementation Plan
-
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
-Superseded Plan Artifacts: none
-
-1. Define each cell against the shipped record, Channel Access and agent fixtures and name its failing check.
-
-##### Test Plan
-
-| Label | Layer | Method | Environment | Expected Result |
-| --- | --- | --- | --- | --- |
-| T1 | Channel Access | Run the signed-minimum, maximum-capacity and ao/longout cells through the production IOC and Base Channel Access clients | Linux host, ordinary and instrumented products | Values and alarms match the M6 conversion rules |
-| T2 | Active writes and simulation | Run the long active client writes and the delayed output-simulation mode change against a delayed SET | Linux host, ordinary and instrumented products | Completion, alarms and ownership match the M6 policy cells |
-| T3 | Isolated rebuild | Rebuild isolated databases with delayed or abandoned completions, lsi/lso buffers and maximum-capacity payloads | Linux host, ordinary and instrumented products | No post-detach access; ownership released as in the `rebuild` case |
-
-##### Verification Results
-
-| Label | Observed At | Environment | Result | Evidence |
-| --- | --- | --- | --- | --- |
-| T1 | Not run | Linux host, ordinary and instrumented products | Deferred | none |
-| T2 | Not run | Linux host, ordinary and instrumented products | Deferred | none |
-| T3 | Not run | Linux host, ordinary and instrumented products | Deferred | none |
 
 ##### Closure Evidence
 
@@ -2233,6 +2055,195 @@ Superseded Plan Artifacts: none
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | Not run | Linux host | Pending | The code review of M14 case A10 (2026-10-11) found the handler correct if reached |
+
+##### Closure Evidence
+
+- none
+
+#### G1 - R6 Authorization
+
+Origin: 5dff352 / G1
+GitHub Issue: none associated with this register
+Status: Complete
+
+##### Summary
+
+The detailed R6 record/conversion/completion/test plan was accepted and separately authorized for implementation on 2026-10-01. This gate applies only to M6 and does not establish product verification.
+
+##### Completion Criteria
+
+- D5/D6 record the accepted IEEE ao-to-OpaqueFloat rounding and all other precision/capacity error-rejection policies. Record acceptance of the identified current M6 plan and separate implementation authorization with their decision dates and exact scope.
+
+##### Verification Results
+
+| Observed At | Result | Evidence |
+| --- | --- | --- |
+| 2026-10-01 | Complete | Separate plan acceptance and explicit implementation authorization recorded for the reviewed M6 plan; reviewed document SHA256 `cb80ae8c978ad5b06e4ae046ca4ac648f5f29634c13e3e5709c6096f6c77eecb`. |
+
+##### Closure Evidence
+
+- 2026-10-01: M6 plan accepted and separately authorized for implementation; scope is the eleven-record integration, T1-T14 and required documentation. R7-R8, mdBook implementation, installation, equipment operations and Git/remote mutations remain excluded.
+
+#### G2 - R7 Authorization
+
+Origin: 5dff352 / G2
+GitHub Issue: none associated with this register
+Status: Open
+
+##### Summary
+
+The owner must accept the identified M7 migration/comparison plan and authorize its exact target, credentials/consumer handling and permitted equipment actions.
+
+##### Completion Criteria
+
+- Record accepted target/comparator scope and separate implementation/operation authorization; installation and firmware changes remain excluded unless explicitly added.
+
+##### Verification Results
+
+| Observed At | Result | Evidence |
+| --- | --- | --- |
+| 2026-10-01 | Pending | No detailed R7 acceptance or execution authorization is recorded. |
+
+##### Closure Evidence
+
+- none.
+
+#### G3 - R8 Authorization
+
+Origin: 5dff352 / G3
+GitHub Issue: none associated with this register
+Status: Open
+
+##### Summary
+
+The owner must accept M8 environments, real-path matrix, supported instrumentation and resource measurement/acceptance policy, then authorize execution.
+
+##### Completion Criteria
+
+- Record acceptance and separate execution authorization for the identified qualification plan and explicit unavailable-cell/resource dispositions.
+
+##### Verification Results
+
+| Observed At | Result | Evidence |
+| --- | --- | --- |
+| 2026-10-01 | Pending | No detailed R8 acceptance or execution authorization is recorded. |
+
+##### Closure Evidence
+
+- none.
+
+#### G4 - mdBook Authorization
+
+Origin: 5dff352 / G4
+GitHub Issue: none associated with this register
+Status: Open
+
+##### Summary
+
+The owner assigned mdBook work on 2026-10-01 and chose the in-place layout and page organization on 2026-10-10 (D14). The toolchain, build, publication boundary, plan acceptance and implementation authorization remain pending; assignment does not authorize publication.
+
+##### Completion Criteria
+
+- Record acceptance and separate implementation authorization for the identified M9 plan. Any hosting/publication decision names its scope separately.
+
+##### Verification Results
+
+| Observed At | Result | Evidence |
+| --- | --- | --- |
+| 2026-10-01 | Pending | mdBook milestone assignment is recorded; no detailed-plan acceptance or implementation/publication authority is recorded. |
+
+##### Closure Evidence
+
+- none.
+
+#### G5 - D7-D9 Revision Authorization
+
+Origin: 5dff352 / G5
+GitHub Issue: none associated with this register
+Status: Complete
+
+##### Summary
+
+The D7-D9 revisions of the M5 and M6 Implementation Plans (2026-10-03) needed owner acceptance and separate implementation authorization before M5 steps 4-6, M6 steps 7-8 or any remaining M6 T1-T14 work proceeded; both were recorded on 2026-10-03. This gate does not establish product verification.
+
+##### Completion Criteria
+
+- Record acceptance of the revised M5 and M6 plans and separate implementation authorization with their decision dates, exact scope and the commit that carries the accepted text, in this gate and in each plan's `Plan Acceptance` and `Implementation Authorization` fields.
+
+##### Verification Results
+
+| Observed At | Result | Evidence |
+| --- | --- | --- |
+| 2026-10-03 | Complete | Owner acceptance of the revised M5 and M6 plans and separate implementation authorization; accepted text carried by `c065755d7677e168c6fadae560012b7d9b1dfc47`. |
+
+##### Closure Evidence
+
+- 2026-10-03: revised M5 and M6 plans accepted and separately authorized for implementation; scope is M5 steps 4-6 with T1-T7 and M6 steps 7-8 with the remaining T1-T14 qualification. R7-R8, mdBook implementation, installation, equipment operations and Git/remote mutations remain excluded.
+
+## Backlog
+
+### Work
+
+| ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| M11 | Deferred record verification cells | Carry-forward | Deferred | No | D13 | Deferred by D13 on 2026-10-05; the cells run when the owner asks for Channel Access, long-write, delayed-simulation or rebuild/reuse record verification; [detail](#m11---deferred-record-verification-cells) |
+
+### Backlog Details
+
+The eight rewrite checkpoints and mdBook work are assigned under Milestone.
+
+#### M11 - Deferred record verification cells
+
+Origin: 5dff352 / M11
+Identity History: none
+GitHub Issue: none
+Status: Deferred (D13, 2026-10-05)
+
+##### Summary
+
+Record verification cells that M6 planned but D13 moved out of M6 on 2026-10-05, so that M6 can close on the executed cells. They are not executed and the record support does not claim them.
+
+##### Scope
+
+- Channel Access variants: signed-minimum int64 access for int64in/int64out (M6 T2, T4), maximum-capacity lsi/lso `VAL$` access (M6 T3) and ao/longout writes over Channel Access (M6 T4).
+- Long active client writes of M6 T7 as that row names them; their definition is fixed when the work starts.
+- The mode change of a delayed output simulation (M6 T8).
+- Isolated rebuild or reuse beyond the D7 clause that the `rebuild` case closes, including delayed or abandoned queued completions, lsi/lso pointer-backed buffers and retained maximum-capacity payloads (M6 T12).
+
+Out of scope: every other M6 cell, which D13 executes under M6.
+
+##### Completion Criteria
+
+- Each cell above has a real-path receipt on identified ordinary and instrumented products, or an owner decision retires it with its date.
+
+##### Dependencies And Decisions
+
+- D13 (2026-10-05) defers these cells and excludes them from the M6 Completion Criteria and Test Plan.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Define each cell against the shipped record, Channel Access and agent fixtures and name its failing check.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Channel Access | Run the signed-minimum, maximum-capacity and ao/longout cells through the production IOC and Base Channel Access clients | Linux host, ordinary and instrumented products | Values and alarms match the M6 conversion rules |
+| T2 | Active writes and simulation | Run the long active client writes and the delayed output-simulation mode change against a delayed SET | Linux host, ordinary and instrumented products | Completion, alarms and ownership match the M6 policy cells |
+| T3 | Isolated rebuild | Rebuild isolated databases with delayed or abandoned completions, lsi/lso buffers and maximum-capacity payloads | Linux host, ordinary and instrumented products | No post-detach access; ownership released as in the `rebuild` case |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Linux host, ordinary and instrumented products | Deferred | none |
+| T2 | Not run | Linux host, ordinary and instrumented products | Deferred | none |
+| T3 | Not run | Linux host, ordinary and instrumented products | Deferred | none |
 
 ##### Closure Evidence
 
