@@ -9,7 +9,7 @@ Remote tracker: none associated with this register
 Recorded date: 2026-10-01
 Source baseline: `5dff352b9e86abfca74a74c4adc4fc8c1e48079f`
 
-Next session entry point: `docs/milestone-5dff352.md`. Ready rows: M7 (APC migration and comparison; G2 Complete on 2026-10-14, target scope D22, equipment runs need the owner go each time) and M9 (mdBook documentation; G4 Complete on 2026-10-14, publication not authorized). M14 (grouped record requests and wake on readiness) is In progress: Stage A and Stage B code steps SB0 to SB3 are done and the fixture results are recorded; the device baseline of step 2 needs the owner go for equipment with a person present, then the decision on the hold constants (D18). M8 (integrated five-OS qualification) is Not started and waits for M7; its preparation (the resource sampler and the five VMs from the cloud-provision session, D20) is authorized. M10, M12, M13 and M15 are Open and need owner decisions; M11 is Deferred in the Backlog. Equipment operation and git commits need their own authorization; no memory or handoff is authorized by this record.
+Next session entry point: `docs/milestone-5dff352.md`. Ready row: M7 (APC migration and comparison; G2 Complete on 2026-10-14, target scope D22, equipment runs need the owner go each time). M9 (mdBook documentation) is In progress: the book builds with 311 links resolved, the owner reviews the pages, and publication is not authorized. M14 (grouped record requests and wake on readiness) is In progress: Stage A and Stage B code steps SB0 to SB3 are done and the fixture results are recorded; the device baseline of step 2 needs the owner go for equipment with a person present, then the decision on the hold constants (D18). M8 (integrated five-OS qualification) is Not started and waits for M7; its preparation (the resource sampler and the five VMs from the cloud-provision session, D20) is authorized. M10, M12, M13 and M15 are Open and need owner decisions; M11 is Deferred in the Backlog. Equipment operation and git commits need their own authorization; no memory or handoff is authorized by this record.
 
 ## Scope
 
@@ -47,7 +47,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | M6 | R6: record DSET, conversion, completion and FLNK | Milestone | Complete | No | M1, M2, M3, M4, M5, D5, D6, D7, D8, D11, D12, D13, G1, G5 | Required real-path verification and capability landed at ade4c58; D13/M11 exclusions and dated limits retained; [detail](#m6---r6-record-integration) |
 | M7 | R7: APC startup/DB migration and comparison | Milestone | Not started | Yes | M6, D1, G2 | Actual v2c/v3, CA/PVA, comparator and nested startup error observations; [detail](#m7---r7-apc-migration-and-comparison) |
 | M8 | R8: integrated five-OS and resource qualification | Milestone | Not started | No | M6, M7, G3 | Full identified-source matrix and measured resource acceptance; [detail](#m8---r8-integrated-qualification) |
-| M9 | mdBook documentation | Milestone | Not started | Yes | M1, M2, M3, M4, M5, D4, D14, D19, G4 | Curated book builds and rendered navigation/links match current behavior; [detail](#m9---mdbook-documentation) |
+| M9 | mdBook documentation | Milestone | In progress | No | M1, M2, M3, M4, M5, D4, D14, D19, G4 | Curated book builds and rendered navigation/links match current behavior; [detail](#m9---mdbook-documentation) |
 | M10 | Negative-control harness outcome classification | Carry-forward | Open | No | none | Owner scope decision recorded and each listed outcome either classified by an executed run or kept by decision; [detail](#m10---negative-control-harness-outcome-classification) |
 | M12 | Stop duration with a blocked callback queue | Carry-forward | Open | No | none | Owner decision on whether the stop bound and the record drain budget may overlap or skip waits that cannot progress, recorded with its date; then the change verified by the `stop-enqueue-failed` case or the observation kept by decision; [detail](#m12---stop-duration-with-a-blocked-callback-queue) |
 | M13 | PowerNet-MIB 4.6.0 review for the AP8932 database | Carry-forward | Open | No | none | Owner decision to adopt 4.6.0 or keep 4.4.6 recorded with its date, and any `rPDU2Adv*` scope decided; adoption verified by regeneration and a new run of the database's integration test; [detail](#m13---powernet-mib-460-review-for-the-ap8932-database) |
@@ -1540,7 +1540,7 @@ Superseded Plan Artifacts: none
 Origin: 5dff352 / M9
 Identity History: none
 GitHub Issue: none associated with this register
-Status: Not started (G4 Complete on 2026-10-14)
+Status: In progress (G4 Complete on 2026-10-14; book sources, build and link check done 2026-10-16; the owner review of the pages is open)
 
 ##### Summary
 
@@ -1577,6 +1577,19 @@ Superseded Plan Artifacts: none
 
 Toolchain and non-Markdown files are fixed by D19. The inspected epics-ioc-runner example uses root `book.toml`, `src = "docs"`, `docs/SUMMARY.md`, `public/` output and a container-based documentation workflow. The inspected epicsarchiverap-maven example uses `docs/book/book.toml`, dedicated `docs/book/src/SUMMARY.md`, a version/checksum-pinned Dockerfile and a Pages workflow using that same image. These are alternative planning inputs; neither layout nor its tool versions is selected for snmp3 by this record.
 
+##### Progress
+
+2026-10-16, owner direction to complete the plan including page splits and procedure rewrites ("2", "진행해"), after a read of every reference of the `technical-writing` and `markdown-authoring` skills:
+
+- Book files: `book.toml`, `docs/SUMMARY.md`, `docs/introduction.md`, `docs/glossary.md`, `docs/book-build.md` (the local build and the post-build removal of the files that no page links to) and `docs/book-automation-proposal.md` (the proposal; not in the navigation, nothing implemented or published). `/public/` is excluded from tracking.
+- Pages split by type at new locations: worker supervision (concept), `snmp-worker-reference.md`, `snmp-worker-verification.md`; contract (reference) and `snmp-record-behavior.md`; native transport (concept), `snmp-native-reference.md`, `snmp-native-verification.md`; performance evaluation (concept), `snmp-performance/results.md`, `test-reference.md`, `sizing-procedure.md`; the former test procedure became three procedures (`test-procedure.md`, `fixture-procedure.md`, `module-database-procedure.md`). Splitting the native transport page and the sizing and build procedures goes beyond the list the owner approved on 2026-10-16 and is reported for review.
+- Sentences under 40 words, `may`, `should` and history words removed, abbreviations defined per page, headings in sentence case of 3 to 11 words, Scope and Out of scope on each page. The ADR files keep their record template and gain an abbreviation line. The worker ADR gains the amendment of 2026-10-10 for declared groups (D15, D16).
+- Repository links point to the current branch `feature/snmp-base-7.0.10-rewrite` (owner decision 2026-10-16, "현재기준, 병합시 교체"); replace the branch name in the blob URLs when the branch is merged. `tests/rewrite/README.md` links to the two new worker pages.
+- The evaluation page said the module cannot form grouped requests and listed 10 ms waits as current limits. It now labels these as limits of the measured build (commit `03e7af45`) and states that the current code has declared groups and readiness waits; the device tables do not yet measure the current build.
+- Added 2026-10-16 on owner direction ("추가해"): `configure-procedure.md` and `start-ioc-procedure.md`, the two procedures of the accepted chapter list. The shipped startup file and example configuration were run; the report lines in both pages are the observed output.
+- Second-person pass of 2026-10-16 on the procedure pages: 2 must-fix (configure report lines, module result keys) and 1 minor (repository root) found and fixed. Second pass from the module developer seat: 1 must-fix (the architecture page named `ca` among the libraries of `snmp3Ioc`; the binary does not need it) fixed; constants, timers, commands and alarm mapping of the reference pages matched the code. Third pass from the first-time IOC engineer seat: 3 minor (reader path to the procedures, a complete record example, glossary entry for the retire grace) fixed.
+- Open: the device commands of the performance procedures were not rerun in this step; they ran in the recorded device sessions. The link checker is a local helper under `work/` and is not tracked.
+
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
@@ -1589,9 +1602,9 @@ Toolchain and non-Markdown files are fixed by D19. The inspected epics-ioc-runne
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | snmp3 book/toolchain not selected | Pending | Existing example builds do not qualify snmp3. |
-| T2 | Not run | No generated snmp3 book | Pending | none |
-| T3 | Not run | No snmp3 book chapters selected | Pending | Existing product receipts do not establish a book verification. |
+| T1 | 2026-10-16 | Image `jeonghanlee/mdbook:0.5.4`, repository sources of this working tree | Pass | `mdbook build` exits 0 with no warning; the post-build removal leaves no non-HTML file under the two page directories. |
+| T2 | 2026-10-16 | Output of T1 | Pass | 311 internal links and their anchors resolve, 0 broken (local helper `work/m9-check.py`, not tracked). Navigation lists 27 pages from `SUMMARY.md`. |
+| T3 | 2026-10-16 | Debian 13, EPICS Base 7.0.10, current working tree | Partial | Executed and PASS as shown: worker verification (6 runs: components, IOC supervisor, qualification, operator, sanitizer build, two sanitizer runs), native verification (preflight, adapter, adapter with sanitizers, config regression), fixture commands (steps 3 to 9 of `fixture-procedure.md`). The device commands were not rerun. |
 
 ##### Closure Evidence
 
