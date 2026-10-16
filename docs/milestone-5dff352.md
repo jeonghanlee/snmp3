@@ -1471,6 +1471,8 @@ Independent implementation review 1 is PASS with zero unresolved findings. Repor
 
 Evidence identities: build receipt SHA256 `3a082f6c0f791facb731ccba39b3af39046e3d12a493efa2cf01a08fe7e61604`; final result SHA256 `2a4a2f139dc042098a3307ffe27b13be2de8fb3c4220721891a7d3aa1396d353`.
 
+Re-run of the local AP8932 subset on 2026-10-15 with the current module, without equipment: snmp3 commit `106599c` (the installed `libsnmp3.so`, sha256 prefix `41b4cc78`, is built from the product sources that carry declared-group dispatch) and the same apcpdu commit `54345c7`, taken through a local clone checked out at that commit (the sibling working tree was not read or changed). `python3 tests/rewrite/build_apcpdu.py --apcpdu <clone at 54345c7> --base <installed-base> --pvxs <installed-pvxs> --output work/m7-build-01` built the application (400 public records, 178 bindings, 100 group fields, as before), and `python3 tests/rewrite/test_apcpdu.py --ioc work/m7-build-01 --output work/m7-test-01` exited 0 with 252 of 252 checks PASS in 24 s on loopback only. The bindings of this IOC carry no group label, so grouped dispatch is not exercised: the run shows that the scheduler and supervisor changes since 2026-10-09 leave this path unchanged, and it does not qualify a grouped APC configuration. The worker executable is not hashed in the receipt; its cleanup checks passed. Evidence: `<local>/m7-build-01` and `<local>/m7-test-01`.
+
 ##### Closure Evidence
 
 - none.
