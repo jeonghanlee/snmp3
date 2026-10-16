@@ -5,6 +5,7 @@ Status: accepted for the verified R4 component boundary
 Source Session: standalone work in `~/gitsrc/snmp3`
 Source Decisions: User-approved `<local>/plan-r4-20260930.md`, SHA256 `6a707681a94607ad520f3d14de99989e7802232b7d28c5a7d6c915789ec8e14a`; R4.1-R4.5
 Note: `<local>/...` names a directory retained outside the repository, not tracked.
+Abbreviations: ADR (architecture decision record), USM (user-based security model), IOC (input/output controller), IPC (inter-process communication), ASan and UBSan (address and undefined behavior sanitizers), SHA256 (secure hash algorithm, 256 bits), FD (file descriptor), UDP (user datagram protocol), OID (object identifier), PDU (protocol data unit), EPICS (Experimental Physics and Industrial Control System), SNMP GET and SET (read and write operations).
 
 ## Scope
 
@@ -19,7 +20,7 @@ Native sessions must preserve these identities and return owned response data
 without exposing record pointers. Net-SNMP's single-session APIs isolate opaque
 session handles, but USM user/key state remains shared within a native process.
 Authenticated open can register security material; checking compatibility only
-after that call cannot protect a previously associated tuple.
+after that call cannot protect a tuple that is already associated.
 
 Native callbacks borrow PDU storage and can run synchronously during failed
 send or pending close. Native retry/REPORT behavior and large-FD/deadline service
@@ -71,7 +72,7 @@ material. Credential replacement requires a new process. Secrets and derived
 keys remain private owned memory; locked memory and complete zeroization are
 not guaranteed. Identity/events report no secret-derived fingerprint.
 
-Native discovery/open may block. Production containment and worker restart
+Native discovery and open can block. Production containment and worker restart
 policy require later integration. Local in-flight maps and diagnostic events
 are not a bounded address queue or resource qualification. Event consumers
 must retrieve accumulated events. Worker destruction inside its own completion
@@ -101,11 +102,17 @@ ownership. Fixed FD sets cannot safely service sockets above FD_SETSIZE.
 
 `tests/rewrite/test_native.py` uses shipped products, real native libraries, a
 separate native agent and an external UDP fault process. Direct preflight checks
-native ownership/callback/discovery sequencing; adapter executions separately
-check all advertised algorithms, versions/security levels, engine/context
-identity, credential conflicts in both orders, compatible close/reopen/pending
-peers, native retries, typed ownership, large FD/EINTR, native failures and
-same-engine timeliness recovery after an actual agent restart.
+native ownership, callback, and discovery sequencing. Adapter executions
+separately check these cases:
+
+- all advertised algorithms, versions, and security levels
+- engine and context identity
+- credential conflicts in both orders
+- compatible close, reopen, and pending peers
+- native retries and typed ownership
+- large FD and EINTR handling
+- native failures
+- same-engine timeliness recovery after an actual agent restart
 
 Separate ASan/UBSan products instrument the new native library/helper/drivers
 and fixtures. Dependencies remain uninstrumented and leak detection is disabled.

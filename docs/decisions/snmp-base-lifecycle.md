@@ -6,6 +6,7 @@ Source Session: `<local>/review_sessions/20260923_104501_snmp-architecture`
 Source Decisions: conv20260930_002546 Decisions; plan20260930_001514 R2.1-R2.2
 Scope: idle-thread lifecycle checkpoint only
 Note: `<local>/...` names a directory retained outside the repository, not tracked.
+Abbreviations: ADR (architecture decision record), EPICS (Experimental Physics and Industrial Control System), IOC (input/output controller), PINI (process at initialization), FLNK (forward link).
 
 ## Context
 
@@ -30,8 +31,8 @@ Runtime storage deliberately lasts until process exit. Admission permission
 is not an implemented queue. This decision qualifies idle-thread lifecycle
 only. In-flight request and callback drain, shutdown FLNK, retained callback
 storage and native-session/process shutdown remain later integration gates.
-The known Base callback-queue limitation remains unresolved; no installed
-Base modification or callback-bearing acceptance follows from this decision.
+The known Base callback-queue limitation remains unresolved. No installed
+Base modification and no callback-bearing acceptance follows from this decision.
 
 ## Alternatives Considered
 
@@ -41,7 +42,7 @@ selected event-based readiness and exactly-once join requirements.
 
 A process-exit fallback alone cannot establish module stop before Base
 callback shutdown: exitDatabase runs before the earlier module fallback.
-The early AtShutdown hook establishes that ordering; the later fallback
+The early AtShutdown hook establishes that ordering. The later fallback
 covers cold registration and repeated cleanup without a second join.
 
 ## Verification Or Enforcement

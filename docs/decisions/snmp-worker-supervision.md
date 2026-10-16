@@ -3,6 +3,7 @@
 Date: 2026-10-01
 Amended: 2026-10-03 (per-handle generations behind retirement; containment of answered requests;
 register decisions D7 and D9 and gate G5 in `docs/milestone-5dff352.md`)
+Amended: 2026-10-10 (declared groups; register decisions D15 and D16 relax the equal-deadline rule for the members of one declared group)
 Status: accepted for the verified R5 component and IOC supervision boundary
 Source Session: standalone author work in `~/gitsrc/snmp3`
 Source Decisions: User-approved `<local>/plan-r5-20260930-02.md`, SHA256
@@ -10,6 +11,7 @@ Source Decisions: User-approved `<local>/plan-r5-20260930-02.md`, SHA256
 `<local>/contract-r5-20260930-02.md`, SHA256
 `3b3d2f1a846a8870d283bfbcf57bc6aa44ea6d755e2147ff1e36107cae83798b`.
 Note: `<local>/...` names a directory retained outside the repository, not tracked.
+Abbreviations: IOC (input/output controller), FIFO (first in, first out), IPC (inter-process communication), PID (process identifier), SHA256 (secure hash algorithm, 256 bits), USM (user-based security model), UDP (user datagram protocol), ASan and UBSan (address and undefined behavior sanitizers), RSS (resident set size), DSET (device support entry table), FLNK (forward link), PACT (process-active flag), PV (process variable).
 
 ## Context
 
@@ -17,10 +19,12 @@ Native discovery/open can block. Device slowness or native failure must not stal
 the IOC or another address. Accepted requests own bounded data and must have
 admission-based deadlines. Consumption can precede actual native unwind, while
 native retirement can precede consumption; either condition alone is insufficient
-to release storage. Missing SET acknowledgement does not establish no side effect. Retirement
-trails a terminal by the write of one frame (the worker sends Retired in the same pass
-as Result, once Result is fully written), so a Base reprocess requested by a put during that interval meets a
-handle that still holds its previous generation.
+to release storage. Missing SET acknowledgement does not establish no side effect.
+
+Retirement trails a terminal by the write of one frame. The worker sends Retired
+in the same pass as Result, once Result is fully written. A Base reprocess
+requested by a put during that interval therefore meets a handle that holds its
+previous generation.
 
 ## Decision
 
@@ -37,7 +41,8 @@ fails its address rather than scanning for a guessed boundary.
 
 Admit atomically against count and full Q, then dispatch the contiguous FIFO
 prefix with exactly equal absolute deadlines, session and operation. Never round
-deadlines. Retain one count/full Q per generation until unique terminal consumption
+deadlines. Declared groups change this rule for their members only; see the
+paragraph on declared groups below. Retain one count/full Q per generation until unique terminal consumption
 AND matching actual retirement or closed-channel/exact old PID reap. No early
 reservation transfer or extra uncharged completion queue is allowed.
 
@@ -57,16 +62,25 @@ of protocol retries and process-pinned USM compatibility.
 Contain expired/failed workers locally, retain the dispatch slot through native
 unwind or reap, and restart with a new epoch only after old PID wait. A member
 already selected Complete or NativeFailure triggers containment only when its
-Retired frame is still missing 1000 ms after its deadline, and a matched Retired
-frame resets the address's consecutive failure count. Apply the
+Retired frame is missing 1000 ms after its deadline. A matched Retired
+frame resets the consecutive failure count of the address. Apply the
 fixed backoff/rate and address fairness rules. Request-level security conflicts
 do not restart healthy workers to change pinned material.
 
 Use AfterFinishDevSup readiness before initial Base processing and AtShutdown
 admission/dispatch closure with one join before callback services stop. Retain
 unsettled ownership in IncompleteStopped after join and reconcile nonblockingly
-before reuse. Exact wire, charge, numeric policy and operator contracts are in
-the [worker reference](../snmp-worker-supervision.md).
+before reuse.
+
+Declared groups (register decisions D15 and D16, 2026-10-10) change one rule.
+The contiguous queue-front members of one declared group batch whatever their
+deadlines and share the earliest one. The scheduler holds such a group for at
+most 2 ms. Ungrouped bindings, and a group of one, keep the exact equal-deadline
+rule.
+
+The [worker reference](../snmp-worker-reference.md) lists the exact wire, charge,
+numeric policy, and operator contracts. The [supervision page](../snmp-worker-supervision.md)
+explains the ownership rules.
 
 ## Consequences
 
@@ -93,12 +107,13 @@ bounded framing supports partial writes without enlarging accepted reservations.
 Keeping the rejection of a put during retirement would leave the record in an
 alarm state and report a put callback as successful although the latest value
 was never sent. Delivering record completion only after native retirement would
-still reject the reprocess after a Deadline completion and would need an
+reject the reprocess after a Deadline completion and would need an
 exemption for Stopping. Keeping PACT set and retrying admission from module
 servicing would add a PACT state with no owner, which breaks drain and deadline
 rules. Parallel native batches per address would complicate FIFO/expiry/native unwind.
 Batching different deadlines would require cancellation that the actual native
-API does not provide. Releasing Q at consumption would leave live worker/native
+API does not provide. A declared group avoids this by giving every member the
+earliest deadline of the request. Releasing Q at consumption would leave live worker/native
 copies uncharged. Replaying after missing acknowledgement can duplicate SET
 side effects. These alternatives do not satisfy the selected ownership contract.
 
@@ -116,7 +131,7 @@ Separate ASan/UBSan products instrument new R5 code, retain worker stderr and
 identify every selected product/library. Dependencies remain uninstrumented,
 leak detection is disabled, and missing observations block acceptance. Full
 current R1-R4 regressions and third-person implementation/second-person operator
-review qualify this boundary. The [verification sequence](../../tests/rewrite/README.md)
+review qualify this boundary. The [verification sequence](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/tests/rewrite/README.md)
 defines current runners and source/product/library identity checks. Historical receipts do not
 qualify changed hashes; dependency instrumentation and record integration remain
 outside this acceptance.

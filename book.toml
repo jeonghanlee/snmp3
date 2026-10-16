@@ -1,0 +1,15 @@
+# https://rust-lang.github.io/mdBook/format/configuration/general.html
+[book]
+title = "snmp3"
+description = "SNMP support for EPICS IOCs: configuration, record support, worker supervision and verification"
+authors = ["Jeong Han Lee"]
+src = "docs"
+language = "en"
+
+[build]
+build-dir = "public"
+create-missing = false
+
+[output.html]
+git-repository-url = "https://github.com/jeonghanlee/snmp3"
+git-repository-icon = "fab-github"

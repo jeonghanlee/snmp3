@@ -1,57 +1,26 @@
 # Startup configuration reference
 
-The independent module loads complete JSON definitions before binding or IOC
-initialization. This reference describes schema 1, file validation, commands,
-and the ownership boundary.
+The module loads complete JSON definitions before any binding or IOC initialization. This reference lists the schema 1 fields, the file validation rules, the commands, and the ownership boundary.
 
-## Scope and runtime boundary
+## Scope
 
-Configuration, immutable bindings, owned values, native capability observation,
-address queues, private IPC and supervised native workers are implemented.
-Eleven record DSETs and checked conversion are available through the owned
-worker path. Loading configuration and device initialization
-perform no request; iocInit starts configured workers, and record/component
-admission sends application GET/SET. Records select an existing JSON definition
-with `DTYP="snmp3"` and `@binding=<id> deadline_ms=<1..600000>` on INP/OUT.
-Both keys are mandatory and frozen at initialization. The
-[record contract](snmp-rewrite-contract.md#record-support-contract)
-defines supported records, conversion and live-field behavior. See the
-[worker reference](snmp-worker-supervision.md) for queue and lifecycle ownership.
+This page covers the startup configuration of the module: the JSON schema, the secret files, the native capability helper, the publication and freeze conditions, and the IOC commands that load and report the configuration.
 
-The `deadline_ms` budget covers queueing, worker relaunch, IPC and native
-service from the admission of each request, and a request queued behind another
-keeps the deadline of its own admission. A request ends at the earlier of its
-native outcome and its deadline: the native service time of a lost response is
-set by the profile's `timeoutMs` and `retries`, and a `deadline_ms` below it ends
-the request as a Deadline instead of a native timeout.
+**Out of scope:** the behavior of a record request over time (see [Record request behavior](snmp-record-behavior.md)); the record types and alarms (see [Module contract and record support](snmp-rewrite-contract.md)); the queue limits and timers (see [Worker commands, limits and timers](snmp-worker-reference.md)).
 
-Also allow for the time a worker needs to come back after a lost request. After
-a Deadline or worker loss the address worker is contained, reaped and relaunched,
-and a request queued behind the lost one is dispatched only if its own budget
-lasts until the new worker is Ready. For a production (ordinary) build that time
-is about 0.4 s (362 to 403 ms over the recorded runs), including the first 250 ms
-restart backoff step; an instrumented (ASan/UBSan qualification) build needs about
-0.7 s (710 to 745 ms); a worker that does not react to its closed channel needs
-about 1.8 s on an ordinary build and longer on an instrumented one. Each further consecutive
-failure, without a matching Retired frame in between, lengthens the backoff to
-500, 1000, 2000 and then 4000 ms (see the
-[worker reference](snmp-worker-supervision.md)), so a budget must also cover the
-backoff step in effect. In the measurement, a budget of 1000 ms dispatched the
-queued request in each of three runs of the deadline-queue case on both build
-types, covering only the first backoff step and leaving about 260 ms to spare on
-instrumented builds. A smaller budget lets the queued request expire unsent, which
-the record reports as COMM/INVALID with AMSG `deadline before send`.
+Abbreviations on this page: IOC is the input/output controller, the process of the Experimental Physics and Industrial Control System (EPICS) that runs the records. DSET is the device support entry table of a record type. INP and OUT are the input and output link fields of a record. PINI is the process-at-initialization field. JSON is the JavaScript Object Notation, and YAJL is the Yet Another JSON Library that EPICS Base bundles. UTF-8 is the 8-bit Unicode transformation format. USM is the user-based security model of SNMPv3. SNMP is the Simple Network Management Protocol. GET and SET are its read and write operations.
 
-A plain put to a Passive record, or a write to PROC, made while a request is
-pending is held as RPRO and reaches the device after that request ends, up to
-about twice the budget after the put when the request ends in a Deadline. A
-Channel Access put-callback is held by Base until the record completes, then
-sends its own request, so a single put-callback completes within the same bound
-and each further put-callback queued on the same record adds up to one budget;
-read the outcome from the record's STAT, SEVR and AMSG fields. The measurements
-are in the [record contract](snmp-rewrite-contract.md#deadline-path). Queue limits
-must cover two generations of each record handle that can hold a successor; the
-[worker reference](snmp-worker-supervision.md) gives the sizing rule.
+## Runtime boundary of the configuration
+
+The module implements configuration, immutable bindings, owned values, native capability observation, address queues, private inter-process communication (IPC), and supervised native workers. Eleven record DSETs and checked conversion are available through the owned worker path.
+
+Loading the configuration and initializing a device perform no request. The `iocInit` command starts the configured workers. Record and component admission send the application GET and SET requests.
+
+A record selects an existing JSON definition with `DTYP="snmp3"` and `@binding=<id> deadline_ms=<1..600000>` on INP or OUT. Both keys are mandatory and frozen at initialization.
+
+The `deadline_ms` budget covers queueing, worker relaunch, IPC, and native service from the admission of each request. A request queued behind another keeps the deadline of its own admission. The profile fields `timeoutMs` and `retries` set the native service time of a lost response.
+
+Choose `deadline_ms` with the recovery time of a worker in mind. [Record request behavior](snmp-record-behavior.md#recovery-time-after-a-deadline) lists the measured relaunch times and the effect of a put on a pending record. Queue limits must cover two generations of each record handle that can hold a successor. The [charge formulas](snmp-worker-reference.md#charge-formulas-for-a-request) give the sizing rule.
 
 ## Strict JSON and root fields
 
@@ -255,7 +224,7 @@ the DSET performs no request until actual record processing.
 | `snmp3Load(config, nativeProbe)` | Whole-file load or IOC shell error |
 | `snmp3ConfigReport` | Revision, frozen flag, and definition counts |
 | `snmp3Report` | `owned-worker-transport; recordSupport=available` capability |
-| `snmp3RuntimeReport` | Lifecycle, pending reservation, worker state/counters and the servicing-loop pass count (`snmp3 loop:`; fields in Runtime report lines of `snmp-worker-supervision.md`) |
+| `snmp3RuntimeReport` | Lifecycle, pending reservation, worker state/counters and the servicing-loop pass count (`snmp3 loop:`; fields in [Runtime report lines](snmp-worker-reference.md#runtime-report-lines)) |
 | `snmp3Stop` | Freeze, admission closure, worker containment and one thread join |
 | `snmp3WorkerPath(path)` | Absolute actual worker product before freeze |
 | `snmp3QueueLimit(address,count,bytes)` | Live count 1-16384 and bytes 1-67108864; preserve accepted work |
@@ -276,7 +245,7 @@ that exit status does not make the rejected load successful.
 
 ## Configuration and startup examples
 
-The shipped [v2c example](../tests/rewrite/config/v2c.json) uses a disposable
+The shipped [v2c example](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/tests/rewrite/config/v2c.json) uses a disposable
 community file in its own directory. Supply an existing mode-0600 secret file
 owned by the IOC user. The JSON contains no actual credential:
 
@@ -295,7 +264,7 @@ owned by the IOC user. The JSON contains no actual credential:
 }
 ```
 
-The shipped [startup example](../tests/rewrite/config/startup.cmd) runs from the
+The shipped [startup example](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/tests/rewrite/config/startup.cmd) runs from the
 checkout root. Set `CONFIG_JSON` to the prepared configuration path and
 `NATIVE_PROBE` to the absolute helper path and `WORKER_PATH` to the absolute
 actual worker product through the IOC environment.
@@ -316,5 +285,5 @@ snmp3ConfigReport
 The standard longin PINI fixture processes constant 42. It demonstrates Base
 startup ordering, not SNMP I/O. Reports show revision 1 with one profile,
 endpoint, and binding, changing from unfrozen to frozen before PINI.
-The [verification runner](../tests/rewrite/README.md) executes this exact shipped
+The [verification runner](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/tests/rewrite/README.md) executes this exact shipped
 startup file and JSON example with generated disposable secrets.

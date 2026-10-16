@@ -1,14 +1,16 @@
-# PowerNet-MIB 4.6.0 Review for the AP8932 Database
+# PowerNet-MIB 4.6.0 review for the AP8932 database
 
 Status: static comparison complete; adoption decision open.
-Tracked in `docs/milestone-5dff352.md` (Backlog M13).
+Tracked as work item M13 in the [work register](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/milestone-5dff352.md).
 
 ## Scope
 
-The AP8932 database of the apcpdu repository is generated from PowerNet-MIB 4.4.6. This review
+The AP8932 database of the apcpdu repository is generated from PowerNet-MIB 4.4.6. A management information base (MIB) defines the objects of a device, and an object identifier (OID) names each object. AP8932 is the model of the APC rack power distribution unit (PDU). This review
 compares PowerNet-MIB 4.6.0 against the 4.4.6 file for the objects that database reads (the
 monitoring set `docs/snmp-performance/inputs/ap8932-oids.tsv`: 358 instances of 91 objects). It does
-not regenerate the database, run an IOC, or contact equipment.
+not regenerate the database, run an input/output controller (IOC), or contact equipment.
+
+**Out of scope:** the adoption decision, the behavior of physical hardware, and the findings of the performance measurements (see [Request performance](../snmp-performance/evaluation.md)).
 
 ## Inputs
 
@@ -24,9 +26,9 @@ APC PowerNet MIB download and check that its sha256 equals the value above; its 
 `Version : 4.6.0`. The download page could not be retrieved by the tools used for this review
 (access denied), so the publication date shown there is not confirmed here.
 
-## Method
+## Method of the comparison
 
-`evidence/compare_mib.py` parses both MIB files itself and reads the monitoring set from the TSV.
+`evidence/compare_mib.py` parses both MIB files itself and reads the monitoring set from the tab-separated values (TSV) file.
 For each distinct object it extracts and compares:
 
 - numeric OID (resolved through the parent chain);
@@ -73,20 +75,20 @@ revision history in the 4.6.0 file places them as follows; none was introduced b
 | `rPDU2SensorTempHumidityConfig*` (6 threshold objects added) | 6 | 2026-01-30 entry | Sensor family; outside the database scope |
 | `rPDU2SensorTempHumidityConfig*` (4 objects with changed body) | 4 | HumidityLow/Min pair: v4.5.4 description change; TempHigh C/F pair: no revision note names it | Sensor family; outside the database scope |
 
-The only 4.6.0 entry is `upsHighPrecBatteryStateOfHealth`, a UPS object.
+The only 4.6.0 entry is `upsHighPrecBatteryStateOfHealth`, an object of an uninterruptible power supply (UPS).
 
 The MIB file does not state the minimum PDU firmware that implements the added objects. Objects an
 unsupported model lacks respond with `notSupported` according to their descriptions; the firmware
 requirement must come from the PDU firmware release notes or from the device.
 
-## Limits
+## Limits of the comparison
 
 - The comparison is static text and OID resolution of two files, by the comparison tool's own parser.
 - The database was not regenerated from 4.6.0, and its integration test was not run against it; the
   passing integration result applies to 4.4.6 only.
 - Behavior of physical AP8932 hardware and firmware is not covered.
 
-## Open items
+## Open items for the owner
 
 1. Decide whether the database adopts 4.6.0 or keeps 4.4.6. Adoption changes the retained MIB, its
    hash pin, version labels, generated files and the database guide together, and requires

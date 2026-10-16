@@ -57,6 +57,7 @@ O.*/
 # documents
 /documentation/html
 /documentation/*.tag
+/public/
 
 # Others for UI, autosave, and so on
 /QtC-*

@@ -268,7 +268,7 @@ hardware, two-OS or sustained resource qualification.
 
 ## Address Worker Verification
 
-The [worker reference](../../docs/snmp-worker-supervision.md) defines implemented
+The [worker reference](../../docs/snmp-worker-reference.md) defines implemented
 R5 commands, charge/retirement, IPC/timer/storage limits and actual verification
 commands. Build the separate test products before the component/IOC runners:
 
@@ -369,7 +369,7 @@ python3 tests/rewrite/test_records.py --case repeat-detach --output work/r6-repe
 | numeric | record-numeric.db; all 68 advertised numeric GET pairs, including 48 native-tag/waveform-FTVL pairs; all 20 numeric SET pairs; range/precision boundaries, previous data and NORD preservation after valid input, complete Counter64 range, nonfinite input and rejected SET with separate native GET |
 | shutdown | An actual module callback has entered but waits for a held Base record lock; drain expiry closes the gate, shutdown waits for the lease to finish and restart is refused |
 | queued-shutdown | An external callback holds the actual Base queue; a module completion remains queued after gate closure/detach and retains its storage until actual isolated queue cleanup |
-| stop-queued | record-queue.db and actual outer UDP response dropping; a stopped worker leaves a Deadline-selected predecessor retirement-pending while a Base RPRO successor is queued behind it, then `Runtime::stop`, the operation behind `snmp3Stop`, completes the successor once and reaps the predecessor; the `stop_queued` event in `record-observations.json` records the wait rule of the [supervision document](../../docs/snmp-worker-supervision.md) |
+| stop-queued | record-queue.db and actual outer UDP response dropping; a stopped worker leaves a Deadline-selected predecessor retirement-pending while a Base RPRO successor is queued behind it, then `Runtime::stop`, the operation behind `snmp3Stop`, completes the successor once and reaps the predecessor; the `stop_queued` event in `record-observations.json` records the wait rule of the [worker reference](../../docs/snmp-worker-reference.md#the-stop-queued-case) |
 | alarm-flow | records.db and record-output.db; real SETs establish agent values, then each of the six input types completes a valid GET before each of eight external response faults. Checks prior bytes/UDF/LEN/NORD, native-success history, no failed publication, Base FLNK, actual DBE_ALARM subscriptions, native error metadata, competing ai limit/UDF alarms and recovery. |
 | chain-flow | record-chain.db with the existing input/output records; all eleven source types drive actual FLNK observers and a native ai target on success, protocol failure, deadline and duplicate response. Independent IPv4/IPv6 fanout targets reverse response delays. |
 | queued-simm | record-active.db and record-queued-simm.db; five output types switch SIMM while their second SET is actually queued behind retirement, on normal and never-sent Deadline paths. Real GETs distinguish delivered and undelivered payloads; DBE_ALARM metadata observes the changed deadline message. |

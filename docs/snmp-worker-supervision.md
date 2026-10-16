@@ -1,502 +1,123 @@
-# Address worker transport and supervision
+# Address worker supervision
+
+The input/output controller (IOC) accepts owned component requests, schedules each numeric address, supervises one native worker process per address, and returns scheduler-owned terminal results. Net-SNMP runs only in the native worker, so the IOC links no Net-SNMP code.
 
 ## Scope
 
-The Base-only IOC accepts owned component requests, schedules each numeric
-address, supervises a separate native worker and returns scheduler-owned terminal
-results. Net-SNMP runs only in the native worker. This reference covers component
-admission, IPC, accounting, failure containment and IOC lifecycle.
+This page explains how the module admits requests, batches them, hands them to the worker, and contains failures. It covers the ownership rules for requests, terminals, and worker processes.
 
-Record DSET, conversion and completion have accepted real-path evidence
-within the current scope and limitations in the work register. The
-[record contract](snmp-rewrite-contract.md#record-support-contract)
-defines that boundary. The standard foundation longin fixture processes
-constant 42; it is not an
-SNMP record. Hardware acceptance, two-OS, TSan, leaks and sustained RSS checks
-remain separate work. There is no IOC command that sends GET or SET.
+**Out of scope:** commands, limits, timer values, and report fields (see [Worker commands, limits and timers](snmp-worker-reference.md)); the steps that run the verification (see [Verify the worker transport](snmp-worker-verification.md)); the record support contract (see [Module contract and record support](snmp-rewrite-contract.md)). Hardware acceptance, runs on a second operating system, thread sanitizer (TSan) runs, leak checks, and sustained resident set size (RSS) checks are separate work. The module has no IOC command that sends a GET or SET.
+
+Abbreviations on this page: SHA256 is the secure hash algorithm with 256 bits, and SNMP is the Simple Network Management Protocol.
 
 ## Products and data flow
 
+The module builds five products.
+
 | Product | Ownership |
 | --- | --- |
-| `libsnmp3.so` | Config, Runtime, Scheduler, Supervisor, Conversion, Requests and eleven DSETs; Base-only |
-| `libsnmp3Wire.so` | Checked framing, typed values and SHA256; native-free |
-| `snmp3Ioc` | Base shell, generated registration and checked exit |
-| `snmp3NativeProbe` | Callable native catalogue; no device session |
-| `snmp3Worker` | One address, native sessions, callbacks and owned responses |
+| `libsnmp3.so` | Config, Runtime, Scheduler, Supervisor, Conversion, Requests, and eleven device support entry tables (DSETs); EPICS Base only |
+| `libsnmp3Wire.so` | Checked framing, typed values, and SHA256; free of native code |
+| `snmp3Ioc` | Base shell, generated registration, and checked exit |
+| `snmp3NativeProbe` | Callable native catalogue; opens no device session |
+| `snmp3Worker` | One address, native sessions, callbacks, and owned responses |
 
-Component caller -> immutable binding -> atomic scheduler admission -> FIFO
-batch -> private stream IPC -> actual worker -> Native -> Net-SNMP -> owned
-Result -> scheduler terminal consumer. The worker sends Retired after native
-unwind and after destroying its request/result copies. No frame holds a record
-pointer. The servicing thread calls no arbitrary completion consumer.
+A request moves through these owners in order:
 
-Canonical IPv4-mapped IPv6 and its IPv4 address share one worker. Other IPv6
-addresses retain their complete address bytes. Endpoints keep their original
-numeric transport address and port; profiles, engines and contexts retain
-distinct native session identities within the address worker. At most 64
-canonical addresses are allowed per activation.
+1. The component caller creates it from an immutable binding.
+2. The scheduler admits it atomically.
+3. The scheduler places it in a first-in, first-out (FIFO) batch.
+4. The batch crosses a private stream channel for inter-process communication (IPC).
+5. The actual worker receives it and calls the native layer.
+6. The native layer calls Net-SNMP and returns an owned result.
+7. The scheduler terminal consumer takes the result.
 
-## Startup and operator commands
+The worker sends a Retired frame after the native call unwinds and after it destroys its request and result copies. No frame holds a record pointer. The servicing thread calls no arbitrary completion consumer.
 
-Run from the checkout root with the selected existing Base 7.0.10 and Net-SNMP
-development libraries. `configure/RELEASE.local` selects Base; this build does not
-install packages or change the selected Base. Supply complete schema-1 JSON and
-effective-user-owned private secret files as described in the
-[configuration reference](snmp-rewrite-config.md).
+The canonical IPv4-mapped IPv6 form and its IPv4 address share one worker. Other IPv6 addresses keep their complete address bytes. Endpoints keep their original numeric transport address and port. Profiles, engines, and contexts keep distinct native session identities within the address worker. An activation allows at most 64 canonical addresses.
 
-```bash
-make -j4
-```
+## Admission and ownership
 
-For a configured IOC, select the absolute worker path before the first binding,
-iocBuild/iocInit, or stop freezes Config. Repeating the identical path is allowed
-after freeze; changing it is rejected. An empty foundation Config needs no worker.
-The shipped startup file accepts `CONFIG_JSON`, `NATIVE_PROBE` and `WORKER_PATH`
-through the IOC environment. In an IOC shell, this sequence uses prepared
-absolute paths:
+Each consumer registers its own immutable binding. Alias handles for the same definition have separate generation and terminal identities.
 
-```text
-on error break
-dbLoadDatabase("dbd/snmp3Ioc.dbd")
-snmp3Ioc_registerRecordDeviceDriver(pdbbase)
-snmp3Load("/absolute/config.json", "/absolute/snmp3NativeProbe")
-snmp3WorkerPath("/absolute/snmp3Worker")
-snmp3QueueLimit("127.0.0.1", 1024, 1048576)
-iocInit
-snmp3Report
-snmp3ConfigReport
-snmp3RuntimeReport
-snmp3Stop
-snmp3RuntimeReport
-```
+A handle holds at most two generations: one whose terminal is consumed and awaits only native retirement, and a successor. The scheduler admits a successor only when every existing generation of the handle is consumed and at most one exists. Otherwise it rejects the admission.
 
-Replace the three absolute placeholders with existing selected files, and the
-numeric address with one configured in that JSON. Load and worker selection must
-succeed before iocInit. `on error break` propagates command failure; Base's
-Continue policy can proceed after a rejected command and does not prove success.
+An atomic admission call targets one address. It captures one monotonic origin and a positive integer budget of 1 to 600000 ms. The resulting 64-bit unsigned deadline covers queueing, bootstrap, IPC, discovery, and native service.
 
-`snmp3Report` reports `owned-worker-transport; recordSupport=available`.
-This identifies compiled record support, not configuration validity, lifecycle
-readiness or successful device communication.
-`snmp3ConfigReport` reports revision, freeze and definition counts.
-`snmp3RuntimeReport` reports actual lifecycle/queue/worker numbers. Running
-means the servicing owner is ready; it does not promise device reachability.
-Worker `ready=1` requires matching bootstrap and product/library identity.
+Atomic admission publishes all members or none. It is not one SNMP transaction. Each member has its own count, queue charge (Q), and positional owned result. The reference page defines the charge.
 
-| Command | Contract |
-| --- | --- |
-| `snmp3WorkerPath(absolutePath)` | Startup product selector; at most 4096 path bytes |
-| `snmp3QueueLimit(address,count,bytes)` | Atomic live limits, before or after iocInit |
-| `snmp3Stop` | Freeze Config, close admission, contain workers and join once |
+## Batching and declared groups
 
-Count and bytes are unsigned decimal integers: count 1-16384, bytes 1-67108864.
-Signs, zero, overflow, unknown addresses and out-of-range values are rejected
-without changing prior limits or work. Decreases retain accepted work, including
-consumed terminals whose native ownership remains live. New admission must fit
-both prospective totals. There is no operator start, rate-reset, credential
-replacement or transport-proxy command. Different credentials require a new IOC
-process. Isolated Base database reuse does not unfreeze Config.
+The scheduler dispatches at most one native batch per address. A batch is a contiguous prefix of the FIFO queue whose requests share the endpoint, profile, session, and operation, and are compatible.
 
-## Admission, FIFO and terminal ownership
+Two ungrouped bindings are compatible only with the exact same absolute deadline. A group of one binding counts as ungrouped. Two members of one declared group are compatible whatever their deadlines. A group member never joins an ungrouped request or the request of another group. The batch ends at such a request, with no look-ahead.
 
-Register each consumer's immutable binding separately. Alias handles for the
-same definition have separate generation and terminal identities. A handle holds
-at most two generations: one whose terminal is consumed and awaits only native
-retirement, and one new generation. A new generation is admitted only when every
-existing generation of the handle is consumed and at most one exists; otherwise
-admission is rejected. An atomic call targets one address and captures
-one monotonic origin and a positive integer budget of 1-600000 ms. Its uint64
-deadline includes queueing, bootstrap, IPC, discovery and native service.
+The batch respects `maxVarbinds` and both frame limits. Several records of one binding can exceed the declared count, so the cap applies to groups too, and the remainder leaves in the next request. Equal budgets with different origins do not imply equal deadlines. The scheduler never rounds, skips, or extends a deadline.
 
-Dispatch at most one native batch per address. Take a contiguous compatible FIFO
-prefix with the same endpoint/profile/session and operation. Two ungrouped
-bindings (and a group of one binding, which counts as ungrouped) are compatible
-only with the exact same absolute deadline; two members of one declared group
-are compatible whatever their deadlines. A group member never joins an ungrouped
-request or the request of another group, and the batch ends at such a request
-(no look-ahead). Respect maxVarbinds and both frame limits; several records of
-one binding can exceed the declared count, so the cap applies to groups too and
-the remainder leaves in the next request. Equal budgets with different origins do
-not imply equal deadlines; no rounding, skipping or extension occurs.
-Atomic admission publishes all members or none, but does not promise one SNMP
-transaction. Each member has its own count, Q and positional owned result.
+A request of a declared group carries the earliest deadline among its members. The scheduler writes that deadline into the dispatched commands and the member generations, so completion, expiry, and the retire grace give every member the same outcome. A member whose own deadline has already passed expires alone before dispatch and leaves the queue. The other members leave together.
 
-One request has one deadline. A request of a declared group carries the earliest
-deadline among its members, written into the dispatched commands and into the
-member generations, so completion, expiry and the retire grace give every member
-the same outcome. A member whose own deadline has already passed is expired alone
-before dispatch and leaves the queue; the others leave together.
+The scheduler holds a declared group at the queue front while its worker is ready, idle, and not stopping. The front run of the group leaves at the first of these events:
 
-A declared group is held at the queue front while its worker is ready, idle and
-not stopping. The front run of the group (contiguous members of that group) leaves
-when it holds a generation of every declared binding, when no further member of the
-group has been admitted for 0.5 ms (quiet gap), or when 2 ms have passed since the
-admission of the front member (hold bound), whichever comes first. A group of one
-binding and a member put back at the queue front after a worker loss are not held.
-`Scheduler::holdRelease` returns the release time (zero when nothing is held); the
-supervisor includes it in `nextTimer` only for a ready, idle worker that is not
-stopping, so a busy worker does not wake the loop.
+- The run holds a generation of every declared binding.
+- No further member has been admitted for 0.5 ms (the quiet gap).
+- 2 ms have passed since the admission of the front member (the hold bound).
 
-The first successfully transmitted Batch byte makes every batch member ambiguous
-for recovery. Only zero-byte work survives worker replacement with its original
-identity/deadline. Neither GET nor SET is automatically replayed after ambiguity.
-Native retries remain Net-SNMP's behavior. SET completion does not establish
-device readback truth.
+A group of one binding is not held. A member put back at the queue front after a worker loss is not held either. `Scheduler::holdRelease` returns the release time, or zero when nothing is held. The supervisor includes that time in `nextTimer` only for a ready, idle worker that is not stopping, so a busy worker does not wake the loop.
 
-The consumer borrows a terminal through `Scheduler::take` and completes its
-unique consumption through `release`. Full count and Q remain until BOTH
-consumption and actual request retirement. A matching Retired proves normal
-native unwind and destroyed frame/request copies. Worker loss requires closed
-channel buffers AND exact old PID wait/reap. Deadline alone proves neither.
-Both orders, retirement before consumption and consumption before retirement,
-preserve the charge until their joint transition. Stale/duplicate frames cannot
-change current ownership or select a second terminal.
+## Recovery after ambiguity
 
-A generation admitted behind a retirement-pending predecessor waits in the
-per-address FIFO. Dispatch keeps at most one active batch per address, so it is
-not sent before the predecessor's Retired frame or exact reap. It keeps the
-deadline of its own admission, so waiting consumes its budget, and it keeps its
-own count and Q. If its deadline passes before dispatch, it is selected
-Deadline as never-sent work. Stop selects Stopping for it, and a reap retires
-only the predecessor. Every Scheduler structure and lookup is keyed by binding
-and generation, so the two generations of one handle never share state.
+The first successfully transmitted Batch byte makes every batch member ambiguous for recovery. Only zero-byte work survives worker replacement with its original identity and deadline. The module never replays a GET or SET automatically after ambiguity. Native retries remain Net-SNMP behavior. A SET completion does not establish device readback truth.
 
-Reports classify `queued`, `active`, `undelivered` and `retirementPending`;
-`count` and `bytes` include all of them. The `snmp3 queue:` line of
-`snmp3RuntimeReport` ends with three more numbers for the address:
-`behindRetirement` (queued generations whose predecessor is consumed but not
-retired, a current count), `behindAdmitted` (generations admitted behind a
-predecessor) and `behindNeverSent` (such generations that reached Deadline
-before dispatch). The last two only grow while the scheduler lives. A borrowed
-terminal remains undelivered until release. `retirementPending` means its
-terminal was consumed but its native or channel ownership has not ended. The two
-generations of one handle can sit in two classes at once: the consumed
-predecessor in `retirementPending` and the queued successor in `queued`, so
-`count` is 2. Worker reports identify address, epoch, PID,
-ready/closing, active batch, launches, reaps and forced signals.
+## Terminal consumption and retirement
 
-### Runtime report lines
+The consumer borrows a terminal through `Scheduler::take` and completes its unique consumption through `release`. The full count and Q stay charged until both consumption and actual request retirement have happened.
 
-`snmp3RuntimeReport` prints these lines in this order; `snmp3 queue:`,
-`snmp3 admit:` and `snmp3 worker:` repeat once per address.
+A matching Retired frame proves a normal native unwind and destroyed frame and request copies. Worker loss requires closed channel buffers and an exact wait and reap of the old process identifier (PID). A deadline alone proves neither.
 
-| Line | Fields |
-| --- | --- |
-| `snmp3 runtime:` | `state` is Cold, Starting, Running, Stopping, Stopped, IncompleteStopped or Failed; `admission` is 1 while new requests are accepted; `activation` counts starts; `created`, `exited` and `joined` count the servicing thread over all activations |
-| `snmp3 records:` | the counters and flags of the record contexts, listed in the next table |
-| `snmp3 queue:` | per address, as described above; `countLimit` and `byteLimit` are the live limits of that address (see `snmp3QueueLimit`) against which `count` and `bytes` are charged |
-| `snmp3 admit:` | per address, printed after its `snmp3 queue:` line: the admission statistics described below |
-| `snmp3 worker:` | per address: address, epoch, PID, `ready`, `closing`, active `batch`, `launches`, `reaps` and `forced` signals |
-| `snmp3 loop:` | `passes`, the number of passes of the servicing loop since the process started |
+Retirement can come before consumption, or consumption before retirement. Both orders preserve the charge until the joint transition. Stale or duplicate frames cannot change current ownership or select a second terminal.
 
-Fields of `snmp3 records:`:
+## Generations queued behind a retirement
 
-| Field | Meaning |
-| --- | --- |
-| `contexts` | attached records |
-| `active` | records with a request in progress |
-| `pending` | completions whose callback enqueue was refused and is offered again on a timer |
-| `queued` | callbacks waiting in Base's callback queue |
-| `running` | contexts whose callback is executing |
-| `inert` | callbacks that arrived after callback entry was closed; they leave their record untouched |
-| `entered` | callbacks that have entered record processing and not left it; it can be 1 while `running` is 0, because it falls only after the record lock is released |
-| `enqueueFailures`, `completions` | cumulative counts |
-| `entryOpen` | 1 from start until the stop's drain closes callback entry; 0 before the first start |
-| `drainFailed` | 1 when the stop's drain ended at its 2000 ms budget with work left; it stays 1 and refuses a later start |
-| `detachAllowed` | 1 only after the AtShutdown hook has permitted detach following a stop; it stays 0 after `snmp3Stop` alone |
+A generation admitted behind a retirement-pending predecessor waits in the per-address FIFO. Dispatch keeps at most one active batch per address, so the scheduler does not send the successor before the predecessor's Retired frame or exact reap.
 
-The `snmp3 queue:` and `snmp3 admit:` lines of each address print first, address by address, then the
-`snmp3 worker:` lines.
+The successor keeps the deadline of its own admission, so waiting consumes its budget. It keeps its own count and Q. If its deadline passes before dispatch, the scheduler selects Deadline for it as never-sent work. A stop selects Stopping for it, and a reap retires only the predecessor. Every scheduler structure and lookup is keyed by binding and generation, so the two generations of one handle never share state.
 
-Fields of `snmp3 admit:`. A burst is a run of admission calls, each less than 5 ms after the previous one;
-a call that adds several generations counts once. All values only grow while the scheduler lives; times are in
-microseconds of the admission clock.
+Reports classify charged work as `queued`, `active`, `undelivered`, or `retirementPending`. The `count` and `bytes` values include all four classes. A borrowed terminal remains `undelivered` until release. `retirementPending` means the terminal was consumed but its native or channel ownership has not ended. The two generations of one handle can sit in two classes at once: the consumed predecessor in `retirementPending` and the queued successor in `queued`. Then `count` is 2.
 
-| Field | Meaning |
-| --- | --- |
-| `address` | the address of the line |
-| `admissions` | admission calls accepted for the address; a refused call is not counted |
-| `bursts` | runs of calls less than 5 ms apart, counting a run of one call |
-| `burstSpanMaxUs` | the largest time from the first to the last call of one burst |
-| `burstGapMaxUs` | the largest time between two consecutive calls inside one burst |
+## IPC and worker spawn
 
-Requests that are admitted one after another because each waits for the previous result (a chain of
-records) join one burst when the previous result arrives in less than 5 ms, so the statistic of a chained
-database on a fast agent can show a span of several results.
+The IOC and each worker communicate over a private close-on-exec AF_UNIX SOCK_STREAM socket pair. Frames have an explicit 64-byte header (FSN5, version 1, big-endian) with a checked kind, length, identity, and direction-local sequence number. Partial and coalesced I/O is normal. Malformed framing is an address failure, and the receiver does not scan to resynchronize. The receiver discards stale data through bounded scratch space. No pointer, native structure, or platform long crosses the channel.
 
-One pass of the servicing loop steps the supervisor, visits the record
-requests, and then waits for the next wake (see the timer table). The counter
-never resets (a restart of the runtime does not clear it), stays 0 when the configuration has no endpoint,
-and is meaningful while `state=Running`: read it twice a known
-time apart and divide the difference by the elapsed seconds. With a live worker
-and no work the loop passes about 10 times per second (100 passes in 10 s were
-measured; the regression bound is 130 in 10 s). A much higher rate means work or
-a busy loop: a refused callback enqueue legitimately raises it to about 100 passes
-per second while `pending` in `snmp3 records:` is above 0, and so does a worker
-that is being contained or is exiting (its exit poll is 10 ms). A busy loop is a
-rate above 13 passes per second with `count` and `active` of `snmp3 queue:` 0 on
-every address, `batch` of `snmp3 worker:` 0 and `pending` of `snmp3 records:` 0.
-Measure the idle rate over a window of at least 10 s with a live worker (`pid`
-not 0, `ready=1`, `closing=0`); the bound of 130 is per 10 s and scales with the
-window.
+The spawn argument vector contains only the selected executable and `--ipc-fd=3`. Checked file actions map that descriptor, close all other descriptors, and send the production standard streams to `/dev/null`. The environment contains `PATH`, `LANG`, `LC_ALL`, and preflight-hashed library directories only. The module passes no secret file name, no secret bytes, and no inherited `LD_PRELOAD`.
 
-An address worker whose stderr is kept writes one line
-`worker_loop <reason> <iterations> <monotonic us> <address> <epoch> <pid>`:
-reason `ready` once the worker has queued its Ready frame, `idle` every 10 s while it has no
-active batch, and `exit` at a normal or faulted exit (none when a signal ends
-the process). `iterations` counts the worker's loop iterations from its start;
-`monotonic us` is the host's monotonic clock and is comparable only on one host
-and boot. Two idle lines about 10 s apart belong to one idle period, and the
-difference of their `iterations` is the iteration count in that time: a healthy
-idle worker shows 1 per 10 s (the regression bound is 30). A longer gap means
-the idle period was interrupted, usually by work. A test reads two idle lines of
-one worker 9.5 to 10.5 s apart: the first idle line comes 10 s after Ready and the
-second 20 s after, so it observes for at least 20 s after Ready; the case waits 22 s. The `wake-loop`
-case does this and checks `worker-idle-iterations-within-bound` in the
-`workers.stderr` file of its output directory
-(`python3 tests/rewrite/test_records.py --case wake-loop --output <new directory>`). Address and epoch are 0 before Bootstrap is read,
-for example `worker_loop exit 1 4660666880910 0 0 473547`. Production
-redirects worker stderr to /dev/null, and only the test products can keep it:
-`Runtime::setQualification` takes a `Qualification` whose `stderrPath` is an absolute file path and must be called
-before the first record binding or the start (the configuration freeze ends the
-right to change it). The path is checked when the runtime starts, so a bad path
-or mode makes the start fail with state Failed and not the call. The directory
-must be owned by the IOC user with mode 0700; the file is created with mode 0600,
-and an existing file must already be a regular file of that user with mode 0600.
-Every worker of the activation appends to that one file, so lines of several
-addresses interleave and the same stream also carries the `native_event` lines.
-`RecordTest.cpp`, `RuntimeTest.cpp`, `StartupTest.cpp` and `ShutdownTest.cpp` call
-`setQualification`; `QualificationTest.cpp` passes the same structure to the
-supervisor directly. A call with the value already set returns without an error
-even after the freeze, and loading the configuration alone does not freeze. A
-configuration with no endpoint builds no supervisor, so the path is not checked.
-The parent directory is taken from the path, so a file directly under `/` fails.
-A production IOC has no setting for it.
+Bootstrap carries the frozen definitions and credentials, and the worker never reopens the secret files. Before application dispatch, the Ready frame must match the capabilities, the executable SHA256, and the loaded-library SHA256. A SecurityConflict does not restart a healthy worker to discard pinned user-based security model (USM) material.
 
-## Charge and storage limits
+## Containment of worker failures
 
-For each binding, O is four times the OID arc count, V is 8 plus maximum Value
-content bytes, S is V for SET and zero for GET, and R is 4 + O + V. Integer,
-Counter64 and Float64 content is 8 bytes; unsigned32/IP/Float32 content is 4;
-Octets content is capacity; ObjectId content is 4 + 4*capacity; exceptions are 0.
+The supervisor handles due deadlines before optional I/O and spawn. Expiry selects one Deadline for each nonterminal member of the equal-deadline active batch and starts containment.
 
-```text
-Q = round64(4096 + 4*O + 4*S + 4*R + 144)
-Record Q = Q + 512 + 4*(content + textBytes)
-Batch payload = 8 + sum(48 + actual encoded SET Value bytes)
-Result maximum = 8 + sum(48 + R)
-```
+A member already selected Complete or NativeFailure keeps that outcome. Containment for such a member starts only when its Retired frame is missing 1000 ms after its deadline. A matched Retired frame resets the consecutive failure count of the address. The four-attempt rate cap does not change.
 
-Component handles retain the original Q. Record handles additionally reserve
-simultaneous decode/conversion/text staging: content is 4*capacity for ObjectId
-and capacity otherwise; textBytes is 11*capacity for ObjectId, 16 for IPv4 and
-content otherwise. This extra charge remains until consumption and native
-retirement both finish. It is conservative module storage accounting, not an
-RSS measurement.
+No next batch uses the slot before Retired or exact reap. Peer addresses stay independently serviced. A new epoch follows the actual reap of the old PID. Normal native close and forced termination are separate observations.
 
-Record registration charges `sizeof(RecordContext)+128+link.capacity()+1`
-against the 268435456-byte registration bound, with an 8192-byte fixed-context
-ceiling. SET registration also reserves `256+2*min(binding capacity,record
-capacity)` for pre-admission capture. Base-owned lsi/lso/waveform buffers are
-separate. The callback borrows scheduler storage; it creates no accumulating
-second result queue. Servicing visits at most 128 contexts per iteration.
+The timers assume runnable operating system threads. The module keeps an unreaped process as incomplete ownership and never reports it as successful cleanup.
 
-Each handle can hold two charged generations, so the count and byte limits of an
-address must cover two generations of each handle that can hold a successor;
-admission that exceeds either limit is rejected and
-changes nothing. The count limit is at most 16384, so at most 8192 handles of one
-address can hold a successor at the same time. After a failed or incomplete stop,
-ownership retained in IncompleteStopped is up to two charged generations per
-handle: the consumed predecessor awaiting retirement or reap and its successor.
+## Lifecycle and stop
 
-A nine-arc Integer GET charges 4608 bytes, admitting 227 distinct handles under
-the default 1048576-byte limit. The ten-arc Integer GET fixture charges 4672. A 128-arc,
-capacity-1048576 Octets GET charges 4202688 and SET charges 8397056; increase
-the byte limit before admitting either. Pending-byte limits are module-owned
-reservation bounds, not process RSS bounds. Vendor PDUs, allocator overhead,
-OS socket buffers, shared R3 snapshots and dependencies are separate.
+The AfterFinishDevSup hook freezes Config and starts the servicing owner before Base initial processing. The IOC hook performs no synchronous native discovery.
 
-| Owned storage or policy | Ceiling |
-| --- | --- |
-| Pending default/address | 1024 commands; 1048576 charged bytes |
-| Registered handles/address | 16384 |
-| IOC configuration/bootstrap ledger | 268435456 bytes; source R3 snapshot excluded |
-| Bootstrap body/workspace per side/address | 16777216 bytes each |
-| Decoded immutable worker definitions | 33554432 bytes |
-| Module native session/security ledger | 33554432 bytes; 1024 live sessions and 1024 pinned associations |
-| Batch or Result payload | 2097152 bytes; at most 1024 members |
-| Ready / Retired / Fault payload | 65536 / 32768 / 8 bytes |
-| Fixed I/O scratch/side/address | 131072 bytes |
-| Fixed control storage/side/address | 262144 bytes; at most eight frames |
-| Native event storage | 4096 slots; at most 256 bytes/slot |
-| IOC diagnostic storage | 1048576 bytes |
+The AtShutdown hook closes admission, dispatch, and recovery. It selects Stopping for outstanding nonterminal work, requests worker close, and joins the service thread once before Base stops its callback services. Terminals already selected keep their outcome.
 
-Dropped diagnostic events are counted numerically and fail qualification when
-required observations are lost. Data-frame copies are charged to generations.
-Checked arithmetic, lengths, tags and capacity precede allocation/publication;
-rejection preserves reservations. Counter exhaustion rejects new affected work
-without wrapping identities. Storage guarantees cover requested module storage,
-not total allocator/native heap usage.
+The runtime states are Cold, Starting, Running, Stopping, Stopped, IncompleteStopped, and Failed. IncompleteStopped retains unconsumed terminal or unreaped child ownership after the join. A later explicit stop, fallback, or start preflight performs only nonblocking reconciliation, and a start is rejected until the retained ownership settles. After that, an isolated activation can create a scheduler and worker epoch. After a failed or incomplete stop, IncompleteStopped retains up to two charged generations per handle: the consumed predecessor awaiting retirement or reap, and its successor.
 
-## IPC, containment and lifecycle
+A failed preflight, a failed thread creation, or an unexpected service failure closes admission. A record stop adds a 2000 ms callback-drain attempt. The entry gate closes after the attempt, followed by a separate safety wait for entered callbacks. A failed record drain stays failed after native reconciliation and refuses a restart.
 
-Use a private CLOEXEC AF_UNIX SOCK_STREAM socketpair. Frames have an explicit
-64-byte FSN5/version-1 big-endian header, checked kind/length/identity and
-direction-local sequence. Partial/coalesced I/O is normal; malformed framing is
-an address failure, with no resynchronization scan. Stale data is discarded
-through bounded scratch. No pointer, native structure or platform long is sent.
+The AtShutdown hook permits detach only after entered processing reaches zero. Isolated queue destruction, not callback join alone, permits context release. Non-isolated shutdown retains contexts that Base references. External Base processing can extend the safety wait, so the module makes no claim about a bounded total shutdown time.
 
-Spawn argv contains only the selected executable and `--ipc-fd=3`; checked file
-actions map that descriptor, close other descriptors and send production standard
-streams to /dev/null. Environment contains PATH, LANG, LC_ALL and preflight-hashed
-library directories only. No secret filename, bytes or inherited LD_PRELOAD are
-passed. Bootstrap owns frozen definitions and credentials, never reopens their
-files. Ready matches capabilities, executable SHA256 and loaded library SHA256
-before application dispatch. SecurityConflict does not restart a healthy worker
-to discard pinned USM material.
+The [current qualification record](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/milestone-5dff352.md#current-required-verification-results-2026-10-08) lists the accepted lifecycle paths and the remaining reuse limitations.
 
-| Timer or fairness rule | Value |
-| --- | --- |
-| Servicing loop wait | Until a worker channel is readable, a channel with unsent bytes is writable, an admission, a stop request, a live queue-limit change or a terminal released after the stop has stopped accepting work signals the loop, or the earliest timer is due. With a live worker the poll below is never more than 100 ms away, so an idle loop passes about 10 times per second. Without a worker process the loop wakes on the restart backoff, a request deadline or the stop bound; it has no timed wake only when the configuration has no endpoint (then `passes` stays 0). A refused callback enqueue limits the wait to 10 ms |
-| Exit poll of a contained or exiting worker | 10 ms |
-| Exit poll of a live worker | 100 ms; a worker's exit is normally noticed through its channel hang-up, and the poll is the fallback |
-| Worker wait | Until its channel or a library socket is ready, a library timer is due, or its earliest own duty is due: Ready limit, partial frame, batch deadline, idle count line |
-| Hold of a declared group at the queue front | Released when the group is whole, 0.5 ms after the last admission of a member (quiet gap) or 2 ms after the admission of the front member (hold bound); a timer only for a ready, idle worker that is not stopping |
-| Retry of a refused callback enqueue | 10 ms |
-| Record drain wait | Ended at once by a completion, an inert callback (one that arrives after callback entry is closed) or a callback exit; otherwise 10 ms while a refused enqueue is retried and 50 ms without one; 2000 ms budget. When only the drain retries, the stop returns within 5 ms of the last record completion (`last_completion_to_return_us`, check `drain-returns-on-completion-wake` of the `stop-enqueue-failed` case); while the loop runs, within 50 ms |
-| Per address/direction/iteration | 65536 bytes and 64 complete frames; round-robin |
-| Partial non-bootstrap frame | 1000 ms from first byte; request deadline can be earlier |
-| Bootstrap/Ready | 5000 ms from spawn; admission expiry remains independent |
-| Stop graceful close / TERM / KILL-reap observation | +1000 / +1500 / +2000 ms from one origin |
-| Retired grace after deadline | 1000 ms for a member already selected Complete or NativeFailure |
-| Restart backoff | 250, 500, 1000, 2000, 4000 ms, then 4000 ms; a matched Retired restarts the series |
-| Restart rate | Four attempts/address in trailing 60000 ms, including initial attempt |
-| Global spawn | At most one attempt/loop; round-robin addresses |
+## Related pages
 
-Due deadlines are handled before optional I/O/spawn. Expiry selects one Deadline
-per still-nonterminal member of the equal-deadline active batch and starts
-containment. A member already selected Complete or NativeFailure keeps that
-outcome and starts containment only when its Retired frame is still missing 1000
-ms after its deadline. A matched Retired frame resets the address's consecutive
-failure count; the four-attempt rate cap is unchanged. No next batch uses that slot before Retired or exact reap. Peer
-addresses remain independently serviced. A new epoch follows actual old PID reap.
-Normal native close and forced termination are separate observations. These
-timers assume runnable OS threads; an unreaped process is retained as incomplete
-ownership, never represented as successful cleanup.
-
-The waits are built in three places. The servicing loop waits in `Runtime::pause`
-(`Runtime.cpp`) until `Supervisor::nextWake` (the earlier of `nextTimer`, which holds the
-event timers, and `nextPoll`, the exit poll of each live worker), a worker channel
-descriptor or the `Wake` descriptor is ready. The address worker waits in
-`Worker::service` (`native/Worker.cpp`) until its channel or a library socket is
-ready or `AddressWorker::nextTimer()` (`native/WorkerMain.cpp`) is due; before its
-native session exists it waits with a plain `poll()` on the channel and the same
-timer. The record drain waits on a condition variable in `Requests::drain`
-(`Request.cpp`), whose durations are in the timer table. A duty that is not part
-of the matching `nextTimer` is acted on only at the next wake: in the supervisor
-the 100 ms poll when a worker is alive (without one, a signal or a channel event),
-in the worker a channel or socket event, because the worker has no poll of its
-own. An event that must wake the loop signals `Wake` (an admission, a stop and a
-queue-limit change do). The scheduler also calls the notifier when a terminal is
-released after the stop has lowered the scheduler's accepting flag (the same stop
-sets `admission=0` in the report first and lowers the flag a moment later); the
-release makes the stop settle, and the loop evaluates that once per pass. A new duty therefore changes its `nextTimer`, the
-timer table above and the `wake-loop` case of `tests/rewrite/test_records.py`
-(bounds of 130 loop passes and 30 worker iterations per 10 s), with a control in
-`tests/rewrite/README.md`, Wake And Timer Controls.
-
-AfterFinishDevSup freezes Config and starts the servicing owner before Base
-initial processing. The IOC hook performs no synchronous native discovery.
-AtShutdown closes admission/dispatch/recovery, selects Stopping for outstanding
-nonterminal work, requests worker close and joins the service thread once before
-Base stops callback services. Already selected terminals retain their outcome.
-
-Runtime states are Cold, Starting, Running, Stopping, Stopped, IncompleteStopped
-and Failed. IncompleteStopped retains unconsumed terminal or unreaped child
-ownership after join. Later explicit stop/fallback/start preflight performs only
-nonblocking reconciliation; start is rejected until retained ownership settles.
-Then isolated activation can create a new scheduler and worker epoch. Failed
-preflight/thread creation closes admission; unexpected service failure also
-closes admission. Record stop adds a 2000 ms callback-drain attempt, followed by
-entry-gate closure and a separate safety wait for entered callbacks. Failed
-record drain stays failed after native reconciliation and refuses restart.
-AtShutdown permits detach only after entered processing reaches zero; isolated
-queue destruction, rather than callback join alone, permits context release.
-Non-isolated shutdown retains still-referenced contexts. The
-[current qualification record](milestone-5dff352.md#current-required-verification-results-2026-10-08)
-identifies the accepted lifecycle paths and remaining reuse limitations.
-External Base processing can extend the safety wait without a bounded total
-shutdown claim.
-
-## Execute real verification
-
-Each output directory must be new and private. These commands use shipped code,
-real native loopback agents and faults only at outer OS/socket boundaries:
-
-```bash
-make -C tests/rewrite -j4
-python3 tests/rewrite/test_r5_components.py --output work/r5-components
-python3 tests/rewrite/test_supervisor.py --ioc --output work/r5-ioc
-python3 tests/rewrite/test_qualification.py --output work/r5-qualification
-python3 tests/rewrite/test_r5_operator.py --output work/r5-operator
-python3 tests/rewrite/build_r5_sanitizers.py --output work/r5-sanitizer-build
-```
-
-Select its separate products for the instrumented executions:
-
-```bash
-R5_PRODUCTS="$PWD/work/r5-sanitizer-build/products"
-python3 tests/rewrite/test_qualification.py --products "$R5_PRODUCTS" --sanitizers --output work/r5-san
-python3 tests/rewrite/test_supervisor.py --products "$R5_PRODUCTS" --sanitizers --ioc --output work/r5-san-ioc
-```
-
-Both libraries and actual worker/owner/IOC test products are instrumented with
-ASan/UBSan. Dependencies are uninstrumented and leak detection is disabled.
-Private qualification stderr is retained and scanned; production /dev/null
-cannot establish sanitizer success. Test-only outer IPC forwarding mutates real
-frames while retaining the selected actual worker and full native path; Runtime
-rejects transport overrides and exposes no production selector for them.
-
-A record cell that stops the runtime behind a Base reprocess must first observe
-that reprocess. Base `recGblFwdLink` clears RPRO and hands the record to
-`scanOnce`, so between the predecessor's completion and the reprocess the record
-shows neither PACT nor RPRO. The stop-queued cell therefore counts FLNK of
-`Records_QueueCompleted` from before the predecessor completes and waits up to
-3 s until either a queued successor holds PACT (`wait_exit` `queued`) or the
-counter has risen by 2, so a rejected reprocess has completed its own FLNK
-(`rejected`); otherwise it records `timeout`.
-
-The [Record Verification](../tests/rewrite/README.md#record-verification) section
-gives the commands for this case and for the D7 controls. A run writes its
-`stop_queued` event to `record-observations.json` and its trial output to
-`records.stderr` in the run's output directory, or in `<control>/cell/run/` and
-`reference-record-stop-queued/run/` under a D7 control output. The event carries
-`wait_exit` and the record state when the wait ended: `wait_rpro`, `wait_pact`,
-`wait_generation` and `wait_flnk_delta`; a passing run shows `queued`, 0, 1, 2
-and 1. Its `pact` and `generation` are read after the stop has drained the
-record and do not describe the wait.
-
-A run whose event shows `timeout` is inconclusive, as is a run without the event
-whose `records.stderr` has a `record test failed after N checks` line: that
-trial stopped before the wait, and the line names the failed step. For such a
-run `test_records.py` writes the events, skips the product checks and reports
-`aborted`, and the D7 controls count it neither as a passing reference nor as a
-detected defect. Rerun it; if a timeout recurs, the `wait_` fields show whether
-the reprocess was never scheduled (RPRO still set), is still pending (neither
-PACT nor RPRO) or held PACT without a new generation. A run without the event
-and without that line ended without its failure report, usually inside the stop
-under test; `records.stderr` and `records.receipt.json` show where it ended. Its
-product checks are judged and fail. A trial that exceeds the 180 s child bound
-is killed, shows `forced_cleanup` in `records.receipt.json` and is judged the
-same way. The D7 controls count neither kind of run as a detected defect.
-
-Receipts retain sources/headers/products/libraries, argv without secrets,
-monotonic identity/events, terminal consumption, native observations, FD/PID
-cleanup and every child wait. Generated secret sentinels must be absent from
-diagnostics. PASS qualifies the identified invocation only; full completion also
-requires current foundation/config/lifecycle/native regressions and full reviews.
-
-The [verification sequence](../tests/rewrite/README.md) gives those regression
-commands. The [supervision ADR](decisions/snmp-worker-supervision.md) records the
-ownership decision. Historical R4 component evidence retains its original scope.
+- [Worker commands, limits and timers](snmp-worker-reference.md) lists the exact values.
+- [Verify the worker transport](snmp-worker-verification.md) runs the checks.
+- [Worker supervision decision](decisions/snmp-worker-supervision.md) records the ownership decision.
