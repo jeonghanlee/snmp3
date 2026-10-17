@@ -1515,6 +1515,10 @@ Superseded Plan Artifacts: none
 1. Define identified normal/instrumented products, the five OS environments (five VMs from the cloud-provision session, D20), actual negative controls and measurement/acceptance rules (D21), and build the resource sampler; preparation may proceed before M7 ends, the VM request is sent after the plan is accepted.
 2. After prerequisites and G3 complete, run the full shipped paths and sustained workload, then map each requirement to current evidence and explicit limits.
 
+##### Progress
+
+2026-10-16, preparation under the authorization of 2026-10-14 (owner choices: the sampler lives in the module database tool, and the session count is read as the socket descriptors of each worker): `docs/snmp-performance/tools/resource_sampler.py` samples the IOC and every worker named by `snmp3RuntimeReport` (RSS, threads, descriptors, sockets, CPU, queue and record counters, loop passes) into `resources.csv` and `counters.csv`; `run_module_database.py --sample-seconds <n>` starts it in a sustained run (default off). Checked on the fixture agent with a 30 s schedule at 3 s intervals: 13 samples, 0 missed reports, files written, no change to the run result. It is documented in `test-reference.md`. Not done: the 10 s interval run of 300 s plus 3600 s, the VM request to the cloud-provision session (not sent) and the product definition; the row stays Not started and waits for M7.
+
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
