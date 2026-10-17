@@ -21,6 +21,7 @@ import json
 import os
 import platform
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -88,10 +89,11 @@ def environment_record(base):
 
 
 class Matrix:
-    def __init__(self, output, only, timeout):
+    def __init__(self, output, only, timeout, prune=False):
         self.output = output
         self.only = only
         self.timeout = timeout
+        self.prune = prune
         self.cells = []
 
     def selected(self, name):
@@ -117,8 +119,17 @@ class Matrix:
         except subprocess.TimeoutExpired:
             rc, detail = 124, "timeout"
         seconds = round(time.monotonic() - started)
+        if self.prune and rc == 0 and "--output" in argv:
+            self.prune_output(name, Path(argv[argv.index("--output") + 1]))
         self.record(name, "PASS" if rc == 0 else "FAIL", rc, seconds, detail)
         return rc
+
+    def prune_output(self, name, directory):
+        """Keeps the results file of a passed cell and removes the rest of its output directory."""
+        results = directory / "results.json"
+        if results.exists():
+            (self.output / f"{name}.results.json").write_bytes(results.read_bytes())
+        shutil.rmtree(directory, ignore_errors=True)
 
 
 def py(*args):
@@ -135,6 +146,7 @@ def ordinary(matrix, base):
     matrix.run("supervisor-ioc", py("tests/rewrite/test_supervisor.py", "--ioc", "--output", str(out / "o-supervisor")))
     matrix.run("qualification", py("tests/rewrite/test_qualification.py", "--output", str(out / "o-qualification")))
     matrix.run("r5-components", py("tests/rewrite/test_r5_components.py", "--output", str(out / "o-components")))
+    matrix.run("spawn-descriptors", py("tests/rewrite/test_spawn_descriptors.py", "--output", str(out / "o-spawn")))
     matrix.run("r5-operator", py("tests/rewrite/test_r5_operator.py", "--output", str(out / "o-operator")))
     matrix.run("native-adapter", py("tests/rewrite/test_native.py", "--phase", "adapter", "--output", str(out / "o-native")))
     matrix.run("config", py("tests/rewrite/test_config.py", "--base", base, "--output", str(out / "o-config")))
@@ -195,6 +207,9 @@ def main():
     parser.add_argument("--only", action="append", default=[],
                         help="run only the cells whose name contains this text (repeatable)")
     parser.add_argument("--timeout", type=int, default=1200, help="seconds allowed per cell (default 1200)")
+    parser.add_argument("--prune", action="store_true",
+                        help="after a passed cell keep its log and results.json and remove its output directory "
+                             "(for guests with little disk); a failed cell keeps everything")
     parser.add_argument("--warmup-seconds", type=int, default=300)
     parser.add_argument("--load-seconds", type=int, default=3600)
     parser.add_argument("--sample-seconds", type=float, default=10.0)
@@ -203,14 +218,14 @@ def main():
     stages = set(args.stages.split(","))
     if args.list:
         print("ordinary:", ", ".join(["rec-" + c for c in RECORD_CASES]) + ", record-shutdown, record-startup, record-ca, "
-              "supervisor-ioc, qualification, r5-components, r5-operator, native-adapter, config, lifecycle")
+              "supervisor-ioc, qualification, r5-components, spawn-descriptors, r5-operator, native-adapter, config, lifecycle")
         print("controls:", ", ".join(json.loads((HERE / "control-groups.json").read_text())))
         return 0
     if not os.environ.get("EPICS_BASE"):
         os.environ["EPICS_BASE"] = base_path()
     base = base_path()
     args.output.mkdir(mode=0o700)
-    matrix = Matrix(args.output.resolve(), args.only, args.timeout)
+    matrix = Matrix(args.output.resolve(), args.only, args.timeout, args.prune)
     (args.output / "cells.tsv").write_text("")
     env_record = environment_record(base)
     if "environment" in stages:
