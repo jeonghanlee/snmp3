@@ -57,6 +57,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fixture_harness import Bench, PRODUCTS, ROOT, USER, die_with_parent, free_port  # noqa: E402
+from resource_sampler import Sampler  # noqa: E402
 
 BASE = Path(os.environ.get("EPICS_BASE", "/nonexistent-epics-base"))
 CA = BASE / "bin" / "linux-x86_64"
@@ -708,7 +709,12 @@ def schedule_block(case, baseline, watch, rows, chunks, tier_end, args, ran_seco
 def run_sustained(case, env, rows, chunks, tier_end, record_names, args, requests, probe, idle_seconds, chunk_of,
                   result, ioc):
     sweep = None
+    sampler = None
     try:
+        if args.sample_seconds > 0:
+            sampler = Sampler(ioc, case, args.sample_seconds)
+            sampler.phase = "idle"
+            sampler.start()
         idle_row = None
         if probe:
             # Idle phase: the second client alone, before the schedule (the gate holds every scan).
@@ -723,6 +729,8 @@ def run_sustained(case, env, rows, chunks, tier_end, record_names, args, request
         subprocess.run([str(CA / "caput"), "-w", "10", "Run_Gate", "0"], env=env, stdout=subprocess.DEVNULL,
                        check=True, preexec_fn=die_with_parent)
         opened = time.monotonic()
+        if sampler:
+            sampler.phase = "schedule"
         if probe:
             sweep = probe_start(probe, args.seconds)
         end = opened + args.seconds
@@ -741,6 +749,8 @@ def run_sustained(case, env, rows, chunks, tier_end, record_names, args, request
                                                         time.monotonic() - opened)
                     probe_abort(sweep)
                     sweep = None
+                    if sampler:
+                        sampler.stop()
                     ioc.close()
                     return
         except Exception:
@@ -766,6 +776,9 @@ def run_sustained(case, env, rows, chunks, tier_end, record_names, args, request
                 result["second_client"]["p95_ratio"] = run["p95_ms"] / idle_row["p95_ms"]
     finally:
         probe_abort(sweep)
+        if sampler:
+            sampler.stop()
+            result["resources"] = sampler.summary()
 
 
 def run_tiers(case, env, rows, chunks, markers, tier_end, args, requests, rest, probe, idle_seconds, chunk_of,
@@ -1055,6 +1068,9 @@ def main():
     parser.add_argument("--probe-oid", default=None,
                         help="object of the second client (default sysUpTime on devices, as phase 4 of "
                              "run_device_phases.py; the served integer on the fixture)")
+    parser.add_argument("--sample-seconds", type=float, default=0.0,
+                        help="sustained run: sample the resources of the IOC and its workers every N seconds "
+                             "into resources.csv and counters.csv of the case (0 = off)")
     parser.add_argument("--idle-seconds", type=float, default=60.0,
                         help="idle phase before the sustained schedule (a target may set idle_seconds)")
     parser.add_argument("--direct-binary", type=Path,

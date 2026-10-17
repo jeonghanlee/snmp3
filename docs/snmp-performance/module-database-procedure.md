@@ -50,6 +50,8 @@ You read the devices through the shipped module: an input/output controller (IOC
     python3 docs/snmp-performance/tools/summarize_results.py $OUT
     ```
 
+Optional: to record the resources of the IOC and the worker during T3, add `--sample-seconds 10` to the command of step 4. The run then writes `resources.csv` and `counters.csv` into each case directory. The [resource sampling](test-reference.md#resource-sampling) section lists the columns.
+
 A T2 run takes about 7 minutes per device with a second-generation network management card (NMC2) and about 3 minutes per device with a third-generation card (NMC3). A T3 run takes about 17 minutes on NMC2 and 21 minutes on NMC3. Phase 4 takes about 16 minutes per device. The [time budget](test-reference.md#time-budget-of-a-full-run) lists the details.
 
 ## Verification

@@ -204,9 +204,28 @@ The object of the second client is `--probe-oid` (`sysUpTime` on devices, as in 
 - `--tier state|meas|slow` runs one tier alone.
 - `--shape flat` is the 100-record measurement of `run_fixture_module.py`. It uses `--n`, `--sweeps`, `timeoutMs` 5000, no `maxVarbinds`, and the same `interval_ms` per record.
 - `--timeout-ms` and `--max-varbinds` default to 3000 and 32.
+- `--sample-seconds <n>` samples the resources of the IOC and of every worker every `<n>` seconds during a sustained run. The default 0 switches sampling off.
 - `--groups on` writes one group per chunk. A product without declared groups rejects the `group` field (`unknown configuration field`), and the case ends with an `error` row.
 
 The output directory must not exist. It receives `module-results.json` and one directory per case. Each case directory holds `config.json` (addresses and secret file paths: keep it outside the repository), `records.db`, `startup.cmd`, `ioc.stdout`, `ioc.stderr`, and `monitor.out`.
+
+### Resource sampling
+
+With `--sample-seconds`, the sustained run writes two CSV files into the case directory and records `resources` in the case row (`interval_s`, `samples`, `missed_reports`, and the two file names). A sample asks the IOC for `snmp3RuntimeReport` and reads `/proc` for the IOC and for each worker PID that the report names.
+
+`resources.csv` has one row per process and sample:
+
+| Column | Meaning |
+| --- | --- |
+| `t_s` | Seconds since the sampler started |
+| `phase` | `idle` before the schedule, `schedule` during it |
+| `process`, `pid` | `ioc` or `worker-<address>`, and its process identifier |
+| `rss_kb` | Resident set size in kilobytes |
+| `threads`, `fds` | Threads and open file descriptors |
+| `sockets` | Open socket descriptors, including the IPC channel. It stands in for the native session count, which the runtime report does not print. |
+| `cpu_s` | User plus system CPU seconds since the process started |
+
+`counters.csv` has one row per address and sample. It holds the queue counters (`count`, `bytes`, `queued`, `active`, `undelivered`, `retirement_pending`, `behind_retirement`), the record counters (`records_active`, `records_pending`, `records_completions`, `records_enqueue_failures`), the servicing-loop passes (`loop_passes`), and the runtime `state`.
 
 ### Group counters of a chunk
 
