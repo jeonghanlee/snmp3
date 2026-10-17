@@ -1690,3 +1690,13 @@ not every stale-frame or multi-activation combination. The existing IPC stale
 and stale-behind qualification cases remain separate regressions. ASan/UBSan
 instruments rebuilt module/test products; Base/system/vendor dependencies are
 uninstrumented and leak detection is disabled. M11 exclusions remain separate.
+
+## Integrated Matrix
+
+`run_matrix.py` runs the qualification matrix of one environment and writes `environment.json`, one log per cell, `cells.tsv` (name, status, return code, seconds, detail) and `summary.json`. The output directory must not exist.
+
+```bash
+python3 tests/rewrite/run_matrix.py --output work/matrix-<environment>
+```
+
+Stages are `environment`, `ordinary`, `instrumented`, `controls` and `load`; `--stages` selects some of them and `--only <text>` runs the cells whose name contains the text. `--list` prints the cells. The instrumented products and the control groups (`control-groups.json`) run on Debian 13 and Rocky Linux 8.10 only (`--instrumented auto`); elsewhere those cells and the thread sanitizer cell are written as NOT APPLICABLE with the reason, never as PASS. The load stage runs the module database tool for `--load-seconds` (default 3600) after `--warmup-seconds` (default 300) of idle phase, sampling resources every `--sample-seconds` (default 10) into `resources.csv` and `counters.csv`.
