@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstdlib>
+#include <dirent.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <set>
@@ -14,6 +15,7 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <vector>
 
 namespace snmp3 {
 namespace {
@@ -36,7 +38,23 @@ struct Actions {
     ~Actions() { posix_spawn_file_actions_destroy(&value); }
     void duplicate(int from,int to) { systemCheck(posix_spawn_file_actions_adddup2(&value,from,to)); }
     void null(int fd) { systemCheck(posix_spawn_file_actions_addopen(&value,fd,"/dev/null",fd==0 ? O_RDONLY:O_WRONLY,0)); }
-    void closeFrom(int fd) { systemCheck(posix_spawn_file_actions_addclosefrom_np(&value,fd)); }
+    void closeFrom(int fd)
+    {
+#if defined(__GLIBC__) && __GLIBC_PREREQ(2,34) && !defined(SNMP3_CLOSEFROM_FALLBACK)
+        systemCheck(posix_spawn_file_actions_addclosefrom_np(&value,fd));
+#else
+        // glibc before 2.34 has no closefrom action: close every descriptor that is open now, in action order.
+        std::vector<int> open;
+        DIR* directory=opendir("/proc/self/fd"); if(!directory)systemCheck(errno);
+        const int own=dirfd(directory);
+        while(dirent* entry=readdir(directory)) {
+            char* end=nullptr; const long number=strtol(entry->d_name,&end,10);
+            if(end!=entry->d_name && *end==0 && number>=fd && number!=own)open.push_back(int(number));
+        }
+        closedir(directory);
+        for(int number:open)systemCheck(posix_spawn_file_actions_addclose(&value,number));
+#endif
+    }
 };
 std::string absolute(const std::string& path)
 {

@@ -91,7 +91,9 @@ Bytes localized(const Profile& profile, const Bytes& secret, const Bytes& engine
 }
 bool cachedMaterial(const Profile& profile, const Bytes& engine, const SecurityMaterial& material)
 {
-    const auto* user = usm_get_user(engine.data(), engine.size(), profile.user.c_str());
+    // Net-SNMP 5.8 declares non-const parameters; the lookup does not modify them.
+    const auto* user = usm_get_user(const_cast<unsigned char*>(engine.data()), engine.size(),
+                                    const_cast<char*>(profile.user.c_str()));
     if (!user) return true;
     return copy(user->authProtocol, user->authProtocolLen) == authProtocol(profile) &&
         copy(user->privProtocol, user->privProtocolLen) == privProtocol(profile) &&

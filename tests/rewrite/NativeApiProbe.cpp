@@ -111,7 +111,7 @@ std::vector<unsigned char> discover(const char* peer, const char* user)
     }
     std::vector<unsigned char> engine(resolved->securityEngineID,
                                      resolved->securityEngineID + resolved->securityEngineIDLen);
-    const bool absent = !usm_get_user(engine.data(), engine.size(), user);
+    const bool absent = !usm_get_user(engine.data(), engine.size(), const_cast<char*>(user));
     std::printf("{\"event\":\"discovery\",\"engine_length\":%zu,\"candidate_user_absent\":%s}\n",
                 engine.size(), absent ? "true" : "false");
     const int closed = snmp_sess_close(handle);
@@ -207,7 +207,7 @@ int main(int argc, char** argv)
             const std::vector<oid> authProtocol(before->authProtocol, before->authProtocol + before->authProtocolLen);
             const std::vector<oid> privProtocol(before->privProtocol, before->privProtocol + before->privProtocolLen);
             const auto engine = discover(argv[2], argv[7]);
-            const auto* after = usm_get_user(engine.data(), engine.size(), argv[7]);
+            const auto* after = usm_get_user(const_cast<unsigned char*>(engine.data()), engine.size(), argv[7]);
             const bool preserved = engine == discovered && before == after &&
                 after && auth == std::vector<unsigned char>(after->authKey, after->authKey + after->authKeyLen) &&
                 privacy == std::vector<unsigned char>(after->privKey, after->privKey + after->privKeyLen) &&
