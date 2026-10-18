@@ -3,6 +3,7 @@ include $(TOP)/configure/CONFIG
 
 USR_INCLUDES += -I$(TOP)/snmp3App/src
 USR_DBDFLAGS += -I$(TOP)/dbd
+USR_SYS_LIBS_Linux += pthread
 DBD += snmp3LifecycleTest.dbd
 snmp3LifecycleTest_DBD += base.dbd snmp3.dbd
 PROD_IOC += snmp3LifecycleTest
