@@ -1708,3 +1708,10 @@ Before a long run on a new environment, build the module and `tests/rewrite`, th
 ```bash
 python3 tests/rewrite/run_matrix.py --rehearsal --output work/rehearsal-<environment>
 ```
+
+An environment that receives the sources by `git archive` has no `.git`. Write the commit identifier into a `.commit` file at the root of the copy; the runner records it in `environment.json` as `commit` with `commit_source` `archive` and `tree_modified` null, because the content of an archive copy cannot be compared with the commit. Without the file, `commit` is empty and `commit_source` is `unknown`.
+
+```bash
+git -C <checkout> archive HEAD | tar -x -C <copy>
+git -C <checkout> rev-parse HEAD > <copy>/.commit
+```

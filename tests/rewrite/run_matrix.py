@@ -3,6 +3,8 @@
 
 Stages, in order:
   environment   OS, kernel, commit, tree state, tool versions and product hashes -> environment.json
+                The commit comes from git; a copy made by git archive carries it in a .commit file at the root and
+                records the tree state as unverified.
   ordinary      the regression set on the ordinary products
   instrumented  the ASan and UBSan build and the runners that accept --sanitizers
   controls      every control group of test_record_controls.py (needs the instrumented build)
@@ -81,8 +83,21 @@ def output_of(command):
         return ""
 
 
+def source_identity():
+    """The commit of the sources and how it was learned: from git, or from a .commit file of an archive copy."""
+    commit = output_of(["git", "-C", str(ROOT), "rev-parse", "HEAD"])
+    if commit:
+        modified = bool(output_of(["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"]))
+        return commit, "git", modified
+    try:
+        return (ROOT / ".commit").read_text().strip(), "archive", None
+    except OSError:
+        return "", "unknown", None
+
+
 def environment_record(base):
     release = os_release()
+    commit, commit_source, modified = source_identity()
     products = {}
     for pattern in ("bin/linux-x86_64/snmp3Ioc", "bin/linux-x86_64/snmp3Worker", "bin/linux-x86_64/snmp3NativeProbe",
                     "lib/linux-x86_64/libsnmp3.so", "lib/linux-x86_64/libsnmp3Wire.so",
@@ -92,8 +107,7 @@ def environment_record(base):
     return {"date_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "os_id": release.get("ID"), "os_version_id": release.get("VERSION_ID"),
             "os_pretty_name": release.get("PRETTY_NAME"), "kernel": platform.release(), "machine": platform.machine(),
-            "commit": output_of(["git", "-C", str(ROOT), "rev-parse", "HEAD"]),
-            "tree_modified": bool(output_of(["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"])),
+            "commit": commit, "commit_source": commit_source, "tree_modified": modified,
             "net_snmp": output_of(["net-snmp-config", "--version"]), "epics_base": base,
             "python": platform.python_version(), "product_sha256": products,
             "cpus_online": os.cpu_count(), "cpus_usable": len(os.sched_getaffinity(0)),
@@ -277,8 +291,9 @@ def main():
         return 2
     if "environment" in stages:
         (args.output / "environment.json").write_text(json.dumps(env_record, indent=1) + "\n")
-        print("environment:", env_record["os_pretty_name"], env_record["kernel"], env_record["commit"][:12],
-              "tree_modified" if env_record["tree_modified"] else "tree_clean", flush=True)
+        tree = {True: "tree_modified", False: "tree_clean", None: "tree_unverified"}[env_record["tree_modified"]]
+        print("environment:", env_record["os_pretty_name"], env_record["kernel"], env_record["commit"][:12] or "no-commit",
+              env_record["commit_source"], tree, flush=True)
     do_instrumented = args.instrumented == "yes" or (
         args.instrumented == "auto" and (env_record["os_id"], env_record["os_version_id"]) in INSTRUMENTED_OS)
     if "ordinary" in stages:
