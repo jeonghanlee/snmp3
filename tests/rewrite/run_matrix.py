@@ -12,8 +12,13 @@ Instrumented products and the controls run where the environment policy asks for
 Rocky Linux 8.10 only. Elsewhere those cells are written as NOT APPLICABLE and never as PASS. The thread sanitizer
 cell is NOT APPLICABLE on every environment because no build tool exists.
 
-cells.tsv has one row per cell: name, status, return code, seconds, detail. A status is PASS, FAIL, NOT RUN or
-NOT APPLICABLE. The output directory must not exist.
+cells.tsv has one row per cell: name, status, return code, seconds, detail. A status is PASS, FAIL, INCOMPLETE,
+NOT RUN or NOT APPLICABLE. FAIL means the cell ran and wrote a results.json that does not pass. INCOMPLETE means the
+evidence is missing: a required product is absent, or the cell ended without a results.json. The exit code is 1 when
+any cell is FAIL, otherwise 2 when any cell is INCOMPLETE, otherwise 0. The output directory must not exist.
+
+--rehearsal runs a short bounded set (spawn-descriptors, rec-baseline, supervisor-ioc and a 30 s idle plus 60 s load)
+to check the path before a long run. A rehearsal never stands for the complete matrix.
 """
 import argparse
 import hashlib
@@ -30,6 +35,11 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 INSTRUMENTED_OS = {("debian", "13"), ("rocky", "8.10")}
+
+REQUIRED = ("bin/linux-x86_64/snmp3Ioc", "bin/linux-x86_64/snmp3Worker", "bin/linux-x86_64/snmp3NativeProbe",
+            "bin/linux-x86_64/snmp3IpcTest", "bin/linux-x86_64/snmp3RecordTest", "dbd/snmp3RecordTest.dbd",
+            "lib/linux-x86_64/libsnmp3.so", "lib/linux-x86_64/libsnmp3Wire.so", "lib/linux-x86_64/libsnmp3Native.so")
+REHEARSAL_CELLS = ["spawn-descriptors", "rec-baseline", "supervisor-ioc", "load-sustained"]
 
 RECORD_CASES = ("baseline scan-proc alarm-flow chain-flow queued-simm boundaries retirement-flow edges alarms active "
                 "policy numeric shutdown queued-shutdown stop-queued active-unforced accounting deadline-queue "
@@ -85,7 +95,23 @@ def environment_record(base):
             "commit": output_of(["git", "-C", str(ROOT), "rev-parse", "HEAD"]),
             "tree_modified": bool(output_of(["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"])),
             "net_snmp": output_of(["net-snmp-config", "--version"]), "epics_base": base,
-            "python": platform.python_version(), "product_sha256": products}
+            "python": platform.python_version(), "product_sha256": products,
+            "cpus_online": os.cpu_count(), "cpus_usable": len(os.sched_getaffinity(0)),
+            "mem_total_kb": memory_total_kb()}
+
+
+def memory_total_kb():
+    try:
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            if line.startswith("MemTotal:"):
+                return int(line.split()[1])
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def missing_products():
+    return [name for name in REQUIRED if not (ROOT / name).exists()]
 
 
 class Matrix:
@@ -105,7 +131,7 @@ class Matrix:
             f.write("\t".join(str(x) for x in (name, status, rc, seconds, detail)) + "\n")
         print(f"{status:15s} {name}" + (f"  rc={rc} {seconds}s" if rc != "" else ""), flush=True)
 
-    def run(self, name, argv, timeout=None, env=None):
+    def run(self, name, argv, timeout=None, env=None, keep=False):
         if not self.selected(name):
             return None
         started = time.monotonic()
@@ -119,10 +145,18 @@ class Matrix:
         except subprocess.TimeoutExpired:
             rc, detail = 124, "timeout"
         seconds = round(time.monotonic() - started)
-        if self.prune and rc == 0 and "--output" in argv:
-            self.prune_output(name, Path(argv[argv.index("--output") + 1]))
-        self.record(name, "PASS" if rc == 0 else "FAIL", rc, seconds, detail)
+        directory = Path(argv[argv.index("--output") + 1]) if "--output" in argv else None
+        if self.prune and not keep and rc == 0 and directory:
+            self.prune_output(name, directory)
+        status = "PASS" if rc == 0 else "FAIL"
+        if rc != 0 and detail != "timeout" and directory and not self.has_results(directory):
+            status, detail = "INCOMPLETE", "no results.json"
+        self.record(name, status, rc, seconds, detail)
         return rc
+
+    @staticmethod
+    def has_results(directory):
+        return any((directory / name).exists() for name in ("results.json", "module-results.json"))
 
     def prune_output(self, name, directory):
         """Keeps the results file of a passed cell and removes the rest of its output directory."""
@@ -156,7 +190,7 @@ def ordinary(matrix, base):
 def instrumented(matrix):
     out = matrix.output
     build = out / "san"
-    rc = matrix.run("san-build", py("tests/rewrite/build_r5_sanitizers.py", "--output", str(build)))
+    rc = matrix.run("san-build", py("tests/rewrite/build_r5_sanitizers.py", "--output", str(build)), keep=True)
     if rc != 0:
         return None
     products = str(build / "products")
@@ -214,7 +248,13 @@ def main():
     parser.add_argument("--load-seconds", type=int, default=3600)
     parser.add_argument("--sample-seconds", type=float, default=10.0)
     parser.add_argument("--list", action="store_true", help="print the cells and exit")
+    parser.add_argument("--rehearsal", action="store_true",
+                        help="run only a short bounded set to check the path before a long run")
     args = parser.parse_args()
+    if args.rehearsal:
+        args.stages = "environment,ordinary,load"
+        args.only = REHEARSAL_CELLS
+        args.warmup_seconds, args.load_seconds = 30, 60
     stages = set(args.stages.split(","))
     if args.list:
         print("ordinary:", ", ".join(["rec-" + c for c in RECORD_CASES]) + ", record-shutdown, record-startup, record-ca, "
@@ -228,6 +268,13 @@ def main():
     matrix = Matrix(args.output.resolve(), args.only, args.timeout, args.prune)
     (args.output / "cells.tsv").write_text("")
     env_record = environment_record(base)
+    absent = missing_products()
+    if absent:
+        matrix.record("preconditions", "INCOMPLETE", detail="missing: " + ", ".join(absent))
+        (args.output / "summary.json").write_text(json.dumps({"environment": env_record, "counts": {"INCOMPLETE": 1},
+                                                              "rehearsal": args.rehearsal}, indent=1) + "\n")
+        print("preconditions: required products are missing; build the module and tests/rewrite first", flush=True)
+        return 2
     if "environment" in stages:
         (args.output / "environment.json").write_text(json.dumps(env_record, indent=1) + "\n")
         print("environment:", env_record["os_pretty_name"], env_record["kernel"], env_record["commit"][:12],
@@ -256,9 +303,12 @@ def main():
     counts = {}
     for _, status, *_ in matrix.cells:
         counts[status] = counts.get(status, 0) + 1
-    (args.output / "summary.json").write_text(json.dumps({"environment": env_record, "counts": counts}, indent=1) + "\n")
+    (args.output / "summary.json").write_text(json.dumps({"environment": env_record, "counts": counts,
+                                                          "rehearsal": args.rehearsal}, indent=1) + "\n")
     print("summary:", ", ".join(f"{k}={v}" for k, v in sorted(counts.items())))
-    return 0 if counts.get("FAIL", 0) == 0 else 1
+    if counts.get("FAIL", 0):
+        return 1
+    return 2 if counts.get("INCOMPLETE", 0) else 0
 
 
 if __name__ == "__main__":

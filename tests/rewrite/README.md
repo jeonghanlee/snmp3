@@ -1700,3 +1700,11 @@ python3 tests/rewrite/run_matrix.py --output work/matrix-<environment>
 ```
 
 Stages are `environment`, `ordinary`, `instrumented`, `controls` and `load`; `--stages` selects some of them and `--only <text>` runs the cells whose name contains the text. `--list` prints the cells. The instrumented products and the control groups (`control-groups.json`) run on Debian 13 and Rocky Linux 8.10 only (`--instrumented auto`); elsewhere those cells and the thread sanitizer cell are written as NOT APPLICABLE with the reason, never as PASS. The load stage runs the module database tool for `--load-seconds` (default 3600) after `--warmup-seconds` (default 300) of idle phase, sampling resources every `--sample-seconds` (default 10) into `resources.csv` and `counters.csv`.
+
+A cell is PASS, FAIL, INCOMPLETE, NOT RUN or NOT APPLICABLE. FAIL means the cell ran and wrote a `results.json` that does not pass. INCOMPLETE means the evidence is missing: a required product is absent (the run stops at the `preconditions` row), or the cell ended without a `results.json` (or `module-results.json`). The exit code is 1 when any cell is FAIL, otherwise 2 when any cell is INCOMPLETE, otherwise 0. `environment.json` records the usable CPU count and the memory size.
+
+Before a long run on a new environment, build the module and `tests/rewrite`, then run the bounded rehearsal. It runs `spawn-descriptors`, `rec-baseline`, `supervisor-ioc` and a 30 s idle plus 60 s load. A rehearsal never stands for the complete matrix.
+
+```bash
+python3 tests/rewrite/run_matrix.py --rehearsal --output work/rehearsal-<environment>
+```
