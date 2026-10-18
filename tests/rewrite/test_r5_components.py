@@ -15,6 +15,16 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def netsnmp_library():
+    """The real path of the libnetsnmp that the native library of the checkout loads."""
+    listing = subprocess.run(["ldd", str(ROOT / "lib/linux-x86_64/libsnmp3Native.so")], check=True,
+                             capture_output=True, text=True).stdout
+    for line in listing.splitlines():
+        if line.strip().startswith("libnetsnmp.so") and "=>" in line:
+            return Path(os.path.realpath(line.split("=>")[1].split()[0]))
+    raise SystemExit("libsnmp3Native.so does not load libnetsnmp")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
@@ -67,7 +77,7 @@ def main():
             stream.write(bytes((i * 13 + 7) % 256 for i in range(length)))
         invoke("digest-" + str(length), [str(products / "snmp3IpcTest"), "--digest", str(fixture)], sha(fixture))
     for name, fixture in (("executable", products / "snmp3Worker"),
-                          ("native-library", Path("/usr/lib/x86_64-linux-gnu/libnetsnmp.so.40.2.1"))):
+                          ("native-library", netsnmp_library())):
         invoke("digest-" + name, [str(products / "snmp3IpcTest"), "--digest", str(fixture)], sha(fixture))
     summary = {"scope": "Component executions only; IOC/worker/native traffic and R5 acceptance remain pending",
                "sources": sources, "receipts": receipts, "passed": all(r["passed"] for r in receipts)}
