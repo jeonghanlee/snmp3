@@ -269,6 +269,20 @@ void append(netsnmp_pdu& pdu, const BindingDefinition& binding, const Value& val
     if (!snmp_pdu_add_variable(&pdu, object.data(), object.size(), tag,
                               static_cast<const unsigned char*>(data), length)) throw std::bad_alloc();
 }
+// Some Net-SNMP builds hand a security Report to the callback as a received message, others as a security error.
+// The Reports of the time window and the engine discovery belong to the protocol exchange and are not final.
+bool securityReport(netsnmp_pdu* pdu)
+{
+    switch (snmpv3_get_report_type(pdu)) {
+    case SNMPERR_UNKNOWN_USER_NAME:
+    case SNMPERR_UNSUPPORTED_SEC_LEVEL:
+    case SNMPERR_AUTHENTICATION_FAILURE:
+    case SNMPERR_DECRYPTION_ERR:
+        return true;
+    default:
+        return false;
+    }
+}
 int callback(int operation, netsnmp_session*, int requestId, netsnmp_pdu* pdu, void* data) noexcept
 {
     auto& request = *static_cast<Request*>(data);
@@ -284,7 +298,10 @@ int callback(int operation, netsnmp_session*, int requestId, netsnmp_pdu* pdu, v
         else if (operation == NETSNMP_CALLBACK_OP_TIMED_OUT) result.outcome = NativeOutcome::Timeout;
         else if (operation == NETSNMP_CALLBACK_OP_SEC_ERROR) result.outcome = NativeOutcome::SecurityFailure;
         else if (operation == NETSNMP_CALLBACK_OP_SEND_FAILED) result.outcome = NativeOutcome::SendFailure;
-        else if (operation == NETSNMP_CALLBACK_OP_RECEIVED_MESSAGE) {
+        else if (operation == NETSNMP_CALLBACK_OP_RECEIVED_MESSAGE && pdu && pdu->command == SNMP_MSG_REPORT) {
+            if (!securityReport(pdu)) return 0;
+            result.outcome = NativeOutcome::SecurityFailure;
+        } else if (operation == NETSNMP_CALLBACK_OP_RECEIVED_MESSAGE) {
             if (!pdu || pdu->command != SNMP_MSG_RESPONSE) return 0;
             if (session.profile.version == Version::V3 &&
                 (copy(pdu->securityEngineID, pdu->securityEngineIDLen) != session.identity.securityEngineId ||
