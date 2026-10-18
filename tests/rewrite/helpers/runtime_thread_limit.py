@@ -29,6 +29,60 @@ def ptrace(request, pid=0, address=0, data=0):
     return result
 
 
+GETREGS, USER_REGS_BYTES = 12, 27 * 8
+# Indexes into the x86_64 user_regs_struct: argument registers rdi, rsi, rdx, r10, r8, r9, then rax and orig_rax.
+ARGUMENT_REGISTERS, RAX, ORIG_RAX = (14, 13, 12, 7, 9, 8), 10, 15
+
+
+class SyscallTracker:
+    """Reads the syscall stops of one tracee on kernels with and without PTRACE_GET_SYSCALL_INFO.
+
+    PTRACE_GET_SYSCALL_INFO exists from Linux 5.3 and answers EIO on older kernels such as the 4.18 kernel of
+    Rocky Linux 8.10. After the first EIO the tracker reads the registers with PTRACE_GETREGS. Entry and exit
+    stops alternate under PTRACE_SYSCALL; the first stop is an entry when rax holds -ENOSYS, and every later
+    stop is the opposite of the previous one."""
+
+    def __init__(self):
+        self.registers = False
+        self.entry_next = None
+
+    def read(self, pid):
+        """Return {"op": 1 entry or 2 exit, "number", "args" (six values at an entry), "result" (at an exit)}."""
+        if not self.registers:
+            info = ctypes.create_string_buffer(88)
+            try:
+                size = ptrace(GETINFO, pid, len(info), ctypes.addressof(info))
+            except OSError as error:
+                if error.errno != errno.EIO:
+                    raise
+                self.registers = True
+            else:
+                if size < 24 or struct.unpack_from("I", info.raw, 4)[0] != X86_64:
+                    raise RuntimeError("unexpected syscall ABI")
+                op = info.raw[0]
+                if op == 1:
+                    if size < 80:
+                        raise RuntimeError("incomplete syscall entry information")
+                    number, *args = struct.unpack_from("7Q", info.raw, 24)
+                    return {"op": 1, "number": number, "args": args}
+                if op == 2:
+                    if size < 33:
+                        raise RuntimeError("incomplete syscall exit information")
+                    return {"op": 2, "result": struct.unpack_from("q", info.raw, 24)[0]}
+                raise RuntimeError("unexpected syscall information kind")
+        if platform.machine() != "x86_64":
+            raise RuntimeError("NOT RUN: register fallback requires x86_64")
+        regs = ctypes.create_string_buffer(USER_REGS_BYTES)
+        ptrace(GETREGS, pid, 0, ctypes.addressof(regs))
+        values = struct.unpack("27Q", regs.raw)
+        signed_rax = struct.unpack("q", struct.pack("Q", values[RAX]))[0]
+        entry = (signed_rax == -errno.ENOSYS) if self.entry_next is None else self.entry_next
+        self.entry_next = not entry
+        if entry:
+            return {"op": 1, "number": values[ORIG_RAX], "args": [values[i] for i in ARGUMENT_REGISTERS]}
+        return {"op": 2, "result": signed_rax}
+
+
 def trace(argv, env, output, inject):
     """Return evidence on success or failure; never change parent or hard limits."""
     receipt = {"argv": argv, "pid": None, "returncode": None, "child_reaped": False,
@@ -117,6 +171,7 @@ def trace(argv, env, output, inject):
             raise RuntimeError("unexpected initial trace stop")
         ptrace(SETOPTIONS, pid, 0, TRACESYSGOOD | TRACEEXEC | EXITKILL)
         deliver, injected, exec_seen = 0, False, False
+        tracker = SyscallTracker()
         while not reaped:
             ptrace(SYSCALL, pid, 0, deliver)
             _, status = os.waitpid(pid, 0)
@@ -137,15 +192,12 @@ def trace(argv, env, output, inject):
             if stopped != (signal.SIGTRAP | 0x80):
                 deliver = stopped
                 continue
-            info = ctypes.create_string_buffer(88)
-            size = ptrace(GETINFO, pid, len(info), ctypes.addressof(info))
-            if size < 24 or struct.unpack_from("I", info.raw, 4)[0] != X86_64:
-                raise RuntimeError("unexpected syscall ABI")
-            op = info.raw[0]
+            info = tracker.read(pid)
+            op = info["op"]
             if op == 1:
-                if size < 80 or pending is not None:
+                if pending is not None:
                     raise RuntimeError("invalid syscall entry sequence")
-                number, *args = struct.unpack_from("7Q", info.raw, 24)
+                number, args = info["number"], info["args"]
                 if number not in (CLONE, CLONE3):
                     continue
                 if number == CLONE:
@@ -170,11 +222,9 @@ def trace(argv, env, output, inject):
                     if pending["restricted_limit"] != [0, saved[1]]:
                         raise RuntimeError("child limit restriction mismatch")
             elif op == 2:
-                if size < 33:
-                    raise RuntimeError("incomplete syscall exit information")
                 if pending is None:
                     continue
-                result, = struct.unpack_from("q", info.raw, 24)
+                result = info["result"]
                 pending.update(return_value=result, exited_ns=time.monotonic_ns())
                 limited = pending["limited"]
                 restore()

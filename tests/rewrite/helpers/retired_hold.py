@@ -1,5 +1,4 @@
 """Hold one genuine worker Retired send at the Linux syscall boundary."""
-import ctypes
 import os
 from pathlib import Path
 import platform
@@ -7,7 +6,7 @@ import signal
 import struct
 import time
 
-from .runtime_thread_limit import ptrace, SYSCALL, GETINFO, TRACESYSGOOD, X86_64
+from .runtime_thread_limit import ptrace, SyscallTracker, SYSCALL, TRACESYSGOOD
 
 SEIZE, INTERRUPT, DETACH = 0x4206, 0x4207, 17
 SENDTO, HEADER_BYTES = 44, 64
@@ -76,6 +75,7 @@ def hold(child, worker, marker, windows=1):
         wait_stop(deadline)
         path(".attached").write_text("ready\n")
         deliver = 0
+        tracker = SyscallTracker()
         while time.monotonic() < deadline:
             ptrace(SYSCALL, pid, 0, deliver)
             stopped = False
@@ -89,15 +89,10 @@ def hold(child, worker, marker, windows=1):
                     raise RuntimeError("unexpected worker group stop")
                 deliver = sig
                 continue
-            info = ctypes.create_string_buffer(88)
-            size = ptrace(GETINFO, pid, len(info), ctypes.addressof(info))
-            if size < 24 or struct.unpack_from("I", info.raw, 4)[0] != X86_64:
-                raise RuntimeError("unexpected worker syscall ABI")
-            if info.raw[0] != 1:
+            info = tracker.read(pid)
+            if info["op"] != 1:
                 continue
-            if size < 80:
-                raise RuntimeError("incomplete worker syscall entry")
-            number, *args = struct.unpack_from("7Q", info.raw, 24)
+            number, args = info["number"], info["args"]
             if number != SENDTO or args[2] != HEADER_BYTES:
                 continue
             descriptor = os.open(f"/proc/{pid}/mem", os.O_RDONLY)
