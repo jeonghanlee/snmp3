@@ -129,11 +129,20 @@ void process(const char* name,bool successful=true,bool cascade=false,uint16_t e
     const bool admitted=rec->pact;
     if(expectedNative || expired || observeTerminal) {
         const auto terminalEnd=ipc::add(monotonicUs(),8000000);
-        while(!Requests::instance().snapshot().entered && monotonicUs()<terminalEnd)epicsThreadSleep(0.001);
+        // The entered count is shared by every record; the callback of the previous record can still hold it.
+        while(!(Requests::instance().snapshot().entered && context->terminal.result) && monotonicUs()<terminalEnd)
+            epicsThreadSleep(0.001);
         check(Requests::instance().snapshot().entered==1,"native terminal callback did not acquire record lease");
+        std::string classification="unexpected native terminal classification: "+std::string(name);
+        if(context->terminal.result) {
+            classification+=" outcome="+std::to_string(unsigned(context->terminal.result->outcome))+
+                            " native="+std::to_string(unsigned(context->terminal.result->nativeOutcome))+
+                            " expected-outcome="+std::to_string(unsigned(expired?ipc::Outcome::Deadline:ipc::Outcome::NativeFailure))+
+                            " expected-native="+std::to_string(unsigned(expired?0:expectedNative));
+        } else classification+=" no terminal result";
         check(context->terminal.result && (observeTerminal || (
               context->terminal.result->outcome==(expired?ipc::Outcome::Deadline:ipc::Outcome::NativeFailure) &&
-              (expired || context->terminal.result->nativeOutcome==expectedNative))),"unexpected native terminal classification");
+              (expired || context->terminal.result->nativeOutcome==expectedNative))),classification.c_str());
         const auto& terminal=*context->terminal.result;
         std::printf("{\"event\":\"native_terminal\",\"record\":\"%s\",\"outcome\":%u,\"native_code\":%u,\"error_status\":%lld,\"error_index\":%lld}\n",
                     name,unsigned(terminal.outcome),terminal.nativeOutcome,
@@ -969,7 +978,8 @@ void chainAndFanout()
                 dbProcess(rec);
                 check(rec->pact && context->active,"chain source did not admit");
                 if(context->definition.kind==RecordKind::Waveform)reinterpret_cast<waveformRecord*>(rec)->busy=TRUE;
-                check(until([]{return Requests::instance().snapshot().entered==1;}),"chain source terminal did not enter");
+                check(until([&]{return Requests::instance().snapshot().entered==1 && context->terminal.result;}),
+                      "chain source terminal did not enter");
                 check(context->terminal.result!=nullptr,"chain source has no terminal");
                 terminal=unsigned(context->terminal.result->outcome); native=context->terminal.result->nativeOutcome;
                 terminalAt=monotonicUs();
