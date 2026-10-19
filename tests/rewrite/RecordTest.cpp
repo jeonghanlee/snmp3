@@ -113,14 +113,17 @@ std::string quoted(const char* value)
 }
 void command(const std::string& value)
 { check(iocshCmd(value.c_str())==0,"IOC command failed"); }
-void process(const char* name,bool successful=true,bool cascade=false,uint16_t expectedNative=0,bool expired=false,bool observeTerminal=false)
+// With attach the record was admitted earlier: wait for that request instead of admitting another one, which
+// a request that already completed would turn into a second request.
+void process(const char* name,bool successful=true,bool cascade=false,uint16_t expectedNative=0,bool expired=false,bool observeTerminal=false,
+             bool attach=false)
 {
     auto* rec=record(name);
     RecordLock first(rec);
     auto* context=static_cast<RecordContext*>(rec->dpvt);
     check(context!=nullptr,"record has no SNMP binding");
     const auto count=Requests::instance().snapshot().completions;
-    dbProcess(rec);
+    if(!attach)dbProcess(rec);
     if(policy && context->definition.kind==RecordKind::Ao) {
         const auto& value=*reinterpret_cast<aoRecord*>(rec);
         std::printf("{\"event\":\"policy_first_pass\",\"record\":\"%s\",\"pact\":%u,\"val\":%.17g,\"oval\":%.17g,\"ivoa\":%u,\"hihi\":%.17g,\"hhsv\":%u,\"nsev\":%u}\n",
@@ -1455,6 +1458,21 @@ void scanAndProc()
         }
     }
 }
+// Generation and admission counters of the records an active-output iteration touches, to attribute a completion.
+std::string activeGenerations()
+{
+    std::string text;
+    for(const char* name:{"Records_ActiveAo","Records_ActiveLongout","Records_ActiveInt64out","Records_ActiveStringout",
+                          "Records_ActiveLso","Records_FloatRead","Records_Ai","Records_Waveform","Records_Lsi"}) {
+        auto* rec=record(name);
+        auto* context=static_cast<RecordContext*>(rec->dpvt);
+        RecordLock lock(rec);
+        if(!text.empty())text+=" ";
+        text+=std::string(name)+"="+std::to_string(context->identity.generation)+"/"+std::to_string(context->identity.admission)+
+              "/"+std::to_string(unsigned(rec->pact))+std::to_string(unsigned(context->active));
+    }
+    return text;
+}
 void activeOutputs()
 {
     unsigned index=0;
@@ -1525,13 +1543,19 @@ void activeOutputs()
         });
         blocker.release.trigger();
         check(nativeFinished,"active SET/readback native retirement was not observed before callback release");
-        process(readback,true,true);
+        process(readback,true,true,0,false,false,true);
         switch(context->definition.kind) {
         case RecordKind::Ao: check(typed<aiRecord>(readback).val==1.5,"active ao substituted the newer requested payload"); break;
         case RecordKind::Longout: check(typed<aiRecord>(readback).val==31,"active longout substituted the newer requested payload"); break;
         case RecordKind::Int64out: check(*static_cast<epicsUInt64*>(typed<waveformRecord>(readback).bptr)==UINT64_C(9007199254740993),"active int64out lost its captured exact payload"); break;
         case RecordKind::Stringout: check(std::string(typed<lsiRecord>(readback).val)=="first-short","active stringout substituted the newer requested payload"); break;
-        case RecordKind::Lso: check(std::string(typed<lsiRecord>(readback).val)==std::string(200,'F') && typed<lsiRecord>(readback).len==201,"active lso lost its captured long payload"); break;
+        case RecordKind::Lso: {
+            auto& captured=typed<lsiRecord>(readback);
+            check(std::string(captured.val)==std::string(200,'F') && captured.len==201,
+                  (std::string("active lso lost its captured long payload: len=")+std::to_string(captured.len)+
+                   " head="+std::string(captured.val).substr(0,12)).c_str());
+            break;
+        }
         default: check(false,"unexpected active output readback");
         }
         {
@@ -1542,7 +1566,12 @@ void activeOutputs()
         }
         check(until([&]{RecordLock lock(rec); return !rec->pact && !context->active && context->identity.generation==2;}),
               "Base RPRO did not complete the latest requested generation");
-        check(Requests::instance().snapshot().completions==count+3,"active SET/RPRO did not finalize exactly twice");
+        std::printf("{\"event\":\"active_generations\",\"record\":\"%s\",\"completions\":%llu,\"base\":%llu,\"state\":\"%s\"}\n",
+                    name.c_str(),(unsigned long long)Requests::instance().snapshot().completions,(unsigned long long)count,
+                    activeGenerations().c_str());
+        const auto finalized=Requests::instance().snapshot().completions-count;
+        check(finalized==3,(std::string("active SET/RPRO did not finalize exactly twice: ")+name+
+                            " completions="+std::to_string(finalized)+" expected=3 "+activeGenerations()).c_str());
         check(rec->sevr==NO_ALARM,"active RPRO output failed");
         process(readback);
         switch(context->definition.kind) {
