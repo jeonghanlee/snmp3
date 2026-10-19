@@ -360,6 +360,10 @@ def main():
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     Forwarder(args.mode, args.parent_fd, args.worker_fd, args.control).run()
+    # Interpreter finalization restores the default action of a handled signal, so a SIGTERM that
+    # arrives while the process is exiting would end it with status -15. An ignored signal stays ignored.
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ import socket
 import subprocess
 import sys
 import time
-from test_native import ROOT, Runner, USER, VALUE_TYPES, digest, write_json
+from test_native import PROCESS_TIMEOUT, ROOT, Runner, USER, VALUE_TYPES, digest, write_json
 
 CASES = ("typed", "fifo", "deadline", "unsent", "ambiguous", "crashes", "high-fd", "live-race",
          "native-expiry", "discovery-expiry", "ipc-partial", "ipc-coalesced", "ipc-stale",
@@ -47,6 +47,29 @@ def loss_hook(runner, agent_name, marker):
             time.sleep(0.001)
         raise RuntimeError("real SET commit not observed before process fault")
     return perform
+
+
+def settle_proxy(runner, output):
+    """Lets an IPC proxy that has already left its run loop finish by itself.
+
+    The proxy ends on its own once both channels close. A SIGTERM sent while the interpreter is
+    finalizing kills it with status -15 and fails the normal-stop check, so the signal is withheld
+    until the proxy has reported that it stopped and had time to exit.
+    """
+    for name, child, _stdout, _stderr, _argv in runner.children:
+        if name != "ipc-proxy" or child.poll() is not None:
+            continue
+        stopped = False
+        for line in (output / "ipc-proxy.stdout").read_text().splitlines():
+            try:
+                stopped = stopped or json.loads(line).get("event") == "ipc_fault_stopped"
+            except ValueError:
+                continue
+        if stopped:
+            try:
+                child.wait(timeout=PROCESS_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                pass
 
 
 def configure(runner, case, family=4):
@@ -353,6 +376,7 @@ def execute(output, case, family, products=None, sanitizers=False):
     finally:
         for transport in sockets:
             transport.close()
+        settle_proxy(runner, output)
         runner.stop()
         runner.scan()
     inputs = [ROOT / "tests/rewrite/QualificationTest.cpp", Path(__file__).resolve(),
