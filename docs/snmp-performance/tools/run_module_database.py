@@ -1016,11 +1016,22 @@ def run_environment(args):
             return None
 
     commit = command(["git", "-C", str(ROOT), "rev-parse", "HEAD"])
-    dirty = command(["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no", "--",
-                     "snmp3App", "configure", "Makefile"])
+    if commit:
+        dirty = command(["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no", "--",
+                         "snmp3App", "configure", "Makefile"])
+        commit_source, modified = "git", bool(dirty)
+    else:
+        # A copy made by git archive has no .git: its commit is read from the .commit file at its root and
+        # whether its sources were modified is unknown, not false.
+        try:
+            commit = (ROOT / ".commit").read_text().strip() or None
+        except OSError:
+            commit = None
+        commit_source, modified = ("archive" if commit else "unknown"), None
     return {"date": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "tool_sha256": digest(Path(__file__)),
-            "module_commit": commit, "module_product_sources_modified": bool(dirty),
+            "module_commit": commit, "module_commit_source": commit_source,
+            "module_product_sources_modified": modified,
             "product_sha256": {name: digest(PRODUCTS / name) for name in ("snmp3Ioc", "snmp3Worker")},
             "net_snmp": command(["net-snmp-config", "--version"]),
             "kernel": command(["uname", "-r"]),
