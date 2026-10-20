@@ -2228,16 +2228,20 @@ void nearDeadlineTrial()
     // and the record completed successfully, i.e. the request had already succeeded.
     const auto resultAt=firstAt(events,4),containedAt=resultAt?firstAt(events,6,resultAt+1):0;
     const auto retiredAt=resultAt?firstAt(events,5,resultAt):0;
+    // The Result event keeps the service step's time; the supervisor judges the deadline at a later
+    // reading, taken after decoding the frame, and carries it as the event's detail.
+    uint64_t decidedAt=0;
+    for(const auto& e:events)if(e.code==4) { decidedAt=uint64_t(e.detail); break; }
     RecordLock lock(rec);
     const bool afterSuccess=containedAt && rec->sevr==NO_ALARM;
-    // The grace window was exercised when the result arrived before the deadline but its Retired
+    // The grace window was exercised when the result was judged before the deadline but its Retired
     // frame (or the containment) came at or after it.
     const auto settledAt=containedAt && (!retiredAt || containedAt<retiredAt)?containedAt:retiredAt;
-    const bool graceExercised=resultAt && resultAt<deadlineAt && settledAt>=deadlineAt && rec->sevr==NO_ALARM;
-    std::printf("{\"event\":\"near_deadline\",\"stat\":\"%s\",\"sevr\":\"%s\",\"result_us\":%llu,\"contained_us\":%llu,"
+    const bool graceExercised=decidedAt && decidedAt<deadlineAt && settledAt>=deadlineAt && rec->sevr==NO_ALARM;
+    std::printf("{\"event\":\"near_deadline\",\"stat\":\"%s\",\"sevr\":\"%s\",\"result_us\":%llu,\"decision_us\":%llu,\"contained_us\":%llu,"
                 "\"deadline_us\":%llu,\"retired_us\":%llu,\"grace_exercised\":%s,"
                 "\"contained_after_result\":%s,\"timeline\":%s}\n",epicsAlarmConditionStrings[rec->stat],epicsAlarmSeverityStrings[rec->sevr],
-                (unsigned long long)resultAt,(unsigned long long)containedAt,(unsigned long long)deadlineAt,
+                (unsigned long long)resultAt,(unsigned long long)decidedAt,(unsigned long long)containedAt,(unsigned long long)deadlineAt,
                 (unsigned long long)retiredAt,graceExercised?"true":"false",afterSuccess?"true":"false",timeline(events).c_str());
 }
 

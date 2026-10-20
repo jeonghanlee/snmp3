@@ -1546,9 +1546,10 @@ def main():
             events.append({"event": "near_deadline_summary", "trials": len(trials), "contained_after_result": contained,
                            "status": "observed" if contained else "not observed", "grace_exercised": exercised,
                            "grace_status": "run" if exercised else "not run"})
-            # The Retired send is held past the budget, so every trial whose result arrived before the
-            # budget exercises the grace and none is contained after its success.
-            before = [event for event in trials if event["result_us"] and event["result_us"] < event["deadline_us"]]
+            # The Retired send is held past the budget, so every trial whose result was judged before the
+            # budget exercises the grace and none is contained after its success. The judging time is the
+            # supervisor's reading after the frame is decoded, not the service step's time.
+            before = [event for event in trials if event["decision_us"] and event["decision_us"] < event["deadline_us"]]
             runner.check("near-deadline-grace-exercised-in-every-early-trial", bool(before) and
                          all(event["grace_exercised"] and not event["contained_after_result"] for event in before))
         if args.case == "accounting":

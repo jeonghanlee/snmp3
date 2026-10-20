@@ -232,7 +232,10 @@ void Supervisor::input(Address& a,uint64_t now)
         } else if(h.kind==ipc::Kind::Result) {
             try {
                 auto results=ipc::decodeResults(bytes,a.reservations);
-                if(scheduler->complete(a.status.address,h.batch,std::move(results),monotonicUs()))event(a,now,4);
+                // The deadline is judged at this reading, after the frame is decoded; the event keeps the
+                // step's time and carries the judged time as its detail.
+                const auto decidedAt=monotonicUs();
+                if(scheduler->complete(a.status.address,h.batch,std::move(results),decidedAt))event(a,now,4,int64_t(decidedAt));
             } catch(const ipc::StaleIdentity&) { event(a,now,16); }
         } else if(h.kind==ipc::Kind::Retired) {
             const auto members=ipc::decodeRetired(bytes);
