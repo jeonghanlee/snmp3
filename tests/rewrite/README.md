@@ -68,6 +68,30 @@ python3 "$APC_TEST" --ioc work/ap8932-build --case acceptance --output work/ap89
 python3 "$APC_TEST" --ioc work/ap8932-build --case startup --output work/ap8932-startup
 ```
 
+`test_apcpdu_delay.py` runs the same generated IOC against a loopback PDU
+fixture that delays every reply by a declared time and records, per request,
+its arrival, reply time, OIDs and source port. The profile timeout comes from
+the generated configuration (100 ms, no retries). With a delay of 0.4 times the
+timeout the public values equal the independently expected scaled values, each
+published timestamp follows the reply that carried it, the fixture never holds
+more than one unanswered request and the session does not change. With a delay
+of 1.5 times the timeout the late replies are not published and the public
+values stay INVALID; the worker may be contained and relaunched in this phase,
+and the session changes seen by the fixture are recorded. With the delay
+removed the expected values return. At stop every launched worker is reaped,
+none is forced and the queues are empty. The measured delay of every request is
+checked against the declared one; a request count below 50, a measured delay
+outside the declared one or a publication lag that cannot be told from a
+period count as INCOMPLETE (exit 2), an observed violation as FAIL (exit 1).
+`--control late-accepted` and `--control extra-request` change only the fixture
+and must fail `beyond:public-invalid` and `within:one-request-outstanding`
+respectively. `--marks` and `--watch-children` add observations that change
+the timing and are off by default.
+
+```bash
+python3 tests/rewrite/test_apcpdu_delay.py --ioc work/ap8932-build --output work/ap8932-delay
+```
+
 Evidence stays in the output directories on success and failure: build
 commands and logs, source/product hashes, original expanded and migrated DB,
 binding/group inventory, IOC and client logs, SNMP requests, process receipts,
