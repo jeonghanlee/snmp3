@@ -7,10 +7,11 @@ delays every reply by a declared time and records, per request, its arrival, its
     values and the declared scales), each published timestamp follows the reply of the request that carried
     it, the fixture never holds more than one request without a reply, and no SET is sent.
   beyond-timeout (1.5 x timeout): the reply arrives after the library gave up, so the public values stay INVALID
-    during the observation window. The supervisor may contain and relaunch the worker in this phase; the number
-    of session changes seen by the fixture is recorded, not judged.
+    during the observation window. The phase outlasts the record deadline, so records queued behind the timeouts
+    reach their deadline during their own request; the worker ends such a request on its own, opens a new session
+    (seen by the fixture as a new source port, which is the required exposure) and is not relaunched.
   recovery: with the delay removed the expected values return.
-  shutdown: every launched worker is reaped (launches equal reaps), none is forced, the queues are empty.
+  shutdown: one worker was launched and reaped, none was forced, the queues are empty.
 Outcomes. Failed is an observed violation of a claim. Incomplete is missing evidence: too few requests, a measured
 delay outside the declared one, or a causality check that cannot tell an early from a late publication. Exit code
 0 passed, 1 failed, 2 incomplete. The measured delay of every request, not the configured one, is the exposure.
@@ -34,6 +35,7 @@ from build_apcpdu import ARCH, ROOT, digest, load_peer, write_json
 from test_apcpdu import Runner, WAIT_SECONDS, port
 
 OBSERVE_SECONDS = 10
+DEADLINE_MARGIN_SECONDS = 15
 MINIMUM_REQUESTS = 50
 CAUSAL_LAG_SECONDS = 0.2
 EXPECTED = {"phase.current.value": 12, "phase.voltage.value": 208, "phase.power.value": 2.5,
@@ -47,11 +49,16 @@ class Incomplete(Exception):
 
 
 class DelayRunner(Runner):
-    def __init__(self, ioc, output, control="none", marks=False, watch=False):
+    def __init__(self, ioc, output, control="none", marks=False, watch=False, hold=0.0, timeout_ms=None):
         super().__init__(ioc, output)
-        self.control, self.marks, self.watch = control, marks, watch
+        self.control, self.marks, self.watch, self.timeout_ms = control, marks, watch, timeout_ms
+        # The beyond-timeout phase must outlast the record deadline of the generated application by enough for
+        # a record to reach its deadline during its own request (observed 16 to 25 s after the phase starts with
+        # a 15 s deadline); the fixture sees the new session the worker opens afterwards as a change of source port.
+        self.deadline = self.build["deadline_ms"] / 1000.0
+        self.hold = max(hold, self.deadline + DEADLINE_MARGIN_SECONDS - OBSERVE_SECONDS)
         document = json.loads((ioc / "config.template.json").read_text())
-        self.timeout = document["profiles"][0]["timeoutMs"] / 1000.0
+        self.timeout = (timeout_ms or document["profiles"][0]["timeoutMs"]) / 1000.0
         if document["profiles"][0].get("retries") != 0:
             raise ValueError("The delay contract assumes no retries")
         self.within, self.beyond = 0.4 * self.timeout, 1.5 * self.timeout
@@ -60,6 +67,14 @@ class DelayRunner(Runner):
         self.checks.append({"name": name, "passed": None, "detail": detail})
         print(f"[ INCOMPLETE ] {name}", flush=True)
         raise Incomplete(f"{name}: {detail}")
+
+    def config(self, folder, snmp_port, version="2c"):
+        path = super().config(folder, snmp_port, version)
+        if self.timeout_ms:
+            document = json.loads(path.read_text())
+            document["profiles"][0]["timeoutMs"] = self.timeout_ms
+            write_json(path, document)
+        return path
 
     @contextmanager
     def delayed_fixture(self, name):
@@ -77,12 +92,18 @@ class DelayRunner(Runner):
             def sendto(self, data, address):
                 time.sleep(peer.delay_s)
                 self.row["reply_ns"] = time.time_ns()
+                # The count falls before the reply leaves: the next request cannot arrive earlier, so the count
+                # does not depend on how soon this thread runs again.
+                with gate:
+                    peer.outstanding -= 1
+                    self.row["counted"] = False
                 self.sock.sendto(data, address)
 
         class Handler(module.Handler):
             def handle(self):
                 data, sock = self.request
-                row = {"arrival_ns": time.time_ns(), "reply_ns": None, "names": [], "source_port": self.client_address[1]}
+                row = {"arrival_ns": time.time_ns(), "reply_ns": None, "names": [], "source_port": self.client_address[1],
+                       "counted": True}
                 try:
                     request = list(module.items(next(module.items(data))[1]))[2]
                     fields = list(module.items(request[1]))
@@ -100,7 +121,8 @@ class DelayRunner(Runner):
                     super().handle()
                 finally:
                     with gate:
-                        peer.outstanding -= 1
+                        if row["counted"]:
+                            peer.outstanding -= 1
                         peer.timeline.append(row)
 
         peer.RequestHandlerClass = Handler
@@ -232,6 +254,10 @@ class DelayRunner(Runner):
         worker = re.search(r"pid=0 ready=0 closing=[01] batch=0 launches=(\d+) reaps=(\d+) forced=(\d+)", log)
         self.check("delay:worker-reaped", worker is not None and worker.group(1) == worker.group(2) and
                    worker.group(3) == "0", worker.groups() if worker else None)
+        # A worker that answers within the grace is not relaunched after a deadline; a new session after a
+        # deadline changes the source port the fixture sees, so the port is recorded and not judged.
+        self.check("delay:one-worker-launch", worker is not None and worker.group(1) == "1",
+                   worker.groups() if worker else None)
         self.check("delay:queues-empty",
                    "state=Stopped admission=0 activation=1 created=1 exited=1 joined=1" in log and
                    "active=0 pending=0 queued=0 running=0 inert=0 entered=0" in log and "count=0 bytes=0" in log)
@@ -300,7 +326,12 @@ class DelayRunner(Runner):
                        all(s["phase.current.alarm.severity"] == 3 for s in snapshots), len(snapshots))
             time.sleep(self.beyond + 0.1)
             self.mark(child, "beyond")
+            time.sleep(self.hold)
             summary["beyond"] = self.exposure("beyond", self.phase_rows(peer, start), self.beyond - 0.002, None)
+            ports = {row["source_port"] for row in self.phase_rows(peer, start)}
+            if len(ports) < 2:
+                self.missing("beyond:deadline-exposure", {"source_ports_in_phase": sorted(ports), "hold_s": self.hold})
+            summary["beyond"]["source_ports"] = sorted(ports)
 
             peer.delay_s = 0.0
             starts.append(("recovery", time.time_ns()))
@@ -333,6 +364,11 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--marks", action="store_true",
                         help="ask the IOC for a worker report at the end of each phase (changes the timing)")
+    parser.add_argument("--timeout-ms", type=int, default=None,
+                        help="profile timeout of the run instead of the generated one; the delays follow it")
+    parser.add_argument("--beyond-hold", type=float, default=0.0,
+                        help="seconds to keep the beyond-timeout delay after the observation window, at least long "
+                             "enough for a record to reach its deadline")
     parser.add_argument("--watch-children", action="store_true",
                         help="record the child processes of the IOC every 0.25 s (changes the timing)")
     parser.add_argument("--control", choices=("none", "late-accepted", "extra-request"), default="none",
@@ -342,7 +378,8 @@ def main():
     if output.exists() or not output.is_relative_to(ROOT / "work"):
         parser.error("--output must be a new directory under this checkout's work/")
     output.mkdir(parents=True)
-    runner = DelayRunner(ioc, output, args.control, args.marks, args.watch_children)
+    runner = DelayRunner(ioc, output, args.control, args.marks, args.watch_children, args.beyond_hold,
+                         args.timeout_ms)
     error, outcome = None, "PASS"
     try:
         for path, expected in runner.build["products"].items():

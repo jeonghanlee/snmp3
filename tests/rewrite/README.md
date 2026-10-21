@@ -76,16 +76,23 @@ timeout the public values equal the independently expected scaled values, each
 published timestamp follows the reply that carried it, the fixture never holds
 more than one unanswered request and the session does not change. With a delay
 of 1.5 times the timeout the late replies are not published and the public
-values stay INVALID; the worker may be contained and relaunched in this phase,
-and the session changes seen by the fixture are recorded. With the delay
-removed the expected values return. At stop every launched worker is reaped,
-none is forced and the queues are empty. The measured delay of every request is
+values stay INVALID; this phase outlasts the record deadline of the generated
+application, so records queued behind the timeouts reach their deadline during
+their own request, and the worker ends such a request on its own, opens a new
+session and is not relaunched. The new session is seen by the fixture as a
+change of source port; a phase without one counts as INCOMPLETE because the
+deadline path was not exercised. With the delay removed the expected values
+return. At stop one worker was launched and reaped, none was forced
+and the queues are empty. The measured delay of every request is
 checked against the declared one; a request count below 50, a measured delay
 outside the declared one or a publication lag that cannot be told from a
 period count as INCOMPLETE (exit 2), an observed violation as FAIL (exit 1).
 `--control late-accepted` and `--control extra-request` change only the fixture
 and must fail `beyond:public-invalid` and `within:one-request-outstanding`
-respectively. `--marks` and `--watch-children` add observations that change
+respectively. `--timeout-ms` runs the scenario with another profile timeout
+(the delays follow it) and `--beyond-hold` keeps the beyond-timeout delay for
+more seconds after its observation window; both exist to reproduce a finding,
+not to qualify. `--marks` and `--watch-children` add observations that change
 the timing and are off by default.
 
 ```bash
@@ -403,7 +410,7 @@ python3 tests/rewrite/test_records.py --case repeat-detach --output work/r6-repe
 | scan-proc | records.db and record-output.db; all eleven record types use actual .1 second periodic scan and active PROC writes against 750 ms delayed UDP responses. Periodic scan reaches two generations and observes LCNT while active without RPRO. Two PROC writes while active coalesce into one successor. Each route requires two completions, two Base FLNK executions, NO_ALARM and two matching native requests/responses; no direct record-processing substitute drives the periodic path. |
 | active-unforced | record-active.db; no external callback holds the Base consumer, so each of the five outputs is rewritten while its first SET is delayed 750 ms and the reprocess is admitted behind the first request's native retirement; two generations, two completions, the latest value on the wire and NO_ALARM; the case reports in how many trials the queued-behind-retirement branch ran and the Result-to-Retired gap |
 | accounting | record-active.db; three trials of the unheld rewrite observe the window with one consumed generation awaiting retirement and one queued (count 2, charged bytes twice a single generation); a count limit of 1 rejects the reprocess synchronously as WRITE/INVALID with PACT cleared, and raising the limit admits an explicit request |
-| deadline-queue | record-queue.db and actual outer UDP drop-all; three sampling trials with a 1000 ms budget measure reap, relaunch and Ready after a Deadline, one below-threshold and one above-threshold budget trial follow, and a follow-up SET after the unsent generation is observed; each trial records the put-to-dispatch interval, the AMSG, the alarm and the report counters, and the case reports the threshold as the range over every relaunch it measured |
+| deadline-queue | record-queue.db and actual outer UDP drop-all; the Retired frame of the worker is held past the retire grace so that the supervisor contains it, and three sampling trials with a 1000 ms budget measure reap, relaunch and Ready after that containment, one below-threshold and one above-threshold budget trial follow, and a follow-up SET after the unsent generation is observed; each trial records the put-to-dispatch interval, the AMSG, the alarm and the report counters, and the case reports the threshold as the range over every relaunch it measured |
 | near-deadline | record-queue.db and an outer UDP response delay of 300 ms; ten fresh processes with record budgets of 314 to 322 ms place the response just before the deadline and report whether the worker was contained after its result had been selected |
 | rebuild | record-queue.db and actual outer UDP drop-all; the stop-queued state (a stopped worker, a retirement-pending predecessor and a queued Base RPRO successor) is stopped and cleaned up in isolation, then the same process loads the databases again and starts a second activation; the second activation runs the complete baseline on a new worker, the first activation's worker is gone, and the report counters start again at zero |
 | stop-inflight | record-stop.db (the eleven Timeout records of the alarms case, each with a FLNK to one counter) and actual outer UDP drop-all; all eleven records are admitted on one address, the case waits until a batch is on the worker channel and stops the runtime; one generation is sent and the others are queued, and every record completes once as a communication alarm with INVALID severity, no native publication, PACT and waveform BUSY clear and exactly one FLNK each, the drain succeeds and the worker is reaped |
