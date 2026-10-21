@@ -51,7 +51,7 @@ A request ends at the earlier of its native outcome and its deadline. The profil
 
 A request that reaches its deadline before transmission is reported as COMM/INVALID with the AMSG text `deadline before send`. A request that was sent keeps an empty AMSG.
 
-A successor admitted behind a retirement keeps the deadline of its own admission. When its predecessor ends in a Deadline, the supervisor contains, reaps, and relaunches the worker. The successor is dispatched only if its budget outlasts the reap, the restart backoff, the relaunch, and the Ready frame. Otherwise it expires unsent.
+A successor admitted behind a retirement keeps the deadline of its own admission. When its predecessor ends in a Deadline, the worker ends that request at the deadline on its own, and the successor is dispatched after the Retired frame on the same worker. A worker that sends nothing within the 1000 ms retire grace is contained, reaped, and relaunched; the successor is then dispatched only if its budget outlasts the grace, the reap, the restart backoff, the relaunch, and the Ready frame. Otherwise it expires unsent.
 
 ## Declared groups of bindings
 
@@ -63,13 +63,13 @@ Three consequences are part of the contract:
 - **Shared failures.** A timeout, a worker loss, or a native failure of the group request gives every member the same outcome. K records of a group fail together where K single requests would fail one at a time. The loss count of a monitoring set read in groups is counted per request, not per record.
 - **A short wait for the rest of the group.** The first member of a group can wait up to 2 ms in the queue, or 0.5 ms after the last member arrived, so that the group leaves whole. This wait is part of the request budget.
 
-## Recovery time after a deadline
+## Recovery time after a containment
 
-With an outer user datagram protocol (UDP) drop-all fault, the time from containment to a Ready worker was about 0.4 s on ordinary builds (362 to 403 ms over the recorded runs). On instrumented builds it was about 0.7 s (710 to 745 ms). Both values include the first restart backoff step of 250 ms.
+With an outer user datagram protocol (UDP) drop-all fault and the worker's Retired frame held past the retire grace, the time from containment to a Ready worker was 447 to 464 ms on the ordinary build over the recorded runs of the deadline-queue case. The value includes the first restart backoff step of 250 ms. The containment itself follows the deadline by the 1000 ms grace.
 
 Each further consecutive failure of the worker lengthens the backoff to 500, 1000, 2000, and then 4000 ms. A consecutive failure is a failure without a matching Retired frame in between. The timer table of the [worker reference](snmp-worker-reference.md#timers-and-fairness) lists the series.
 
-A budget must also cover the backoff step in effect. In the deadline-queue case, a budget of 1000 ms dispatched the queued request in each of three runs on both build types. That budget covers only the first backoff step and left about 260 ms to spare on instrumented builds. A smaller budget lets the queued request expire unsent, which the record reports as COMM/INVALID with the AMSG text `deadline before send`.
+A budget must also cover the retire grace and the backoff step in effect. In the deadline-queue case on the ordinary build, the Ready worker followed the successor's admission by 1.45 to 1.46 s; a queued request with a 1000 ms budget therefore expires unsent, which the record reports as COMM/INVALID with the AMSG text `deadline before send`, and a budget of 2.9 s dispatched it after the relaunch.
 
 A worker that does not react to its closed channel took 1.83 to 1.85 s from containment to Ready on an ordinary build, and longer on an instrumented build. In the measured case, a process signal stopped the worker. The qualification `deadline` case measures this time. The time is the difference between the containment event (code 6) and the Ready event (code 3) of the next epoch. The [verification reference](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/tests/rewrite/README.md) gives the command.
 

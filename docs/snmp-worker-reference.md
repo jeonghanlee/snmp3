@@ -225,7 +225,7 @@ The module counts dropped diagnostic events numerically, and a run fails qualifi
 | Partial non-bootstrap frame | 1000 ms from the first byte; the request deadline can be earlier |
 | Bootstrap and Ready | 5000 ms from spawn; admission expiry stays independent |
 | Stop graceful close, TERM, and KILL-reap observation | +1000, +1500, and +2000 ms from one origin |
-| Retired grace after deadline | 1000 ms for a member already selected Complete or NativeFailure |
+| Retired grace after deadline | 1000 ms for a member selected Complete, NativeFailure or, when its batch was transmitted, Deadline |
 | Restart backoff | 250, 500, 1000, 2000, and 4000 ms, then 4000 ms; a matched Retired frame restarts the series |
 | Restart rate | Four attempts per address in the trailing 60000 ms, including the initial attempt |
 | Global spawn | At most one attempt per loop; round-robin over addresses |

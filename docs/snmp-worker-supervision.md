@@ -94,9 +94,9 @@ Bootstrap carries the frozen definitions and credentials, and the worker never r
 
 ## Containment of worker failures
 
-The supervisor handles due deadlines before optional I/O and spawn. Expiry selects one Deadline for each nonterminal member of the equal-deadline active batch and starts containment.
+The supervisor handles due deadlines before optional I/O and spawn. Expiry selects one Deadline for each nonterminal member of the equal-deadline active batch. A batch no byte of which was transmitted is contained at the deadline.
 
-A member already selected Complete or NativeFailure keeps that outcome. Containment for such a member starts only when its Retired frame is missing 1000 ms after its deadline. A matched Retired frame resets the consecutive failure count of the address. The four-attempt rate cap does not change.
+A transmitted batch is not contained at the deadline. The worker ends its batch at the deadline on its own, sends the Result and the Retired frame, closes and discards its native sessions, and takes the next batch; an SNMPv3 session then runs discovery again. Containment of a member selected Deadline, Complete or NativeFailure starts only when its Retired frame is missing 1000 ms after its deadline, so a worker that sends nothing within that grace is contained, reaped and relaunched. A matched Retired frame resets the consecutive failure count of the address. The four-attempt rate cap does not change.
 
 No next batch uses the slot before Retired or exact reap. Peer addresses stay independently serviced. A new epoch follows the actual reap of the old PID. Normal native close and forced termination are separate observations.
 

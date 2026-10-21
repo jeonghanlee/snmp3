@@ -4,6 +4,7 @@ Date: 2026-10-01
 Amended: 2026-10-03 (per-handle generations behind retirement; containment of answered requests;
 register decisions D7 and D9 and gate G5 in `docs/milestone-5dff352.md`)
 Amended: 2026-10-10 (declared groups; register decisions D15 and D16 relax the equal-deadline rule for the members of one declared group)
+Amended: 2026-10-20 (the retire grace covers a transmitted request that reaches its deadline; the worker discards its sessions when it ends a batch at the deadline; register decision D26)
 Status: accepted for the verified R5 component and IOC supervision boundary
 Source Session: standalone author work in `~/gitsrc/snmp3`
 Source Decisions: User-approved `<local>/plan-r5-20260930-02.md`, SHA256
@@ -59,10 +60,14 @@ Only proven zero-byte requests can survive replacement with their original
 identity/deadline. Do not replay ambiguous GET or SET. Net-SNMP retains ownership
 of protocol retries and process-pinned USM compatibility.
 
-Contain expired/failed workers locally, retain the dispatch slot through native
+Contain failed workers locally, retain the dispatch slot through native
 unwind or reap, and restart with a new epoch only after old PID wait. A member
-already selected Complete or NativeFailure triggers containment only when its
-Retired frame is missing 1000 ms after its deadline. A matched Retired
+selected Complete or NativeFailure, or selected Deadline after its batch was
+transmitted, triggers containment only when its Retired frame is missing
+1000 ms after its deadline: the worker ends a transmitted batch at the deadline
+on its own and discards its native sessions, so only a worker that sends
+nothing within the grace is contained. A batch no byte of which was transmitted
+is contained at the deadline. A matched Retired
 frame resets the consecutive failure count of the address. Apply the
 fixed backoff/rate and address fairness rules. Request-level security conflicts
 do not restart healthy workers to change pinned material.
