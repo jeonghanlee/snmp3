@@ -239,7 +239,8 @@ int AddressWorker::run()
             input(now);
             if(native) {
                 if(activeBatch && !resultReady && (closing || nowUs()>=deadline)) {
-                    for(auto& session:sessions)session.second->close();
+                    // A closed session rejects every later submit, so the next batch must open a new one.
+                    closeNative();
                     if(!resultReady)local(closing ? ipc::Outcome::Stopping:ipc::Outcome::Deadline);
                 }
                 events();

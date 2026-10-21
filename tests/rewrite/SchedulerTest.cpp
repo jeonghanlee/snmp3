@@ -41,7 +41,8 @@ void jointRelease()
 {
     Scheduler s(configuration(),1,1); auto a=handle(s,"Read0"); s.limits("127.0.0.1",1,4608);
     const auto first=s.admit({a},{},1,1000).front(); auto d=s.dispatch(1,1000); check(d.commands.size()==1); s.transmitted(1,d.batch);
-    check(s.expire(1,2000)); consume(s,first,ipc::Outcome::Deadline);
+    // A transmitted request past its deadline is selected at once and contained one grace later.
+    check(!s.expire(1,2000) && !s.expire(1,1001999) && s.expire(1,1002000)); consume(s,first,ipc::Outcome::Deadline);
     auto held=s.snapshot(1); check(held.count==1 && held.bytes==4608 && held.retirementPending==1);
     rejects([&]{s.admit({a},{},100,2001);});
     s.limits("::ffff:127.0.0.1",1,1); check(s.snapshot(1).bytes==4608);
@@ -140,7 +141,8 @@ void admissionBehindRetirement()
     s.release(borrowed.id); check(s.retired(1,d.batch,identities(d))); check(s.settled());
 }
 // A member answered before its deadline is not contained until its Retired frame is still missing
-// one grace interval after the deadline; an unanswered member is contained at the deadline.
+// one grace interval after the deadline; a transmitted member unanswered at the deadline is selected
+// Deadline at once and gets the same grace; a member no byte of which left is contained at the deadline.
 void containmentGrace()
 {
     Scheduler s(configuration(),1,1); auto a=handle(s,"Read0");
@@ -149,8 +151,15 @@ void containmentGrace()
     check(!s.expire(1,101000) && !s.expire(1,1100999) && s.expire(1,1101000));
     check(s.retired(1,d.batch,identities(d))); consume(s,id,ipc::Outcome::Complete); check(s.settled());
     const auto late=s.admit({a},{},100,2000000).front(); d=s.dispatch(1,2000000); s.transmitted(1,d.batch);
-    check(s.expire(1,2100000)); check(s.complete(1,d.batch,results(d),2100001));
-    check(s.retired(1,d.batch,identities(d))); consume(s,late,ipc::Outcome::Deadline); check(s.settled());
+    check(!s.expire(1,2100000)); consume(s,late,ipc::Outcome::Deadline);
+    check(s.complete(1,d.batch,results(d),2100001));
+    check(!s.expire(1,3099999) && s.expire(1,3100000));
+    check(s.retired(1,d.batch,identities(d))); check(s.settled());
+    const auto retiredInTime=s.admit({a},{},100,4000000).front(); d=s.dispatch(1,4000000); s.transmitted(1,d.batch);
+    check(!s.expire(1,4100000)); check(s.retired(1,d.batch,identities(d))); check(!s.expire(1,5100000));
+    consume(s,retiredInTime,ipc::Outcome::Deadline); check(s.settled());
+    const auto unsent=s.admit({a},{},100,6000000).front(); d=s.dispatch(1,6000000);
+    check(s.expire(1,6100000)); s.reaped(1); consume(s,unsent,ipc::Outcome::Deadline); check(s.settled());
 }
 // With a consumed, retirement-pending predecessor and a queued successor on one handle, expire, stop
 // and reaped must each act on the right generation: the successor expires or stops as never-sent work
@@ -215,10 +224,10 @@ void graceOutcomes()
     check(!s.expire(1,101000) && !s.expire(1,1100999) && s.expire(1,1101000));
     check(s.retired(1,d.batch,identities(d))); consume(s,answered,ipc::Outcome::NativeFailure); check(s.settled());
     const auto late=s.admit({a},{},100,2000000).front(); d=s.dispatch(1,2000000); s.transmitted(1,d.batch);
-    check(s.complete(1,d.batch,results(d),2100000) && s.expire(1,2100000));
+    check(s.complete(1,d.batch,results(d),2100000) && !s.expire(1,2100000) && !s.expire(1,3099999) && s.expire(1,3100000));
     check(s.retired(1,d.batch,identities(d))); consume(s,late,ipc::Outcome::Deadline); check(s.settled());
 }
-// Only members answered Complete or NativeFailure receive the grace; a member selected ChannelFailure,
+// Only members answered Complete or NativeFailure, or selected Deadline after transmission, receive the grace; a member selected ChannelFailure,
 // WorkerFailure or Stopping is contained as soon as its deadline is reached.
 void graceExclusion()
 {

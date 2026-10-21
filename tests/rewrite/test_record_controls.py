@@ -119,7 +119,7 @@ D7_CONTROLS = {
     "grace-native-failure": ("component", "grace-outcomes", None,
                              [("const bool answered=g.selected && (g.result.outcome==ipc::Outcome::Complete || g.result.outcome==ipc::Outcome::NativeFailure);",
                                "const bool answered=g.selected && g.result.outcome==ipc::Outcome::Complete;")]),
-    "grace-all-outcomes": ("component", "grace-outcomes", None,
+    "grace-all-outcomes": ("component", "grace-exclusion", None,
                            [("const bool answered=g.selected && (g.result.outcome==ipc::Outcome::Complete || g.result.outcome==ipc::Outcome::NativeFailure);",
                              "const bool answered=g.selected;")]),
     "grace-channel-failure": ("component", "grace-exclusion", None,

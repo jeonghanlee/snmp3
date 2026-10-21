@@ -288,7 +288,8 @@ void deadline(Fixture& f)
     check(f.scheduler->snapshot(1).bytes==pending.bytes,"limit decrease released live Q");
     for(unsigned i=0;i<2;++i)f.read(b[i],ipc::Outcome::Complete,-123);
     check(f.worker(1).pid>0 && f.worker(2).ready,"blocked address starved peer or reaped early");
-    f.until([&]{return f.scheduler->snapshot(1).count==0;},2500);
+    // The stopped worker is contained one retire grace after the deadline; TERM and KILL follow at +1000 and +1500 ms.
+    f.until([&]{return f.scheduler->snapshot(1).count==0;},4500);
     check(std::any_of(f.observed.begin(),f.observed.end(),[](const SupervisionEvent& e){return e.address==1 && e.code==9;}),"blocked worker KILL absent");
     f.scheduler->limits("127.0.0.1",2,9344); f.admit({a[0]},{},5000,monotonicUs());
     f.read(a[0],ipc::Outcome::Complete,-123); f.settle();
@@ -525,7 +526,10 @@ void idleTimers(Fixture& f)
     idle();
     const auto a=f.handles.at("Address4Read");
     f.signal(1,SIGSTOP);
-    f.admit({a[0]},{},100,monotonicUs()); f.read(a[0],ipc::Outcome::Deadline);
+    const auto admitted=monotonicUs();
+    f.admit({a[0]},{},100,admitted); f.read(a[0],ipc::Outcome::Deadline);
+    // The stopped worker sends nothing, so it is contained one retire grace after the deadline.
+    f.until([&]{return eventAt(f.observed,6,admitted)!=0;},3000);
     const auto contained=monotonicUs();
     check(f.worker(1).pid>0 && f.owner->nextPoll(contained)==contained+10000,"contained worker is not polled for its exit soon");
     check(f.owner->nextWake(contained)<=contained+10000,"loop wake time does not include the exit poll");

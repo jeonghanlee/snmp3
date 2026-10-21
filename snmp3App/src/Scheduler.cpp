@@ -289,7 +289,13 @@ bool Scheduler::expire(uint64_t address, uint64_t nowUs)
         auto& g=*a.generations.at(id);
         const bool answered=g.selected && (g.result.outcome==ipc::Outcome::Complete || g.result.outcome==ipc::Outcome::NativeFailure);
         if(answered) { if(nowUs>=ipc::add(g.command.deadline,RetireGraceUs))contain=true; continue; }
-        if(nowUs>=g.command.deadline) { select(g,ipc::Outcome::Deadline); contain=true; }
+        if(nowUs<g.command.deadline)continue;
+        const bool expired=!g.selected || g.result.outcome==ipc::Outcome::Deadline;
+        select(g,ipc::Outcome::Deadline);
+        // The worker ends a transmitted request at its own deadline, so its Retired frame gets the same grace
+        // as an answered request; a request no byte of which left is contained at the deadline.
+        if(expired && g.sent) { if(nowUs>=ipc::add(g.command.deadline,RetireGraceUs))contain=true; }
+        else contain=true;
     }
     return contain;
 }
@@ -360,7 +366,8 @@ uint64_t Scheduler::earliestAction(uint64_t address, bool grace) const
         const auto& g=*entry.second;
         if(!g.selected) { time=std::min(time,g.command.deadline); continue; }
         const bool answered=g.result.outcome==ipc::Outcome::Complete || g.result.outcome==ipc::Outcome::NativeFailure;
-        if(grace && g.active && !g.retired && answered)time=std::min(time,ipc::add(g.command.deadline,RetireGraceUs));
+        const bool expired=g.result.outcome==ipc::Outcome::Deadline && g.sent;
+        if(grace && g.active && !g.retired && (answered || expired))time=std::min(time,ipc::add(g.command.deadline,RetireGraceUs));
     }
     return time;
 }

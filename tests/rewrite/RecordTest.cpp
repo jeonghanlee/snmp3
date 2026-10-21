@@ -2062,6 +2062,10 @@ void retirementTrial()
         consumed=owner->snapshot(1);
         check(consumed.count==1 && consumed.bytes==single.bytes && consumed.retirementPending==1 && !consumed.queued,
               "retirement consumed predecessor charge released early");
+        // The stopped worker sends nothing, so the supervisor contains it one grace after the deadline; the
+        // resume follows that containment so that the relaunch is what settles the trial.
+        check(until([&]{ for(const auto& e:Runtime::instance().takeSupervisionEvents())if(e.address==1)events.push_back(e);
+            return firstAt(events,6,startedAt)!=0; }),"retirement containment after the grace absent");
         releaseAt=monotonicUs(); responseMode("pass"); boundary.release();
     }
     check(until([&]{ for(const auto& e:Runtime::instance().takeSupervisionEvents())if(e.address==1)events.push_back(e);
@@ -2147,15 +2151,18 @@ void deadlineTrial(const char* label)
       check(rec->pact,"deadline-queue first SET was not admitted"); }
     check(until([&]{return delayedSets()>packets;}),"deadline-queue SET packet not observed");
     const double latest=2.5; const auto putAt=monotonicUs(); put("Records_QueueAo.VAL",DBR_DOUBLE,&latest);
+    // The held Retired is released only after the deadline plus the retire grace, so the supervisor contains
+    // the worker and the trial measures the relaunch; released earlier, the worker would retire the request
+    // itself and the successor would leave on the same worker.
+    const auto releaseAfter=ipc::add(firstAdmittedAt,ipc::multiply(uint64_t(context->definition.budgetMs)+1100,1000));
     const auto admittedAt=pollGeneration(rec,2,[&]{
-        if(!hold.marker.empty()) {
-            const auto q=holder->snapshot(1);
-            if(q.count==2 && q.retirementPending==1 && q.queued==1)hold.release(1);
-        }
+        if(!hold.marker.empty() && monotonicUs()>=releaseAfter)hold.release(1);
         return Requests::instance().snapshot().completions>=before+1 && !rec->pact && !rec->rpro &&
                ((context->identity.generation>=2 && Requests::instance().snapshot().completions>=before+2) ||
                 rec->stat==WRITE_ALARM);
     },30000000);
+    // A trial whose successor expired before the release time still releases the hold only after the grace.
+    check(until([&]{return monotonicUs()>=releaseAfter;},5000000),"deadline-queue release time not reached");
     hold.release(1);
     check(until([&]{return context->owner->settled();},30000000),"deadline-queue trial retained native ownership");
     std::vector<SupervisionEvent> events;
