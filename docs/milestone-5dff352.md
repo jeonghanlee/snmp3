@@ -2472,6 +2472,7 @@ Each run retained one IOC PID and one worker PID. IOC threads 23, descriptors 11
 | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
 | M11 | Deferred record verification cells | Carry-forward | Deferred | No | D13 | Deferred by D13 on 2026-10-05; the cells run when the owner asks for Channel Access, long-write, delayed-simulation or rebuild/reuse record verification; [detail](#m11---deferred-record-verification-cells) |
+| M18 | Linux shared-library SONAME and symbolic-link versioning | Milestone | Deferred | No | none | Long-term work recorded on 2026-10-24; ABI-versioned SONAMEs, installed symbolic-link chains and real consumer compatibility are verified; [detail](#m18---linux-shared-library-soname-and-symbolic-link-versioning) |
 
 ### Backlog Details
 
@@ -2533,3 +2534,77 @@ Superseded Plan Artifacts: none
 ##### Closure Evidence
 
 - none
+
+#### M18 - Linux shared-library SONAME and symbolic-link versioning
+
+Origin: 5dff352 / M18
+Identity History: none
+GitHub Issue: #1 - https://github.com/jeonghanlee/snmp3/issues/1
+Status: Deferred (Decision Date: 2026-10-24)
+
+##### Summary
+
+Give SNMP3 shared libraries on Linux an explicit ABI-versioned SONAME and a reproducible symbolic-link installation procedure. Separate the real versioned library file, its runtime SONAME and the unversioned name used when linking consumers.
+
+##### Scope
+
+- Inventory `snmp3`, `snmp3Wire` and `snmp3Native`, their consumers and any retained compatibility names; define which interfaces require a stable ABI contract.
+- Define how compatible changes and incompatible ABI changes affect the SONAME independently of the project release number.
+- Implement versioned library output and symbolic-link creation through the EPICS build/install path. Document the relation `libname.so -> libname.so.<ABI> -> libname.so.<full-version>` for the selected policy.
+- Verify installation, compatible upgrades and consumer loading for the IOC, native probe and native worker, including the existing loaded-library identity checks.
+
+Out of scope: changing current APC/SNMP3 test products, making this work a condition for the current comparison campaign, applying a common policy to all EPICS modules, or changing device behavior. Recording this item does not authorize implementation, deployment or release.
+
+##### Completion Criteria
+
+- Each in-scope shared library has a documented ABI policy, intended ELF SONAME, versioned real file and correct symbolic links after a normal build and installation.
+- Actual consumers record the intended SONAME in their dependencies and load the expected installed library; the IOC and worker paths execute successfully.
+- A compatible replacement preserves an already linked consumer, while an incompatible ABI uses a distinct SONAME and does not silently replace the old ABI.
+- Repeated installation preserves valid links and the supported package/distribution path retains their targets. Migration from existing unversioned libraries is documented and tested.
+
+##### Dependencies And Decisions
+
+- Decision Date: 2026-10-24. Retain this as a SNMP3 long-term Backlog item, excluded from current execution. Reconsider its schedule after the current verification campaign; no completion dependency is added to that campaign.
+- No implementation dependency or ABI version number is assigned before the library and consumer inventory is examined.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Inventory actual library exports, consumer dependencies, existing names and the applicable EPICS versioned-library build/install rules.
+2. Propose ABI compatibility/version rules and migration behavior for existing installations; obtain plan acceptance and implementation authorization.
+3. Apply the accepted policy in the build/install definitions and update consumer identity checks and installation documentation.
+4. Execute the real build, install, consumer and upgrade tests below before release.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Build and installation | Build and install the actual libraries; inspect ELF SONAME/NEEDED entries, real files and symbolic-link targets; repeat installation | Supported Debian and Rocky Linux build environments | Installed names, dependencies and links match the accepted ABI policy, without dangling targets |
+| T2 | Consumer runtime | Run the real IOC, native probe and worker from the installed tree against the shipped loopback fixture; inspect actual loaded library identities | Supported Debian and Rocky Linux runtime environments | Intended libraries load and actual SNMP acquisition and orderly shutdown succeed |
+| T3 | Upgrade and migration | Run an already linked consumer after a compatible library replacement; exercise a distinct incompatible SONAME and the documented unversioned-library migration | Isolated installed trees on supported Linux environments | Compatible consumers continue to run; incompatible ABIs remain distinct; migration and package installation preserve valid links |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Supported Debian and Rocky Linux build environments | Pending | none |
+| T2 | Not run | Supported Debian and Rocky Linux runtime environments | Pending | none |
+| T3 | Not run | Isolated installed trees on supported Linux environments | Pending | none |
+
+##### Closure Evidence
+
+- none
+
+##### GitHub Projection
+
+Title: Version SNMP3 shared libraries with ABI SONAMEs
+Labels: enhancement
+GitHub Milestone: none
+Observed State: open
+Observed Labels: enhancement
+Observed Milestone: none
+Last Compared: 2026-10-24T18:47:50Z; issue updatedAt 2026-10-24T18:47:50Z; title, body, label, assignee jeonghanlee and absent milestone verified with `gh issue view 1 --repo jeonghanlee/snmp3`
