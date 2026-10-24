@@ -105,13 +105,199 @@ binding/group inventory, IOC and client logs, SNMP requests, process receipts,
 loaded-library hashes and `result.json`. Success requires exit 0 and
 `passed: true`; a build or partial check count alone is insufficient.
 
-This is an initial local M7 subset. It does not qualify hardware, actual v3
-communication, the legacy comparator, command SET behavior, setting
-write-back, sensor/16-outlet/AP7800B variants, the full delay/reorder matrix,
-scanner pause/resume, or all startup/configuration failure cases. The existing
+`test_apcpdu_reorder.py` holds actual response bytes produced by the pinned
+PDU fixture. With the original scanner paused, a manually processed phase-current
+GET times out; the next GET uses the same client port and a different request
+ID. `old-first` delivers the expired response while the next GET is pending
+and requires PACT and INVALID to remain until the current response arrives.
+`new-first` delivers the current response first, then the expired one. Both
+cases require the current 14.7 A value and timestamp to survive the old response,
+then verify a fresh 15.9 A read and a duplicate old response. Each case starts
+a fresh real IOC with the original DB, group and clients; only the outer UDP
+delivery is held. The profile uses a 2,000 ms timeout and zero retries.
+
+```bash
+APC_REORDER=tests/rewrite/test_apcpdu_reorder.py
+python3 "$APC_REORDER" --ioc work/ap8932-build --output work/ap8932-reorder
+python3 "$APC_REORDER" --ioc work/ap8932-build --reverse --output work/ap8932-reorder-reverse
+```
+
+Select `--case old-first`, `--case new-first` or `--case cleanup` to run a
+case alone. The cleanup case raises an intentional setup exception after an
+actual response is held and verifies normal IOC/worker shutdown. The external
+`--control accept-stale` changes the old response's request ID to the current
+one and must fail `old-first:pending-remains-invalid`; `--control no-stale-delivery`
+withholds the required delivery and must exit 2 (Incomplete). Controls require
+`--case old-first`. The `--control no-pva` case sends actual PVA client searches
+to an owned loopback UDP socket that does not answer and retains the discarded
+search count; inability to establish the required baseline remains Incomplete,
+while an observed baseline value mismatch remains Failed.
+Logs retain the actual request IDs, client ports, captured
+values, response delivery bounds and hashes, CA/PVA snapshots, loaded-library
+identities and process outcomes without recording community bytes. A missing
+required delivery or observation is Incomplete; a mismatch is Failed. This
+qualifies one v2c OID and two selected delivery orders, not the full M7 matrix.
+
+`test_apcpdu_operations.py` adds independent `commands`, `scanner`, `v3` and
+`cleanup` cases to the generated application. Each starts a fresh IOC and
+outer agents with the same isolated CA/PVA configuration. `--case all` runs
+all four; each case can also run alone, without an earlier acceptance case.
+
+```bash
+APC_OPS=tests/rewrite/test_apcpdu_operations.py
+python3 "$APC_OPS" --ioc work/ap8932-build --case all --output work/ap8932-operations
+```
+
+The command case writes each of the 24 public outlet commands, exercises On,
+Off and Cycle values on the first outlet, and writes the master command. It
+observes exact SET OID, value, response status, asynchronous completion alarm
+and a subsequent independent GET of the command OID. The outer peer stores
+only the command value: outlet status stays unchanged, so this does not
+establish physical confirmation. A notWritable reply must end with INVALID
+and no automatic retry; an explicit repeat after restoring write permission
+must succeed. The profile has zero library retries. Idle and read-only
+processing must issue no additional SET. `--control accept-rejected`, with
+`--case commands`, makes the peer accept the intended rejected write and must
+fail the named `OutletCmd1:set-value-order` check.
+
+The scanner case leaves the shipped 2-second and 10-second schedules intact,
+then changes only `SCANNER.SCAN` to `Passive`. A measured pause of at least
+22 seconds must hold the counter and phase/information values, with no GET
+for the selected phase and identity OIDs. Independent outlet timing records
+must continue their 10-second reads. Changed peer values become visible after
+restoring `2 second`; consecutive resumed information reads must be separated
+by at least 8 seconds, allowing one scanner tick around the 10-second period.
+This verifies the original scheduler through record processing, not a Python
+reimplementation. It does not pause the entire IOC or every independent scan.
+
+The v3 case compiles the shipped `NativeAgent.cpp` with the installed Net-SNMP
+library. Its optional `PORT FAMILY CONFIG ENGINE_HEX OBJECTS` form registers
+exact, read-only APC instances. The private OBJECTS file contains numeric OID,
+ASN.1 tag and decimal integer or hexadecimal octets per row; OIDs must be below
+`1.3.6.1.4.1.318`. The values and OIDs are exported from the pinned APC peer
+and MIB, not copied into a second expected-value table. The original invocation
+without OBJECTS retains the native test scalars and contexts.
+
+Each of noAuthNoPriv, authNoPriv and authPriv must reach healthy CA/PVA
+values, match all 100 group mappings and types, and exercise all 153 GET
+bindings. Agent handler events identify protocol version and security level;
+the shipped pass-through UDP fixture separately records discovery and actual
+application packets, including encryption for authPriv. SHA and AES are the
+selected algorithms. Separate fresh cases use incorrect authentication and
+privacy secrets: real application packets must reach the wire while the raw
+phase and public Model records remain INVALID and the agent dispatches no GET handler. Disposable
+secrets/configurations are private; logs retain metadata without credentials.
+
+Evidence includes `result.json`, actual client stdout/stderr and status,
+per-case IOC/agent/proxy logs, command timelines, measured scanner intervals,
+exported object indexes, build/source and loaded-library hashes, and owned
+process shutdown outcomes. Exit 0 means PASS, 1 an observed assertion failure,
+and 2 missing required evidence or a runner execution error; SIGINT
+returns 130. The cleanup case raises setup exceptions after the original PDU
+and IOC start, and separately after the native agent, UDP proxy and IOC start.
+It verifies resource termination, worker reaping and empty queues. Existing evidence is never
+overwritten, and all output directories must be new under `work/`.
+
+These runners cover local M7 subsets. They do not qualify hardware, the legacy
+comparator, setting write-back, sensor/16-outlet/AP7800B variants, declared
+binding groups, the full delay/reorder matrix, or all installed
+startup/configuration failure cases. The existing
 APC checker and pvxmonitor suite are not run by this runner; its 100-field
 checks use actual caget/pvxget calls against the original group definitions.
 Full M7 acceptance remains in the canonical milestone document.
+
+## Prepared Grouped AP8932 Candidate
+
+`test_apcpdu_grouped.py` exercises an existing hash-identified candidate supplied
+by the APC repository. Its original launcher, startup, module/unit loaders,
+DB, QSRV2 mapping, binary and worker execute unchanged. The candidate's shipped
+`tests/snmp_peer.py` and `fixture_value()` supply only the external UDP boundary.
+The two configured loopback GET ports must be available. Run where the actual
+CA/PVA clients can discover loopback interfaces. Evidence and the IOC working
+directory remain in snmp3.
+
+```bash
+python3 tests/rewrite/test_apcpdu_grouped.py --candidate <candidate> --output work/grouped --case baseline
+```
+
+The baseline checks actual registration against the source DB, cold invalidity,
+every input, scalar/plain PVA mappings, complete text arrays, enum choices,
+declared units, alarms and timestamp presence/range. It waits for observed
+input validity, allowing the source's 60-second slow period to run. Negative
+scaled fixtures are checked as INVALID rather than assigned an invented value.
+A PVA put targets an existing field, requires an actual refusal and checks
+unchanged readback. Captured SNMP operations must be GET-only.
+
+The module's bounded hold permits a request to contain a proper subset of one
+declared group. The checker rejects unknown members, duplicates within a request,
+mixed groups and non-GET operations, and requires observed member coverage.
+Full and partial request sizes remain separate aggregation observations. The
+original strict no-split result remains retained in the canonical M7 record.
+
+The `held` case changes actual outer-agent values and holds a real response.
+It checks publication after delivery, exact timestamp transitions, completion
+counters, next-chunk gating and unit isolation. The `split` case uses
+`apcpdu_grouped_ca.py`, an independent client of the installed libca, to process
+the two existing measurement heads concurrently. It preserves the actual
+fanout/admission path and holds a later response only after an earlier partial
+response was delivered. Raw DBR_TIME_LONG observations, exact native completion
+deltas and counter/busy/cycle fields establish the exposed completion window.
+No actual split within the bounded attempts is INCOMPLETE, never an inferred
+PASS. The client checks its native structure layout against libca's exported
+size/offset tables; CA timestamp seconds retain their explicit 1990 epoch.
+
+The `outage` case drops one unit's real UDP responses, checks all public input
+alarms and selected CA/PVA publications, observes bounded canary-only probing,
+and restores responses for same-value recovery. A changed valid value from the
+other unit establishes isolation. The `cleanup` case raises a setup failure
+after real IOC initialization. `--reverse` changes the order of fresh case
+instances. SIGINT and SIGTERM preserve native exit 130 and 143, with final
+client, IOC, repeater and worker receipts retained even on interruption.
+
+`--replay-wire` evaluates a separately frozen captured-input directory using
+`--proof-sha256`; it does not start an IOC or establish a new integration run.
+Missing files/members are INCOMPLETE, while observed mixed/duplicate members
+fail. The external `wrong-value` and `no-pva` controls exercise the real runtime
+value/discovery paths. Qualification status and exact results belong to M7.
+
+No whole-device timestamp equivalence, monitor-update, v3 wire, legacy-comparison,
+equipment, deployment, service lifecycle or full M7 acceptance is established.
+Native verdicts and separate stdout/stderr remain retained. A stopped IOC or
+worker does not turn a failed or incomplete case into PASS.
+
+## Installed AP8932 Startup
+
+`test_apcpdu_startup.py` uses an existing APC installation's actual binary,
+DBD, DB, generator and module/unit loaders. It does not rebuild or edit that
+candidate. This is separate from the generated 400-record application above:
+the selected installed candidate has 544 records and 358 SNMP inputs per unit.
+The generator produces a complete two-unit configuration with 716 GET bindings.
+All endpoint addresses are loopback, secrets are private disposable values,
+and each case owns fresh IOC processes and UDP sinks.
+
+```bash
+APC_INST=/absolute/path/to/apcpdu
+STARTUP_TEST=tests/rewrite/test_apcpdu_startup.py
+python3 "$STARTUP_TEST" --apcpdu "$APC_INST" --output work/apcpdu-installed-startup
+```
+
+Select `--case valid`, `--case invalid` or `--case failed-state` to run a
+subset alone. Valid v1/v2c and all three v3 security levels reach iocInit,
+register both units' actual records and enter the shell. Negative cases put
+missing-file, schema, endpoint-reference, duplicate-profile and missing-privacy
+errors before any unit or after the first unit's loader; they must exit 1
+before iocInit or the interactive-shell marker. The separate Failed-state
+case sets a nonexistent worker path and continues the outer script through
+the observed initialization failure; the installed main must reject it.
+
+`--case invalid --control continue-after-error` omits the outer error-break
+setting. This control must fail: in the measured candidate it continues through
+iocInit and the shell and returns 0. Missing installation inputs are Incomplete/2.
+Outputs preserve stdout and stderr separately, native IOC and generator status,
+record names, loaded mappings, source/library hashes and process cleanup.
+The enclosing scripts are controlled test inputs. The deployment `st.cmd`,
+service lifecycle, remote SNMP authentication and CA/PVA values remain outside
+this runner's qualification.
 
 ## Scope And Prerequisites
 

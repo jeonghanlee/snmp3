@@ -12,6 +12,7 @@
 #include <array>
 #include <memory>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -34,8 +35,11 @@ struct Cell {
     Var value, undo;
     unsigned index;
     unsigned context;
+    bool external = false;
+    std::vector<oid> object;
 };
 std::array<Cell, ContextCount * ScalarCount> Cells;
+std::vector<std::unique_ptr<Cell>> ExternalCells;
 
 std::string privateConfig(const char* path)
 {
@@ -59,6 +63,58 @@ std::string privateConfig(const char* path)
     if (text.find('\0') != std::string::npos)
         throw std::runtime_error("fixture configuration contains NUL");
     return text;
+}
+
+// External objects use exact instance OIDs and values exported from an outer fixture.
+// Rows contain a numeric OID, an ASN.1 tag and a decimal integer or hexadecimal octets.
+void externalObjects(const char* path)
+{
+    std::istringstream input(privateConfig(path));
+    std::string line;
+    while (std::getline(input, line)) {
+        std::istringstream row(line);
+        std::string name, text, extra;
+        unsigned tag;
+        if (!(row >> name >> tag >> text) || row >> extra)
+            throw std::runtime_error("fixture object row invalid");
+        std::unique_ptr<Cell> cell(new Cell);
+        cell->external = true;
+        cell->index = static_cast<unsigned>(ExternalCells.size() + 1);
+        cell->context = 0;
+        oid object[MAX_OID_LEN];
+        size_t length = MAX_OID_LEN;
+        if (name.find("1.3.6.1.4.1.318.") != 0 ||
+            !read_objid(name.c_str(), object, &length))
+            throw std::runtime_error("fixture object OID invalid");
+        cell->object.assign(object, object + length);
+        for (const auto& prior : ExternalCells)
+            if (prior->object == cell->object)
+                throw std::runtime_error("fixture object OID duplicate");
+        netsnmp_variable_list* variable = nullptr;
+        if (tag == ASN_INTEGER || tag == ASN_GAUGE) {
+            size_t used = 0;
+            const long number = std::stol(text, &used);
+            if (used != text.size()) throw std::runtime_error("fixture integer invalid");
+            snmp_varlist_add_variable(&variable, nullptr, 0, static_cast<u_char>(tag),
+                reinterpret_cast<const unsigned char*>(&number), sizeof(number));
+        } else if (tag == ASN_OCTET_STR) {
+            std::vector<unsigned char> bytes;
+            if (text.size() % 2) throw std::runtime_error("fixture octets invalid");
+            for (size_t i = 0; i < text.size(); i += 2) {
+                size_t used = 0;
+                const auto byte = std::stoul(text.substr(i, 2), &used, 16);
+                if (used != 2) throw std::runtime_error("fixture octets invalid");
+                bytes.push_back(static_cast<unsigned char>(byte));
+            }
+            snmp_varlist_add_variable(&variable, nullptr, 0, ASN_OCTET_STR, bytes.data(), bytes.size());
+        } else {
+            throw std::runtime_error("fixture object type invalid");
+        }
+        if (!variable) throw std::runtime_error("fixture object allocation failed");
+        cell->value.reset(variable);
+        ExternalCells.push_back(std::move(cell));
+    }
+    if (ExternalCells.empty()) throw std::runtime_error("fixture object inventory empty");
 }
 
 Var value(unsigned index, unsigned context)
@@ -146,7 +202,7 @@ int handle(netsnmp_mib_handler*, netsnmp_handler_registration* registration,
         auto* variable = request->requestvb;
         switch (info->mode) {
         case MODE_GET:
-            if (cell.index == 11 || cell.index == 12) {
+            if (!cell.external && (cell.index == 11 || cell.index == 12)) {
                 netsnmp_set_request_error(info, request,
                     cell.index == 11 ? SNMP_ERR_TOOBIG : SNMP_ERR_GENERR);
                 break;
@@ -194,8 +250,8 @@ int handle(netsnmp_mib_handler*, netsnmp_handler_registration* registration,
 int main(int argc, char** argv)
 {
     setvbuf(stdout, nullptr, _IOLBF, 0);
-    if ((argc != 4 && argc != 5) || (std::strcmp(argv[2], "4") && std::strcmp(argv[2], "6"))) {
-        std::fprintf(stderr, "Usage: snmp3NativeAgent PORT FAMILY CONFIG [ENGINE_HEX]\n");
+    if ((argc != 4 && argc != 5 && argc != 6) || (std::strcmp(argv[2], "4") && std::strcmp(argv[2], "6"))) {
+        std::fprintf(stderr, "Usage: snmp3NativeAgent PORT FAMILY CONFIG [ENGINE_HEX [OBJECTS]]\n");
         return 2;
     }
     char* tail = nullptr;
@@ -204,7 +260,7 @@ int main(int argc, char** argv)
     try {
         std::string config = privateConfig(argv[3]);
         std::vector<unsigned char> engine(Engine.begin(), Engine.end());
-        if (argc == 5) {
+        if (argc >= 5) {
             const size_t length = std::strlen(argv[4]);
             if (length < 10 || length > 64 || length % 2)
                 throw std::runtime_error("fixture engine argument invalid");
@@ -238,7 +294,18 @@ int main(int argc, char** argv)
             if (end == std::string::npos) break;
             start = end + 1;
         }
-        for (unsigned context = 0; context < ContextCount; ++context) {
+        if (argc == 6) {
+            externalObjects(argv[5]);
+            for (const auto& cell : ExternalCells) {
+                auto* reg = netsnmp_create_handler_registration("external-fixture", handle,
+                    cell->object.data(), cell->object.size(), HANDLER_CAN_RONLY);
+                if (!reg) throw std::runtime_error("fixture registration failed");
+                reg->my_reg_void = cell.get();
+                if (netsnmp_register_instance(reg) != MIB_REGISTERED_OK)
+                    throw std::runtime_error("fixture instance registration failed");
+            }
+        }
+        for (unsigned context = 0; argc != 6 && context < ContextCount; ++context) {
             for (unsigned index = 1; index <= ScalarCount; ++index) {
                 auto& cell = Cells[context * ScalarCount + index - 1];
                 cell.index = index;
