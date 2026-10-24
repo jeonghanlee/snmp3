@@ -1,0 +1,40 @@
+{
+  "files": {
+    "analyze_observation.py": {
+      "extracted_function": null,
+      "source": "work/analyze-apc-observation.py",
+      "source_sha256": "99c2b036b59d9fc6b00b654dbe46eabc6f1a91c105b3172477b16b59ac3c3ffc"
+    },
+    "capture_ca.py": {
+      "extracted_function": null,
+      "source": "work/apc-common-capture.py",
+      "source_sha256": "f34a655828bfac740272d1a49b12e35ca40f1522c6408274c80cc996b81912b7"
+    },
+    "evaluate_cycles.py": {
+      "extracted_function": null,
+      "source": "work/apc-cycle-evaluate.py",
+      "source_sha256": "861b7d82a9b62a821cb58d2d9e957c4e622edb93267d25d13e18026feb9c5749"
+    },
+    "evaluate_native.py": {
+      "extracted_function": null,
+      "source": "work/apc-collector-20261023/evaluate_native.py",
+      "source_sha256": "3007ca61944b62255f95be5e2cdc492198bfcfc82e17ee1dbcd091025c6cd5fc"
+    },
+    "native_observation.py": {
+      "extracted_function": null,
+      "source": "work/apc-collector-20261023/observations.py",
+      "source_sha256": "3ef9e7ab4982d621d2e4fa7bea391ec67c57acc903c939375d2cfd298669de56"
+    },
+    "native_observer.cpp": {
+      "extracted_function": null,
+      "source": "work/apc-collector-20261023/observer.cpp",
+      "source_sha256": "0bb558e8d7b0c8d7ee7123f57d997523a465b40e5c71cdffa47aa482396810ac"
+    },
+    "poll_cycles.py": {
+      "extracted_function": "cycle_summary",
+      "source": "work/apc-equipment-get.py",
+      "source_sha256": "d5852cd541efd49a95bcf28207e644615a4e26bb1321d9178d8ff829a06f5078"
+    }
+  },
+  "scope": "Source provenance, not a current Git source coverage manifest"
+}

@@ -15,8 +15,8 @@ import time
 
 RUNNING = True
 MODES = ("pass", "drop", "drop-all", "delay", "duplicate", "reorder", "missing", "extra", "duplicate-varbind",
-         "malformed", "wrong-request-id", "foreign-report", "controlled")
-CONTROL_MODES = ("pass", "drop-all", "duplicate", "error-status", "too-big", "bad-error-index",
+         "malformed", "wrong-request-id", "foreign-report", "drop-protected", "controlled")
+CONTROL_MODES = ("pass", "drop-all", "drop-protected", "duplicate", "error-status", "too-big", "bad-error-index",
                  "no-such-object", "no-such-instance", "end-of-mib", "wrong-type", "numeric-seed")
 
 
@@ -80,11 +80,14 @@ def parse(data):
     metadata = {"version": version, "length": len(data), "discovery": False}
     if version == 3:
         header = items(outer[1]["body"])
+        if header[2]["tag"] != 4 or len(header[2]["body"]) != 1:
+            raise ValueError("invalid SNMPv3 flags")
         security_root, _ = tlv(outer[2]["body"])
         security = items(security_root["body"])
         metadata.update(message_id=integer(header[0]), engine_length=len(security[0]["body"]),
                         boots=integer(security[1]), engine_time=integer(security[2]),
-                        user_length=len(security[3]["body"]), discovery=not security[3]["body"])
+                        user_length=len(security[3]["body"]), discovery=not security[3]["body"],
+                        flags=header[2]["body"][0])
         if outer[3]["tag"] != 48:
             metadata["encrypted"] = True
             return outer, None, None, metadata
@@ -219,15 +222,21 @@ def main():
                         mode = Path(os.environ["SNMP3_RECORD_FAULT_CONTROL"]).read_text().strip()
                         if mode not in CONTROL_MODES:
                             raise ValueError("invalid controlled response mode")
-                        if mode not in ("pass", "drop-all", "duplicate"):
+                        if mode not in ("pass", "drop-all", "drop-protected", "duplicate"):
                             packet = mutate(packet, mode)
                         emit("fault_controlled", mode=mode, **parse(packet)[3])
-                        if mode != "drop-all":
+                        if mode not in ("drop-all", "drop-protected"):
                             if mode == "duplicate":
                                 listener.sendto(packet, client)
                                 emit("fault_duplicate", **parse(packet)[3])
                             listener.sendto(packet, client)
                             continue
+                    if mode == "drop-protected":
+                        if metadata.get("version") == 3 and metadata.get("flags", 0) & 3 == 3:
+                            emit("fault_dropped", mode=mode, **metadata)
+                        else:
+                            listener.sendto(packet, client)
+                        continue
                     if mode in ("drop", "drop-all"):
                         emit("fault_dropped", length=len(packet))
                         continue
