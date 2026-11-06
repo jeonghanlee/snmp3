@@ -9,7 +9,7 @@ Remote tracker: none associated with this register
 Recorded date: 2026-10-01
 Source baseline: `5dff352b9e86abfca74a74c4adc4fc8c1e48079f`
 
-Next session entry point: `docs/milestone-5dff352.md`, M7 / Selected GET-Only Completion Verification. The accepted r3 local verification is complete: current APC385/385, two canonical PVA groups10/10, current startup124/124 across10 cases, PVA evaluator controls14/14, and the expected startup error-continuation control failure. No new runtime test is due for the accepted scope. Prepare and land the identified SNMP3 and APC repository changes under their separate Git authorizations, then record landing evidence and close M7. The LSI UDF and strict legacy-comparison limitations are accepted; M14 retains its performance failures. No hardware action or publication follows automatically.
+Next session entry point: `docs/milestone-5dff352.md`, M7 / Closure Evidence. M7 is Complete for the accepted GET-only scope: functional verification and both repositories' fetched landing evidence are recorded. Review the remaining work table before selecting further work. M9 still needs the owner review of the book, and M14 retains its performance failures and deferred investigation. No new M7 runtime campaign is required.
 
 ## Scope
 
@@ -17,7 +17,7 @@ This register owns the R1-R8 rewrite checkpoints and the assigned mdBook documen
 
 Out of scope: changing implementation or installed dependencies through this documentation update, operating equipment, publishing a site, or changing Git history or remote state.
 
-Complete means the identified checkpoint scope and its qualified verification are complete. It does not close later integration requirements. R6 implementation was authorized on 2026-10-01 (G1) for a plan now superseded by the D7-D9 revision; G5 accepted and authorized that revision on 2026-10-03; M5 implementation under it completed on 2026-10-05 and M6 completed within its accepted scope on 2026-10-08. M6 Closure Evidence identifies landed deliverables, actual verification and retained exclusions. R7 has an authorized local AP8932 subset in progress; full R7, R8 and mdBook implementation remain gated. Their Blocked status records the missing detailed-plan acceptance and separate implementation authorization; planning may proceed before those gates close. Ready is an execution dependency indicator, not implementation authorization.
+Complete means the identified checkpoint scope and its qualified verification are complete. It does not close later integration requirements. R6 implementation was authorized on 2026-10-01 (G1) for a plan now superseded by the D7-D9 revision; G5 accepted and authorized that revision on 2026-10-03; M5 implementation under it completed on 2026-10-05 and M6 completed within its accepted scope on 2026-10-08. M6 Closure Evidence identifies landed deliverables, actual verification and retained exclusions. R7 is complete within the GET-only scope accepted on 2026-11-05, including the recorded LSI UDF and strict legacy-comparison limits. R8 is complete under its recorded dispositions; mdBook owner review remains open. Ready is an execution dependency indicator, not implementation authorization.
 
 Implemented source and executable fixtures are carried by `49d5c62feca95f12a13910b73b60667455773b7c`; architecture/operator documents by `81cdcddd4fb431cba55e5a7999c9f7c923a670e6`; Python cache exclusions by the source baseline above. The current identity is snmp3.
 
@@ -49,7 +49,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | M4 | R4: native SNMP adapter | Milestone | Complete | No | M3 | Actual GET/SET, security, response and native lifetime tests; [detail](#m4---r4-native-snmp-adapter) |
 | M5 | R5: address queues, IPC and worker supervision | Milestone | Complete | No | M3, M4, D3, D7, D9, D10, G5 | Actual isolated worker, deadline, recovery and IOC qualification, including the D7 per-handle bound and D9 containment/backoff rules; [detail](#m5---r5-address-worker-supervision) |
 | M6 | R6: record DSET, conversion, completion and FLNK | Milestone | Complete | No | M1, M2, M3, M4, M5, D5, D6, D7, D8, D11, D12, D13, G1, G5 | Required real-path verification and capability landed at ade4c58; D13/M11 exclusions and dated limits retained; [detail](#m6---r6-record-integration) |
-| M7 | R7: APC startup/DB migration and comparison | Milestone | In progress | No | M6, D1, G2 | GET-only completion scope accepted2026-11-05; historical goal evidence retained, current APC385/385, PVA10/10 and startup124/124 qualified with actual controls. LSI UDF and strict comparison limits accepted; performance repair remains M14. Only identified repository landing and closure remain; [detail](#m7---r7-apc-migration-and-comparison) |
+| M7 | R7: APC startup/DB migration and comparison | Milestone | Complete | No | M6, D1, G2 | Complete2026-11-06 for the accepted GET-only scope. APC385/385, PVA10/10 and startup124/124 qualified with actual controls; SNMP3 76eee8b and APC 96fa207/3314b1e match their fetched upstreams. LSI UDF and strict comparison limits remain accepted; performance repair remains M14; [detail](#m7---r7-apc-migration-and-comparison) |
 | M8 | R8: integrated five-OS and resource qualification | Milestone | Complete | No | M6, G3, D23 | Full identified-source matrix and measured resource acceptance; [detail](#m8---r8-integrated-qualification) |
 | M9 | mdBook documentation | Milestone | In progress | No | M1, M2, M3, M4, M5, D4, D14, D19, G4 | Curated book builds and rendered navigation/links match current behavior; [detail](#m9---mdbook-documentation) |
 | M10 | Negative-control harness outcome classification | Carry-forward | Open | No | none | Owner scope decision recorded and each listed outcome either classified by an executed run or kept by decision; [detail](#m10---negative-control-harness-outcome-classification) |
@@ -64,6 +64,8 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | G3 | R8 detailed-plan acceptance and execution authorization | External gate | Complete | No | none | OS environments, instruments and resource acceptance policy approved; [detail](#g3---r8-authorization) |
 | G4 | mdBook detailed-plan acceptance and execution authorization | External gate | Complete | No | none | Layout, toolchain, build and publication boundary approved; [detail](#g4---mdbook-authorization) |
 | G5 | D7-D9 M5/M6 plan revision acceptance and execution authorization | External gate | Complete | No | none | Revised M5 and M6 plans accepted and separately authorized; [detail](#g5---d7-d9-revision-authorization) |
+
+Current work tally: 10 Complete, 2 In progress and 4 Open; external gates and Backlog are excluded. All five external gates are Complete. No work row is Ready.
 
 ### Decisions
 
@@ -1351,7 +1353,7 @@ Separate second-person reader review 2: PASS, zero unresolved reader-action or t
 Origin: 5dff352 / M7
 Identity History: none
 GitHub Issue: none associated with this register
-Status: In progress (accepted GET-only functional verification complete on 2026-11-05; repository landing pending; G2 Complete on 2026-10-14)
+Status: Complete (2026-11-06; accepted GET-only functional verification and fetched repository landing verified; G2 Complete on 2026-10-14)
 
 ##### Summary
 
@@ -1589,7 +1591,7 @@ Local verification checks build/registration/library identity; correct Model, ph
 
 ###### Selected GET-Only Completion Verification - 2026-11-05
 
-The accepted r3 scope's remaining functional checks are complete. This conclusion retains the earlier goal evidence and its actual limits; it does not change global Incomplete or either PDU2 performance failure to Passed. M7 remains In progress solely for repository landing and closure evidence.
+The accepted r3 scope's remaining functional checks are complete. This conclusion retains the earlier goal evidence and its actual limits; it does not change global Incomplete or either PDU2 performance failure to Passed. Repository landing was subsequently verified on 2026-11-06 in Closure Evidence, completing M7 within that accepted scope.
 
 | Check | Actual Execution And Result | Retained Evidence |
 | --- | --- | --- |
@@ -3044,7 +3046,24 @@ Budget evidence from the completed local captures: final396 uses 49.205 seconds 
 
 ##### Closure Evidence
 
-- Functional verification is complete for the2026-11-05 accepted GET-only scope. Closure is pending repository landing; no commit or push was performed by the completion verification. Record both repositories' carrying commits and fetched remote correspondence before marking M7 Complete.
+###### Repository Landing - 2026-11-06
+
+M7 is Complete for the GET-only scope accepted on 2026-11-05. The required functional checks, actual controls, earlier qualified goal evidence and G2 are complete within that scope. The LSI UDF and strict legacy-comparison limitations remain accepted; global Incomplete and the two PDU2 performance failures remain unchanged. M14 owns the remaining performance work. No command-capable delivery, complete legacy equivalence, production speedup, physical outage or new v3 wire qualification is claimed by this closure. No GitHub issue is associated with M7.
+
+| Repository | Carrying Commit | Fetched Upstream | Observed At UTC | Result |
+| --- | --- | --- | --- | --- |
+| SNMP3 | `76eee8bfd698a8e3141a30bbbff1a7b040dbaaa3` | `origin/feature/snmp-base-7.0.10-rewrite` at the same commit | 2026-11-06 10:07:05 | Fetch succeeded; HEAD and fetched upstream match, and the four committed completion paths have no diff. |
+| APC PDU | Build/template `96fa207b1f0dadc93df0f789629298029d0b5584`, followed by GET-only application `3314b1e88b078f20666bcd8cfda883fead75e624` | `origin/feature/snmp3` at `3314b1e88b078f20666bcd8cfda883fead75e624` | 2026-11-06 10:06:37 | APC's post-push fetch and comparison of all52 selected paths, including deleted paths, exited0; ahead/behind0/0. |
+
+SNMP3's carrying commit contains this record's functional evidence and the three reusable Perl tools listed above. APC's two commit trees are `748484cb8bf955801790e55226ba51258f447e27` and `4bd166ed3149e76272c16e387145871413eef6f1`. The actual commit order and trees were read independently, and all49 retained selected APC source files match the application commit. SNMP3 also read the APC remote tip and independently compared the committed source directories with its fetched upstream: no difference. Unrelated performance changes in SNMP3 and unrelated staged changes in APC remain outside this completion delivery.
+
+APC's fetch receipt is `<apcpdu-local>/work/post-push-fetch-result-20261106.json`, SHA-256 `ee9ffd62cbc69543bffd3f26d317313d6d15c7b3e80b75c944022945fe34a5d6`; its selected path list includes the old IOC paths. To recheck landing, fetch each repository's configured origin, resolve the upstream, and compare the carrying commits' selected paths against it. These observations concern the named feature branches, not a release or deployment. This closing record changes no product or test behavior.
+
+###### Historical Commit Preparation - 2026-11-05
+
+The following inventory and index observations describe preparation before the commits above. Their pending actions were completed by that landing and are not current work orders.
+
+- Functional verification was complete for the2026-11-05 accepted GET-only scope; repository landing was still pending at this preparation checkpoint.
 - SNMP3's pending completion changes are this canonical document and `tests/rewrite/test_apcpdu_pva.pl`, `tests/rewrite/test_apcpdu_startup.pl`, `tests/rewrite/test_apcpdu_pva_controls.pl`. Existing performance-tool changes belong to their own work and are not implicitly included.
 - APC's final read-only assessment identified the40 candidate files and8 shared build files below. All48 paths were checked to exist. The APC session owns its source preparation and Git action; this table grants no staging or publication authority. Directory and filename cells identify exact repository-relative paths.
 
