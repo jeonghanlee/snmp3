@@ -58,7 +58,9 @@ PASS: /home/<user>/<checkout>/work/native-preflight/results.json
 
 Replace `<user>` and `<checkout>` with the home directory and the checkout directory of your build host. The four checks of steps 2, 3, 4, and 6 must each print `PASS:`. Neither phase alone is full implementation acceptance.
 
-The runners create mode-0700 evidence directories and mode-0600 generated secret and config files. A separate real native agent listens only on owned unprivileged IPv4 and IPv6 loopback ports. A SET changes disposable fixture storage. The UDP fault process mutates messages actually exchanged at the outer network boundary, and it never substitutes an internal adapter function. The recorded packet metadata excludes raw packets and credentials. The runners retain failed runs.
+The native runners create mode-0700 result directories and mode-0600 secret files and agent configuration files. Adapter and regression JSON fixture permissions follow the process umask. The configuration regression also creates secret fixtures with deliberately invalid permissions. Keep these files inside their private result directories.
+
+A separate real native agent listens only on owned unprivileged IPv4 and IPv6 loopback ports. A SET changes disposable fixture storage. The UDP fault process mutates messages actually exchanged at the outer network boundary, and it never substitutes an internal adapter function. The recorded packet metadata excludes raw packets and credentials. The runners retain failed runs.
 
 A PASS means all checks in that invocation passed. The file `results.json` identifies the sources, the selected headers, the products, and the loaded libraries. The command receipts include the return and reap status, the timing, and the forced-cleanup classification. The runner waits for every owned child. Secret sentinels and sanitizer diagnostics must be absent from the recorded output.
 
