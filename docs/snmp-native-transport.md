@@ -6,7 +6,9 @@ The separate `snmp3Native` library implements SNMP v1, v2c, and v3 GET and SET t
 
 This page explains the ownership, the session lifetime, the capability check, the handling of security material, and the event service of the native library. The verification driver loads the shipped schema-1 Config and immutable bindings, then calls the library through real UDP transport.
 
-**Out of scope:** the result outcomes and value types (see [Native result outcomes and value types](snmp-native-reference.md)); the steps that run the verification (see [Verify the native transport](snmp-native-verification.md)); worker IPC, address queues, and IOC servicing (see [Address worker supervision](snmp-worker-supervision.md)). Record conversion, FLNK, hardware acceptance, runs on a second operating system, and sustained qualification are separate work.
+**Out of scope:** the result outcomes and value types (see [Native result outcomes and value types](snmp-native-reference.md)); the steps that run the verification (see [Verify the native transport](snmp-native-verification.md)); worker IPC, address queues, and IOC servicing (see [Address worker supervision](snmp-worker-supervision.md)).
+
+For record conversion and FLNK, see [Module contract and record support](snmp-rewrite-contract.md). For the qualified product snapshots, operating systems, hardware scope, and sustained-test limits, see [Verification status of the module](introduction.md#verification-status-of-the-module) and [Limits of product acceptance](introduction.md#limits-of-product-acceptance).
 
 Abbreviations on this page: FLNK is the forward link of a record, IPC is inter-process communication, PDU is a protocol data unit of SNMP, SHA256 is the secure hash algorithm with 256 bits, UDP is the user datagram protocol, and SNMP is the Simple Network Management Protocol.
 

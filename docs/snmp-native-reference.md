@@ -54,4 +54,4 @@ Open and admission errors use `NativeError`. An admitted operation produces one 
 
 On the verified Linux x86_64 native selection, `MAX_SUBID` is 4294967295. The native OID parser also limits `firstArc * 40 + secondArc` to that value. The transport rejects unsupported SET and binding OIDs before dispatch. The broader owned arc representation of Config does not bypass this native restriction.
 
-The setting `checkRanges=false` cannot bypass wire or storage safety. The library reports native truncation as observed output and never reconstructs lost integer bits. EPICS field conversion and precision policies are separate integration work.
+The setting `checkRanges=false` cannot bypass wire or storage safety. The library reports native truncation as observed output and never reconstructs lost integer bits. EPICS device support applies additional [record conversion and storage rules](snmp-rewrite-contract.md#conversion-and-storage-rules).

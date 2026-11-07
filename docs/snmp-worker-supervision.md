@@ -6,18 +6,21 @@ The input/output controller (IOC) accepts owned component requests, schedules ea
 
 This page explains how the module admits requests, batches them, hands them to the worker, and contains failures. It covers the ownership rules for requests, terminals, and worker processes.
 
-**Out of scope:** commands, limits, timer values, and report fields (see [Worker commands, limits and timers](snmp-worker-reference.md)); the steps that run the verification (see [Verify the worker transport](snmp-worker-verification.md)); the record support contract (see [Module contract and record support](snmp-rewrite-contract.md)). Hardware acceptance, runs on a second operating system, thread sanitizer (TSan) runs, leak checks, and sustained resident set size (RSS) checks are separate work. The module has no IOC command that sends a GET or SET.
+**Out of scope:** commands, limits, timer values, and report fields (see [Worker commands, limits and timers](snmp-worker-reference.md)); the steps that run the verification (see [Verify the worker transport](snmp-worker-verification.md)); the record support contract (see [Module contract and record support](snmp-rewrite-contract.md)).
+
+For the qualified product snapshots, operating systems, equipment scope, resource observations, and excluded checks, see [Verification status of the module](introduction.md#verification-status-of-the-module) and [Limits of product acceptance](introduction.md#limits-of-product-acceptance). The module has no IOC command that sends a GET or SET.
 
 Abbreviations on this page: SHA256 is the secure hash algorithm with 256 bits, and SNMP is the Simple Network Management Protocol.
 
 ## Products and data flow
 
-The module builds five products.
+The supervision path uses these products.
 
 | Product | Ownership |
 | --- | --- |
 | `libsnmp3.so` | Config, Runtime, Scheduler, Supervisor, Conversion, Requests, and eleven device support entry tables (DSETs); EPICS Base only |
 | `libsnmp3Wire.so` | Checked framing, typed values, and SHA256; free of native code |
+| `libsnmp3Native.so` | Net-SNMP sessions, PDUs, and native event service |
 | `snmp3Ioc` | Base shell, generated registration, and checked exit |
 | `snmp3NativeProbe` | Callable native catalogue; opens no device session |
 | `snmp3Worker` | One address, native sessions, callbacks, and owned responses |
@@ -96,7 +99,9 @@ Bootstrap carries the frozen definitions and credentials, and the worker never r
 
 The supervisor handles due deadlines before optional I/O and spawn. Expiry selects one Deadline for each nonterminal member of the equal-deadline active batch. A batch no byte of which was transmitted is contained at the deadline.
 
-A transmitted batch is not contained at the deadline. The worker ends its batch at the deadline on its own, sends the Result and the Retired frame, closes and discards its native sessions, and takes the next batch; an SNMPv3 session then runs discovery again. Containment of a member selected Deadline, Complete or NativeFailure starts only when its Retired frame is missing 1000 ms after its deadline, so a worker that sends nothing within that grace is contained, reaped and relaunched. A matched Retired frame resets the consecutive failure count of the address. The four-attempt rate cap does not change.
+For a transmitted batch, deadline expiry alone does not trigger immediate containment. If the batch remains pending at its deadline, the worker closes and discards its native sessions, selects a Deadline result, and sends Result and Retired before taking the next batch. Reopening an SNMPv3 session uses discovery when its profile omits the security engine ID.
+
+Containment of a member selected Deadline, Complete or NativeFailure starts only when its Retired frame is missing 1000 ms after its deadline. A worker that sends nothing within that grace is contained, reaped, and relaunched. A matched Retired frame resets the consecutive failure count of the address. The four-attempt rate cap does not change.
 
 No next batch uses the slot before Retired or exact reap. Peer addresses stay independently serviced. A new epoch follows the actual reap of the old PID. Normal native close and forced termination are separate observations.
 
