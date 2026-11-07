@@ -4,7 +4,7 @@ The reference run measured the request times of two APC AP8932 power distributio
 
 ## Scope
 
-This page lists the measurements of the reference run and of the earlier run with a legacy client present. The findings that follow from them are in [Request performance](evaluation.md). The inputs, rules, and tolerance bands are in the [performance test reference](test-reference.md). The raw data is in [results/reference-run.json](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/snmp-performance/results/reference-run.json).
+This page lists the reference run, the run with a legacy client present, and a separate grouped module comparison. The findings that follow from them are in [Request performance](evaluation.md). The inputs, rules, and reference-run tolerance bands are in the [performance test reference](test-reference.md). Reference-run raw data is in [results/reference-run.json](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/snmp-performance/results/reference-run.json).
 
 **Out of scope:** the steps that produce these results (see [Measure device request performance](test-procedure.md)).
 
@@ -12,7 +12,28 @@ Abbreviations on this page: UDP is the user datagram protocol, and AOS is the AP
 
 In these tables, RTT is the round-trip time, K is the number of objects in one request, and p50, p95, and max are the median, the 95th percentile, and the maximum. An OID is an object identifier. NMC2 and NMC3 are two generations of the vendor network management card (NMC) of the rack power distribution unit (PDU).
 
-## Conditions of the measurements
+## Grouped module comparison on a device
+
+This comparison uses ordinary module commit `fff3ab44a8ef5a64f9e509eeb444da07a3ee7063`, EPICS Base 7.0.10, and Net-SNMP 5.9.4.pre2. It measures GET requests on one AP8932 with hardware revision 03 and reported firmware 2.5.2.5 on 2026-11-06. The observation does not independently identify the management card generation.
+
+The generated measurement database contains 358 objects: 321 integers and 37 octet strings, in 14 chunks with K = 28. It is distinct from the production APC application database. Both paths allow one request in flight, with a 3000 ms timeout and no retry. The module uses `maxVarbinds=32`, a 64-byte string capacity, and a 60000 ms deadline.
+
+| Measurement | Module | Direct Net-SNMP | Criterion and result |
+| --- | --- | --- | --- |
+| Single-pass median, five passes per path | 212.344 ms | 173.300 ms | Module/direct = 1.225297; limit 1.5; Passed |
+| Sustained load, 900 seconds per path | 615 requests; 0 loss; 0 overrun | 615 requests; 0 loss; 0 overrun | Functional schedule checks met |
+| Second-client idle p95, 60 seconds per path | 8.630261 ms | 21.533289 ms | Separate idle baselines |
+| Second-client load p95 | 12.631567 ms | 15.888297 ms | Normalized ratio = 1.983656; limit 1.25; Failed |
+
+The sustained schedule uses state, measurement, and slow periods of 5, 10, and 60 seconds. Each path completes 180, 90, and 15 cycles. The second client probes for 900 seconds during module load and 890 seconds during direct load.
+
+The normalized ratio is `(module load p95 / module idle p95) / (direct load p95 / direct idle p95)`. It measures change relative to each idle baseline, not the absolute module/direct request time. The single-pass comparison runs all module passes before all direct passes, with a direct-only warmup. The sustained comparison also runs module before direct; neither comparison is interleaved.
+
+An order diagnostic uses direct/module/module/direct blocks, with 60 seconds before and after each 300-second load. Its two normalized ratios are 1.879967 and 0.509453 as idle baselines vary. They do not replace the failed 900-second criterion. One second-client request is lost during the second module block after 3003.281538 ms; its exact native failure cause is unresolved.
+
+These results support only the identified device and generated workload. They do not establish production speedup, predictable latency or CPU use, or the cause of the separate historical 103 ms observation. The [performance qualification record](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/milestone-5dff352.md#m14---group-record-requests-and-wake-on-readiness-on-the-record-path) retains the criteria and evidence. Performance objectives remain deferred by the decision of 2026-11-06.
+
+## Conditions of the reference run
 
 Net-SNMP 5.9.4 and the module at commit `03e7af45b7a2542da86af0717a78c51edf55319b` produced the results. The `net-snmp-config` tool reports the Net-SNMP version as 5.9.4.pre2. The tables describe devices by class and firmware only.
 

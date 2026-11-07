@@ -20,7 +20,7 @@ A record selects an existing JSON definition with `DTYP="snmp3"` and `@binding=<
 
 The `deadline_ms` budget covers queueing, worker relaunch, IPC, and native service from the admission of each request. A request queued behind another keeps the deadline of its own admission. The profile fields `timeoutMs` and `retries` set the native service time of a lost response.
 
-Choose `deadline_ms` with the recovery time of a worker in mind. [Record request behavior](snmp-record-behavior.md#recovery-time-after-a-deadline) lists the measured relaunch times and the effect of a put on a pending record. Queue limits must cover two generations of each record handle that can hold a successor. The [charge formulas](snmp-worker-reference.md#charge-formulas-for-a-request) give the sizing rule.
+Choose `deadline_ms` with the recovery time of a worker in mind. [Record request behavior](snmp-record-behavior.md#recovery-time-after-a-containment) lists the measured relaunch times and the effect of a put on a pending record. Queue limits must cover two generations of each record handle that can hold a successor. The [charge formulas](snmp-worker-reference.md#charge-formulas-for-a-request) give the sizing rule.
 
 ## Strict JSON and root fields
 

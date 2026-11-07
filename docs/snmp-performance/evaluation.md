@@ -20,7 +20,9 @@ Abbreviations on this page: SNMP is the Simple Network Management Protocol.
 
 ## Build used for the measurements
 
-The module results come from the module at commit `03e7af45b7a2542da86af0717a78c51edf55319b`. That build sent one object per request and woke on fixed 10 ms waits. The current code differs in both points: it forms grouped requests from declared groups, and it waits on readiness. The section "Limits of the measured module build" lists the differences. The device tables in this book do not yet measure the current build.
+The reference-run module results use commit `03e7af45b7a2542da86af0717a78c51edf55319b`, which sends one object per request and wakes on fixed 10 ms waits. The module implementation supports declared groups and readiness waits. The section "Limits of the measured module build" distinguishes these behaviors.
+
+The separate [grouped module comparison](results.md#grouped-module-comparison-on-a-device) measures ordinary commit `fff3ab4` on one device. Its single-pass ratio is 1.225 against a limit of 1.5. Its sustained second-client normalized ratio is 1.984 against a limit of 1.25, so that criterion fails. Changing idle baselines limit causal interpretation; this ratio does not mean requests take 1.984 times as long. These observations do not establish a production speedup or replace the reference-run tables below.
 
 ## Findings of the reference run
 
@@ -48,8 +50,8 @@ The fit is a planning aid. It does not model the tails (request p95 and maximum)
 
 | Limit of the measured build | Effect | Current code |
 | --- | --- | --- |
-| One object per request: record requests carry different deadlines, and batching needs identical ones | The device fixed per-request cost is paid per object | A declared group batches its members whatever their deadlines. The device tables do not yet measure it. |
-| One active request per address with a completion handshake before the next | At least 20 to 30 ms between requests | Still one active batch per address. The servicing loop and the worker wait on readiness. The device tables do not yet measure it. |
+| One object per request: record requests carry different deadlines, and batching needs identical ones | The device fixed per-request cost is paid per object | Declared groups batch members with different deadlines. The grouped comparison measures this path. |
+| One active request per address with a completion handshake before the next | At least 20 to 30 ms between requests | One active batch per address. The servicing loop and worker wait on readiness; the grouped comparison measures this path. |
 | Fixed 10 ms wake-up granularity in the worker and in the servicing thread | About 27 of the 31 ms per record on the fixture path; with 1 ms waits the interval was 3.3 ms | The loops wait on readiness. The idle poll is a 100 ms backstop. |
 | Deadline containment restarts the whole address worker | One late reply costs a worker restart and SNMPv3 rediscovery (about 0.4 s) | Unchanged. Keep the deadline above the device request p95 at the chosen size. |
 
@@ -74,5 +76,5 @@ The quantities that follow for a device profile are the objects per request (bou
 - The measurements cover only the 358 objects of the monitoring set. Sensors and metered outlets were not attached.
 - The idle-gap effect seen with the legacy client present was not reproduced without it. It is neither confirmed nor explained.
 - The single-object pass (K = 1) and the idle-time sweep were not repeated without the legacy client.
-- Grouped requests were measured with Net-SNMP direct. The module path on the devices is the one-object-per-request figure of the measured build.
-- The second client reads only `sysUpTime`. The module-path database run has no second-client probe.
+- In the reference run, grouped requests use Net-SNMP direct. Its module path uses one object per request, and its module database run has no second-client probe. The separate grouped comparison identifies its own product, workload, and probe results.
+- The second client reads only `sysUpTime`; its results do not establish the response time of every object.

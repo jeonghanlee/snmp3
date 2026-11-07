@@ -122,6 +122,8 @@ Base owns competing record alarms, monitors, and simulation.
 
 A failed native input keeps the prior undefined flag (UDF) for ai, longin, int64in, stringin, and lsi. A successful input clears it. A waveform follows the UDF processing of Base and separately keeps a native-publication success flag. The BUSY flag is FALSE at initialization, at admission, and at a valid completion before Base record processing. The process-active flag (PACT) represents pending asynchronous work.
 
+These UDF rules describe SNMP device support, not every downstream Soft Channel record. In the qualified APC application, the compatibility serial-number lsi retains `UDF=1` despite a valid value, inherited timestamp, and zero alarm status and severity. That observed Base 7.0.10 Soft Channel limitation is accepted for the GET-only application; it is not a claim that all lsi records behave this way. Consumers must distinguish this compatibility metadata from native acquisition validity.
+
 ## Startup configuration contract
 
 - Schema-1 strict JSON defines complete owned security, profile, endpoint, and binding snapshots.
@@ -177,13 +179,15 @@ The verification runners cover these areas:
 - **Configuration.** The configuration runner adds the shipped Config, Value, and Binding paths, the actual native catalogue and fault children, publication races, the startup freeze, and diagnostic secret checks.
 - **Native.** Separate native API and adapter runners exercise actual sessions, ownership, typed GET and SET, discovery and user-based security model (USM) handling, large file-descriptor deadlines, and external faults. The [native transport reference](snmp-native-transport.md) defines that component boundary.
 - **Owner, IPC, worker, and IOC.** Separate component, IOC, and qualification runners cover owner, IPC, worker, and native traffic, external faults, and the actual IOC lifecycle.
-- **Records.** The separate record runner executes the actual DSET, the Base callbacks, worker and native traffic, and isolated cleanup, including the initial queue-pressure and blocked-shutdown cases. Its executed subset does not close the full record matrix.
+- **Records.** The separate record runner executes the actual DSET, the Base callbacks, worker and native traffic, and isolated cleanup, including queue-pressure and blocked-shutdown cases. The qualification record identifies its executed cases and exclusions.
 
 Separate address sanitizer (ASan) and undefined behavior sanitizer (UBSan) products qualify the native code for its executed paths. Targeted ASan and UBSan runs also instrument the address queue, IPC, and worker code. Dependencies stay uninstrumented, and leak detection is disabled.
 
 The [record verification reference](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/tests/rewrite/README.md#record-verification) provides executable cases through real Base records, DSET, scheduler, worker, native transport, and agents. The required record qualification covers the eleven record kinds, the checked conversions, the output capture, the alarms, FLNK, reprocessing, simulation, charged ownership, callback pressure, shutdown, and lifecycle. The [qualification record](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/milestone-5dff352.md#current-required-verification-results-2026-10-08) identifies the actual products, receipts, accepted results, and evidence limits.
 
-## Items that are not verified
+## Qualified products and remaining limits
+
+The [module introduction](introduction.md#verification-status-of-the-module) identifies the five-OS module qualification and the accepted APC GET-only application. The five-OS matrix uses module commit `c3246fb`; it does not qualify every later build. The recorded sustained fixture load establishes functional results and resource trends, without defining resource acceptance thresholds.
 
 These items are outside the accepted verification scope:
 
@@ -191,9 +195,9 @@ These items are outside the accepted verification scope:
 - Long active client writes.
 - Delayed output simulation-mode changes.
 - Broader isolated database reuse.
-- Hardware acceptance.
-- Qualification on other operating systems.
+- Hardware behavior beyond the selected APC GET cases, including application SET delivery and untested physical outages.
+- Complete legacy equivalence and strict matched CPU and native-latency comparisons.
+- Operating systems outside the five qualified environments, or later products without applicable evidence.
 - Thread sanitizer (TSan) runs, leak checking, and sustained resource acceptance.
-- The APC migration.
 
 Available support does not imply that these cases have run or that a particular device is reachable. The work register owns the exact deferred cases and dated limitations.
