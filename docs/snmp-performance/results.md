@@ -170,14 +170,16 @@ The schedule reads three tiers for 15 minutes per unit with no other client: sta
 | NMC3, K=28 | measurement (18, 10 s) | 41 / 78 / 113 ms | 0 | 0 of 90 |
 | NMC3, K=28 | slow (302, 60 s) | 164 / 282 / 282 ms | 0 | 0 of 165 |
 
-A second client reading `sysUpTime` once per second gave these times:
+A second client reading `sysUpTime` sequentially, with a one-second sleep after each result, gave these times:
 
 | Unit | Idle p50 / p95 / max | During the schedule p50 / p95 / max | p95 ratio |
 | --- | --- | --- | --- |
 | NMC2 | 19 / 342 / 719 ms | 20 / 694 / 1609 ms | 2.03 |
 | NMC3 | 2.5 / 19 / 27 ms | 2.5 / 14 / 71 ms | 0.73 |
 
-The idle probe of phase 0 (30 requests, one per second) gave p50 19.1 ms and p95 364 ms on NMC2, and p50 2.5 ms and p95 7.3 ms on NMC3.
+Both schedules meet the loss and overrun checks. Against the reference-run second-client limit of 2, NMC2 fails at 2.03 and NMC3 passes at 0.73. These are separate criteria from the normalized limit used by the grouped module comparison.
+
+The idle probe of phase 0 (30 sequential requests, with a one-second sleep after each result) gave p50 19.1 ms and p95 364 ms on NMC2, and p50 2.5 ms and p95 7.3 ms on NMC3.
 
 ## Effect of a concurrent client
 

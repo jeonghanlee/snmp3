@@ -5,6 +5,7 @@ Status: accepted
 Source Session: `<local>/review_sessions/20260923_104501_snmp-architecture`
 Source Decisions: conv20260930_015254 D001, D002; plan20260930_014806 R3.1-R3.5
 Scope: schema-1 startup configuration and typed component boundary
+Checkpoint boundary: the integration work named in this ADR is outside its configuration acceptance. See the [configuration reference](../snmp-rewrite-config.md) and [qualified products](../introduction.md#verification-status-of-the-module) for the integrated contract and evidence.
 Note: `<local>/...` names a directory retained outside the repository, not tracked.
 Abbreviations: ADR (architecture decision record), EPICS (Experimental Physics and Industrial Control System), IOC (input/output controller), PINI (process at initialization), JSON (JavaScript Object Notation), YAJL (Yet Another JSON Library), UTF-8 (8-bit Unicode transformation format).
 

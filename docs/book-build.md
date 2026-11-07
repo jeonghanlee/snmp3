@@ -20,7 +20,10 @@ You build this book from the Markdown sources with mdBook in a container. The bu
 2. To remove the files that no page links to, run:
 
     ```bash
-    rm -rf public/snmp-performance/tools public/snmp-performance/inputs public/snmp-performance/results public/powernet-460-review/evidence
+    rm -rf public/snmp-performance/tools
+    rm -rf public/snmp-performance/inputs
+    rm -rf public/snmp-performance/results
+    rm -rf public/powernet-460-review/evidence
     ```
 
     Pages link to the two data files, `inputs/ap8932-oids.tsv` and `results/reference-run.json`, through repository URLs. The remaining files are tools and evidence that the build copies from `docs`.

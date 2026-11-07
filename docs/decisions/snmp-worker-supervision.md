@@ -6,6 +6,7 @@ register decisions D7 and D9 and gate G5 in `docs/milestone-5dff352.md`)
 Amended: 2026-10-10 (declared groups; register decisions D15 and D16 relax the equal-deadline rule for the members of one declared group)
 Amended: 2026-10-20 (the retire grace covers a transmitted request that reaches its deadline; the worker discards its sessions when it ends a batch at the deadline; register decision D26)
 Status: accepted for the verified R5 component and IOC supervision boundary
+Checkpoint boundary: this ADR records worker component acceptance. Its references to record integration as R6 describe that boundary. See the [record contract](../snmp-rewrite-contract.md) and [qualified products](../introduction.md#verification-status-of-the-module) for integrated support and evidence.
 Source Session: standalone author work in `~/gitsrc/snmp3`
 Source Decisions: User-approved `<local>/plan-r5-20260930-02.md`, SHA256
 `f4209d83308b3518c70506a1dd0785276461ade07689bb584463ec98f45bbc38`, and

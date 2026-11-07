@@ -1,6 +1,6 @@
 # Worker commands, limits and timers
 
-The Base-only input/output controller (IOC) takes a small set of startup and operator commands, charges every request against storage limits, and runs the servicing loop and each worker on fixed timers. This page lists those values exactly.
+The Base-only input/output controller (IOC) takes startup and operator commands and charges each request against storage limits. The servicing loop and workers wait on readiness, deadlines, and lifecycle timers. This page lists their values.
 
 ## Scope
 
@@ -129,7 +129,7 @@ A much higher rate means work or a busy loop. Two cases raise the rate legitimat
 - A refused callback enqueue raises it to about 100 passes per second while `pending` in `snmp3 records:` is above 0.
 - A worker that is being contained or is exiting raises it too, because its exit poll is 10 ms.
 
-A busy loop is a rate above 13 passes per second with `count` and `active` of `snmp3 queue:` at 0 on every address, `batch` of `snmp3 worker:` at 0, and `pending` of `snmp3 records:` at 0.
+During a stable ready-worker idle window, a rate above 13 passes per second exceeds the regression bound. Check that every address has zero `count` and `active`, every worker has zero `batch`, and record `pending` is zero. Exclude containment, exit, and restart activity before interpreting the rate as a possible busy loop.
 
 ### Worker idle line
 
@@ -230,7 +230,7 @@ The module counts dropped diagnostic events numerically, and a run fails qualifi
 | Restart rate | Four attempts per address in the trailing 60000 ms, including the initial attempt |
 | Global spawn | At most one attempt per loop; round-robin over addresses |
 
-When only the record drain retries, a stop returns within 5 ms of the last record completion. While the loop runs, a stop returns within 50 ms. The `stop-enqueue-failed` case measures the first value as `last_completion_to_return_us` in its check `drain-returns-on-completion-wake`.
+The `stop-enqueue-failed` case checks the interval from the last record completion to stop return: at most 5 ms when only the record drain retries, and 50 ms while the loop runs. These are case-specific regression bounds. They do not bound total shutdown time or operating system scheduling delay.
 
 ## Where the waits are built
 

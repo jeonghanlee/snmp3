@@ -35,7 +35,7 @@ The separate [grouped module comparison](results.md#grouped-module-comparison-on
 7. **A device loses requests when too many are outstanding.** NMC2 lost 2 of 358 at 10 in flight. NMC3 lost 1 of 1074 at 10 and 6 of 1074 at 16. These runs used single-object requests with no retry. Five outstanding requests were answered fully on both.
 8. **The order of the objects made no measurable difference.** Four of the five orders are within 1 percent on NMC2 (10.7 to 10.8 ms per object). On NMC3 the orders span 0.35 to 0.48 ms, inside the spread of its repeats. Groups can therefore follow signal priority.
 9. **SNMPv3 authPriv (SHA/AES) costs little.** On the fixture, 100 sequential requests took 5.2 ms over v2c and 6.3 ms over v3. That is about 0.01 ms more per request, small against any device time measured.
-10. **The sustained schedule passed on both classes** with no loss and no overrun (state 5 s, measurement 10 s, slow 60 s). NMC2 is busy about 32 percent of the time with it, and NMC3 about 1.3 percent. The second-client p95 ratio on NMC2 was 2.03, at the limit of 2.
+10. **Both sustained schedules met the loss and overrun checks** (state 5 s, measurement 10 s, slow 60 s). NMC2 was busy about 32 percent and NMC3 about 1.3 percent. NMC2's second-client p95 ratio of 2.03 exceeds the limit of 2, so its full schedule criterion fails. NMC3's ratio of 0.73 meets that criterion.
 11. **Through the measured module build, the same schedule fails on NMC2.** The state tier overran 23 times, and the slow cycle p95 was 63 s against its 60 s period. On NMC3 the cycles take 27 to 91 times the grouped reads. Loss stays below 0.5 percent on both. No other client was present.
 
 ## Cost model for planning
@@ -44,7 +44,7 @@ The time of one request with K objects fits a line over K = 2 to 48. The line ha
 
 The pass time for N objects with K per request and one request in flight is `ceil(N / K) * (fixed + per_object * K)`. For N = 358 and K = 32, this gives 4.0 s on NMC2 (measured 3.45 s) and 0.16 s on NMC3 (measured 143 ms).
 
-The fit is a planning aid. It does not model the tails (request p95 and maximum). With a concurrent poller present, the fixed cost of NMC2 was 230 ms, so size with the figure that matches the clients the device will have. The prediction is a lower bound, because the model has no queueing between tiers.
+The fit is a planning aid. It does not model the tails (request p95 and maximum) or queueing between tiers. Fit error and run variation can make a prediction higher or lower than a measurement. With a concurrent poller present, NMC2's fixed cost was 230 ms; use the client conditions that match the intended operation.
 
 ## Limits of the measured module build
 
@@ -53,7 +53,7 @@ The fit is a planning aid. It does not model the tails (request p95 and maximum)
 | One object per request: record requests carry different deadlines, and batching needs identical ones | The device fixed per-request cost is paid per object | Declared groups batch members with different deadlines. The grouped comparison measures this path. |
 | One active request per address with a completion handshake before the next | At least 20 to 30 ms between requests | One active batch per address. The servicing loop and worker wait on readiness; the grouped comparison measures this path. |
 | Fixed 10 ms wake-up granularity in the worker and in the servicing thread | About 27 of the 31 ms per record on the fixture path; with 1 ms waits the interval was 3.3 ms | The loops wait on readiness. The idle poll is a 100 ms backstop. |
-| Deadline containment restarts the whole address worker | One late reply costs a worker restart and SNMPv3 rediscovery (about 0.4 s) | Unchanged. Keep the deadline above the device request p95 at the chosen size. |
+| Deadline containment restarts the whole address worker | The measured build can restart a worker after a deadline | A transmitted request receives a 1000 ms retire grace. A worker that retires it can continue; missing retirement causes containment. Reopened SNMPv3 sessions discover an engine only when its ID is omitted. |
 
 The quantities that follow for a device profile are the objects per request (bounded by response bytes), the requests in flight, the request timeout above the request p95 at that size, and the retries. The profile already carries `maxVarbinds`, `timeoutMs`, and `retries`.
 
@@ -62,7 +62,7 @@ The quantities that follow for a device profile are the objects per request (bou
 - **Other clients.** One concurrent poller changed the fixed cost of NMC2 by more than 10 times and its busy share under the schedule by a third. Measure with no other client on the device.
 - **Group size.** The fixed per-request cost sets the best size, so measure a full pass at several group sizes.
 - **Response-size ceiling.** The ceiling is hit by bytes, not by object count. Find it with the largest string objects of the set (phase 1b of the procedure), then stay well below it.
-- **Requests in flight.** Find the count at which the device starts to lose requests (phase 1c) and stay below it.
+- **Requests in flight.** The optional single-object ramp in the [device procedure](test-procedure.md#steps) finds the count at which the device starts to lose requests. Stay below that count; direct phase 4 does not expose a request-window option.
 - **Timeout.** Set the request timeout above the request p95 at the chosen size. The module default timeout of 1000 ms is above the NMC2 request p95 at K = 32 without a concurrent poller (0.68 s). It is below the p95 at K = 40 (1.19 s) and below the 1.3 s measured with a concurrent poller present, where it would retransmit constantly.
 - **Second client.** The p95 ratio of a second client depends on the idle baseline. It was 2.03 at about a third busy with an idle p95 of 342 ms. It was 1.33 at about half busy with a legacy client present (idle p95 911 ms).
 - **Card generation.** Units of one model are not interchangeable for timing, so record the management card generation and firmware with every result.

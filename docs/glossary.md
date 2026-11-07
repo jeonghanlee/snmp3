@@ -14,20 +14,20 @@ This page lists each defined term once, in alphabetical order, with the definiti
 | Admission | The atomic act of placing a request into the scheduler queue of one address. It publishes all members of a request or none. |
 | AMSG | The alarm message field of an EPICS record. The module sets `deadline before send` for a request that expired before transmission. |
 | ASan | The address sanitizer, a compiler instrument that detects memory errors. |
-| Batch | The set of FIFO queue members that the scheduler sends to a worker as one native request. |
+| Batch | Compatible FIFO queue members selected by the scheduler and sent by the supervisor as one native request. |
 | Binding | An immutable definition in the startup configuration that links a record to a device object set. A record names it with `@binding=<id>`. |
 | Burst | A run of admission calls, each less than 5 ms after the previous one. |
 | Charge | The storage that the scheduler reserves for a request, written Q. It stays reserved until consumption and retirement both finish. |
 | Config | The immutable configuration snapshot of the process. The first API binding, `AfterFinishDevSup`, or `snmp3Stop` freezes it. |
-| Declared group | A set of bindings that carry the same `group` label. The scheduler batches its members whatever their deadlines. |
-| Deadline | The absolute time by which a request must finish. It covers queueing, relaunch, IPC, and native service. |
+| Declared group | Bindings with the same `group` label. Compatible queued members share a batch deadline; batch limits can split the group across requests. |
+| Deadline | The absolute time at which an unresolved admitted request expires. It covers queueing, relaunch, IPC, and native service; Base callback delivery can follow later. |
 | DSET | The device support entry table of an EPICS record type. The module provides eleven. |
 | Epoch | The count of launches of one address worker. A new worker gets the next epoch. |
 | FIFO | First in, first out. The order of the per-address request queue. |
 | Frame | One unit of the IPC channel between the IOC and a worker. It has a 64-byte header. |
 | Generation | One admission of a handle. A handle holds at most two generations: a consumed predecessor and a successor. |
 | Handle | The registration of one record or component caller against a binding. |
-| Hold bound | The 2 ms limit after the admission of the front member of a declared group. The scheduler holds the group at most this long. |
+| Hold bound | The 2 ms collection limit after admission of the front member of a declared group. Worker readiness and earlier requests can add queueing time. |
 | IOC | The input/output controller, the EPICS process that runs the records. |
 | IPC | Inter-process communication. Here it means the socket pair between the IOC and a worker. |
 | K | The number of objects in one request. K\* is the group size chosen by the decision rule. |
@@ -37,7 +37,7 @@ This page lists each defined term once, in alphabetical order, with the definiti
 | PACT | The process-active flag of an EPICS record. It is set while asynchronous work is pending. |
 | PDU | Depending on context, a power distribution unit (the device) or a protocol data unit (an SNMP message). Each page states which. |
 | Quiet gap | The 0.5 ms interval without a new member after which the scheduler releases a held declared group. |
-| Retire grace | The 1000 ms after a deadline in which an answered request can still produce its Retired frame. Without the frame by then, the supervisor contains the worker. |
+| Retire grace | The 1000 ms after a deadline allowed for the Retired frame of Complete or NativeFailure work, or transmitted work selected Deadline. Without that frame, the supervisor contains the worker. |
 | Retired frame | The worker message that proves the native call unwound and the worker destroyed its request and result copies. |
 | Retirement | The end of native ownership of a request, proved by a Retired frame or an exact reap of the worker process. |
 | RPRO | The reprocess flag of an EPICS record. One flag covers several puts during a pending request. |

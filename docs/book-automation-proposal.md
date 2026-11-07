@@ -10,7 +10,7 @@ This document covers the build and check steps of an automated job and the input
 
 ## Toolchain
 
-The job uses the container image `jeonghanlee/mdbook:0.5.4` (mdBook 0.5.4, no plugin), the same tag as [Build the documentation book](book-build.md). The job pins the tag, so a later image cannot change the output.
+The job uses the container image `jeonghanlee/mdbook:0.5.4` (mdBook 0.5.4, no plugin), the same tag as [Build the documentation book](book-build.md). The tag selects the tool version. A registry tag can be replaced; immutable image identity requires a digest recorded for the build.
 
 ## Proposed job steps
 
@@ -22,7 +22,7 @@ The job uses the container image `jeonghanlee/mdbook:0.5.4` (mdBook 0.5.4, no pl
 
 ## Link checker
 
-The local check reads every rendered page, resolves each internal link against the output tree, and compares each anchor with the `id` attributes of the target page. The checked build has 296 internal links and no broken one. The repository does not ship this checker yet. Adding it as a tracked tool is part of the decision this proposal asks for.
+The local check reads every rendered page, resolves each internal link against the output tree, and compares each anchor with the target page's `id` attributes. Link counts depend on the actual book sources. The canonical verification record holds each observed result. The repository does not ship this checker; adopting a tracked checker requires a separate decision.
 
 ## Decisions needed
 

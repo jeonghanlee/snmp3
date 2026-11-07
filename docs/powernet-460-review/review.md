@@ -40,11 +40,16 @@ For each distinct object it extracts and compares:
 It also checks that every instance OID of the set lies under its object's OID in both files, and
 lists the `rPDU2` objects added, removed or changed between the files.
 
-Re-run, from this directory:
+To reproduce the static comparison, obtain both MIB inputs with the hashes above. From `docs/powernet-460-review` in the checkout, set their absolute paths and run in Bash:
 
-```text
-python3 -I evidence/compare_mib.py --old /abs/PowerNet-MIB --new /abs/powernet460.mib --objects ../snmp-performance/inputs/ap8932-oids.tsv --output evidence/compare-result.json
+```bash
+OLD_MIB=<old_mib_path>
+NEW_MIB=<new_mib_path>
+COMPARE=(python3 -I evidence/compare_mib.py --objects ../snmp-performance/inputs/ap8932-oids.tsv)
+"${COMPARE[@]}" --old "$OLD_MIB" --new "$NEW_MIB" --output evidence/compare-result.json
 ```
+
+The rendered book excludes the comparison script and evidence files. This command requires the source checkout; its placeholders are the licensed inputs' absolute paths.
 
 ## Result for the monitoring set
 

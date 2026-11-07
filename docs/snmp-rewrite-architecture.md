@@ -43,9 +43,10 @@ Native requests run in separate workers.
 A request moves through the module in this order:
 
 1. The component caller admits an owned typed request through an immutable binding.
-2. The per-address scheduler sends bounded framed inter-process communication (IPC) to the actual address worker.
-3. The single-session adapter of the worker calls Net-SNMP and returns owned positional results.
-4. The scheduler consumers borrow and release the reserved terminals. Releasing the charge also requires real native retirement or the reap of the worker.
+2. The per-address scheduler forms a bounded batch from the compatible queue prefix.
+3. The supervisor sends that batch over framed inter-process communication (IPC) to the address worker.
+4. The single-session adapter of the worker calls Net-SNMP and returns owned positional results.
+5. The scheduler consumers borrow and release the reserved terminals. Releasing the charge also requires real native retirement or the reap of the worker.
 
 For a record, the first-pass DSET captures Base-prepared output and admits the request through Runtime. The servicing owner borrows a terminal, reserves the callback ownership before the enqueue, and retries queue failures.
 
@@ -97,7 +98,7 @@ The detached callback storage remains until the actual queue is destroyed in an 
 
 ## Local native data flow
 
-The separate adapter driver loads the actual Config snapshot and binds owned definitions. One local Worker initializes Net-SNMP, checks the shared capability catalogue, and owns single-session handles. SNMPv3 discovery-only sessions resolve engine IDs before the credentials are registered. Process-lifetime engine and user associations protect shared USM keys across contexts and across close and reopen.
+The separate adapter driver loads the actual Config snapshot and binds owned definitions. One local Worker initializes Net-SNMP, checks the shared capability catalogue, and owns single-session handles. When an SNMPv3 profile omits its security engine ID, a discovery-only session resolves that ID before credentials are registered. Process-lifetime engine and user associations protect shared USM keys across contexts and across close and reopen.
 
 Native PDU builders consume the owned request payload. The large-file-descriptor event service merges the socket interests and the deadlines for every session. Native callbacks copy typed response storage, keep positional OIDs and the status and index, then queue one owned terminal completion. Delivery follows the native-stack unwind. A close keeps pending contexts through the native callbacks and closes each handle once.
 

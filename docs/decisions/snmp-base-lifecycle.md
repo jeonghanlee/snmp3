@@ -5,6 +5,7 @@ Status: accepted
 Source Session: `<local>/review_sessions/20260923_104501_snmp-architecture`
 Source Decisions: conv20260930_002546 Decisions; plan20260930_001514 R2.1-R2.2
 Scope: idle-thread lifecycle checkpoint only
+Checkpoint boundary: this ADR records the component decision, not the integrated product's completion status. See [worker lifecycle](../snmp-worker-supervision.md#lifecycle-and-stop) and [qualified products](../introduction.md#verification-status-of-the-module) for integrated behavior and evidence.
 Note: `<local>/...` names a directory retained outside the repository, not tracked.
 Abbreviations: ADR (architecture decision record), EPICS (Experimental Physics and Industrial Control System), IOC (input/output controller), PINI (process at initialization), FLNK (forward link).
 

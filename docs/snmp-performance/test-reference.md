@@ -65,7 +65,7 @@ The set of the reference run is [inputs/ap8932-oids.tsv](https://github.com/jeon
 | Lost requests | Requests that ended in a timeout or send failure |
 | Cycle time | Time from the due time of a tier to the reply of its last request |
 | Overrun | A tier due again while its previous cycle is unfinished |
-| Idle probe | One `sysUpTime` GET per second for 60 s; p50, p95, max |
+| Idle probe | Sequential `sysUpTime` GET attempts with a one-second sleep after each result, for the selected idle duration; p50, p95, max |
 | Second client p95 ratio | p95 of the probe during a schedule divided by p95 when idle |
 
 ## Decision rules for results
@@ -107,7 +107,7 @@ A stop shows on the console as a step with return code 10 and in the phase JSON 
 | once (`--once`) | `--passes` passes (default 5), each started by one `caput -c` |
 | sustained | Without `--once`: the tiers run on their own periods of 5, 10, and 60 s for `--seconds` (default 900) |
 | gate | A record that holds every scan until the idle phase has ended |
-| second client | `device_sweep probefor`: one GET per second of one object (`sysUpTime` on devices), alone during the idle phase and then alongside the schedule |
+| second client | `device_sweep probefor`: sequential GET attempts of one object (`sysUpTime` on devices), sleeping one second after each result, alone during idle and then alongside the schedule |
 | lost | A processing of a record with status COMM and no message |
 | unsent | A record that expired with the message `deadline before send` |
 | invalid | A run with an unsent record: the deadline is shorter than the queue wait |
@@ -151,7 +151,7 @@ The module sends about 25 times as many requests as the direct pass for the same
 | Per record | `per_record_ms` |
 | T3 cycles and overruns | `schedule.tiers.<tier>.cycles`, `completed`, `incomplete`, `overruns`, `p50_ms`, `max_ms`, and `schedule.overruns` (0). `incomplete` can be 1 for the cycle that runs when the run ends. |
 | T3 loss | `schedule.requests` (requests processed), `schedule.lost`, and `schedule.loss_percent` (below 0.5). The tool counts every processing of every record from its monitor, so the next cycle does not overwrite a loss. |
-| T3 second client | `second_client.idle.p95_ms`, `second_client.run.p95_ms`, and `second_client.p95_ratio`. The direct ratio is `probe_during.p95_ms` divided by `idle_probe.p95_ms` of `phase4.json`, which `summarize_results.py` prints. The module run probes for 900 s, and phase 4 probes for 890 s. |
+| T3 second client | `second_client.idle.p95_ms`, `second_client.run.p95_ms`, and `second_client.p95_ratio`. The direct ratio is `probe_during.p95_ms` divided by `idle_probe.p95_ms` of `phase4.json`. At the default 900 s load, module probing selects 900 s and direct phase 4 selects 890 s. Identify selected durations from run inputs and counts from results; response waits affect sample counts. |
 | Stop and invalid | `stopped`, `ended_early`, `invalid`, `passes[].alarms`, `passes[].watch`, `error`, `authorization` |
 
 ## Stop rules of the module tool
@@ -171,7 +171,7 @@ When a rule fires, the tool closes the IOC at once, and the worker answers the r
 
 After a stop or an error, the invocation ends and the later devices of the targets file are not measured. Run them again with a targets file that holds the rest. In a device run, passes are at least 3 s apart (`--pass-rest`) and devices are 10 s apart (`--device-rest`).
 
-If you kill the tool, its child processes end with it (`camonitor`, the IOC, the second client, the direct pass, and the agent and proxy of the fixture), but no results document is written. After an abnormal end, check with `ps` for `snmp3Ioc`, `device_sweep`, and `camonitor`, because a request in flight is not recalled.
+The module tool runs cleanup and attempts to write `module-results.json` in its `finally` block after a handled interruption. Direct phase 4 writes `phase4.json` only after its device loop completes; an interruption can leave no result document. Neither path guarantees cleanup after SIGKILL. After an abnormal end, check for remaining owned children and incomplete results. A request already sent to a device is not recalled.
 
 ## Authorization gate for device runs
 
@@ -193,11 +193,11 @@ Each case holds `started` and, from optional keys of the target, `model`, `card`
 | --- | --- |
 | `label` | The case directory is `device-<label>`, so the label must be a safe path name |
 | `group_size` | Wins over `--k` |
-| `idle_seconds` | Optional. The idle phase of T3 is 60 s on NMC2 and 300 s on NMC3, so a target sets it. Without it, `--idle-seconds` (60 s) applies and `idle_seconds_from_target` is false. |
+| `idle_seconds` | Optional; overrides the module's `--idle-seconds` (default 60 s). The recorded reference inputs select 60 s for NMC2 and 300 s for NMC3; these are input choices, not automatic card defaults. Without the key, `idle_seconds_from_target` is false. |
 | `model`, `card`, `firmware` | Optional; copied to the case row |
 | `authAlgorithm`, `privAlgorithm` | Passed to the module as given. `device_sweep` maps anything other than MD5 to SHA1 and anything other than DES to AES. |
 
-The object of the second client is `--probe-oid` (`sysUpTime` on devices, as in phase 4). The second client records at most 4096 samples, so `--seconds` is at most 4072 with it. Phase 4 uses a fixed idle phase of 60 s. Each ratio of T3 is taken against the idle phase of its own run.
+The object of the second client is `--probe-oid` (`sysUpTime` on devices, as in phase 4). The second client records at most 4096 samples, so `--seconds` is at most 4072 with it. Committed direct phase 4 uses a fixed 60 s idle phase. The module accepts `--idle-seconds`, but a target's `idle_seconds` takes precedence. Compare matched idle/load conditions and identify any difference in the run inputs.
 
 ## Module tool options
 
@@ -222,7 +222,7 @@ With `--sample-seconds`, the sustained run writes two CSV files into the case di
 | `process`, `pid` | `ioc` or `worker-<address>`, and its process identifier |
 | `rss_kb` | Resident set size in kilobytes |
 | `threads`, `fds` | Threads and open file descriptors |
-| `sockets` | Open socket descriptors, including the IPC channel. It stands in for the native session count, which the runtime report does not print. |
+| `sockets` | Open socket descriptors, including IPC. This is not a native-session count; the runtime report does not print that count. |
 | `cpu_s` | User plus system CPU seconds since the process started |
 
 `counters.csv` has one row per address and sample. It holds the queue counters (`count`, `bytes`, `queued`, `active`, `undelivered`, `retirement_pending`, `behind_retirement`), the record counters (`records_active`, `records_pending`, `records_completions`, `records_enqueue_failures`), the servicing-loop passes (`loop_passes`), and the runtime `state`.
