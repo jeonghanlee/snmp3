@@ -46,7 +46,9 @@ You prepare a complete configuration with one profile, one endpoint, and one bin
 6. To select the configuration, set the environment of the shipped startup file:
 
     ```bash
-    export CONFIG_JSON=<config_dir>/config.json NATIVE_PROBE=$PWD/bin/linux-x86_64/snmp3NativeProbe WORKER_PATH=$PWD/bin/linux-x86_64/snmp3Worker
+    export CONFIG_JSON=<config_dir>/config.json
+    export NATIVE_PROBE="$PWD/bin/linux-x86_64/snmp3NativeProbe"
+    export WORKER_PATH="$PWD/bin/linux-x86_64/snmp3Worker"
     ```
 
 7. To load the configuration and leave the IOC at once, run:
