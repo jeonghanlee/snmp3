@@ -58,8 +58,8 @@ Startup cases run the same generated nested loaders with first/later invalid
 configuration and an stdin sentinel to detect accidental shell entry. Valid
 v1/v2c/v3 cases qualify configuration acceptance only; they do not call
 iocInit. The communication case runs v2c through iocInit and real CA/PVA
-clients. This distinction leaves full M7 / T3 installed-application coverage
-open. Individual cases can run without an earlier suite:
+clients. These startup cases do not establish full installed-application coverage.
+Individual cases can run without an earlier suite:
 
 ```bash
 APC_TEST=tests/rewrite/test_apcpdu.py
@@ -136,7 +136,7 @@ Logs retain the actual request IDs, client ports, captured
 values, response delivery bounds and hashes, CA/PVA snapshots, loaded-library
 identities and process outcomes without recording community bytes. A missing
 required delivery or observation is Incomplete; a mismatch is Failed. This
-qualifies one v2c OID and two selected delivery orders, not the full M7 matrix.
+qualifies one v2c OID and two selected delivery orders, not the full application matrix.
 
 `test_apcpdu_operations.py` adds independent `commands`, `scanner`, `v3` and
 `cleanup` cases to the generated application. Each starts a fresh IOC and
@@ -198,13 +198,13 @@ and IOC start, and separately after the native agent, UDP proxy and IOC start.
 It verifies resource termination, worker reaping and empty queues. Existing evidence is never
 overwritten, and all output directories must be new under `work/`.
 
-These runners cover local M7 subsets. They do not qualify hardware, the legacy
+These runners cover local application subsets. They do not qualify hardware, the legacy
 comparator, setting write-back, sensor/16-outlet/AP7800B variants, declared
 binding groups, the full delay/reorder matrix, or all installed
 startup/configuration failure cases. The existing
 APC checker and pvxmonitor suite are not run by this runner; its 100-field
 checks use actual caget/pvxget calls against the original group definitions.
-Full M7 acceptance remains in the canonical milestone document.
+Full application acceptance remains in the [committed qualification record](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md#m7---r7-apc-migration-and-comparison).
 
 ## Prepared Grouped AP8932 Candidate
 
@@ -232,7 +232,7 @@ The module's bounded hold permits a request to contain a proper subset of one
 declared group. The checker rejects unknown members, duplicates within a request,
 mixed groups and non-GET operations, and requires observed member coverage.
 Full and partial request sizes remain separate aggregation observations. The
-original strict no-split result remains retained in the canonical M7 record.
+original strict no-split result remains retained in the committed application qualification record linked above.
 
 The `held` case changes actual outer-agent values and holds a real response.
 It checks publication after delivery, exact timestamp transitions, completion
@@ -258,10 +258,10 @@ client, IOC, repeater and worker receipts retained even on interruption.
 `--proof-sha256`; it does not start an IOC or establish a new integration run.
 Missing files/members are INCOMPLETE, while observed mixed/duplicate members
 fail. The external `wrong-value` and `no-pva` controls exercise the real runtime
-value/discovery paths. Qualification status and exact results belong to M7.
+value/discovery paths. Qualification status and exact results belong to the committed application qualification record linked above.
 
 No whole-device timestamp equivalence, monitor-update, v3 wire, legacy-comparison,
-equipment, deployment, service lifecycle or full M7 acceptance is established.
+equipment, deployment, service lifecycle or full application acceptance is established.
 Native verdicts and separate stdout/stderr remain retained. A stopped IOC or
 worker does not turn a failed or incomplete case into PASS.
 
@@ -993,7 +993,7 @@ BUILD_RECEIPT=work/r6-sanitizer-build/sanitizer-build.json
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --output work/r6-controls
 ```
 
-The D7 controls alter one shipped support source (`Scheduler.cpp`; `DeviceSupport.cpp` or `Request.cpp` for the never-sent message, waveform BUSY, drain retry and detach controls; `Runtime.cpp` for the report, restart and operator-stop detach controls) and run their named
+The `--d7-controls` cases alter one shipped support source (`Scheduler.cpp`; `DeviceSupport.cpp` or `Request.cpp` for the never-sent message, waveform BUSY, drain retry and detach controls; `Runtime.cpp` for the report, restart and operator-stop detach controls) and run their named
 component, qualification or record cell against the same build. Each control
 directory keeps `cell/cell.stdout` and `cell/cell.stderr`; qualification and
 record cells also keep their run output under `cell/run/`. A record cell whose
@@ -1020,7 +1020,7 @@ D7="$D7 group-deadline-not-shared-wire"
 python3 tests/rewrite/test_record_controls.py --build-receipt "$BUILD_RECEIPT" --d7-controls $D7 --output work/r6-d7-controls
 ```
 
-Each D7 control runs its named component, qualification or record case, which
+Each `--d7-controls` case runs its named component, qualification or record case, which
 must pass on the unmodified products and fail on the control. The controls fall
 into these groups:
 
@@ -1042,7 +1042,7 @@ precision, text capacity, binary32 tie selection, ambient-rounding dependence,
 callback retry and terminal release.
 The stale-generation control remains pending. Current partial coverage and the complete
 required T1-T14 matrix belong to the canonical
-[work register](../../docs/milestone-5dff352.md); passing these cases does not
+[committed qualification record](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md); passing these cases does not
 close R6 or advertise record support. Receipts retain source/product/library
 hashes, request identities, alarms/UDF/publication state, actual child exits and
 cleanup observations without credentials.
@@ -1141,7 +1141,7 @@ agent and UDP proxy. Their `normal-stop` checks must also be present and pass;
 an abnormal external exit fails qualification even without forced cleanup.
 Its actual loader receipt must identify the defective library and its hash.
 All required event counts/order must still pass. These stricter reference and
-control conditions are scoped to repeat-detach; other D7 cases keep their
+control conditions are scoped to repeat-detach; other `--d7-controls` cases keep their
 existing rules.
 
 Use the fresh sanitizer receipt above and an unused control output directory.
@@ -1265,7 +1265,7 @@ python3 "$NS_CONTROLS" --build-receipt "$NS_RECEIPT" --shutdown-controls --outpu
 
 The following term map distinguishes targeted discrimination from observed
 preconditions and coverage limits. Execution outcomes belong in the canonical
-M6 T12/T14 results; this table defines what the checks can establish.
+[record results](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md#m6---r6-record-integration); this table defines what the checks can establish.
 
 | Checks/properties | Evidence class and limit |
 | --- | --- |
@@ -1287,7 +1287,7 @@ uninstrumented, and leak detection is disabled. The production inflight case
 uses the production worker stderr policy; the retained companion additionally
 captures worker stderr through the public qualification setting. Startup
 failure, all eleven record kinds individually, long-string/maximum-capacity
-buffers, isolated reuse and the remaining D13 cells require separate evidence.
+buffers, isolated reuse and the remaining [deferred record cells](../../docs/milestone-6f015f8.md#m4---deferred-record-verification-cells) require separate evidence.
 
 
 ## Record Startup Failure
@@ -1492,7 +1492,7 @@ two Base-owned FLNK executions, cleared PACT/RPRO and NO_ALARM. The run includes
 normal isolated shutdown and context cleanup. A missing active observation,
 extra generation or packet, failed child, sanitizer diagnostic or cleanup
 failure rejects qualification. Ordinary `baseline` and `active` cases remain
-separate regressions. This case does not qualify the M11 long active client
+separate regressions. This case does not qualify the deferred long active client
 writes, maximum-capacity CA access or delayed output-simulation mode change.
 
 ## Failure After A Valid GET
@@ -1575,8 +1575,8 @@ fanout observations, 110 source-side requests/responses, 11 duplicated responses
 normal child exit and isolated cleanup. The independent chain target completes
 44 native GETs; each fanout target completes eleven GETs across the fresh IOCs. `baseline`,
 `edges`, `alarm-flow` and the native adapter suite are separate regressions for
-shared driver/proxy changes. The case does not close all M6 verification or
-qualify the M11 deferred groups. Queued-deadline AMSG monitor transitions remain
+shared driver/proxy changes. The case does not establish full record qualification or
+qualify the deferred record groups. Queued-deadline AMSG monitor transitions remain
 separate required T5 coverage.
 
 
@@ -1588,7 +1588,7 @@ requests a second generation through Base RPRO. The driver changes SIMM only
 while that second generation has PACT set and the real Scheduler reports one
 queued request, one pending retirement and two charged generations. A missed
 window fails qualification. This tests admitted native SET ownership; it does
-not exercise the M11 delayed output-simulation mode change.
+not exercise the deferred delayed output-simulation mode change.
 
 On the normal path, the outer UDP proxy delays each actual response by 750 ms.
 Before admission, `helpers/retired_hold.py` verifies the worker's actual parent
@@ -1619,7 +1619,7 @@ deadline-path worker if the driver fails; the helper also detaches on error.
 Both paths require exact terminal identity, two source generations/completions
 and FLNK executions, cleared PACT/RPRO and no borrowed terminal. Returning SIMM
 to normal must not replay an output. Short active text writes are intentional;
-the first lso payload is 200 bytes, but long active client writes remain in M11.
+the first lso payload is 200 bytes, but long active client writes remain in the deferred record scope.
 The unchanged Base, module, scheduler, worker and native paths perform all
 processing; no internal function or record support is replaced. These controlled
 process-boundary cases do not measure the unheld retirement interval; use the
@@ -1647,7 +1647,7 @@ requests/responses, ten successful readback GETs, normal IOC/fixture cleanup
 and no sanitizer or secret-sentinel diagnostic. `active-unforced`,
 `deadline-queue` and `alarm-flow` are separate shared-driver regressions.
 The output message-monitor coverage is a bounded T5 result; queued input
-message monitors and the rest of the M6 matrix remain separate requirements.
+message monitors and the rest of the record matrix remain separate requirements.
 
 
 ## Text And Structured Data Boundaries
@@ -1767,7 +1767,7 @@ call or a missed hold is non-passing. The helper's separate 12-second timeout
 and required Linux permissions are described in the queued-output procedure.
 ASan/UBSan instruments the rebuilt products; installed Base and system/vendor
 libraries remain uninstrumented, with leak detection disabled. This controlled
-retirement hold does not measure the natural unheld interval. The deferred M11
+retirement hold does not measure the natural unheld interval. The deferred
 client/rebuild groups, compiled negative controls and final full-matrix
 reconciliation are separate from this case.
 
@@ -1811,7 +1811,7 @@ Deadline endpoints are initialization checks, not timing qualification at the
 extremes. Frozen SIZV writes are Base refusal checks. The callback hold is an
 external Base queue boundary; the module, worker and native adapter run intact.
 ASan/UBSan covers rebuilt module/test products; Base/system/vendor dependencies
-remain uninstrumented and leak detection is disabled. This case excludes M11
+remain uninstrumented and leak detection is disabled. This case excludes the deferred record cells
 and does not qualify stale-generation controls or the final regression matrix.
 
 
@@ -1906,7 +1906,7 @@ This is bounded generation/retirement discrimination through an actual record,
 not every stale-frame or multi-activation combination. The existing IPC stale
 and stale-behind qualification cases remain separate regressions. ASan/UBSan
 instruments rebuilt module/test products; Base/system/vendor dependencies are
-uninstrumented and leak detection is disabled. M11 exclusions remain separate.
+uninstrumented and leak detection is disabled. Deferred record exclusions remain separate.
 
 ## Integrated Matrix
 

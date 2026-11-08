@@ -71,4 +71,4 @@ A successor keeps the deadline of its own admission throughout recovery. If its 
 
 The request budget does not bound time spent waiting for Base processing or callback delivery. A put-callback can complete with an alarm without a SET being transmitted. Neither a put nor a put-callback guarantees device delivery within two request budgets. SET completion and GET readback remain separate observations.
 
-The [qualification record](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/milestone-5dff352.md) identifies the products and measured relaunch and put-to-dispatch observations. Those measurements do not establish a fixed recovery or client-completion bound for another execution.
+The [qualification record](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md) identifies the products and measured relaunch and put-to-dispatch observations. Those measurements do not establish a fixed recovery or client-completion bound for another execution.

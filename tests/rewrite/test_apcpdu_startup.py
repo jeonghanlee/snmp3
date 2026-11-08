@@ -13,7 +13,7 @@ Cases own fresh processes and UDP sinks. Missing inputs/observations remain
 Incomplete (2), observed violations are Failed (1), and success is Passed (0).
 Keep real command output, native status, loaded mappings, record registration,
 source/product identities and cleanup evidence. No device communication,
-CA/PVA value, grouped-read, sustained-load or full M7 acceptance is claimed.
+CA/PVA value, grouped-read, sustained-load or full application acceptance is claimed.
 """
 
 import argparse
@@ -351,7 +351,7 @@ def main():
                   "checks": runner.checks if runner else [], "processes": runner.processes if runner else [],
                   "error": error, "start_utc_ns": started, "end_utc_ns": time.time_ns(),
                   "limits": ["Installed startup only; no successful remote SNMP communication claim",
-                             "No candidate rebuild or modification", "No hardware or full M7 acceptance"]}
+                             "No candidate rebuild or modification", "No hardware or full application acceptance"]}
         write_json(output / "result.json", report)
     print(f"Evidence: {output}; checks: {len(report['checks'])}; result: {report['status']}")
     return code

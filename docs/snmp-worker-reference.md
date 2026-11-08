@@ -263,20 +263,20 @@ The `stop-queued` cell therefore counts FLNK of `Records_QueueCompleted` from be
 
 Otherwise the cell records `timeout`.
 
-A run writes its `stop_queued` event to `record-observations.json` and its trial output to `records.stderr` in the output directory of the run. Under a D7 control output, these files are in `<control>/cell/run/` and `reference-record-stop-queued/run/`. The event carries `wait_exit` and the record state when the wait ended: `wait_rpro`, `wait_pact`, `wait_generation`, and `wait_flnk_delta`. A passing run shows `queued`, 0, 1, 2, and 1. The `pact` and `generation` fields are read after the stop has drained the record, so they do not describe the wait.
+A run writes its `stop_queued` event to `record-observations.json` and its trial output to `records.stderr` in the output directory of the run. Under a `--d7-controls` output, these files are in `<control>/cell/run/` and `reference-record-stop-queued/run/`. The event carries `wait_exit` and the record state when the wait ended: `wait_rpro`, `wait_pact`, `wait_generation`, and `wait_flnk_delta`. A passing run shows `queued`, 0, 1, 2, and 1. The `pact` and `generation` fields are read after the stop has drained the record, so they do not describe the wait.
 
 A run is inconclusive in either of two cases:
 
 - Its event shows `timeout`.
 - It has no event, and its `records.stderr` has a `record test failed after N checks` line. That trial stopped before the wait, and the line names the failed step.
 
-For such a run, `test_records.py` writes the events, skips the product checks, and reports `aborted`. The D7 controls count it neither as a passing reference nor as a detected defect. Rerun it. If a timeout recurs, the `wait_` fields show which of three states applies:
+For such a run, `test_records.py` writes the events, skips the product checks, and reports `aborted`. The `--d7-controls` cases count it neither as a passing reference nor as a detected defect. Rerun it. If a timeout recurs, the `wait_` fields show which of three states applies:
 
 - The reprocess was never scheduled (RPRO is set).
 - The reprocess is pending (neither PACT nor RPRO).
 - The record held PACT without a new generation.
 
-A run without the event and without the failure line ended without its failure report, usually inside the stop under test. The files `records.stderr` and `records.receipt.json` show where it ended. The product checks of that run are judged and fail. A trial that exceeds the 180 s child bound is killed, shows `forced_cleanup` in `records.receipt.json`, and is judged the same way. The D7 controls count neither kind of run as a detected defect.
+A run without the event and without the failure line ended without its failure report, usually inside the stop under test. The files `records.stderr` and `records.receipt.json` show where it ended. The product checks of that run are judged and fail. A trial that exceeds the 180 s child bound is killed, shows `forced_cleanup` in `records.receipt.json`, and is judged the same way. The `--d7-controls` cases count neither kind of run as a detected defect.
 
 ### Receipts of the verification runs
 

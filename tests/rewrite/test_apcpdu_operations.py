@@ -518,7 +518,7 @@ def main():
                   "start_utc_ns": started, "end_utc_ns": time.time_ns(),
                   "limits": ["Loopback AP8932 only", "No physical command confirmation or hardware",
                              "No legacy comparator, declared binding groups, reordered replies or optional variants",
-                             "SNMPv3 SHA/AES only", "M7 remains open"]}
+                             "SNMPv3 SHA/AES only", "No full application qualification"]}
         write_json(output / "result.json", result)
     print(f"Evidence: {output}; checks: {len(result['checks'])}; result: {result['status']}")
     return code

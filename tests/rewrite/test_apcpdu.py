@@ -344,7 +344,7 @@ def main():
                    "runner_sha256": digest(__file__), "build_sha256": digest(ioc / "build.json"),
                    "limits": ["No hardware or legacy comparator", "No v3 wire qualification",
                               "Sensors and setting write-back disabled", "No command SET qualification",
-                              "No delayed/reordered-response matrix", "M7 remains open"]})
+                              "No delayed/reordered-response matrix", "No full application qualification"]})
     print(f"Evidence: {output}; checks: {len(runner.checks)}; result: {'PASS' if error is None else 'FAIL'}")
     return 0 if error is None else 1
 

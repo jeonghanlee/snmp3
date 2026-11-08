@@ -35,7 +35,9 @@ Verification applies to identified builds and executed paths. The checks exercis
 | Separate instrumented products of `c3246fb` | Debian 13 and Rocky Linux 8.10 | Address sanitizer and undefined behavior sanitizer paths; these products do not supply performance measurements |
 | Module `76eee8b`, APC application `96fa207`/`3314b1e` | Identified APC monitoring application with EPICS Base 7.0.10 | Accepted GET-only scope: 385 application checks, 10 selected PVAccess checks, and 124 startup checks |
 
-The [qualification record](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/milestone-5dff352.md) identifies the products, executed cases, controls, and accepted limits. A qualified snapshot does not establish that every later build ran the same matrix.
+The [qualification record](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md) identifies the products, executed cases, controls, and accepted limits. A qualified snapshot does not establish that every later build ran the same matrix.
+
+Current unfinished work and the next entry point are in the [work register](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/milestone-6f015f8.md).
 
 ## Limits of product acceptance
 

@@ -349,7 +349,7 @@ def main():
                   "checks": runner.checks if runner else [], "processes": runner.processes if runner else [],
                   "error": error, "start_utc_ns": started, "end_utc_ns": time.time_ns(),
                   "limits": ["Loopback SNMPv2c only", "Single selected phase-current OID",
-                             "No hardware, legacy comparator or full M7 acceptance"]}
+                             "No hardware, legacy comparator or full application acceptance"]}
         write_json(output / "result.json", result)
     print(f"Evidence: {output}; checks: {len(result['checks'])}; result: {result['status']}")
     return code

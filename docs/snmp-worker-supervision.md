@@ -119,7 +119,7 @@ A failed preflight, a failed thread creation, or an unexpected service failure c
 
 The AtShutdown hook permits detach only after entered processing reaches zero. Isolated queue destruction, not callback join alone, permits context release. Non-isolated shutdown retains contexts that Base references. External Base processing can extend the safety wait, so the module makes no claim about a bounded total shutdown time.
 
-The [current qualification record](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/milestone-5dff352.md#current-required-verification-results-2026-10-08) lists the accepted lifecycle paths and the remaining reuse limitations.
+The [current qualification record](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md#current-required-verification-results-2026-10-08) lists the accepted lifecycle paths and the remaining reuse limitations.
 
 ## Related pages
 

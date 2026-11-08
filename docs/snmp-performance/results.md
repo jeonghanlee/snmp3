@@ -31,7 +31,7 @@ The normalized ratio is `(module load p95 / module idle p95) / (direct load p95 
 
 An order diagnostic uses direct/module/module/direct blocks, with 60 seconds before and after each 300-second load. Its two normalized ratios are 1.879967 and 0.509453 as idle baselines vary. They do not replace the failed 900-second criterion. One second-client request is lost during the second module block after 3003.281538 ms; its exact native failure cause is unresolved.
 
-These results support only the identified device and generated workload. They do not establish production speedup, predictable latency or CPU use, or the cause of the separate historical 103 ms observation. The [performance qualification record](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/milestone-5dff352.md#m14---group-record-requests-and-wake-on-readiness-on-the-record-path) retains the criteria and evidence. Performance objectives remain deferred by the decision of 2026-11-06.
+These results support only the identified device and generated workload. They do not establish production speedup, predictable latency or CPU use, or the cause of the separate historical 103 ms observation. The [performance qualification record](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md#m14---group-record-requests-and-wake-on-readiness-on-the-record-path) retains the criteria and evidence. Performance objectives remain deferred by the decision of 2026-11-06.
 
 ## Conditions of the reference run
 

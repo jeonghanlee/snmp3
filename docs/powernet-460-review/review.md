@@ -1,7 +1,7 @@
 # PowerNet-MIB 4.6.0 review for the AP8932 database
 
 Status: static comparison complete; retain PowerNet-MIB 4.4.6 and the existing monitoring set by the decision of 2026-11-07. No added `rPDU2Adv*` objects are selected.
-Tracked as work item M13 in the [work register](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/milestone-5dff352.md).
+The [committed adoption decision](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md#m13---powernet-mib-460-review-for-the-ap8932-database) records the retained scope.
 
 ## Scope
 

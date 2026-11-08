@@ -30,7 +30,7 @@ The module implements owned startup definitions, address admission queues, frame
 
 The servicing thread owns deadlines, IPC, and reap, and it never calls native session APIs. The separate capability probe opens no session. The IOC, support, and wire products exclude the native dependencies and the legacy production sources. The standard longin fixture verifies Base processing, not an SNMP request.
 
-The [work register](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/milestone-5dff352.md#current-required-verification-results-2026-10-08) owns the accepted qualification, the observed coverage, and the remaining limitations.
+The [work register](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md#current-required-verification-results-2026-10-08) owns the accepted qualification, the observed coverage, and the remaining limitations.
 
 ## IOC startup behavior
 
@@ -183,7 +183,7 @@ The verification runners cover these areas:
 
 Separate address sanitizer (ASan) and undefined behavior sanitizer (UBSan) products qualify the native code for its executed paths. Targeted ASan and UBSan runs also instrument the address queue, IPC, and worker code. Dependencies stay uninstrumented, and leak detection is disabled.
 
-The [record verification reference](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/tests/rewrite/README.md#record-verification) provides executable cases through real Base records, DSET, scheduler, worker, native transport, and agents. The required record qualification covers the eleven record kinds, the checked conversions, the output capture, the alarms, FLNK, reprocessing, simulation, charged ownership, callback pressure, shutdown, and lifecycle. The [qualification record](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/milestone-5dff352.md#current-required-verification-results-2026-10-08) identifies the actual products, receipts, accepted results, and evidence limits.
+The [record verification reference](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/tests/rewrite/README.md#record-verification) provides executable cases through real Base records, DSET, scheduler, worker, native transport, and agents. The required record qualification covers the eleven record kinds, the checked conversions, the output capture, the alarms, FLNK, reprocessing, simulation, charged ownership, callback pressure, shutdown, and lifecycle. The [qualification record](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md#current-required-verification-results-2026-10-08) identifies the actual products, receipts, accepted results, and evidence limits.
 
 ## Qualified products and remaining limits
 

@@ -1,10 +1,10 @@
 # ADR: Address workers, exact-deadline FIFO and joint retirement
 
 Date: 2026-10-01
-Amended: 2026-10-03 (per-handle generations behind retirement; containment of answered requests;
-register decisions D7 and D9 and gate G5 in `docs/milestone-5dff352.md`)
-Amended: 2026-10-10 (declared groups; register decisions D15 and D16 relax the equal-deadline rule for the members of one declared group)
-Amended: 2026-10-20 (the retire grace covers a transmitted request that reaches its deadline; the worker discards its sessions when it ends a batch at the deadline; register decision D26)
+Amended: 2026-10-03 (per-handle generations behind retirement; containment of answered requests)
+Amended: 2026-10-10 (declared groups relax the equal-deadline rule for members of one declared group)
+Amended: 2026-10-20 (the retire grace covers a transmitted request that reaches its deadline; the worker discards its sessions when it ends a batch at the deadline)
+Decision evidence: [committed decisions and acceptance](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md#decisions).
 Status: accepted for the verified R5 component and IOC supervision boundary
 Checkpoint boundary: this ADR records worker component acceptance. Its references to record integration as R6 describe that boundary. See the [record contract](../snmp-rewrite-contract.md) and [qualified products](../introduction.md#verification-status-of-the-module) for integrated support and evidence.
 Source Session: standalone author work in `~/gitsrc/snmp3`
@@ -78,7 +78,7 @@ admission/dispatch closure with one join before callback services stop. Retain
 unsettled ownership in IncompleteStopped after join and reconcile nonblockingly
 before reuse.
 
-Declared groups (register decisions D15 and D16, 2026-10-10) change one rule.
+Declared groups (decision of 2026-10-10) change one rule.
 The contiguous queue-front members of one declared group batch whatever their
 deadlines and share the earliest one. The scheduler holds such a group for at
 most 2 ms. Ungrouped bindings, and a group of one, keep the exact equal-deadline

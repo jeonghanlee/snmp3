@@ -68,7 +68,7 @@ The runtime owns the configuration, the queues, the requests, IPC, and the threa
 
 Net-SNMP owns the protocol encoding, the native retries, the discovery, and the user-based security model (USM). Base owns the record processing, the alarms, the callback facilities, and the thread APIs.
 
-The lifecycle, the configuration, the native adapter, and the scheduler have separate qualified products. Device support has accepted integration evidence within the [qualification scope](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/milestone-5dff352.md#current-required-verification-results-2026-10-08). The capability report identifies compiled support. Deferred cases and hardware acceptance stay separate from that evidence.
+The lifecycle, the configuration, the native adapter, and the scheduler have separate qualified products. Device support has accepted integration evidence within the [qualification scope](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md#current-required-verification-results-2026-10-08). The capability report identifies compiled support. Deferred cases and hardware acceptance stay separate from that evidence.
 
 ## Configuration data flow
 
@@ -108,7 +108,7 @@ Actual native agents and external UDP faults verify this library in separate pro
 
 The [supervision page](snmp-worker-supervision.md) defines the immutable bootstrap, the product and library handshake, the checked stream frames, the count and charge accounting, the per-address fairness and deadlines, and the stop and restart ownership.
 
-AfterFinishDevSup readiness precedes initial processing. AtShutdown closes dispatch and joins while the Base callback services exist. IncompleteStopped keeps the exact old worker and terminal ownership after the join. It blocks reuse until a nonblocking reconciliation settles it. An expired record drain separately blocks reuse, even after the native ownership settles. The [work register](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/milestone-5dff352.md) records the record coverage, rather than inferring it from a component PASS.
+AfterFinishDevSup readiness precedes initial processing. AtShutdown closes dispatch and joins while the Base callback services exist. IncompleteStopped keeps the exact old worker and terminal ownership after the join. It blocks reuse until a nonblocking reconciliation settles it. An expired record drain separately blocks reuse, even after the native ownership settles. The [work register](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md) records the record coverage, rather than inferring it from a component PASS.
 
 ## Structure of the verification runs
 
