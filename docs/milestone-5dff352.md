@@ -9,7 +9,7 @@ Remote tracker: none associated with this register
 Recorded date: 2026-10-01
 Source baseline: `5dff352b9e86abfca74a74c4adc4fc8c1e48079f`
 
-Next session entry point: `docs/milestone-5dff352.md`, Milestone and Backlog. M9 is Complete by final book acceptance on 2026-11-07; its documentation deliverable landed at `0b35b6507103ebae6ccd8be2463d9308d5a4d813`. All 27 committed chapters match the verified build input byte for byte. Preview: `<local>/m9-whole-book-20261107-01/candidate/public/index.html`. No assigned work row is Ready; agree the next bounded scope before starting further work. M7 remains Complete for its accepted GET-only scope. M14 remains Deferred by the decision of 2026-11-06: once Passed at 1.225297 against 1.5; the 900-second pair remains Failed at 1.983656 against 1.25. Baseline variation, one 3003.281538 ms lost probe and historical 103 ms attribution remain unresolved. Resume M14 only by a new dated decision defining bounded product work; do not automatically resume tool development or equipment tests.
+Next session entry point: `docs/milestone-5dff352.md`, Baseline And Restart. Commit the current-behavior closure decisions and `docs/CLOSED_DOORS.md`, then reset the canonical document from that exact committed state. M12 and M13 are Complete by the decisions of 2026-11-07; the other five unfinished identities remain preserved. The next generation must judge original product goals against existing evidence before proposing bounded implementation or tests. No new canonical generation is written while these decisions are uncommitted. M9 is Complete; its book deliverable landed at `0b35b6507103ebae6ccd8be2463d9308d5a4d813`. M7 retains its accepted GET-only scope. M14 remains Deferred, including the failed normalized T3 ratio of 1.983656 against 1.25; no measurement-tool development or equipment campaign resumes automatically.
 
 ## Scope
 
@@ -37,6 +37,45 @@ Observed results below are retained executions, not new tests performed when thi
 
 The current configuration receipt records wrong-owner secret-file testing as NOT RUN: a differently owned regular fixture was unavailable. The earlier owner-assisted PASS is not transferred to renamed products. ASan/UBSan results cover the executed new code; dependencies are uninstrumented and leak checks are disabled. The standard-record fixture does not establish SNMP record I/O. M6 Current Required Verification Results and Closure Evidence identify accepted record/FLNK/callback observations, deferred cells and explicit limits; dated earlier results retain their historical product identities. APC hardware/consumer behavior, multi-OS qualification, TSan and sustained resource acceptance remain later work.
 
+## Baseline And Restart
+
+Decision Date: 2026-11-07. Keep the two decided behaviors, close every other item whose existing evidence actually permits closure, preserve unfinished work, and establish a baseline before restarting planning from the product purpose. No additional unfinished item currently meets its closure criteria.
+
+### Fixed baseline inputs
+
+- The committed code/document snapshot is `3ec3da083424859801d3f094c6a6edb516af60ff`. Its module source has no changes relative to the accepted APC module source at `76eee8b`. This source comparison is not a new build or runtime qualification.
+- Existing qualified products and their receipts retain their recorded source, library, Base and fixture identities. M7's accepted GET-only application and M9's accepted book are the current delivery boundaries. Component SET support does not establish application SET delivery.
+- The baseline excludes all pre-existing uncommitted measurement-tool changes, their two procedure additions and untracked test inputs. They remain untouched for a separate disposition; they are not silently included, deleted or declared qualified.
+- The final baseline decision state will be the commit carrying the current M12/M13 closures and Keep records. Only after that commit exists can its hash name the replacement canonical document and its single History row. Do not create a tag, release or new product qualification as a side effect.
+
+### Product purpose and evidence boundaries
+
+The earliest committed implementation states that blocked native transport must not stall IOC servicing or another address: commit `49d5c62feca95f12a13910b73b60667455773b7c`. The first interface/lifecycle contract is `81cdcddd4fb431cba55e5a7999c9f7c923a670e6`. These are the recovered committed premises, not a reconstruction of an unrecorded original conversation.
+
+The later goal contract in the committed M7 detail separates the following five product judgments. APC's factual response `baseline-purpose-20261107-r1` agrees on the boundaries; its account of the first conversation is supporting context, not independent proof of that conversation.
+
+| Product goal | Existing evidence to use first | Boundary that the new plan must retain |
+| --- | --- | --- |
+| Fresh acquisition and publication | Accepted request-generation, held-response and stale/duplicate-publication observations | Preserved VAL, TIME advance or a normal alarm alone does not prove a fresh device acquisition. Original ScopedPDU causality remains unresolved. |
+| Correct Base completion and FLNK | Qualified DSET/callback and selected public CA/PVA observations | Preserve representation/capacity limits and the accepted compatibility LSI UDF limitation. |
+| Periodic acquisition | Identified full-application observations and recorded due/start/skip conditions | SCAN and Poll/Done counts do not establish every actual acquisition opportunity. The original 88-PV/63-OID/2-second population is not recovered. |
+| Fault, recovery and address isolation | Qualified selected loss, late-response, worker-replacement and healthy-address observations | Keep physical outage, unselected profiles and exact recovery/freshness claims outside their observed bounds. |
+| Predictable latency and CPU | Current ordinary once result, sustained schedules and retained diagnostic evidence | Once ratio 1.225297 passes its target; normalized sustained ratio 1.983656 fails 1.25. Baseline variation, one lost probe, historical 103 ms attribution and strict legacy CPU/freshness remain unresolved. |
+
+The legacy 163-input interface, generated358 comparison and final396 application are distinct workloads. Freeze graph, types, capacities, configuration and product identities before a comparison; matching PV names do not establish matched acquisition work. Existing evidence cannot be relabeled to fill a missing historical identity.
+
+### Proposed next-generation plan
+
+The next-generation implementation plan remains draft until separately accepted. The current authority covers closure and baseline preparation, not a new equipment campaign or reopening deferred product work.
+
+1. Build one goal-to-evidence table from the five goals above. For each claim, name the identified product, existing receipt, accepted limit and actual remaining product question. Check availability before replay; a missing input remains missing evidence.
+2. End that assessment when every original goal has one bounded verdict. Carry unverified claims explicitly. Do not add executions merely because another case or measurement is possible.
+3. Select a concrete product gap with its acceptance criterion and stop condition before implementation or further testing. Preserve successful and failed observations separately. Tool changes require a demonstrated obstacle to that specific product judgment.
+4. Keep the remaining five identities through the reset: M10 outcome classification and M15 credential policy are Open; M14 performance is Deferred; M11 record cells and M18 SONAME work are Deferred Backlog. Do not mark them Complete or discard them during renumbering.
+5. Reset only after the closure state is committed. Preserve the full prior commit in one final History row, assign new local IDs, and check both old-document links and old-ID references. Pin historical qualification references to the carrying commit instead of pointing them at unrelated new IDs.
+
+Completion of this preparation means the two decisions and their Keep evidence are recorded, the remaining five identities are accounted for, and the baseline inputs and next plan's first deliverable and stop condition are explicit. It does not mean the replacement register, a new product change or another test campaign has executed.
+
 ## Milestone
 
 ### Work
@@ -53,8 +92,8 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | M8 | R8: integrated five-OS and resource qualification | Milestone | Complete | No | M6, G3, D23 | Full identified-source matrix and measured resource acceptance; [detail](#m8---r8-integrated-qualification) |
 | M9 | mdBook documentation | Milestone | Complete | No | M1, M2, M3, M4, M5, D4, D14, D19, G4 | Final book accepted 2026-11-07; whole-book corrections landed at 0b35b65. All 27 chapters match verified build input; Docker build, Bash syntax and rendered local links pass. Recorded runtime limits remain; publication excluded; [detail](#m9---mdbook-documentation) |
 | M10 | Negative-control harness outcome classification | Carry-forward | Open | No | none | Owner scope decision recorded and each listed outcome either classified by an executed run or kept by decision; [detail](#m10---negative-control-harness-outcome-classification) |
-| M12 | Stop duration with a blocked callback queue | Carry-forward | Open | No | none | Owner decision on whether the stop bound and the record drain budget may overlap or skip waits that cannot progress, recorded with its date; then the change verified by the `stop-enqueue-failed` case or the observation kept by decision; [detail](#m12---stop-duration-with-a-blocked-callback-queue) |
-| M13 | PowerNet-MIB 4.6.0 review for the AP8932 database | Carry-forward | Open | No | none | Owner decision to adopt 4.6.0 or keep 4.4.6 recorded with its date, and any `rPDU2Adv*` scope decided; adoption verified by regeneration and a new run of the database's integration test; [detail](#m13---powernet-mib-460-review-for-the-ap8932-database) |
+| M12 | Stop duration with a blocked callback queue | Carry-forward | Complete | No | none | Decision Date: 2026-11-07; keep the current stop sequence and accept the recorded blocked-callback observations. No optimization or new duration guarantee; change-only checks retired; [detail](#m12---stop-duration-with-a-blocked-callback-queue) |
+| M13 | PowerNet-MIB 4.6.0 review for the AP8932 database | Carry-forward | Complete | No | none | Decision Date: 2026-11-07; keep PowerNet-MIB 4.4.6 and the current monitoring set; add no rPDU2Adv objects. Static comparison retained; adoption-only checks retired; [detail](#m13---powernet-mib-460-review-for-the-ap8932-database) |
 | M14 | Group record requests and wake on readiness on the record path | Carry-forward | Deferred | No | D15, D16 | Decision Date: 2026-11-06; performance objectives retained for later work. Ordinary PDU2 once Passed at 1.225297; sustained schedules Passed, normalized T3 pair Failed at 1.983656 against 1.25. Baseline variation, one lost probe request and historical 103 ms attribution remain unresolved; [detail](#m14---group-record-requests-and-wake-on-readiness-on-the-record-path) |
 | M15 | Secret material management for SNMPv3 device access | Carry-forward | Open | No | none | Owner decision on creation, location, rotation and repository exclusion recorded with its date; procedure documented and verified by a scan of tracked files and history; [detail](#m15---secret-material-management-for-snmpv3-device-access) |
 | M16 | Failure path of the servicing loop: entry and test | Carry-forward | Complete | No | none | Owner decision to start the analysis (or to retire the row) recorded with its date; then the analysis recorded of which failures can reach the failure handler of the servicing loop and how a case enters it without a product test hook, or the row retired by that decision; a case added by the analysis is verified as in the Completion Criteria of the detail; [detail](#m16---failure-path-of-the-servicing-loop-entry-and-test) |
@@ -65,7 +104,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | G4 | mdBook detailed-plan acceptance and execution authorization | External gate | Complete | No | none | Layout, toolchain, build and publication boundary approved; [detail](#g4---mdbook-authorization) |
 | G5 | D7-D9 M5/M6 plan revision acceptance and execution authorization | External gate | Complete | No | none | Revised M5 and M6 plans accepted and separately authorized; [detail](#g5---d7-d9-revision-authorization) |
 
-Current work tally: 11 Complete, 0 In progress, 1 Deferred and 4 Open; external gates and Backlog are excluded. All five external gates are Complete. No work row is Ready.
+Current work tally: 13 Complete, 0 In progress, 1 Deferred and 2 Open; external gates and Backlog are excluded. All five external gates are Complete. No work row is Ready. Backlog contains 2 Deferred rows.
 
 ### Decisions
 
@@ -3417,7 +3456,7 @@ Superseded Plan Artifacts: none
 Origin: 5dff352 / M12
 Identity History: none
 GitHub Issue: none
-Status: Open (unresolved scope: whether the observed stop duration is acceptable)
+Status: Complete (Decision Date: 2026-11-07; keep current stop behavior and accept the recorded observations)
 
 ##### Summary
 
@@ -3438,17 +3477,18 @@ Out of scope: the Base callback queue size and priorities; the drain budget valu
 
 ##### Dependencies And Decisions
 
-- none yet; the owner decision is pending.
+- Decision Date: 2026-11-07. Keep the current stop sequence and accept the recorded M6 T11 observations. Do not implement shortened or overlapping waits for this item.
+- The repeated-drain explanation remains source analysis, not a verified dedicated execution. Keeping the behavior does not promote that hypothesis to a result or establish a universal shutdown-time bound.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
-Superseded Plan Artifacts: none
+Plan Status: accepted
+Plan Acceptance: 2026-11-07, owner selection of current-behavior acceptance and closure
+Implementation Authorization: 2026-11-07, record the keep decision and close this item; no product change or new test execution
+Superseded Plan Artifacts: optimization proposal retained in commit 3ec3da083424859801d3f094c6a6edb516af60ff
 
-1. Confirm by a dedicated run whether the repeated stop at IOC shutdown drains again after a failed drain.
-2. Design the shortened wait the owner chooses and its effect on the stop-inflight, stop-queued, shutdown and queued-shutdown cases.
+1. Retain the observed durations with their original source/product identities.
+2. Close by the keep decision. Retire the proposed optimization and its change-only verification; do not claim those checks passed.
 
 ##### Test Plan
 
@@ -3462,20 +3502,22 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Linux host, ordinary and instrumented products | Pending | The M6 T11 receipts record the current durations. |
-| T2 | Not run | Linux host, ordinary and instrumented products | Pending | none |
-| T3 | Not run | Separate instrumented products | Pending | none |
+| T1 | 2026-11-07, decision | No changed product | Waived for keep decision | The earlier M6 T11 receipts retain the observed durations and identified products. No fresh three-mode or instrumented rerun is claimed. |
+| T2 | 2026-11-07, decision | No changed product | Waived for keep decision | No stop-sequence change is selected, so the proposed changed-product regression is retired. |
+| T3 | 2026-11-07, decision | No changed product | Waived for keep decision | No changed product is selected for these controls; no new control execution is claimed. |
 
 ##### Closure Evidence
 
-- none
+- Decision Date: 2026-11-07. Complete by accepting the current behavior, under the keep branch of the Completion Criteria. The observed 2.5 s and 4.0 s durations remain tied to the M6 T11 execution of 2026-10-05, tests `17c494a` and product `2544819`. They are not new measurements of the baseline commit.
+- Retired checks: the dedicated repeated-drain investigation, the proposed shortened-wait implementation, and change-verification T1, T2 and T3. The source-only repeated-drain explanation remains unverified. No product code, timing guarantee or Base patch changes.
+- Keep record: `docs/CLOSED_DOORS.md`, Blocked-callback shutdown duration; examined state `3ec3da083424859801d3f094c6a6edb516af60ff`.
 
 #### M13 - PowerNet-MIB 4.6.0 review for the AP8932 database
 
 Origin: 5dff352 / M13
 Identity History: none
 GitHub Issue: none
-Status: Open (unresolved scope: whether the AP8932 database adopts PowerNet-MIB 4.6.0 and whether any `rPDU2Adv*` object enters it)
+Status: Complete (Decision Date: 2026-11-07; keep PowerNet-MIB 4.4.6 and the current monitoring set, with no added rPDU2Adv objects)
 
 ##### Summary
 
@@ -3498,20 +3540,19 @@ Out of scope: physical PDU operation, production deployment, other PDU models, s
 
 ##### Dependencies And Decisions
 
-- none yet; the owner decisions are pending.
+- Decision Date: 2026-11-07. Keep PowerNet-MIB 4.4.6, its existing hash pin, generated database and monitoring set. Do not adopt 4.6.0 or add `rPDU2Adv*` objects under this item.
 - Database changes are made in the database repository, not in this repository.
 - Observation 2026-10-10: `rPDU2DevicePropertiesOutletLayout` (instance 1) returned -1 on the NMC3 unit (rack PDU firmware 2.5.2.5) and 5 on the NMC2 unit. The enumeration is the same in 4.4.6 and 4.6.0 (1 to 10), so adopting 4.6.0 does not change it; -1 reads as a not-available marker and is a device value.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
-Superseded Plan Artifacts: none
+Plan Status: accepted
+Plan Acceptance: 2026-11-07, owner selection of MIB 4.4.6 retention without monitoring-set expansion
+Implementation Authorization: 2026-11-07, record the keep decision and close this item; no database or equipment change
+Superseded Plan Artifacts: conditional adoption proposal retained in commit 3ec3da083424859801d3f094c6a6edb516af60ff
 
-1. Owner decides adoption and the `rPDU2Adv*` scope using `docs/powernet-460-review/review.md`.
-2. If adopted, the database repository updates the retained MIB, pin, labels, generated files and guide, then regenerates and builds.
-3. Run the verification below and record the receipts.
+1. Retain the static comparison and its exact input/result hashes.
+2. Record retention of 4.4.6 and no additional objects. Retire the conditional adoption and regeneration checks without claiming a 4.6.0 integration pass.
 
 ##### Test Plan
 
@@ -3526,12 +3567,15 @@ Superseded Plan Artifacts: none
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | 2026-10-09 | Linux host, Python 3 | PASS, 91 of 91 monitored objects (358 instances) identical, 0 missing, 49 `rPDU2` objects added, 4 body-changed outside the set | `docs/powernet-460-review/evidence/compare-result.json`; SHA256 `ad2ff674ee4441ce3bfbce478576c589fefe5ab1ffb3392e7b769c1936ac1d5e`; 4.6.0 file SHA256 `5d4d0e4470378082c3dfeb2797d81938d461be6e8a9e2f59002c93564b347e00` |
-| T2 | Not run | Linux host, Net-SNMP | Pending | none |
-| T3 | Not run | Linux x86_64; Base 7.0.10 | Pending | The passing 4.4.6 result does not qualify 4.6.0. |
+| T2 | 2026-11-07, decision | No adopted 4.6.0 database | Waived for keep decision | Independent resolution against 4.6.0 is retired because 4.6.0 is not adopted. |
+| T3 | 2026-11-07, decision | No regenerated database | Waived for keep decision | No regeneration is selected. The passing 4.4.6 result does not qualify 4.6.0. |
 
 ##### Closure Evidence
 
-- none
+- Decision Date: 2026-11-07. Complete by retaining 4.4.6 and excluding added `rPDU2Adv*` objects, under the keep branch of the Completion Criteria. Static comparison T1 remains the executed evidence: 91 identical selected object definitions covering 358 instances.
+- The retained comparison result SHA-256 is `ad2ff674ee4441ce3bfbce478576c589fefe5ab1ffb3392e7b769c1936ac1d5e`, rechecked against the tracked file on 2026-11-07. The MIB inputs were not reparsed in this closure step. Conditional adoption checks T2 and T3 are retired; neither is reported as executed or Passed.
+- No retained MIB, database, firmware, monitored object or APC repository file changes. Keep record: `docs/CLOSED_DOORS.md`, PowerNet-MIB monitoring input; examined state `3ec3da083424859801d3f094c6a6edb516af60ff`.
+- Documentation update verified 2026-11-07: `docs/powernet-460-review/review.md` states the keep decision instead of pending adoption. Actual `jeonghanlee/mdbook:0.5.4` build exits 0 without warnings; copied inputs retain their pre-build hashes. After D19 cleanup, 31 HTML pages have 1378 local href/src occurrences and 590 fragments with 0 broken; 77 external occurrences remain unchecked. Evidence: `<local>/baseline-20261107-01/source.sha256` and `link-result.txt`. This subsequent canonical evidence update is outside rendered navigation; no new MIB comparison, product test or device run is claimed.
 
 #### M14 - Group record requests and wake on readiness on the record path
 

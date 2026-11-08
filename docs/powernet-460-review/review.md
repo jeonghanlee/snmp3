@@ -1,6 +1,6 @@
 # PowerNet-MIB 4.6.0 review for the AP8932 database
 
-Status: static comparison complete; adoption decision open.
+Status: static comparison complete; retain PowerNet-MIB 4.4.6 and the existing monitoring set by the decision of 2026-11-07. No added `rPDU2Adv*` objects are selected.
 Tracked as work item M13 in the [work register](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/milestone-5dff352.md).
 
 ## Scope
@@ -10,7 +10,7 @@ compares PowerNet-MIB 4.6.0 against the 4.4.6 file for the objects that database
 monitoring set `docs/snmp-performance/inputs/ap8932-oids.tsv`: 358 instances of 91 objects). It does
 not regenerate the database, run an input/output controller (IOC), or contact equipment.
 
-**Out of scope:** the adoption decision, the behavior of physical hardware, and the findings of the performance measurements (see [Request performance](../snmp-performance/evaluation.md)).
+**Out of scope:** implementing a MIB upgrade, the behavior of physical hardware, and the findings of the performance measurements (see [Request performance](../snmp-performance/evaluation.md)).
 
 ## Inputs
 
@@ -93,12 +93,8 @@ requirement must come from the PDU firmware release notes or from the device.
   passing integration result applies to 4.4.6 only.
 - Behavior of physical AP8932 hardware and firmware is not covered.
 
-## Open items for the owner
+## Retained input and future changes
 
-1. Decide whether the database adopts 4.6.0 or keeps 4.4.6. Adoption changes the retained MIB, its
-   hash pin, version labels, generated files and the database guide together, and requires
-   regeneration, build and a new run of the integration test in a new evidence directory.
-2. Decide whether any `rPDU2Adv*` object enters the database scope. This needs a statement of the
-   required threshold resolution and the AP8932 firmware that supports the objects.
-3. Resolve the monitored numeric OIDs against the 4.6.0 file with an independent translator before
-   adoption.
+The decision of 2026-11-07 retains 4.4.6, its hash pin, generated database and monitoring set. No `rPDU2Adv*` object is added. This closes the current adoption question without changing the MIB, database or device.
+
+A future 4.6.0 adoption requires a new scope decision, independent numeric OID resolution, synchronized MIB/hash/version/generated-file updates, regeneration, build and a new integration run. Adding advanced objects also requires an explicit resolution requirement and confirmed model/firmware support. The existing static comparison does not qualify either change.
