@@ -9,7 +9,7 @@ Remote tracker: none associated with this register
 Recorded date: 2026-10-01
 Source baseline: `5dff352b9e86abfca74a74c4adc4fc8c1e48079f`
 
-Next session entry point: `docs/milestone-5dff352.md`, M9 / mdBook Documentation. The whole-book correction batch is reviewed and locally verified; prepare one documentation commit, then record its actual landing and obtain final book acceptance. Decision Date: 2026-11-06 keeps M9 open until that acceptance. The selected 27-chapter preview is `<local>/m9-whole-book-20261107-01/candidate/public/index.html`; `docs.patch` excludes pre-existing measurement-tool changes and their two procedure additions. Docker build and local links pass. M7 remains Complete for its accepted GET-only scope. M14 remains Deferred by the decision of 2026-11-06: once Passed at 1.225297 against 1.5; the 900-second pair remains Failed at 1.983656 against 1.25. Baseline variation, one 3003.281538 ms lost probe and historical 103 ms attribution remain unresolved. Resume M14 only by a new dated decision defining bounded product work; do not automatically resume tool development or equipment tests.
+Next session entry point: `docs/milestone-5dff352.md`, Milestone and Backlog. M9 is Complete by final book acceptance on 2026-11-07; its documentation deliverable landed at `0b35b6507103ebae6ccd8be2463d9308d5a4d813`. All 27 committed chapters match the verified build input byte for byte. Preview: `<local>/m9-whole-book-20261107-01/candidate/public/index.html`. No assigned work row is Ready; agree the next bounded scope before starting further work. M7 remains Complete for its accepted GET-only scope. M14 remains Deferred by the decision of 2026-11-06: once Passed at 1.225297 against 1.5; the 900-second pair remains Failed at 1.983656 against 1.25. Baseline variation, one 3003.281538 ms lost probe and historical 103 ms attribution remain unresolved. Resume M14 only by a new dated decision defining bounded product work; do not automatically resume tool development or equipment tests.
 
 ## Scope
 
@@ -17,7 +17,7 @@ This register owns the R1-R8 rewrite checkpoints and the assigned mdBook documen
 
 Out of scope: changing implementation or installed dependencies through this documentation update, operating equipment, publishing a site, or changing Git history or remote state.
 
-Complete means the identified checkpoint scope and its qualified verification are complete. It does not close later integration requirements. R6 implementation was authorized on 2026-10-01 (G1) for a plan now superseded by the D7-D9 revision; G5 accepted and authorized that revision on 2026-10-03; M5 implementation under it completed on 2026-10-05 and M6 completed within its accepted scope on 2026-10-08. M6 Closure Evidence identifies landed deliverables, actual verification and retained exclusions. R7 is complete within the GET-only scope accepted on 2026-11-05, including the recorded LSI UDF and strict legacy-comparison limits. R8 is complete under its recorded dispositions; mdBook owner review remains open. Ready is an execution dependency indicator, not implementation authorization.
+Complete means the identified checkpoint scope and its qualified verification are complete. It does not close later integration requirements. R6 implementation was authorized on 2026-10-01 (G1) for a plan now superseded by the D7-D9 revision; G5 accepted and authorized that revision on 2026-10-03; M5 implementation under it completed on 2026-10-05 and M6 completed within its accepted scope on 2026-10-08. M6 Closure Evidence identifies landed deliverables, actual verification and retained exclusions. R7 is complete within the GET-only scope accepted on 2026-11-05, including the recorded LSI UDF and strict legacy-comparison limits. R8 is complete under its recorded dispositions. The documentation book is accepted on 2026-11-07 within M9's scope; publication is excluded. Ready is an execution dependency indicator, not implementation authorization.
 
 Implemented source and executable fixtures are carried by `49d5c62feca95f12a13910b73b60667455773b7c`; architecture/operator documents by `81cdcddd4fb431cba55e5a7999c9f7c923a670e6`; Python cache exclusions by the source baseline above. The current identity is snmp3.
 
@@ -51,7 +51,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | M6 | R6: record DSET, conversion, completion and FLNK | Milestone | Complete | No | M1, M2, M3, M4, M5, D5, D6, D7, D8, D11, D12, D13, G1, G5 | Required real-path verification and capability landed at ade4c58; D13/M11 exclusions and dated limits retained; [detail](#m6---r6-record-integration) |
 | M7 | R7: APC startup/DB migration and comparison | Milestone | Complete | No | M6, D1, G2 | Complete2026-11-06 for the accepted GET-only scope. APC385/385, PVA10/10 and startup124/124 qualified with actual controls; SNMP3 76eee8b and APC 96fa207/3314b1e match their fetched upstreams. LSI UDF and strict comparison limits remain accepted; performance repair remains M14; [detail](#m7---r7-apc-migration-and-comparison) |
 | M8 | R8: integrated five-OS and resource qualification | Milestone | Complete | No | M6, G3, D23 | Full identified-source matrix and measured resource acceptance; [detail](#m8---r8-integrated-qualification) |
-| M9 | mdBook documentation | Milestone | In progress | No | M1, M2, M3, M4, M5, D4, D14, D19, G4 | Whole-book review and correction complete locally on 2026-11-07; Docker build, Bash syntax and rendered local links pass. One documentation commit's landing and final owner book acceptance remain open; [detail](#m9---mdbook-documentation) |
+| M9 | mdBook documentation | Milestone | Complete | No | M1, M2, M3, M4, M5, D4, D14, D19, G4 | Final book accepted 2026-11-07; whole-book corrections landed at 0b35b65. All 27 chapters match verified build input; Docker build, Bash syntax and rendered local links pass. Recorded runtime limits remain; publication excluded; [detail](#m9---mdbook-documentation) |
 | M10 | Negative-control harness outcome classification | Carry-forward | Open | No | none | Owner scope decision recorded and each listed outcome either classified by an executed run or kept by decision; [detail](#m10---negative-control-harness-outcome-classification) |
 | M12 | Stop duration with a blocked callback queue | Carry-forward | Open | No | none | Owner decision on whether the stop bound and the record drain budget may overlap or skip waits that cannot progress, recorded with its date; then the change verified by the `stop-enqueue-failed` case or the observation kept by decision; [detail](#m12---stop-duration-with-a-blocked-callback-queue) |
 | M13 | PowerNet-MIB 4.6.0 review for the AP8932 database | Carry-forward | Open | No | none | Owner decision to adopt 4.6.0 or keep 4.4.6 recorded with its date, and any `rPDU2Adv*` scope decided; adoption verified by regeneration and a new run of the database's integration test; [detail](#m13---powernet-mib-460-review-for-the-ap8932-database) |
@@ -65,7 +65,7 @@ The current configuration receipt records wrong-owner secret-file testing as NOT
 | G4 | mdBook detailed-plan acceptance and execution authorization | External gate | Complete | No | none | Layout, toolchain, build and publication boundary approved; [detail](#g4---mdbook-authorization) |
 | G5 | D7-D9 M5/M6 plan revision acceptance and execution authorization | External gate | Complete | No | none | Revised M5 and M6 plans accepted and separately authorized; [detail](#g5---d7-d9-revision-authorization) |
 
-Current work tally: 10 Complete, 1 In progress, 1 Deferred and 4 Open; external gates and Backlog are excluded. All five external gates are Complete. No work row is Ready.
+Current work tally: 11 Complete, 0 In progress, 1 Deferred and 4 Open; external gates and Backlog are excluded. All five external gates are Complete. No work row is Ready.
 
 ### Decisions
 
@@ -3175,7 +3175,7 @@ Defined 2026-10-16 (owner decisions in this session): ordinary products qualify 
 Origin: 5dff352 / M9
 Identity History: none
 GitHub Issue: none associated with this register
-Status: In progress (whole-book corrections reviewed and locally verified on 2026-11-07; selected documentation commit landing and final owner book acceptance remain open)
+Status: Complete (2026-11-07; final book accepted, documentation deliverable landed at 0b35b65)
 
 ##### Summary
 
@@ -3199,6 +3199,7 @@ Out of scope: implementing or publishing the book through this register update, 
 - D14 (2026-10-10) records the layout and page-organization direction only. The plan stays draft, plan acceptance and implementation authorization stay none.
 - D19 (2026-10-13, owner) selects the toolchain (the image `jeonghanlee/mdbook:0.5.4`, mdBook 0.5.4, no plugin) and the handling of non-Markdown files. Observed on a build of a copy of `docs/` (not tracked): the image builds it with the same HTML set as mdBook 0.4.48; every non-Markdown file under `src` is copied to the output (17 files: tools, PowerNet evidence, one results file, one input file), and `.ignore`, `.mdbookignore` and `.gitignore` do not exclude any of them. Build automation, the publication boundary and acceptance of the chapter list remain open.
 - Decision Date: 2026-11-06. Keep M9 open and continue document review; successful builds, link checks and repository landing do not constitute owner acceptance of the book.
+- Decision Date: 2026-11-07. Accept the current book as final and complete M9. This resolves the final acceptance condition retained on 2026-11-06; publication and the deferred performance work are separate.
 
 ##### Implementation Plan
 
@@ -3330,11 +3331,12 @@ Toolchain and non-Markdown files are fixed by D19. The inspected epics-ioc-runne
 ##### Closure Evidence
 
 - Observed 2026-11-06: documentation commit `d56f2e57c7af8b83ea1b6e7c74a4d25fa498f2d2` contains the five book pages and their canonical verification update. The delegated commit and non-forced push both exit0. The actual `ls-remote` result for `refs/heads/feature/snmp-base-7.0.10-rewrite`, local HEAD and the fetched upstream all identify that same commit. The commit hook reports no secret leak. Pre-existing measurement-tool and procedure changes remain outside this commit.
-- Owner acceptance of the book remains open. T3 retains its documented runtime-verification limits; no new device test, build automation or site publication follows from this landing record.
+- Final book acceptance is recorded on 2026-11-07. T3 retains its documented runtime-verification limits; no new device test, build automation or site publication follows from this acceptance.
 - Observed 2026-11-06: commit `28804b6a7956498a8ee713a6fa015df6865f060a` contains `configure-procedure.md`, `snmp-worker-verification.md` and this canonical record. The actual shared-runner preview, delegated commit and non-forced push exit 0; the commit hook reports no leaks. Local HEAD, upstream and actual `ls-remote` for the current branch match that commit. Unrelated performance changes remain outside it.
 - Observed 2026-11-07: commit `ce378e9400cc2c29d50ddcc5fff0575c350cefb4` contains the native procedure file-permission correction and its M9 record. Local HEAD, upstream and actual `ls-remote` for the current branch identified that commit at landing.
 - Observed 2026-11-07: commit `50eee0bafa6ce0ef7a5c505a07b635ea235baa9f` contains the native reference/transport, record behavior and worker supervision corrections with their M9 record. The delegated commit and non-forced push exit 0; the commit hook reports no leaks. HEAD, upstream and actual `ls-remote` for the current branch match. Pre-existing performance changes remain outside this commit. The architecture correction and its verification update remain local changes without landing evidence.
-- Decision Date: 2026-11-06. M9 remains In progress for final owner book acceptance. The whole-book correction batch has local verification but no commit landing evidence yet; one selected documentation commit and its landing record remain required.
+- Observed 2026-11-07 (Pacific): commit `0b35b6507103ebae6ccd8be2463d9308d5a4d813` carries the whole-book correction batch: 19 documentation files, 121 insertions and 73 deletions. The delegated commit and non-forced push exit 0; the commit hook reports no leaks. `git rev-parse HEAD '@{upstream}'` and `git ls-remote --exit-code --heads origin refs/heads/feature/snmp-base-7.0.10-rewrite` identify that same commit. A byte comparison of each chapter named by `docs/SUMMARY.md` confirms all 27 committed chapters match the verified build input. Pre-existing measurement-tool changes and their two procedure additions remain uncommitted and outside this batch. APC PDU was sent the landing result; no peer execution was requested.
+- Decision Date: 2026-11-07. The current 27-chapter book is accepted as final, and M9 is Complete. The accepted deliverable is carried by `0b35b6507103ebae6ccd8be2463d9308d5a4d813`; T1 and T2 pass, and T3's recorded source-specific runtime results and explicit unexecuted/unchecked boundaries remain the accepted evidence. No wider product qualification, new equipment run, build automation implementation or site publication is implied. This landing/acceptance record changes no rendered chapter.
 
 #### M10 - Negative-control harness outcome classification
 
