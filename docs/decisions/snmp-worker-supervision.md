@@ -137,7 +137,7 @@ Separate ASan/UBSan products instrument new R5 code, retain worker stderr and
 identify every selected product/library. Dependencies remain uninstrumented,
 leak detection is disabled, and missing observations block acceptance. Full
 current R1-R4 regressions and third-person implementation/second-person operator
-review qualify this boundary. The [verification sequence](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/tests/rewrite/README.md)
+review qualify this boundary. The [verification sequence](https://github.com/jeonghanlee/snmp3/blob/master/tests/rewrite/README.md)
 defines current runners and source/product/library identity checks. Historical receipts do not
 qualify changed hashes; dependency instrumentation and record integration remain
 outside this acceptance.

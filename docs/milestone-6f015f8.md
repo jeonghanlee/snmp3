@@ -3,14 +3,13 @@
 Release line: master
 Milestone index: 6f015f8
 Canonical path: `docs/milestone-6f015f8.md`
-Canonical branch or ref: feature/snmp-base-7.0.10-rewrite
-Git upstream: origin/feature/snmp-base-7.0.10-rewrite
+Canonical branch or ref: master
+Git upstream: origin/master
 Remote tracker: none associated with this register
 Recorded date: 2026-11-07
 Source baseline: `6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf`
 
-Next session entry point: `docs/milestone-6f015f8.md`, Product Judgment And Retrospective. Read the five current goal verdicts and the three unresolved decisions before preparing the requested transition to master. Keep the 17 uncommitted diagnostic files out of an automatic commit, deletion or stash. After the branch is merged by its own authorized workflow, continue on master with one selected product problem and its acceptance criterion and stop condition. No merge or new execution has occurred in this assessment; no work row is Ready.
-
+Next session entry point: `docs/milestone-6f015f8.md`, Master Transition. The branch is merged into master and the diagnostic files are stored outside the tree (D5). Prepare the 0.0.1 initial version from the current master state, then write one next goal with the fields in How The Next Goal Must Be Written. No work row is Ready.
 ## Scope
 
 This generation retains unfinished product and verification work. The accepted baseline is the committed GET-only monitoring scope and documentation at `6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf`. The [prior qualification record](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md) retains exact source, product, Base, fixture and receipt identities. Source equality is not a new runtime qualification; past results do not transfer automatically to another build.
@@ -88,6 +87,15 @@ Loose ends for a decision:
 2. Select one concrete product problem for work on master, or decide that the accepted GET scope needs no immediate product change. The performance failure and historical unknowns remain visible; their existence alone is not a repeat-test order.
 3. Resolve the deployment credential creation/storage/rotation policy before claiming that production operation is ready. Its current Open work and required verification remain unchanged.
 
+### Master transition
+
+Transition Date: 2026-11-09
+Observed state: `feature/snmp-base-7.0.10-rewrite` fast-forwarded into `master` at `6cfc01558736f956560bfb381950f90bce3230cc`; recheck with `git -C <repo> merge-base --is-ancestor feature/snmp-base-7.0.10-rewrite master`.
+
+- Loose end 1 is settled by D5. The 17 diagnostic files are stored under `work/probe-diagnostics-20261109-01/` with a patch of the six modified tracked files; the tracked files are at their committed state and the untracked files are out of the tree. They are reference input for a later rewrite, not a baseline change.
+- Loose ends 2 and 3 remain open. Documentation links that named the branch now name `master`.
+- Stale build outputs of the earlier module name were removed from the ignored output directories; no tracked file changed for that.
+
 ### How the next goal must be written
 
 The next work starts from an operating problem, not from a list of missing tests. Write one short goal with the following fields before implementation:
@@ -127,6 +135,7 @@ Current work tally: 0 Complete, 0 In progress, 1 Deferred and 2 Open. No work ro
 | D2 | Defer performance execution without an acceptance exception. Retain the once result, failed sustained criterion, baseline variation, lost probe and historical delay question. Resumption requires a bounded product question, acceptance criterion and stop condition; tool changes and new equipment runs are not automatic. | 2026-11-06 |
 | D3 | Retain Linux SONAME and symbolic-link versioning as long-term SNMP3 Backlog, excluded from current execution. No implementation dependency or ABI number is assigned before inventory. | 2026-10-24 |
 | D4 | Record the current product judgment and the reasons work expanded; define the next goal by an operating problem, target, acceptance criterion and stop condition. Continue on master after the intended merge. This direction does not choose a diagnostic-file disposition, change performance limits or authorize another test campaign. | 2026-11-08 |
+| D5 | Keep the 17 uncommitted diagnostic files outside the tree under `work/` as reference for a later rewrite of the measurement tools. They are not part of the 0.0.1 baseline and are neither committed nor deleted. | 2026-11-09 |
 
 ### Milestone Details
 

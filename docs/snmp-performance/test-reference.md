@@ -38,7 +38,7 @@ The tiers are ordered by reading priority:
 - `meas` holds electrical measurements: current, power, and energy.
 - `slow` holds identification, properties, and configuration such as thresholds and delays. The procedures read it rarely.
 
-The set of the reference run is [inputs/ap8932-oids.tsv](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/snmp-performance/inputs/ap8932-oids.tsv). It has 358 objects: 38 `state`, 18 `meas`, and 302 `slow`. For another model, derive the list from its management information base (MIB): the readable columns times the rows of the layout, without the command and control tables.
+The set of the reference run is [inputs/ap8932-oids.tsv](https://github.com/jeonghanlee/snmp3/blob/master/docs/snmp-performance/inputs/ap8932-oids.tsv). It has 358 objects: 38 `state`, 18 `meas`, and 302 `slow`. For another model, derive the list from its management information base (MIB): the readable columns times the rows of the layout, without the command and control tables.
 
 ## Rules for each measurement
 
@@ -255,11 +255,11 @@ The two direct tools differ at 0 ms: `device_sweep` takes 13 to 21 ms with async
 
 Each phase writes JSON into the output directory: `phase0.json`, `phase1.json`, `kstar.json`, `phase2.json`, `phase3-*.json`, `phase4.json`, and `phase1b.json` or `ramp.json` for the optional steps.
 
-For each device class, the report has these parts: the K\* decision, the pass time table by K, the window table, the order table, and the sustained table with the second client ratio. It also has the model fit (`fixed + per_object * K`, least squares over K = 2 to 48). The layout of the reference run is [results/reference-run.json](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/snmp-performance/results/reference-run.json).
+For each device class, the report has these parts: the K\* decision, the pass time table by K, the window table, the order table, and the sustained table with the second client ratio. It also has the model fit (`fixed + per_object * K`, least squares over K = 2 to 48). The layout of the reference run is [results/reference-run.json](https://github.com/jeonghanlee/snmp3/blob/master/docs/snmp-performance/results/reference-run.json).
 
 ## Reference values and tolerance bands
 
-The reference run used 358 objects, SNMPv3 authPriv, GET only, and no other client on the devices. An earlier run with a legacy IOC polling the same units is kept in [results/reference-run.json](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/snmp-performance/results/reference-run.json) under `legacy_client_present`.
+The reference run used 358 objects, SNMPv3 authPriv, GET only, and no other client on the devices. An earlier run with a legacy IOC polling the same units is kept in [results/reference-run.json](https://github.com/jeonghanlee/snmp3/blob/master/docs/snmp-performance/results/reference-run.json) under `legacy_client_present`.
 
 The reference is the median of five repeats. The pass-time bands are a fixed share of the reference: 15 percent on NMC2 and 25 percent on NMC3. They are not the observed spread. The other rows state their share.
 

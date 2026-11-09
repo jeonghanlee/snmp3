@@ -37,7 +37,7 @@ Verification applies to identified builds and executed paths. The checks exercis
 
 The [qualification record](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md) identifies the products, executed cases, controls, and accepted limits. A qualified snapshot does not establish that every later build ran the same matrix.
 
-Current unfinished work and the next entry point are in the [work register](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/milestone-6f015f8.md).
+Current unfinished work and the next entry point are in the [work register](https://github.com/jeonghanlee/snmp3/blob/master/docs/milestone-6f015f8.md).
 
 ## Limits of product acceptance
 

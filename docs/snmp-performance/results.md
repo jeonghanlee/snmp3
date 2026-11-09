@@ -4,7 +4,7 @@ The reference run measured the request times of two APC AP8932 power distributio
 
 ## Scope
 
-This page lists the reference run, the run with a legacy client present, and a separate grouped module comparison. The findings that follow from them are in [Request performance](evaluation.md). The inputs, rules, and reference-run tolerance bands are in the [performance test reference](test-reference.md). Reference-run raw data is in [results/reference-run.json](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/docs/snmp-performance/results/reference-run.json).
+This page lists the reference run, the run with a legacy client present, and a separate grouped module comparison. The findings that follow from them are in [Request performance](evaluation.md). The inputs, rules, and reference-run tolerance bands are in the [performance test reference](test-reference.md). Reference-run raw data is in [results/reference-run.json](https://github.com/jeonghanlee/snmp3/blob/master/docs/snmp-performance/results/reference-run.json).
 
 **Out of scope:** the steps that produce these results (see [Measure device request performance](test-procedure.md)).
 

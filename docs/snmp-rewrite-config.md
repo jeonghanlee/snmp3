@@ -245,7 +245,7 @@ that exit status does not make the rejected load successful.
 
 ## Configuration and startup examples
 
-The shipped [v2c example](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/tests/rewrite/config/v2c.json) uses a disposable
+The shipped [v2c example](https://github.com/jeonghanlee/snmp3/blob/master/tests/rewrite/config/v2c.json) uses a disposable
 community file in its own directory. Supply an existing mode-0600 secret file
 owned by the IOC user. The JSON contains no actual credential:
 
@@ -264,7 +264,7 @@ owned by the IOC user. The JSON contains no actual credential:
 }
 ```
 
-The shipped [startup example](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/tests/rewrite/config/startup.cmd) runs from the
+The shipped [startup example](https://github.com/jeonghanlee/snmp3/blob/master/tests/rewrite/config/startup.cmd) runs from the
 checkout root. Set `CONFIG_JSON` to the prepared configuration path and
 `NATIVE_PROBE` to the absolute helper path and `WORKER_PATH` to the absolute
 actual worker product through the IOC environment.
@@ -285,5 +285,5 @@ snmp3ConfigReport
 The standard longin PINI fixture processes constant 42. It demonstrates Base
 startup ordering, not SNMP I/O. Reports show revision 1 with one profile,
 endpoint, and binding, changing from unfrozen to frozen before PINI.
-The [verification runner](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/tests/rewrite/README.md) executes this exact shipped
+The [verification runner](https://github.com/jeonghanlee/snmp3/blob/master/tests/rewrite/README.md) executes this exact shipped
 startup file and JSON example with generated disposable secrets.

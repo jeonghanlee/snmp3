@@ -86,7 +86,7 @@ Replace `<user>` and `<checkout>` with the home directory and the checkout direc
 
 A command can stop before it writes `results.json`, for example when the output parent directory is missing. A traceback or a missing result file means the invocation is incomplete; it is not a passing check.
 
-A PASS qualifies the identified invocation only. Full completion also requires current foundation, configuration, lifecycle, and native regressions. The [verification sequence](https://github.com/jeonghanlee/snmp3/blob/feature/snmp-base-7.0.10-rewrite/tests/rewrite/README.md) lists those commands.
+A PASS qualifies the identified invocation only. Full completion also requires current foundation, configuration, lifecycle, and native regressions. The [verification sequence](https://github.com/jeonghanlee/snmp3/blob/master/tests/rewrite/README.md) lists those commands.
 
 The ASan and UBSan runs instrument the module, wire, and native libraries, plus the actual worker, owner, and IOC test products. The dependencies stay uninstrumented, and leak detection is disabled. The run keeps the private qualification standard error and scans it, because the production redirect to `/dev/null` cannot establish sanitizer success. Test-only outer IPC forwarding changes real frames while it keeps the selected actual worker and the full native path. The Runtime rejects transport overrides and offers no production selector for them.
 
