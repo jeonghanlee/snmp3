@@ -41,3 +41,4 @@
   - [Startup configuration ownership](decisions/snmp-startup-configuration.md)
   - [Worker supervision](decisions/snmp-worker-supervision.md)
 - [PowerNet-MIB 4.6.0 review](powernet-460-review/review.md)
+- [Review record of the legacy module, Net-SNMP, snmp3 and Base 7](legacy-review.md)

@@ -9,7 +9,7 @@ Remote tracker: none associated with this register
 Recorded date: 2026-11-07
 Source baseline: `6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf`
 
-Next session entry point: RELEASED 2026-11-09 as tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788` (D6). Start the next cycle at `docs/milestone-6f015f8.md`, How The Next Goal Must Be Written: select one operating problem with the owner and write the goal with those fields before any implementation. No work row is Ready.
+Next session entry point: RELEASED 2026-11-09 as tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788` (D6). The full source review of 2026-11-09 is recorded in `docs/legacy-review.md` (see Review 2026-11-09 below); read it before writing the goal. Start the next cycle at `docs/milestone-6f015f8.md`, How The Next Goal Must Be Written: select one operating problem with the owner and write the goal with those fields before any implementation. No work row is Ready.
 ## Scope
 
 This generation retains unfinished product and verification work. The accepted baseline is the committed GET-only monitoring scope and documentation at `6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf`. The [prior qualification record](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md) retains exact source, product, Base, fixture and receipt identities. Source equality is not a new runtime qualification; past results do not transfer automatically to another build.
@@ -101,6 +101,14 @@ Observed state: `feature/snmp-base-7.0.10-rewrite` fast-forwarded into `master` 
 Release Date: 2026-11-09
 Tag: annotated `0.0.1` on `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`, the commit that adds `CHANGELOG.md`; the GitHub release carries the changelog entry as its notes. Recheck with `git -C <repo> rev-parse 0.0.1^{commit}` and `gh release view 0.0.1 --repo jeonghanlee/snmp3`.
 Preflight observed on 2026-11-09: product source of the tag identical to the qualified module `76eee8b` (`git diff --stat 76eee8b 0.0.1 -- snmp3App configure Makefile` is empty); clean build on Debian 13; `tests/rewrite/run_matrix.py --rehearsal --instrumented no` PASS on its four cells (`rec-baseline`, `supervisor-ioc`, `spawn-descriptors`, `load-sustained`). The rehearsal is a bounded path check, not a repeat of the qualification matrix.
+
+### Review 2026-11-09
+
+Review Date: 2026-11-09
+Examined: legacy `devSnmp` at `snmp` commit `db9ebf5` (complete source), Net-SNMP source for Debian 13 (5.9.4), Rocky Linux 8.10 (5.8) and Rocky Linux 9 (5.9.1), EPICS Base 7.0.10 record processing and scan sources, and snmp3 master `32d2abf` (product source identical to tag `0.0.1`).
+Record: `docs/legacy-review.md` holds the sources, the mechanism of each of the five operating problems in `docs/why-snmp3.md`, eighteen additional structural defects of the legacy source, the Net-SNMP behavior confirmed from library source, the position of snmp3 `0.0.1` against every finding, and the Base 7.0.10 facilities a new driver can use.
+Result: no API difference exists between the three Net-SNMP versions for the features the module needs; the differences are distribution build options and the default `rcvMsgMaxSize`. The five operating problems are explained by the legacy source. snmp3 `0.0.1` answers the process, session, value-type, alarm-message and deadline findings and does not answer request sizing (problem 1), reply-time stamping and reply-driven processing (problems 4 and 5), localized SNMPv3 keys (M3) or table reads.
+Carry-forward: the six items under "Items carried into the next goal" in `docs/legacy-review.md` are candidates for the Problem and Existing answer fields of the next goal. None is a work row until the owner selects it.
 
 ### How the next goal must be written
 
