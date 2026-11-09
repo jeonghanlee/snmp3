@@ -21,6 +21,7 @@ This page lists each defined term once, in alphabetical order, with the definiti
 | Config | The immutable configuration snapshot of the process. The first API binding, `AfterFinishDevSup`, or `snmp3Stop` freezes it. |
 | Declared group | Bindings with the same `group` label. Compatible queued members share a batch deadline; batch limits can split the group across requests. |
 | Deadline | The absolute time at which an unresolved admitted request expires. It covers queueing, relaunch, IPC, and native service; Base callback delivery can follow later. |
+| devSnmp | The legacy SNMP device support that links Net-SNMP into the IOC process and serves records from a polled OID cache. snmp3 retains it only as a comparator. |
 | DSET | The device support entry table of an EPICS record type. The module provides eleven. |
 | Epoch | The count of launches of one address worker. A new worker gets the next epoch. |
 | FIFO | First in, first out. The order of the per-address request queue. |

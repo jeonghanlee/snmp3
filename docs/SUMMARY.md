@@ -4,6 +4,7 @@
 
 # Concepts
 
+- [The operating problems behind snmp3](why-snmp3.md)
 - [Architecture](snmp-rewrite-architecture.md)
 - [Address worker supervision](snmp-worker-supervision.md)
 - [Record request behavior](snmp-record-behavior.md)
