@@ -9,7 +9,7 @@ Remote tracker: none associated with this register
 Recorded date: 2026-11-07
 Source baseline: `6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf`
 
-Next session entry point: `docs/milestone-6f015f8.md`, Scope. Assess the five product goals against existing identified evidence before proposing further work. End the assessment when each goal has a bounded verdict; then obtain a dated decision on one concrete product gap, acceptance criterion and stop condition. No work row is Ready. Do not resume deferred tests or measurement-tool development automatically.
+Next session entry point: `docs/milestone-6f015f8.md`, Product Judgment And Retrospective. Read the five current goal verdicts and the three unresolved decisions before preparing the requested transition to master. Keep the 17 uncommitted diagnostic files out of an automatic commit, deletion or stash. After the branch is merged by its own authorized workflow, continue on master with one selected product problem and its acceptance criterion and stop condition. No merge or new execution has occurred in this assessment; no work row is Ready.
 
 ## Scope
 
@@ -28,6 +28,84 @@ The original committed premise is that blocked native transport must not stall I
 Freeze graph, types, capacities, configuration and product identities before any comparison. The legacy 163-input interface, generated358 comparison and final396 application are different workloads. A missing input remains missing evidence. A tool change requires a demonstrated obstacle to one specific product judgment, rather than another possible measurement.
 
 Out of scope: a new equipment campaign, SET application delivery, threshold changes, a tag or release, and automatic resumption of deferred work. Pre-existing uncommitted measurement tools, their two procedure additions and untracked test inputs are excluded from the baseline and remain untouched. The current blocked-callback shutdown behavior and PowerNet-MIB 4.4.6 monitoring input are Keep decisions in [Closed decisions](CLOSED_DOORS.md), not active work.
+
+## Product Judgment And Retrospective
+
+Assessment Date: 2026-11-08
+Examined committed state: `9717d1ca888500559f18d86181d58eb24b90aa41`
+Method: read the committed goal contracts, implementation history, qualification summaries and current diff. No old product, fixture or equipment test was rerun. Historical results below are attributed records, not fresh verification.
+
+### The problem the product must solve
+
+The purpose is reliable acquisition for operations: obtain fresh device data at the required cadence, publish the corresponding value and failure state through correct Base processing, prevent one slow or blocked device from stalling IOC servicing or another address, and make acquisition delay and resource cost predictable enough for the intended workload. Building a worker architecture or a larger test system is a means to that purpose, not the acceptance result.
+
+The earliest committed implementation explicitly requires blocking isolation (`49d5c62feca95f12a13910b73b60667455773b7c`). The first interface/lifecycle contract (`81cdcddd4fb431cba55e5a7999c9f7c923a670e6`) defines owned requests, exact completion and bounded capacity. The later [goal contract and reconciliation](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md#m7---r7-apc-migration-and-comparison) identifies freshness, Base/FLNK, periodic acquisition, fault isolation/recovery and latency/CPU as separate judgments.
+
+These records do not recover a complete original legacy incident reproduction. The original ScopedPDU cause and 88-PV/63-OID/2-second workload identities remain unresolved. Do not claim that every concern in the original report was a proved legacy defect, or that the new module has repaired its root cause. Missing original evidence is a limit on that historical claim; it is not an instruction to reconstruct an entire campaign.
+
+### Current product verdicts
+
+| Product question | Supported result | Remaining boundary and necessary action |
+| --- | --- | --- |
+| Does processing acquire and publish its own fresh result? | Accepted selected request-generation, held-response, numeric/string completion and old-after-new/duplicate observations support that contract on their identified products. | Do not infer fresh acquisition from a cached query or TIME alone. The original incident cause remains unproved; no repeat of already qualified cases is justified by that fact alone. |
+| Does Base complete records and FLNK correctly? | Selected real DSET/callback/CA/PVA observations and the accepted application checks support the recorded GET scope. | Preserve conversion/capacity exclusions and the separate Soft Channel LSI UDF limitation. The latter is not a proved SNMP3 native-support failure. |
+| Does acquisition meet the required operating cadence? | Identified application observations establish their completed cycles, suppression conditions and selected freshness behavior. | They do not establish every due opportunity or the unrecovered original two-second workload. Before further development, select the current operating population and required cadence rather than silently substitute legacy163, generated358 or final396. |
+| Does one failing address leave the IOC and other addresses usable? | The isolated worker design and executed selected local loss, late-response, replacement and healthy-address observations support their stated boundaries. | Physical outage and unexecuted profiles are not covered automatically. Add a case only if it decides a concrete required product behavior that the existing evidence does not answer. |
+| Are latency, impact on another client and CPU goals achieved? | The ordinary generated358 PDU2 once comparison passes at 212.344/173.300 ms, ratio 1.225297 against 1.5. Sustained schedules pass their loss/overrun checks. | The normalized sustained second-client criterion fails at 1.983656 against 1.25. Baseline sensitivity, one lost probe and historical 103 ms attribution remain unresolved. Production speedup, CPU savings and strict legacy latency/freshness equivalence are not established. Performance remains Deferred, not Complete. |
+
+Product conclusion: the accepted, identified APC GET-only monitoring scope is usable within its recorded limits. That acceptance does not establish that every original legacy problem is solved or that the overall performance objective is met. The remaining task is a bounded product decision, not another general test campaign.
+
+Additional findings must retain their actual classification. The committed reconciliation records a pinned legacy polling-time arithmetic defect, a separate Base/device-support LSI metadata finding, and OOPT/Watch discrepancies in verification or measurement. These do not independently prove an SNMP3 speedup or the original ScopedPDU cause. See the committed reconciliation for the individual evidence and qualifications.
+
+### First-person retrospective
+
+What holds and why:
+
+- I retained separate native workers, bounded admission and owned completion because a blocked native operation must not take over IOC servicing or release still-owned request storage.
+- I retained identified real-path evidence and failed/incomplete outcomes because functional support, collection completion and performance acceptance are different facts. The accepted GET qualification remains useful within those limits.
+
+What I got wrong:
+
+1. I used test completion as a proxy for answering the owner's product question. A passing collector, replay or control often became the next deliverable while the conclusion about the original operating problem stayed open.
+2. I allowed component safety, application migration, legacy comparison, performance attribution and measurement-tool reliability to accumulate under a long-running objective. I did not consistently require each addition to name the unresolved product decision it would settle and the point at which work would stop.
+3. I did not settle comparable workloads and acceptance questions early enough. Legacy163, generated358 and final396 have different acquisition graphs and costs. More observations could not make their unmatched results a strict before/after comparison.
+4. I continued to improve capture, replay, timing and validation paths without consistently separating a necessary correction to a product verdict from optional diagnostic coverage. A tool limitation repeatedly generated another work item instead of a bounded Unknown verdict or a decision to stop.
+5. I reported administrative closure too broadly. The register reset removed completed rows and fixed references, but left 6 modified tracked files and 11 untracked files from diagnostic work. A completed reset was not a clean working tree or a complete disposition of that work.
+
+The repository history examined here begins on 2026-09-30 and includes implementation, test and documentation work through 2026-11-08. This review does not quantify time spent before that repository history or invent a fraction of effort that was wasted. The failure is visible without that estimate: the current record can name many qualified checks while still not establish original-incident resolution, strict legacy improvement or the complete performance goal.
+
+### Exact state before the master transition
+
+- Baseline and reset commits `6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf` and `9717d1ca888500559f18d86181d58eb24b90aa41` are the recorded published states. The current branch is `feature/snmp-base-7.0.10-rewrite`. A master merge has not been executed or verified by this assessment.
+- The accepted module/application source and receipt identities remain those in the qualification record. No product code was changed or newly qualified by the reset or this retrospective.
+- The 17 uncommitted diagnostic files consist of two procedures; `device_monitor.c`, `device_sweep.c`, `run_device_phases.py` and `run_module_database.py`; new `probe_results.py`, `timing_observation.h` and `test_probe_results.py`; and eight files under `tests/rewrite/fixtures/probe/`. They add raw-probe validation, timing and post-idle/drain observations. They are excluded from the accepted baseline; they are not product implementation still required to make that accepted GET scope work. Their usefulness for future diagnosis does not authorize committing or deleting them.
+- The five unfinished identities remain unchanged: two Open and one Deferred under Milestone, plus two Deferred under Backlog. Reset did not make any of them complete or Ready.
+- This retrospective changes only this canonical document. It does not commit, merge, switch branches, clean diagnostic files, or authorize another measurement.
+
+Loose ends for a decision:
+
+1. Decide the disposition of the 17 diagnostic files before the master transition: retain as a separately reviewed tool change, or discard the work under an explicit cleanup scope. No automatic keep, deletion, stash or inclusion in a merge is selected here.
+2. Select one concrete product problem for work on master, or decide that the accepted GET scope needs no immediate product change. The performance failure and historical unknowns remain visible; their existence alone is not a repeat-test order.
+3. Resolve the deployment credential creation/storage/rotation policy before claiming that production operation is ready. Its current Open work and required verification remain unchanged.
+
+### How the next goal must be written
+
+The next work starts from an operating problem, not from a list of missing tests. Write one short goal with the following fields before implementation:
+
+| Field | Required content |
+| --- | --- |
+| Problem | The observable failure or unmet operating requirement, who is affected, and the existing evidence. Distinguish a demonstrated product defect from an unproved hypothesis or missing historical input. |
+| Target | One identified module/application version, device or external fixture, record population, graph, protocol, capacities and schedule. State whether the task judges current suitability or a matched legacy/new improvement. |
+| Expected behavior | The exact externally visible result and the agreed acceptance criterion. Choose the required cadence and resource/latency budget explicitly; do not invent a numerical target from an available measurement. |
+| Existing answer | Reuse the qualified evidence that already answers part of the question. Name the one remaining claim that needs a product change or execution. |
+| Work | The smallest product action needed for that claim. A tool correction is allowed only when a specific defect prevents this judgment; improving the tool is not the goal. |
+| Verification | One bounded real-path check of the affected behavior plus necessary regressions, using existing tools first. Fix the maximum duration/repeat rule and evidence to retain before starting. |
+| End | Report Met, Not met or Unknown with its evidence and limitation. Stop at that verdict; a failure or missing input returns to the product decision instead of automatically creating another campaign. |
+| Exclusions | List other devices, record populations, SET, deployment, diagnostics and optimizations not required by this goal. New findings are reported separately and do not extend the task automatically. |
+
+The assessment deliverable is complete when the five judgments above are explicit, the unresolved claims are distinguished from defects, and the owner can choose one concrete next problem without another exploratory campaign. A subsequent implementation goal is complete only when its selected product behavior and criterion are met, or it is explicitly stopped with a failed/unknown result. Test counts, replay equality and document cleanup cannot substitute for that decision.
+
+The intended sequence is to settle the remaining working-tree disposition, prepare and verify the branch's merge into master under its separate Git workflow, then continue on master with the selected goal. No merge readiness, release readiness or new implementation-plan acceptance is implied by this retrospective.
 
 ## Milestone
 
@@ -48,6 +126,7 @@ Current work tally: 0 Complete, 0 In progress, 1 Deferred and 2 Open. No work ro
 | D1 | Defer the unexecuted Channel Access, long active client-write, delayed output-simulation and isolated rebuild/reuse cells. They do not qualify the accepted record scope and resume only by a new decision. | 2026-10-05 |
 | D2 | Defer performance execution without an acceptance exception. Retain the once result, failed sustained criterion, baseline variation, lost probe and historical delay question. Resumption requires a bounded product question, acceptance criterion and stop condition; tool changes and new equipment runs are not automatic. | 2026-11-06 |
 | D3 | Retain Linux SONAME and symbolic-link versioning as long-term SNMP3 Backlog, excluded from current execution. No implementation dependency or ABI number is assigned before inventory. | 2026-10-24 |
+| D4 | Record the current product judgment and the reasons work expanded; define the next goal by an operating problem, target, acceptance criterion and stop condition. Continue on master after the intended merge. This direction does not choose a diagnostic-file disposition, change performance limits or authorize another test campaign. | 2026-11-08 |
 
 ### Milestone Details
 
