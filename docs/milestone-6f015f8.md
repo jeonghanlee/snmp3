@@ -9,7 +9,7 @@ Remote tracker: none associated with this register
 Recorded date: 2026-11-07
 Source baseline: `6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf`
 
-Next session entry point: `docs/milestone-6f015f8.md`, Master Transition. The branch is merged into master and the diagnostic files are stored outside the tree (D5). Prepare the 0.0.1 initial version from the current master state, then write one next goal with the fields in How The Next Goal Must Be Written. No work row is Ready.
+Next session entry point: RELEASED 2026-11-09 as tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788` (D6). Start the next cycle at `docs/milestone-6f015f8.md`, How The Next Goal Must Be Written: select one operating problem with the owner and write the goal with those fields before any implementation. No work row is Ready.
 ## Scope
 
 This generation retains unfinished product and verification work. The accepted baseline is the committed GET-only monitoring scope and documentation at `6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf`. The [prior qualification record](https://github.com/jeonghanlee/snmp3/blob/6f015f8aa1d6b8c7c92811d5a87ded0bac9228bf/docs/milestone-5dff352.md) retains exact source, product, Base, fixture and receipt identities. Source equality is not a new runtime qualification; past results do not transfer automatically to another build.
@@ -96,6 +96,12 @@ Observed state: `feature/snmp-base-7.0.10-rewrite` fast-forwarded into `master` 
 - Loose ends 2 and 3 remain open. Documentation links that named the branch now name `master`.
 - Stale build outputs of the earlier module name were removed from the ignored output directories; no tracked file changed for that.
 
+### Release 0.0.1
+
+Release Date: 2026-11-09
+Tag: annotated `0.0.1` on `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`, the commit that adds `CHANGELOG.md`; the GitHub release carries the changelog entry as its notes. Recheck with `git -C <repo> rev-parse 0.0.1^{commit}` and `gh release view 0.0.1 --repo jeonghanlee/snmp3`.
+Preflight observed on 2026-11-09: product source of the tag identical to the qualified module `76eee8b` (`git diff --stat 76eee8b 0.0.1 -- snmp3App configure Makefile` is empty); clean build on Debian 13; `tests/rewrite/run_matrix.py --rehearsal --instrumented no` PASS on its four cells (`rec-baseline`, `supervisor-ioc`, `spawn-descriptors`, `load-sustained`). The rehearsal is a bounded path check, not a repeat of the qualification matrix.
+
 ### How the next goal must be written
 
 The next work starts from an operating problem, not from a list of missing tests. Write one short goal with the following fields before implementation:
@@ -136,6 +142,7 @@ Current work tally: 0 Complete, 0 In progress, 1 Deferred and 2 Open. No work ro
 | D3 | Retain Linux SONAME and symbolic-link versioning as long-term SNMP3 Backlog, excluded from current execution. No implementation dependency or ABI number is assigned before inventory. | 2026-10-24 |
 | D4 | Record the current product judgment and the reasons work expanded; define the next goal by an operating problem, target, acceptance criterion and stop condition. Continue on master after the intended merge. This direction does not choose a diagnostic-file disposition, change performance limits or authorize another test campaign. | 2026-11-08 |
 | D5 | Keep the 17 uncommitted diagnostic files outside the tree under `work/` as reference for a later rewrite of the measurement tools. They are not part of the 0.0.1 baseline and are neither committed nor deleted. | 2026-11-09 |
+| D6 | Publish `0.0.1` as the baseline tag of the accepted GET-only monitoring scope and its recorded limits. The tag fixes a reference point for later versions; it is not a completion claim, a performance acceptance or a change to any work row. | 2026-11-09 |
 
 ### Milestone Details
 
