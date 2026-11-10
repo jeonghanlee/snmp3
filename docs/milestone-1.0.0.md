@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: Start M1 in `docs/milestone-1.0.0.md` (probe spawn environment): accept its plan, then change `snmp3App/src/Config.cpp` so the native probe receives the same environment list as the worker in `snmp3App/src/Supervisor.cpp`, and run `tests/rewrite/ConfigTest.cpp`. In parallel, close G1 by observing both laboratory units through the laboratory IOC. M5 and M9 are also Ready.
+Next session entry point: Start M2 in `docs/milestone-1.0.0.md` (baseline measurement): the owner confirms that no other client reads the two laboratory units, then run its step 1 (read only) and record the results under `work/baseline-direct-<date>/`. M1, M6 and M10 are also Ready; G1 is Open.
 
 ## Scope
 
@@ -17,7 +17,7 @@ The goal of this release line is that every guarantee in [What snmp3 guarantees 
 
 Work is ordered by the code surface each unit shares with the next; the row order is the execution order and the local IDs follow it. Each completed M row adds a `CHANGELOG.md` entry and an annotated tag with the version named in its detail; the final release is `1.0.0`.
 
-Out of scope: performance criteria and acceptance (Backlog M12), the deferred record verification cells (Backlog M13), the negative-control harness classification (Backlog M11), a new measurement tool before an existing one is shown insufficient (D4), and any deployment to the operations network before `1.0.0`.
+Out of scope: performance criteria and acceptance (Backlog M13), the deferred record verification cells (Backlog M14), the negative-control harness classification (Backlog M12), a new measurement tool before an existing one is shown insufficient (D4), and any deployment to the operations network before `1.0.0`.
 
 ## Milestone
 
@@ -27,17 +27,18 @@ Out of scope: performance criteria and acceptance (Backlog M12), the deferred re
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Gate | G1 | Laboratory NMC2 and NMC3 units reachable through snmp3 | External gate | Open | No | | Both units answer a GET through the laboratory IOC with snmp3 `0.0.1`; [detail](#g1---laboratory-nmc2-and-nmc3-units-reachable-through-snmp3) |
 | E | M1 | Probe spawn environment equal to the worker environment | Milestone | Not started | Yes | | Probe and worker receive the same environment list; `ConfigTest` passes; tag `0.0.2`; [detail](#m1---probe-spawn-environment-equal-to-the-worker-environment) |
-| A | M2 | Two-device isolation measurement on the current product | Milestone | Blocked | No | G1, D4 | Measured cadence of the healthy unit with the other unit disconnected; [detail](#m2---two-device-isolation-measurement-on-the-current-product) |
-| B | M3 | Request sizing with advertised message size and tooBig split | Milestone | Blocked | No | G1 | NMC2 accepts a 61-OID request without manual `maxVarbinds` tuning; tooBig reaches the record; tag `0.0.3`; [detail](#m3---request-sizing-with-advertised-message-size-and-toobig-split) |
-| B | M4 | SET outcome contract | Milestone | Not started | No | M3 | Output records complete only on the SET result; a timeout is an alarm; tag `0.0.4`; [detail](#m4---set-outcome-contract) |
-| C | M5 | Reply time stamp on records | Milestone | Not started | Yes | | Record TIME equals the worker receive time with `TSE=-2`; tag `0.0.5`; [detail](#m5---reply-time-stamp-on-records) |
-| C | M6 | Reply-driven processing and driver-owned periodic acquisition | Milestone | Not started | No | M3, M5 | `SCAN=I/O Intr` records process on reply arrival at the configured period; tag `0.0.6`; [detail](#m6---reply-driven-processing-and-driver-owned-periodic-acquisition) |
-| Performance | M7 | GETBULK table reads | Milestone | Not started | No | M3 | A table read uses one GETBULK request where the profile allows it; tag `0.0.7`; [detail](#m7---getbulk-table-reads) |
-| D | M8 | SNMPv3 localized keys and secret procedure | Carry-forward | Blocked | No | G1 | Worker retains localized keys only; documented procedure creates files that reach both units; tag `0.0.8`; [detail](#m8---snmpv3-localized-keys-and-secret-procedure) |
-| Release | M9 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.9`; [detail](#m9---shared-library-soname-and-symbolic-link-versioning) |
-| Release | M10 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m10---release-100) |
+| Baseline | M2 | Baseline measurement on the two laboratory units | Milestone | Not started | Yes | D8 | Net-SNMP 5.9.4 read directly and the installed legacy module measured on both units, with the response time of a request and the interval of new values recorded; no product change; [detail](#m2---baseline-measurement-on-the-two-laboratory-units) |
+| A | M3 | Two-device isolation measurement on the current product | Milestone | Blocked | No | G1, D4, M2 | Measured cadence of the healthy unit with the other unit disconnected; [detail](#m3---two-device-isolation-measurement-on-the-current-product) |
+| B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Blocked | No | G1 | NMC2 accepts a 61-OID request without manual `maxVarbinds` tuning; tooBig reaches the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
+| B | M5 | SET outcome contract | Milestone | Not started | No | M4 | Output records complete only on the SET result; a timeout is an alarm; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
+| C | M6 | Reply time stamp on records | Milestone | Not started | Yes | | Record TIME equals the worker receive time with `TSE=-2`; tag `0.0.5`; [detail](#m6---reply-time-stamp-on-records) |
+| C | M7 | Reply-driven processing and driver-owned periodic acquisition | Milestone | Not started | No | M4, M6 | `SCAN=I/O Intr` records process on reply arrival at the configured period; tag `0.0.6`; [detail](#m7---reply-driven-processing-and-driver-owned-periodic-acquisition) |
+| Performance | M8 | GETBULK table reads | Milestone | Not started | No | M4 | A table read uses one GETBULK request where the profile allows it; tag `0.0.7`; [detail](#m8---getbulk-table-reads) |
+| D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Blocked | No | G1 | Worker retains localized keys only; documented procedure creates files that reach both units; tag `0.0.8`; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
+| Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.9`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
+| Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 0 Complete, 0 In progress, 7 Not started, 3 Blocked; G1 Open. Ready rows: M1, M5, M9. Backlog contains 1 Open and 2 Deferred rows and is excluded from this tally.
+Current work tally: 0 Complete, 0 In progress, 8 Not started, 3 Blocked; G1 Open. Ready rows: M1, M2, M6, M10. Backlog contains 1 Open and 2 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -50,6 +51,26 @@ Current work tally: 0 Complete, 0 In progress, 7 Not started, 3 Blocked; G1 Open
 | D5 | Defer performance execution without an acceptance exception. Retain the once result, failed sustained criterion, baseline variation, lost probe and historical delay question. Resumption requires a bounded product question, acceptance criterion and stop condition; tool changes and new equipment runs are not automatic. | 2026-11-06 |
 | D6 | Defer the unexecuted Channel Access, long active client-write, delayed output-simulation and isolated rebuild/reuse cells. They do not qualify the accepted record scope and resume only by a new decision. | 2026-10-05 |
 | D7 | Publish `0.0.1` as the baseline tag of the accepted GET-only monitoring scope and its recorded limits. The tag fixes a reference point for later versions; it is not a completion claim, a performance acceptance or a change to any work row. | 2026-11-09 |
+| D8 | Measure the baseline before any product change: Net-SNMP 5.9.4 read directly, and the installed legacy module `snmp-1.1.0.4ja`, on one NMC2 unit that carries a load and one NMC3 unit without load. Reads on both units, writes only on the unit without load. The two-unit measurement of the current product compares against these results. The baseline carries no verdict; the criteria are those of the rows that use its numbers. | 2026-11-10 |
+
+### ID Migration
+
+A baseline row, created as M15 and placed as M2 on 2026-11-10 so the row order stays the execution order, moved every later row down by one. No GitHub issue carries a row number.
+
+| Old ID | Current ID | Reason | Updated References |
+| --- | --- | --- | --- |
+| M2 | M3 | Baseline row inserted before it | Work table, Deps, details, anchors, Integrated Verification sources |
+| M3 | M4 | Baseline row inserted before it | Work table, Deps, details, anchors, Integrated Verification sources |
+| M4 | M5 | Baseline row inserted before it | Work table, Deps, details, anchors, Integrated Verification sources |
+| M5 | M6 | Baseline row inserted before it | Work table, Deps, details, anchors, Integrated Verification sources |
+| M6 | M7 | Baseline row inserted before it | Work table, Deps, details, anchors, Integrated Verification sources |
+| M7 | M8 | Baseline row inserted before it | Work table, Deps, details, anchors, Integrated Verification sources |
+| M8 | M9 | Baseline row inserted before it | Work table, Deps, details, anchors, Integrated Verification sources |
+| M9 | M10 | Baseline row inserted before it | Work table, Deps, details, anchors, Integrated Verification sources |
+| M10 | M11 | Baseline row inserted before it | Work table, Deps, details, anchors, Integrated Verification sources |
+| M11 | M12 | Baseline row inserted before it | Work table, Deps, details, anchors, Integrated Verification sources |
+| M12 | M13 | Baseline row inserted before it | Work table, Deps, details, anchors, Integrated Verification sources |
+| M13 | M14 | Baseline row inserted before it | Work table, Deps, details, anchors, Integrated Verification sources |
 
 ### Milestone Details
 
@@ -61,7 +82,7 @@ Status: Open
 
 ##### Summary
 
-M2, M3 and M8 need one AP8932 unit with an NMC2 card and one with an NMC3 card, both reachable from the laboratory IOC host and both answering snmp3 `0.0.1` requests with the laboratory IOC's existing SNMPv3 secret files. The laboratory IOC of the apcpdu repository (commit `3314b1e`) is the known startup. The owner confirms the units are powered, on the laboratory network and configured.
+M3, M4 and M9 need one AP8932 unit with an NMC2 card and one with an NMC3 card, both reachable from the laboratory IOC host and both answering snmp3 `0.0.1` requests with the laboratory IOC's existing SNMPv3 secret files. The laboratory IOC of the apcpdu repository (commit `3314b1e`) is the known startup. The owner confirms the units are powered, on the laboratory network and configured.
 
 ##### Completion Criteria
 
@@ -144,16 +165,93 @@ Observed Labels: bug
 Observed Milestone: 1.0.0
 Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:09Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
 
-#### M2 - Two-device isolation measurement on the current product
+#### M2 - Baseline measurement on the two laboratory units
+
+Origin: 1.0.0 / M15
+Identity History: M15 -> M2 (created as the next free ID, then placed second so the row order is the execution order, 2026-11-10)
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+The release goal compares snmp3 with the module it replaces, so the starting point is measured first, with no product change. Two layers are measured on one NMC2 unit that carries a load and one NMC3 unit without load: Net-SNMP 5.9.4 read directly with the tools of `docs/snmp-performance`, and the installed legacy module `snmp-1.1.0.4ja` (library string `devSnmp 1.1.0.3`) running in the laboratory IOC of the application repository. The legacy module is used as installed in the Debian 13 distribution tree on Base 7.0.10; EPICS Base and the module are not modified. The slower response of the NMC2 unit is attributed to the card by the owner; load and card are not separated.
+
+##### Scope
+
+- Units: PDU1 (NMC2, loaded, reads only) and PDU2 (NMC3, no load, reads and writes). Addresses, user names and secrets appear only in files under an ignored `work/` directory.
+- Step 1, Net-SNMP directly: `run_device_phases.py` phases 1 and 2 on the 358 objects of `docs/snmp-performance/inputs/ap8932-oids.tsv` (5 repeats, tool stop rules), after the read-only phase 0 probe. Writes on PDU2 only, through a sender that refuses any label other than PDU2, on `sysLocation` with the original value restored.
+- Step 2, legacy IOC: the legacy laboratory IOC of the application repository branch `refactor/snmp-db-processing`, exported with `git archive` and built against the distribution Base. Loader switches: no outlet command records (`WRITE_EN=#`) and no limit enforcement (`LIMIT_EN` unset) on either unit. The load template still loads the master control command records (`MasterControlCmd_` and `MasterControlCmd`), the only records of the loaded templates with an SNMP output link, so they are removed from the exported copy and the difference to the branch is recorded with the results; the read population is unchanged. Each unit also gets one `sysUpTime` read record, and PDU2 one `stringout` on `sysLocation`. Two runs: the module defaults (10 s timeout, 5 retries, and 32 objects per request, passed as `MAXOIDS=32` because the loader's own default is 24) and the laboratory IOC operations values (2 s, 1 retry, 20 objects for PDU1 and 50 for PDU2). Phases per run: both units connected 300 s, PDU1 cut 300 s, PDU2 cut 300 s, reconnect. The owner cuts and restores a unit on a typed handshake. The defaults run has a 600 s limit on the cut phases.
+- Two quantities in every step: the response time of one request (p50, p95, maximum) and the interval between new values of the `sysUpTime` record (p50, p95, maximum, from `camonitor -tsc`). The request time of steps 2 and 3 is read at the wire with a small user-space UDP relay recorder; the interval is analyzed with a short script. Three scratch tools are written because no existing tool does these judgments: the relay recorder, the interval script and the SET sender.
+- Stop rules: the tool's own rules in step 1; in the IOC steps a decrease of a unit's `sysUpTime` (card restart), no answer from a unit for 120 s outside an owner cut, any output record found on PDU1, or the owner's request.
+
+Out of scope: any change to the product or to Base, a verdict on improvement (the rows that use these numbers carry the criteria), separating load from card, writes to PDU1, performance acceptance.
+
+##### Completion Criteria
+
+- Step 1 produced `phase1.json`, `kstar.json`, `phase2.json` and the SET sender's result for PDU2, each stating its repeat count and the Net-SNMP version.
+- Step 2 produced both run files with the four phases (or a recorded reason for stopping a phase), the printed module defaults, the loaded record list showing no output record on PDU1, and the PDU2 SET result.
+- The response time and the interval are stated for each phase in one table that names the populations: the 358-object set for step 1 and the deployed loaders for step 2.
+
+##### Dependencies And Decisions
+
+- D8 defines the baseline. The owner's confirmation that no other client reads the two units is needed before step 1.
+- The two-unit measurement of the current product (M3) repeats the phases of step 2 and compares with these results.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Owner confirms that no other client reads the units and that PDU1 may be cut from its network for step 2.
+2. Run step 1 phases 1 and 2; write and test the SET sender on PDU2. The targets file keeps addresses and secret file paths outside the repository in the format of `docs/snmp-performance/test-reference.md` (Format of the targets file), with PDU1 and PDU2 as labels. After building the tools with `docs/snmp-performance/tools/build.sh <bin_dir>`, from the repository root:
+
+    ```bash
+    PH=(python3 docs/snmp-performance/tools/run_device_phases.py --targets <targets_file> --oids docs/snmp-performance/inputs/ap8932-oids.tsv --out <results_dir> --tools <bin_dir>)
+    "${PH[@]}" phase1
+    "${PH[@]}" phase2 --kstar <results_dir>/kstar.json
+    ```
+
+3. Build the legacy IOC from the exported tree, confirm that the loaded record list has no output record on PDU1, write the relay recorder and the interval script, and run the two runs of step 2. The exported tree names a Base under `/usr/local/epics` in `configure/RELEASE`; a `configure/RELEASE.local` in the export sets `EPICS_BASE` to the distribution Base (`<distribution>/1.5.0/debian-13/7.0.10/base`), which holds the eight modules the application needs.
+4. Write the comparison tables and record the results here.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Net-SNMP direct read | `run_device_phases.py` phase 0, 1 and 2 | Both laboratory units, Net-SNMP 5.9.4 | Result files with response times per group size and requests in flight |
+| T2 | Net-SNMP direct write | SET sender on `sysLocation` | PDU2 only | SET request times; original value restored; PDU1 refused |
+| T3 | Legacy IOC, defaults | Four phases with the module defaults | Both units, installed legacy module | Request time and interval per phase; observed stall of the module on a cut unit |
+| T4 | Legacy IOC, operations values | Four phases with the laboratory IOC values | Both units, installed legacy module | Request time and interval per phase |
+| T5 | Legacy SET | `stringout` on `sysLocation` of PDU2 | PDU2 only | Time from the put to the changed device value; alarm state on a SET timeout |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | 2026-11-09 | Both units, Net-SNMP 5.9.4 | Pending | Phase 0 only: 30 single-object probes each, PDU1 p50 18.4 ms and p95 253.7 ms, PDU2 p50 2.3 ms and p95 15.9 ms, no stop; phases 1 and 2 not run |
+| T2 | Not run | PDU2 | Pending | none |
+| T3 | Not run | Both units, installed legacy module | Pending | The module defaults printed by the installed binary: `SessionRetries 5`, `SessionTimeout 10000000`, `PassivePollMSec 2000`; the phases are not run |
+| T4 | Not run | Both units, installed legacy module | Pending | none |
+| T5 | Not run | PDU2 | Pending | none |
+
+Preparation observed on 2026-11-10 (no device contacted, no `iocInit`): the legacy IOC exported from the application repository branch `refactor/snmp-db-processing`, built against the distribution Base and linked to `libdevSnmp.so` of `snmp-1.1.0.4ja` and the system `libnetsnmp.so.40`, was started with the planned loader switches and its loaded records listed with `dbl`. Each unit loads 255 records: 148 `longin`, 10 `ai` and 5 `stringin` use the SNMP device support (163 inputs), 27 `bo` use `Soft Channel`, and no output-type record uses the SNMP device support. Before the change to the export, the load template carried one record with an SNMP output link (the master control command), which is why it is removed from the exported copy; the removal is 23 lines of the template and is saved with the results.
+
+##### Closure Evidence
+
+- none
+
+#### M3 - Two-device isolation measurement on the current product
 
 Origin: 1.0.0 / M2
-Identity History: none
+Identity History: M2 -> M3 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #3 - https://github.com/jeonghanlee/snmp3/issues/3
 Status: Blocked
 
 ##### Summary
 
-Guarantee A states that one blocked, slow or absent address changes neither the IOC thread nor another address. The qualification record of `0.0.1` holds loss, late-response and healthy-address observations on fixtures; no run with two physical units exists. This unit measures, on the laboratory IOC with the NMC2 and the NMC3 unit, the record cadence of one unit while the other is disconnected and while it is reconnected, with the existing tools. The result is the reference for M10 and for comparison with the legacy observation of problem 2.
+Guarantee A states that one blocked, slow or absent address changes neither the IOC thread nor another address. The qualification record of `0.0.1` holds loss, late-response and healthy-address observations on fixtures; no run with two physical units exists. This unit measures, on the laboratory IOC with the NMC2 and the NMC3 unit, the record cadence of one unit while the other is disconnected and while it is reconnected, with the existing tools. The result is the reference for M11 and for comparison with the legacy observation of problem 2.
 
 ##### Scope
 
@@ -161,7 +259,7 @@ Guarantee A states that one blocked, slow or absent address changes neither the 
 - Three phases of at least 300 s each: both units up, NMC2 disconnected, NMC3 disconnected.
 - Record per phase: processing interval and value-change interval of one record per unit, worker containment and relaunch counts, and request outcomes.
 
-Out of scope: performance criteria (M12), a product change, a new tool before an existing tool is shown insufficient (D4).
+Out of scope: performance criteria (M13), a product change, a new tool before an existing tool is shown insufficient (D4).
 
 ##### Completion Criteria
 
@@ -172,6 +270,7 @@ Out of scope: performance criteria (M12), a product change, a new tool before an
 
 - G1 open; resume as Not started.
 - D4 selects the tools.
+- M2 provides the reference values of the legacy module and of Net-SNMP read directly.
 
 ##### Implementation Plan
 
@@ -212,10 +311,10 @@ Observed Labels: enhancement
 Observed Milestone: 1.0.0
 Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:12Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
 
-#### M3 - Request sizing with advertised message size and tooBig split
+#### M4 - Request sizing with advertised message size and tooBig split
 
 Origin: 1.0.0 / M3
-Identity History: none
+Identity History: M3 -> M4 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #4 - https://github.com/jeonghanlee/snmp3/issues/4
 Status: Blocked
 
@@ -230,7 +329,7 @@ Problem 1 and cause B. `maxVarbinds` is a fixed per-profile value, the session d
 - Alarm message `tooBig` on the records of a batch that reaches the floor.
 - Documentation of the field and the behavior in `snmp-rewrite-config.md`, `snmp-record-behavior.md` and `snmp-native-reference.md`.
 
-Out of scope: GETBULK (M7), learning the agent limit across restarts, and changes to other error statuses.
+Out of scope: GETBULK (M8), learning the agent limit across restarts, and changes to other error statuses.
 
 ##### Completion Criteria
 
@@ -287,10 +386,10 @@ Observed Labels: enhancement
 Observed Milestone: 1.0.0
 Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:14Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
 
-#### M4 - SET outcome contract
+#### M5 - SET outcome contract
 
 Origin: 1.0.0 / M4
-Identity History: none
+Identity History: M4 -> M5 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #5 - https://github.com/jeonghanlee/snmp3/issues/5
 Status: Not started
 
@@ -300,11 +399,11 @@ Item 9 of cause B. The legacy module reported a SET as successful before sending
 
 ##### Scope
 
-- Output record completion on the SET result through the same outcome path as M3.
+- Output record completion on the SET result through the same outcome path as M4.
 - Alarm messages for SET timeout, tooBig, and error status with index.
 - Readback agreement: the written value equals the next GET of the same OID on the fixture agent.
 
-Out of scope: write to a laboratory unit's outlet; the deferred long active client-write cells (M13).
+Out of scope: write to a laboratory unit's outlet; the deferred long active client-write cells (M14).
 
 ##### Completion Criteria
 
@@ -313,7 +412,7 @@ Out of scope: write to a laboratory unit's outlet; the deferred long active clie
 
 ##### Dependencies And Decisions
 
-- M3 must be Complete; the SET path uses the same outcome and message additions.
+- M4 must be Complete; the SET path uses the same outcome and message additions.
 
 ##### Implementation Plan
 
@@ -356,10 +455,10 @@ Observed Labels: enhancement
 Observed Milestone: 1.0.0
 Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:17Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
 
-#### M5 - Reply time stamp on records
+#### M6 - Reply time stamp on records
 
 Origin: 1.0.0 / M5
-Identity History: none
+Identity History: M5 -> M6 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #6 - https://github.com/jeonghanlee/snmp3/issues/6
 Status: Not started
 
@@ -373,7 +472,7 @@ Problems 4 and 5, cause C. A record's TIME is its processing time, so a client c
 - Device support writes `prec->time` from the wall-clock receive time when `TSE=-2`.
 - Documentation of the field in `snmp-record-behavior.md` and `snmp-native-reference.md`.
 
-Out of scope: `I/O Intr` (M6), UTAG, and time synchronization of the IOC host.
+Out of scope: `I/O Intr` (M7), UTAG, and time synchronization of the IOC host.
 
 ##### Completion Criteria
 
@@ -425,21 +524,21 @@ Observed Labels: enhancement
 Observed Milestone: 1.0.0
 Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:20Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
 
-#### M6 - Reply-driven processing and driver-owned periodic acquisition
+#### M7 - Reply-driven processing and driver-owned periodic acquisition
 
 Origin: 1.0.0 / M6
-Identity History: none
+Identity History: M6 -> M7 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #7 - https://github.com/jeonghanlee/snmp3/issues/7
 Status: Not started
 
 ##### Summary
 
-Problems 4 and 5, cause C. In `0.0.1` a record acquires only when it processes, so SCAN sets the acquisition period and processing precedes the value. Base 7.0.10 offers `SCAN=I/O Intr` with `scanIoRequest` and `scanIoSetComplete`. This unit lets a binding declare a period; the module issues the periodic request itself and processes the record when the reply arrives, so the record carries the reply value and time (M5) and SCAN no longer drives acquisition for those records.
+Problems 4 and 5, cause C. In `0.0.1` a record acquires only when it processes, so SCAN sets the acquisition period and processing precedes the value. Base 7.0.10 offers `SCAN=I/O Intr` with `scanIoRequest` and `scanIoSetComplete`. This unit lets a binding declare a period; the module issues the periodic request itself and processes the record when the reply arrives, so the record carries the reply value and time (M6) and SCAN no longer drives acquisition for those records.
 
 ##### Scope
 
 - Binding field `period_ms` for input bindings used by `SCAN=I/O Intr` records; `get_ioint_info` in the input DSETs.
-- A per-address periodic requester in the scheduler honoring the existing deadline, queue and batch rules (M3).
+- A per-address periodic requester in the scheduler honoring the existing deadline, queue and batch rules (M4).
 - `scanIoRequest` on completion and `scanIoSetComplete` to learn when processing finished before the next request.
 - Documentation in `snmp-record-behavior.md` and `snmp-rewrite-config.md`.
 
@@ -453,7 +552,7 @@ Out of scope: output records, event-driven SNMP traps, and changing the behavior
 
 ##### Dependencies And Decisions
 
-- M3 (batch rules) and M5 (receive time) must be Complete.
+- M4 (batch rules) and M6 (receive time) must be Complete.
 
 ##### Implementation Plan
 
@@ -499,10 +598,10 @@ Observed Labels: enhancement
 Observed Milestone: 1.0.0
 Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:30Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
 
-#### M7 - GETBULK table reads
+#### M8 - GETBULK table reads
 
 Origin: 1.0.0 / M7
-Identity History: none
+Identity History: M7 -> M8 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #8 - https://github.com/jeonghanlee/snmp3/issues/8
 Status: Not started
 
@@ -514,7 +613,7 @@ A 24-outlet PDU exposes its outlets as table columns. `0.0.1` reads each OID wit
 
 - Binding kind for a table column with a base OID, first index, count and max-repetitions.
 - Worker GETBULK request and response mapping with the existing response checks (position, tag, storage).
-- Interaction with M3: a tooBig on GETBULK reduces max-repetitions for that address.
+- Interaction with M4: a tooBig on GETBULK reduces max-repetitions for that address.
 
 Out of scope: SNMPv1 profiles, sparse tables, and discovery of table size.
 
@@ -525,7 +624,7 @@ Out of scope: SNMPv1 profiles, sparse tables, and discovery of table size.
 
 ##### Dependencies And Decisions
 
-- M3 must be Complete; the response size and reduction rules are shared.
+- M4 must be Complete; the response size and reduction rules are shared.
 
 ##### Implementation Plan
 
@@ -568,10 +667,10 @@ Observed Labels: enhancement
 Observed Milestone: 1.0.0
 Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:33Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
 
-#### M8 - SNMPv3 localized keys and secret procedure
+#### M9 - SNMPv3 localized keys and secret procedure
 
 Origin: 1.0.0 / M8
-Identity History: none
+Identity History: M8 -> M9 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #9 - https://github.com/jeonghanlee/snmp3/issues/9
 Status: Blocked
 
@@ -640,10 +739,10 @@ Observed Labels: enhancement
 Observed Milestone: 1.0.0
 Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:35Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
 
-#### M9 - Shared-library SONAME and symbolic-link versioning
+#### M10 - Shared-library SONAME and symbolic-link versioning
 
 Origin: 1.0.0 / M9
-Identity History: none
+Identity History: M9 -> M10 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #1 - https://github.com/jeonghanlee/snmp3/issues/1
 Status: Not started
 
@@ -713,25 +812,25 @@ Observed Labels: enhancement
 Observed Milestone: 1.0.0
 Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:39Z; milestone and assignee jeonglee verified with `gh issue list` after the milestone link
 
-#### M10 - Release 1.0.0
+#### M11 - Release 1.0.0
 
 Origin: 1.0.0 / M10
-Identity History: none
+Identity History: M10 -> M11 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #10 - https://github.com/jeonghanlee/snmp3/issues/10
 Status: Not started
 
 ##### Summary
 
-Release `1.0.0` when every guarantee of the five causes reads Implemented and the combined product is verified on both laboratory units. The release carries the changelog of M1 to M9, the annotated tag and the GitHub release. The operations deployment is a separate decision after the release.
+Release `1.0.0` when every guarantee of the five causes reads Implemented and the combined product is verified on both laboratory units. The release carries the changelog of M1 to M10, the annotated tag and the GitHub release. The operations deployment is a separate decision after the release.
 
 ##### Scope
 
 - Integrated re-runs of the checks that later units may have invalidated, on the final combined candidate.
-- Two-unit acceptance on the laboratory IOC with the final candidate: M2's three phases, M3's sizing, M6's `I/O Intr` cadence and M8's credentials together.
+- Two-unit acceptance on the laboratory IOC with the final candidate: M3's three phases, M4's sizing, M7's `I/O Intr` cadence and M9's credentials together.
 - Installation on a clean Rocky Linux 8.10 host by the documented procedure.
 - Version values, tag, GitHub release, and the next register entry point.
 
-Out of scope: operations deployment, performance acceptance (M12), the deferred cells (M13).
+Out of scope: operations deployment, performance acceptance (M13), the deferred cells (M14).
 
 ##### Completion Criteria
 
@@ -740,7 +839,7 @@ Out of scope: operations deployment, performance acceptance (M12), the deferred 
 
 ##### Dependencies And Decisions
 
-- M1 to M9 Complete.
+- M1 to M10 Complete.
 
 ##### Implementation Plan
 
@@ -759,16 +858,16 @@ Superseded Plan Artifacts: none
 | Source Check | Re-run Trigger | Shared Surface | Release Verification Label | Expected Result | Result Evidence |
 | --- | --- | --- | --- | --- | --- |
 | M1 / T1 | any later change to `Config.cpp` or `Supervisor.cpp` | process spawn | Release Verification 1 | Lists identical | pending |
-| M3 / T1, M3 / T2 | M4, M6, M7 | request outcome and batch rules | Release Verification 2 | Split and message as specified | pending |
-| M5 / T2 | M6 | completion path | Release Verification 3 | TIME equals receive time | pending |
-| M4 / T1 | M6, M7 | outcome path | Release Verification 4 | SET completion and alarms as specified | pending |
-| M9 / T2 | any library change after M9 | installed library identity | Release Verification 5 | Intended libraries load | pending |
+| M4 / T1, M4 / T2 | M5, M7, M8 | request outcome and batch rules | Release Verification 2 | Split and message as specified | pending |
+| M6 / T2 | M7 | completion path | Release Verification 3 | TIME equals receive time | pending |
+| M5 / T1 | M7, M8 | outcome path | Release Verification 4 | SET completion and alarms as specified | pending |
+| M10 / T2 | any library change after M10 | installed library identity | Release Verification 5 | Intended libraries load | pending |
 
 ##### Production Environment Tests
 
 | Release Verification Label | Timing | System | Version | Architecture | Deployment Path | Method | Expected Result | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Release Verification 6 | pre-change | Laboratory IOC host with both units | candidate | x86_64 | laboratory IOC startup | M2 three phases plus M3, M6 and M8 criteria on the candidate | All criteria met | pending |
+| Release Verification 6 | pre-change | Laboratory IOC host with both units | candidate | x86_64 | laboratory IOC startup | M3 three phases plus M4, M7 and M9 criteria on the candidate | All criteria met | pending |
 | Release Verification 7 | post-release | Clean Rocky Linux 8.10 host | 1.0.0 | x86_64 | documented installation procedure | Install from the release and run the fixture startup | IOC starts and acquires from the fixture agent | pending |
 
 ##### Version Changes
@@ -838,16 +937,16 @@ Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:38Z; title, l
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Tools | M11 | Negative-control harness outcome classification | Carry-forward | Open | No | D2 | Scope decided and selected outcomes classified by real execution or retained by dated decision; [detail](#m11---negative-control-harness-outcome-classification) |
-| Performance | M12 | Predictable acquisition performance and second-client impact | Carry-forward | Deferred | No | D5 | Existing performance criteria met on their identified scope or changed by an explicit decision; [detail](#m12---predictable-acquisition-performance-and-second-client-impact) |
-| Records | M13 | Deferred record verification cells | Carry-forward | Deferred | No | D6 | Each listed cell has a real-path receipt or a dated retirement; [detail](#m13---deferred-record-verification-cells) |
+| Tools | M12 | Negative-control harness outcome classification | Carry-forward | Open | No | D2 | Scope decided and selected outcomes classified by real execution or retained by dated decision; [detail](#m12---negative-control-harness-outcome-classification) |
+| Performance | M13 | Predictable acquisition performance and second-client impact | Carry-forward | Deferred | No | D5 | Existing performance criteria met on their identified scope or changed by an explicit decision; [detail](#m13---predictable-acquisition-performance-and-second-client-impact) |
+| Records | M14 | Deferred record verification cells | Carry-forward | Deferred | No | D6 | Each listed cell has a real-path receipt or a dated retirement; [detail](#m14---deferred-record-verification-cells) |
 
 ### Backlog Details
 
-#### M11 - Negative-control harness outcome classification
+#### M12 - Negative-control harness outcome classification
 
 Origin: 1.0.0 / M11
-Identity History: none
+Identity History: M11 -> M12 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: none
 Status: Open
 
@@ -898,16 +997,16 @@ Superseded Plan Artifacts: none
 
 - none
 
-#### M12 - Predictable acquisition performance and second-client impact
+#### M13 - Predictable acquisition performance and second-client impact
 
 Origin: 1.0.0 / M12
-Identity History: none
+Identity History: M12 -> M13 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: none
 Status: Deferred
 
 ##### Summary
 
-Remove avoidable software delay and serial-request cost while preserving request ownership and avoiding unnecessary delay to another client. Readiness wakeups and declared-group dispatch are implemented. The once result passed, the sustained normalized second-client ratio failed (1.98 against 1.25), and the baseline variation, lost probe and historical 103 ms difference remain unresolved. The committed criteria, test definitions and receipts are in the [prior register](https://github.com/jeonghanlee/snmp3/blob/ba6c558a1118c792e769aed79ded7581538c3888/docs/milestone-6f015f8.md#m2---predictable-acquisition-performance-and-second-client-impact).
+Remove avoidable software delay and serial-request cost while preserving request ownership and avoiding unnecessary delay to another client. Readiness wakeups and declared-group dispatch are implemented. The once result passed, the sustained normalized second-client ratio failed (1.98 against 1.25), and the baseline variation, lost probe and historical 103 ms difference remain unresolved. The committed criteria, test definitions and receipts are in the [prior register](https://github.com/jeonghanlee/snmp3/blob/ba6c558a1118c792e769aed79ded7581538c3888/docs/milestone-6f015f8.md#m3---predictable-acquisition-performance-and-second-client-impact).
 
 ##### Scope
 
@@ -956,16 +1055,16 @@ Superseded Plan Artifacts: none
 
 - none; D5 is a deferral, not completion or a performance exception.
 
-#### M13 - Deferred record verification cells
+#### M14 - Deferred record verification cells
 
 Origin: 1.0.0 / M13
-Identity History: none
+Identity History: M13 -> M14 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: none
 Status: Deferred
 
 ##### Summary
 
-Cells excluded from the accepted record qualification and still unexecuted: Channel Access signed-minimum int64 access, maximum-capacity `lsi`/`lso` `VAL$` access, `ao`/`longout` writes, long active client writes, delayed output-simulation mode changes, and isolated rebuild and reuse beyond the existing `rebuild` clause. Their definitions are in the [prior register](https://github.com/jeonghanlee/snmp3/blob/ba6c558a1118c792e769aed79ded7581538c3888/docs/milestone-6f015f8.md#m4---deferred-record-verification-cells). M4 of this register covers the SET outcome contract; a cell it executes is recorded there and retired here by decision.
+Cells excluded from the accepted record qualification and still unexecuted: Channel Access signed-minimum int64 access, maximum-capacity `lsi`/`lso` `VAL$` access, `ao`/`longout` writes, long active client writes, delayed output-simulation mode changes, and isolated rebuild and reuse beyond the existing `rebuild` clause. Their definitions are in the [prior register](https://github.com/jeonghanlee/snmp3/blob/ba6c558a1118c792e769aed79ded7581538c3888/docs/milestone-6f015f8.md#m5---deferred-record-verification-cells). M5 of this register covers the SET outcome contract; a cell it executes is recorded there and retired here by decision.
 
 ##### Scope
 
