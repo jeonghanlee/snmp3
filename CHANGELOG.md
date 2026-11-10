@@ -26,4 +26,4 @@ First tagged state of the snmp3 module. It fixes the accepted scope and its limi
 
 ### Documentation
 
-- mdBook with architecture, procedures, references, design decisions and the PowerNet-MIB 4.6.0 review; the work register `docs/milestone-6f015f8.md` holds the product judgment, retrospective and the rule for writing the next goal.
+- mdBook with architecture, procedures, references, design decisions and the PowerNet-MIB 4.6.0 review; the work register of that release ([`docs/milestone-6f015f8.md` at `ba6c558`](https://github.com/jeonghanlee/snmp3/blob/ba6c558a1118c792e769aed79ded7581538c3888/docs/milestone-6f015f8.md)) holds the product judgment, retrospective and the rule for writing the next goal.

@@ -118,6 +118,6 @@ The Net-SNMP calls of the worker, from `snmp3App/native`, are `snmp_sess_init`, 
 - Confirm on an NMC2 and an NMC3 unit whether a session `rcvMsgMaxSize` of 1472 or less makes the agent answer `tooBig` instead of a malformed reply (problem 1).
 - Confirm with two devices on one IOC that a silent or slow device leaves the other device's cadence unchanged under snmp3 (problem 2).
 - Decide whether the next driver processes records on reply arrival (`I/O Intr`) and stamps them with the reply time (problems 4 and 5).
-- Decide the SNMPv3 credential handling: localized keys, permitted authentication and privacy protocols per card generation, and the secret file procedure (item 13, register M3).
+- Decide the SNMPv3 credential handling: localized keys, permitted authentication and privacy protocols per card generation, and the secret file procedure (item 13; the work register carries this as its secret management unit).
 - Decide whether the probe spawn uses the worker's scrubbed environment (the probe process environment row above).
 - Keep `GETBULK` and adaptive request splitting as design options for problem 1 and for performance.
