@@ -5,7 +5,7 @@ Milestone index: 1.0.0
 Canonical path: `docs/milestone-1.0.0.md`
 Canonical branch or ref: master
 Git upstream: origin/master
-Remote tracker: none associated with this register
+Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
@@ -81,7 +81,7 @@ M2, M3 and M8 need one AP8932 unit with an NMC2 card and one with an NMC3 card, 
 
 Origin: 1.0.0 / M1
 Identity History: none
-GitHub Issue: none
+GitHub Issue: #2 - https://github.com/jeonghanlee/snmp3/issues/2
 Status: Not started
 
 ##### Summary
@@ -134,11 +134,21 @@ Superseded Plan Artifacts: none
 
 - none
 
+##### GitHub Projection
+
+Title: Spawn the native probe with the worker environment
+Labels: bug
+GitHub Milestone: 1.0.0
+Observed State: open
+Observed Labels: bug
+Observed Milestone: 1.0.0
+Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:09Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
+
 #### M2 - Two-device isolation measurement on the current product
 
 Origin: 1.0.0 / M2
 Identity History: none
-GitHub Issue: none
+GitHub Issue: #3 - https://github.com/jeonghanlee/snmp3/issues/3
 Status: Blocked
 
 ##### Summary
@@ -192,11 +202,21 @@ Superseded Plan Artifacts: none
 
 - none
 
+##### GitHub Projection
+
+Title: Measure one unit while the other unit is disconnected
+Labels: enhancement
+GitHub Milestone: 1.0.0
+Observed State: open
+Observed Labels: enhancement
+Observed Milestone: 1.0.0
+Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:12Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
+
 #### M3 - Request sizing with advertised message size and tooBig split
 
 Origin: 1.0.0 / M3
 Identity History: none
-GitHub Issue: none
+GitHub Issue: #4 - https://github.com/jeonghanlee/snmp3/issues/4
 Status: Blocked
 
 ##### Summary
@@ -257,11 +277,21 @@ Superseded Plan Artifacts: none
 
 - none
 
+##### GitHub Projection
+
+Title: Advertise a message size and split the batch on tooBig
+Labels: enhancement
+GitHub Milestone: 1.0.0
+Observed State: open
+Observed Labels: enhancement
+Observed Milestone: 1.0.0
+Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:14Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
+
 #### M4 - SET outcome contract
 
 Origin: 1.0.0 / M4
 Identity History: none
-GitHub Issue: none
+GitHub Issue: #5 - https://github.com/jeonghanlee/snmp3/issues/5
 Status: Not started
 
 ##### Summary
@@ -316,11 +346,21 @@ Superseded Plan Artifacts: none
 
 - none
 
+##### GitHub Projection
+
+Title: Complete output records on the SET result
+Labels: enhancement
+GitHub Milestone: 1.0.0
+Observed State: open
+Observed Labels: enhancement
+Observed Milestone: 1.0.0
+Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:17Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
+
 #### M5 - Reply time stamp on records
 
 Origin: 1.0.0 / M5
 Identity History: none
-GitHub Issue: none
+GitHub Issue: #6 - https://github.com/jeonghanlee/snmp3/issues/6
 Status: Not started
 
 ##### Summary
@@ -375,11 +415,21 @@ Superseded Plan Artifacts: none
 
 - none
 
+##### GitHub Projection
+
+Title: Stamp records with the reply arrival time
+Labels: enhancement
+GitHub Milestone: 1.0.0
+Observed State: open
+Observed Labels: enhancement
+Observed Milestone: 1.0.0
+Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:20Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
+
 #### M6 - Reply-driven processing and driver-owned periodic acquisition
 
 Origin: 1.0.0 / M6
 Identity History: none
-GitHub Issue: none
+GitHub Issue: #7 - https://github.com/jeonghanlee/snmp3/issues/7
 Status: Not started
 
 ##### Summary
@@ -439,11 +489,21 @@ Superseded Plan Artifacts: none
 
 - none
 
+##### GitHub Projection
+
+Title: Process records on reply arrival at a declared period
+Labels: enhancement
+GitHub Milestone: 1.0.0
+Observed State: open
+Observed Labels: enhancement
+Observed Milestone: 1.0.0
+Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:30Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
+
 #### M7 - GETBULK table reads
 
 Origin: 1.0.0 / M7
 Identity History: none
-GitHub Issue: none
+GitHub Issue: #8 - https://github.com/jeonghanlee/snmp3/issues/8
 Status: Not started
 
 ##### Summary
@@ -498,11 +558,21 @@ Superseded Plan Artifacts: none
 
 - none
 
+##### GitHub Projection
+
+Title: Read table columns with GETBULK
+Labels: enhancement
+GitHub Milestone: 1.0.0
+Observed State: open
+Observed Labels: enhancement
+Observed Milestone: 1.0.0
+Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:33Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
+
 #### M8 - SNMPv3 localized keys and secret procedure
 
 Origin: 1.0.0 / M8
 Identity History: none
-GitHub Issue: none
+GitHub Issue: #9 - https://github.com/jeonghanlee/snmp3/issues/9
 Status: Blocked
 
 ##### Summary
@@ -559,6 +629,16 @@ Superseded Plan Artifacts: none
 ##### Closure Evidence
 
 - none
+
+##### GitHub Projection
+
+Title: Keep only localized SNMPv3 keys and document secret handling
+Labels: enhancement
+GitHub Milestone: 1.0.0
+Observed State: open
+Observed Labels: enhancement
+Observed Milestone: 1.0.0
+Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:35Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
 
 #### M9 - Shared-library SONAME and symbolic-link versioning
 
@@ -627,17 +707,17 @@ Superseded Plan Artifacts: none
 
 Title: Version SNMP3 shared libraries with ABI SONAMEs
 Labels: enhancement
-GitHub Milestone: none
+GitHub Milestone: 1.0.0
 Observed State: open
 Observed Labels: enhancement
-Observed Milestone: none
-Last Compared: 2026-10-24T18:47:50Z; issue updatedAt 2026-10-24T18:47:50Z; historical external observation, not rechecked during this reset
+Observed Milestone: 1.0.0
+Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:39Z; milestone and assignee jeonglee verified with `gh issue list` after the milestone link
 
 #### M10 - Release 1.0.0
 
 Origin: 1.0.0 / M10
 Identity History: none
-GitHub Issue: none
+GitHub Issue: #10 - https://github.com/jeonghanlee/snmp3/issues/10
 Status: Not started
 
 ##### Summary
@@ -741,6 +821,16 @@ Superseded Plan Artifacts: none
 ##### Closure Evidence
 
 - none
+
+##### GitHub Projection
+
+Title: Release 1.0.0
+Labels: enhancement
+GitHub Milestone: 1.0.0
+Observed State: open
+Observed Labels: enhancement
+Observed Milestone: 1.0.0
+Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:38Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
 
 ## Backlog
 
