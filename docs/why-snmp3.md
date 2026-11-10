@@ -40,7 +40,7 @@ The five problems below are what operators and the IOC author observed between 2
 | 4. Requests accumulate behind the mutex | Operators observed a backlog of requests under load. The repositories record only the send-stall bound, not a queue depth or a request that outlives its poll period. | Operator observation, 2026-09; bound in apcpdu commit `9e34314` |
 | 5. The time of a value is unknown | A processed record reports a cached value, so processing does not prove a fresh acquisition. Independently polled records are not a simultaneous sample, and no common timestamp exists. At startup, an output readback callback can run before the first valid response and report `LO read error`; 19 such lines appeared one second after initialization on the deployed IOC. | apcpdu `docs/APCPDU_SIGNAL_ANALYSIS.md`, Alarm Contract; `docs/milestone-e4de5e2.md`, D1 and Accepted Limitations; legacy register, Existing Data Path |
 
-The timeout setting of the deployed IOC moved from the Net-SNMP default of 1 s with 5 retries to 0.5 s, 1 s, and 2 s with one retry between 2026-09-16 and 2026-09-22. Each value trades problem 2 against stale values: a short timeout drops live replies, and a long timeout lengthens the stop of every device.
+The timeout setting of the deployed IOC moved from the `devSnmp` default of 10 s with 5 retries, which stalls the IOC for 60 s on one unanswered host, to 0.5 s, 1 s, and 2 s with one retry between 2026-09-16 and 2026-09-22. Each value trades problem 2 against stale values: a short timeout drops live replies, and a long timeout lengthens the stop of every device.
 
 ## Five structural causes
 
