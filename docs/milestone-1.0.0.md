@@ -739,6 +739,8 @@ Cause D. The module reads each passphrase from its own file owned by the IOC's e
 
 - Worker: after `generate_Ku` and localization, keep `securityAuthLocalKey` and `securityPrivLocalKey` only and zero the passphrase buffers.
 - Configuration with localized keys (D10): the configuration schema takes a localized authentication key and a localized privacy key per endpoint in place of passphrase files, because the keys depend on the engine ID of each unit; the profile keeps the user name and the algorithms that the endpoints share, and the worker opens each session with the key pair of its own endpoint without any passphrase. The key files get the same owner and mode checks as the passphrase files get today.
+- One form per endpoint: an endpoint carries either passphrase files or a localized key pair, and the configuration loader rejects an endpoint that carries both. The passphrase-file form keeps working as it does today.
+- Engine ID check: a localized key pair is valid for one engine ID, so the key tool records that engine ID with the pair, and the worker compares the engine ID it discovers at session open with the recorded one and sends no request after the discovery under a mismatch.
 - Key tool and procedure: a tool that computes the localized keys from a passphrase, an algorithm set and the unit's engine ID once, off the IOC host, with the passphrase kept in the secret store; the procedure covers an engine ID change (card replacement or reset), which needs new keys.
 - Permitted algorithm sets for NMC2 and NMC3 verified against the units.
 - Procedure page: host location, creation from a legacy file, rotation (new process), repository and history exclusion, and the scans that verify it.
@@ -750,6 +752,7 @@ Out of scope: an external secret store, changing the configuration-loader file c
 - The worker memory holds no passphrase bytes after session open, shown by the worker's own report of zeroization and a test that inspects the process image on the fixture.
 - Files created by the documented procedure reach both units with the strongest algorithm set each card accepts, recorded without addresses, user names or secrets.
 - A configuration that holds only localized keys reaches both units through the worker and a wrong key is rejected, recorded without addresses, user names or secrets.
+- An endpoint that carries both forms is rejected when the configuration loads, and a key pair made for another engine ID is refused at session open, and no GET or SET is sent (only the engine ID discovery exchange takes place).
 - Tracked-tree and history scans of this repository find no secret material, or findings have an explicit disposition.
 
 ##### Dependencies And Decisions
@@ -766,7 +769,7 @@ Superseded Plan Artifacts: none
 
 1. Retain localized keys only in the worker and zero passphrases; add the report line and a test.
 2. Verify SHA-256 and AES-256 acceptance on the NMC3 unit and the strongest set on the NMC2 unit.
-3. Add localized key fields per endpoint to the configuration schema and the worker open path, add the key tool, and test them on the fixture agent and on both units.
+3. Add localized key fields per endpoint to the configuration schema and the worker open path, with the one-form rule and the engine ID check, add the key tool, and test them on the fixture agent and on both units.
 4. Write the procedure page, the legacy-file conversion and the engine ID change procedure; run the scans.
 
 ##### Test Plan
@@ -778,6 +781,7 @@ Superseded Plan Artifacts: none
 | T3 | Tracked tree and history | Secret scan of this repository | Linux host | No secret material or disposition recorded |
 | T4 | Permissions | Existing wrong-owner and wrong-mode configuration cases, repeated for key files | Linux host | Rejected as before, for key files too |
 | T5 | Device and configuration | A configuration holding only localized keys, through the worker, with a wrong key as control | Laboratory IOC, both units | Right keys accepted, wrong key rejected, no passphrase in the configuration |
+| T6 | Configuration | An endpoint with both forms, and a key pair recorded for another engine ID, on the fixture agent | Linux host, ordinary product | Both rejected with a message, no GET or SET sent for the mismatch |
 
 ##### Verification Results
 
@@ -788,6 +792,7 @@ Superseded Plan Artifacts: none
 | T3 | Not run | Linux host | Pending | none |
 | T4 | Not run | Linux host | Pending | none |
 | T5 | Not run | Laboratory IOC, both units | Pending | none |
+| T6 | Not run | Linux host | Pending | none |
 
 Observation of localized-key access on 2026-11-11 (reads only, no unit changed): `work/baseline-direct-20261109-01/localized_key_check.py` computed the SHA and AES-128 localized keys of each unit from its existing secret files and its engine ID, read `sysUpTime` through a configuration that held only the keys, and repeated the read with one byte of the authentication key changed. The NMC2 unit and the NMC3 unit both accepted the keys and rejected the changed key by not answering; the results are in `work/baseline-direct-20261109-01/localized-key-check.txt`. AES-192 and AES-256 are not covered by this check.
 
