@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: Start M2 in `docs/milestone-1.0.0.md` (baseline measurement): the owner confirms that no other client reads the two laboratory units, then run its step 1 (read only) and record the results under `work/baseline-direct-<date>/`. M1, M6 and M10 are also Ready; G1 is Open.
+Next session entry point: Continue M2 in `docs/milestone-1.0.0.md`: step 1 is done except the outlet 8 write run on PDU1 (T6; the read-only run passed and the write run waits for the owner's confirmation; results of the rest in T1 and T2). Without a device, first add the outlet 8 command record to the legacy copy and the outlet 8 `longout` to the snmp3 measurement IOC and load-check both (plan item 4). Step 2 (legacy IOC) needs the owner to authorize it, to confirm that PDU1 may be cut from its network on the typed handshake, and to place the legacy credential profile; the exported and built legacy IOC is under `work/baseline-legacy-20261110-01/` and the snmp3 measurement IOC for step 3 under `work/baseline-snmp3-20261110-01/`. M1, M6 and M10 are also Ready; G1 is Open.
 
 ## Scope
 
@@ -27,7 +27,7 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Gate | G1 | Laboratory NMC2 and NMC3 units reachable through snmp3 | External gate | Open | No | | Both units answer a GET through the laboratory IOC with snmp3 `0.0.1`; [detail](#g1---laboratory-nmc2-and-nmc3-units-reachable-through-snmp3) |
 | E | M1 | Probe spawn environment equal to the worker environment | Milestone | Not started | Yes | | Probe and worker receive the same environment list; `ConfigTest` passes; tag `0.0.2`; [detail](#m1---probe-spawn-environment-equal-to-the-worker-environment) |
-| Baseline | M2 | Baseline measurement on the two laboratory units | Milestone | Not started | Yes | D8 | Net-SNMP 5.9.4 read directly and the installed legacy module measured on both units, with the response time of a request and the interval of new values recorded; no product change; [detail](#m2---baseline-measurement-on-the-two-laboratory-units) |
+| Baseline | M2 | Baseline measurement on the two laboratory units | Milestone | In progress | No | D8, D9 | Net-SNMP 5.9.4 read directly and the installed legacy module measured on both units, with the response time of a request and the interval of new values recorded; no product change; [detail](#m2---baseline-measurement-on-the-two-laboratory-units) |
 | A | M3 | Two-device isolation measurement on the current product | Milestone | Blocked | No | G1, D4, M2 | Measured cadence of the healthy unit with the other unit disconnected; [detail](#m3---two-device-isolation-measurement-on-the-current-product) |
 | B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Blocked | No | G1 | NMC2 accepts a 61-OID request without manual `maxVarbinds` tuning; tooBig reaches the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
 | B | M5 | SET outcome contract | Milestone | Not started | No | M4 | Output records complete only on the SET result; a timeout is an alarm; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
@@ -38,7 +38,7 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.9`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 0 Complete, 0 In progress, 8 Not started, 3 Blocked; G1 Open. Ready rows: M1, M2, M6, M10. Backlog contains 1 Open and 2 Deferred rows and is excluded from this tally.
+Current work tally: 0 Complete, 1 In progress, 7 Not started, 3 Blocked; G1 Open. Ready rows: M1, M6, M10. Backlog contains 1 Open and 2 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -52,6 +52,7 @@ Current work tally: 0 Complete, 0 In progress, 8 Not started, 3 Blocked; G1 Open
 | D6 | Defer the unexecuted Channel Access, long active client-write, delayed output-simulation and isolated rebuild/reuse cells. They do not qualify the accepted record scope and resume only by a new decision. | 2026-10-05 |
 | D7 | Publish `0.0.1` as the baseline tag of the accepted GET-only monitoring scope and its recorded limits. The tag fixes a reference point for later versions; it is not a completion claim, a performance acceptance or a change to any work row. | 2026-11-09 |
 | D8 | Measure the baseline before any product change: Net-SNMP 5.9.4 read directly, and the installed legacy module `snmp-1.1.0.4ja`, on one NMC2 unit that carries a load and one NMC3 unit without load. Reads on both units, writes only on the unit without load. The two-unit measurement of the current product compares against these results. The baseline carries no verdict; the criteria are those of the rows that use its numbers. | 2026-11-10 |
+| D9 | Allow writes to outlet 8 of PDU1 (NMC2, loaded) only: immediate off, immediate on and immediate reboot. No other object of PDU1 is written. This amends D8, which allowed writes only on the unit without load. Each run restores the original state. | 2026-11-10 |
 
 ### ID Migration
 
@@ -170,7 +171,7 @@ Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:09Z; title, l
 Origin: 1.0.0 / M15
 Identity History: M15 -> M2 (created as the next free ID, then placed second so the row order is the execution order, 2026-11-10)
 GitHub Issue: none
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -178,30 +179,36 @@ The release goal compares snmp3 with the module it replaces, so the starting poi
 
 ##### Scope
 
-- Units: PDU1 (NMC2, loaded, reads only) and PDU2 (NMC3, no load, reads and writes). Addresses, user names and secrets appear only in files under an ignored `work/` directory.
-- Step 1, Net-SNMP directly: `run_device_phases.py` phases 1 and 2 on the 358 objects of `docs/snmp-performance/inputs/ap8932-oids.tsv` (5 repeats, tool stop rules), after the read-only phase 0 probe. Writes on PDU2 only, through a sender that refuses any label other than PDU2, on `sysLocation` with the original value restored.
+- Units: PDU1 (NMC2, loaded, reads, and writes on outlet 8 only under D9) and PDU2 (NMC3, no load, reads and writes). Addresses, user names and secrets appear only in files under an ignored `work/` directory.
+- Step 1, Net-SNMP directly: `run_device_phases.py` phases 1 and 2 on the 358 objects of `docs/snmp-performance/inputs/ap8932-oids.tsv` (5 repeats, tool stop rules), after the read-only phase 0 probe. The `sysLocation` write is on PDU2 only, through a sender that refuses any label other than PDU2, on `sysLocation` with the original value restored.
+- Step 1, outlet 8 of PDU1 (D9): `outlet_probe` switches outlet 8 off and on in cycles and reboots it once, times each SET and the time until the state reads as set, and restores the original state. The object identifiers are constants of the program, a label other than PDU1 or a missing write flag is refused before a session opens, and `CYCLES 0` reads only. Every write run needs the owner's confirmation; the first write run is one cycle without a reboot.
 - Step 2, legacy IOC: the legacy laboratory IOC of the application repository branch `refactor/snmp-db-processing`, exported with `git archive` and built against the distribution Base. Loader switches: no outlet command records (`WRITE_EN=#`) and no limit enforcement (`LIMIT_EN` unset) on either unit. The load template still loads the master control command records (`MasterControlCmd_` and `MasterControlCmd`), the only records of the loaded templates with an SNMP output link, so they are removed from the exported copy and the difference to the branch is recorded with the results; the read population is unchanged. Each unit also gets one `sysUpTime` read record, and PDU2 one `stringout` on `sysLocation`. Two runs: the module defaults (10 s timeout, 5 retries, and 32 objects per request, passed as `MAXOIDS=32` because the loader's own default is 24) and the laboratory IOC operations values (2 s, 1 retry, 20 objects for PDU1 and 50 for PDU2). Phases per run: both units connected 300 s, PDU1 cut 300 s, PDU2 cut 300 s, reconnect. The owner cuts and restores a unit on a typed handshake. The defaults run has a 600 s limit on the cut phases.
-- Two quantities in every step: the response time of one request (p50, p95, maximum) and the interval between new values of the `sysUpTime` record (p50, p95, maximum, from `camonitor -tsc`). The request time of steps 2 and 3 is read at the wire with a small user-space UDP relay recorder; the interval is analyzed with a short script. Three scratch tools are written because no existing tool does these judgments: the relay recorder, the interval script and the SET sender.
-- Stop rules: the tool's own rules in step 1; in the IOC steps a decrease of a unit's `sysUpTime` (card restart), no answer from a unit for 120 s outside an owner cut, any output record found on PDU1, or the owner's request.
+- Step 2, outlet 8 of PDU1 (D9): of the outlet command records of the legacy write template, only the one of outlet 8 loads on PDU1; it is built from the exported tree and is not built yet. Its SET is timed from the put to the changed device state (T7), and the original state is restored after each run. Every write run needs the owner's confirmation.
+- Step 3, snmp3 `0.0.1`: the measurement IOC described in the paragraph on the preparation of step 3 (one snmp3 input per legacy SNMP input, plus one `sysUpTime` read record per unit), on the same two units, with the laboratory IOC values (`timeoutMs` 2000, `retries` 1), run through the same phases, relay recorder and interval script as the operations run of step 2 and under the same PDU1 cut handshake. Outlet 8 of PDU1 also gets one `longout` record on its command object (D9), so that step 3 measures the SET of outlet 8 as step 2 does (T9); that record is not built yet, and every write run needs the owner's confirmation.
+- Two quantities in every step: the response time of one request (p50, p95, maximum) and the interval between new values of the `sysUpTime` record (p50, p95, maximum, from `camonitor -tsc`). The request time of steps 2 and 3 is read at the wire with a small user-space UDP relay recorder; the interval is analyzed with a short script. Five scratch tools are written because no existing tool does these jobs: the relay recorder, the interval script, the `sysLocation` SET sender, `outlet_probe`, and `gen_measure.py`, which generates the database and configuration of the measurement IOC.
+- Stop rules: the tool's own rules in step 1; in the IOC steps a decrease of a unit's `sysUpTime` (card restart), no answer from a unit for 120 s outside an owner cut, any output record on PDU1 other than the outlet 8 command record, or the owner's request.
 
-Out of scope: any change to the product or to Base, a verdict on improvement (the rows that use these numbers carry the criteria), separating load from card, writes to PDU1, performance acceptance.
+Out of scope: any change to the product or to Base, a verdict on improvement (the rows that use these numbers carry the criteria), separating load from card, writes to PDU1 other than outlet 8, performance acceptance.
 
 ##### Completion Criteria
 
 - Step 1 produced `phase1.json`, `kstar.json`, `phase2.json` and the SET sender's result for PDU2, each stating its repeat count and the Net-SNMP version.
-- Step 2 produced both run files with the four phases (or a recorded reason for stopping a phase), the printed module defaults, the loaded record list showing no output record on PDU1, and the PDU2 SET result.
-- The response time and the interval are stated for each phase in one table that names the populations: the 358-object set for step 1 and the deployed loaders for step 2.
+- Step 1 also produced the outlet 8 result of `outlet_probe` on PDU1 (T6): the time of each SET and of each state change, and the original state restored.
+- Step 2 produced both run files with the four phases (or a recorded reason for stopping a phase), the printed module defaults, the loaded record list showing no output record on PDU1 other than the outlet 8 command record, and the PDU2 SET result.
+- The response time and the interval are stated for each phase in one table that names the populations: the 358-object set for step 1, and the 163 legacy signals per unit for steps 2 and 3.
+- Step 3 produced the same phases and run files as the operations run of step 2 on the measurement IOC, the loaded record list showing no output record on PDU1 other than the outlet 8 command record, and the check of the Passive-to-2-second assumption against the request interval observed at the wire in step 2.
+- The outlet 8 SET results of the legacy IOC (T7) and of the measurement IOC (T9) state the time from the put to the changed device state, and the original state of the outlet is restored after each run.
 
 ##### Dependencies And Decisions
 
-- D8 defines the baseline. The owner's confirmation that no other client reads the two units is needed before step 1.
-- The two-unit measurement of the current product (M3) repeats the phases of step 2 and compares with these results.
+- D8 defines the baseline and D9 amends it for outlet 8 of PDU1. The owner's confirmation that no other client reads the two units is needed before step 1.
+- The two-unit measurement of the current product (M3) repeats the phases of step 2 on the product as it stands when M3 runs and compares with the results of steps 2 and 3; M3 measures the isolation of one unit with the other disconnected, and step 3 of this row measures `0.0.1` as the baseline.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-11-10, accepted by the owner after the second-person and third-person passes of this register converged
+Implementation Authorization: step 1 only (reads on both units, writes on PDU2, and writes on outlet 8 of PDU1 under D9 after the owner's confirmation of each write run), by the owner instruction of 2026-11-10; steps 2 and 3 are not authorized until the owner authorizes them
 Superseded Plan Artifacts: none
 
 1. Owner confirms that no other client reads the units and that PDU1 may be cut from its network for step 2.
@@ -213,8 +220,12 @@ Superseded Plan Artifacts: none
     "${PH[@]}" phase2 --kstar <results_dir>/kstar.json
     ```
 
-3. Build the legacy IOC from the exported tree, confirm that the loaded record list has no output record on PDU1, write the relay recorder and the interval script, and run the two runs of step 2. The exported tree names a Base under `/usr/local/epics` in `configure/RELEASE`; a `configure/RELEASE.local` in the export sets `EPICS_BASE` to the distribution Base (`<distribution>/1.5.0/debian-13/7.0.10/base`), which holds the eight modules the application needs.
-4. Write the comparison tables and record the results here.
+3. Run `outlet_probe` on outlet 8 of PDU1 (T6) from the repository root with `python3 -I work/baseline-direct-20261109-01/outlet_probe.py <cycles> <reboot>`, cycles 0 to 5 and reboot 0 or 1. Run the read-only form (`0 0`) first, then one cycle without a reboot (`1 0`), then more cycles and one reboot (`3 1`); every write run needs the owner's confirmation. `outlet_probe.py` passes the write argument only while `private/outlet8.json` holds `{"write": true}`; set it for a run and back to false afterwards. A run succeeded when the printed line has `"failed":0` and `"restored":1` and the exit code is 0. Exit code 5 means the program refused (no write flag, or another label), 6 an initial state that is neither on nor off with no SET sent, and 2, 3 or 4 a usage, key or session error with no SET sent. Exit code 7 means a failed step or a state that was not restored: do not retry, read the state with `outlet_probe.py 0 0` and tell the owner.
+4. Without contacting a device, add the outlet 8 command record to the legacy copy (loaded on PDU1 only) and the outlet 8 `longout` to the measurement IOC (`measure/gen_measure.py` and `st.measure` under `work/baseline-snmp3-20261110-01/`), and load-check both without `iocInit`.
+5. Build the legacy IOC from the exported tree, confirm that the loaded record list has no output record on PDU1 other than the outlet 8 command record, and run the two runs of step 2 with the relay recorder (`work/baseline-direct-20261109-01/udp_relay.py`) and the interval script (`interval_stats.py` in the same folder). The exported tree names a Base under `/usr/local/epics` in `configure/RELEASE`; a `configure/RELEASE.local` in the export sets `EPICS_BASE` to the distribution Base (`<distribution>/1.5.0/debian-13/7.0.10/base`), which holds the eight modules the application needs.
+6. Run step 3 after step 2, with the owner's authorization and the same cut handshake: start `apcpdu-snmp3/iocBoot/ioctestlab-ap8932/st.measure` under `work/baseline-snmp3-20261110-01/` with `SNMP_CONFIG` set to its `private/configuration-measure.json`, and record the same phases as step 2.
+7. Run the outlet 8 SETs of the legacy IOC (T7) and of the measurement IOC (T9) after the read phases of steps 2 and 3, each write run after the owner's confirmation, with `private/outlet8.json` handled as in item 3 for the sender; each run restores the original state of outlet 8.
+8. Write the comparison tables and record the results here.
 
 ##### Test Plan
 
@@ -225,18 +236,30 @@ Superseded Plan Artifacts: none
 | T3 | Legacy IOC, defaults | Four phases with the module defaults | Both units, installed legacy module | Request time and interval per phase; observed stall of the module on a cut unit |
 | T4 | Legacy IOC, operations values | Four phases with the laboratory IOC values | Both units, installed legacy module | Request time and interval per phase |
 | T5 | Legacy SET | `stringout` on `sysLocation` of PDU2 | PDU2 only | Time from the put to the changed device value; alarm state on a SET timeout |
+| T6 | Net-SNMP direct write | `outlet_probe` on outlet 8: cycles of off and on, then one reboot | PDU1 outlet 8 only | Time of each SET and of each state change; original state restored; any other label refused |
+| T7 | Legacy outlet 8 SET | Put to the outlet 8 command record of PDU1, then restore | PDU1 outlet 8 only, installed legacy module | Time from the put to the changed device state; alarm state on a SET timeout; original state restored |
+| T8 | snmp3 `0.0.1`, operations values | Four phases with the measurement IOC | Both units, `0.0.1` | Request time and interval per phase |
+| T9 | snmp3 outlet 8 SET | Put to the `longout` on the outlet 8 command object of PDU1, then restore | PDU1 outlet 8 only, `0.0.1` | Time from the put to the changed device state; alarm state on a SET timeout; original state restored |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | 2026-11-09 | Both units, Net-SNMP 5.9.4 | Pending | Phase 0 only: 30 single-object probes each, PDU1 p50 18.4 ms and p95 253.7 ms, PDU2 p50 2.3 ms and p95 15.9 ms, no stop; phases 1 and 2 not run |
-| T2 | Not run | PDU2 | Pending | none |
+| T1 | 2026-11-10 | Both units, Net-SNMP 5.9.4, 358 objects, 5 repeats, tool stop rules | Pass | Phase 0: PDU1 p50 18.4 ms, PDU2 p50 2.3 ms. Phase 1, per-object time at the best K: PDU1 9.46 ms (K 48, K* 16), PDU2 0.344 ms (K 40, K* 40); request p50 at K 48: PDU1 403 ms, PDU2 21.4 ms; no stop and no error status up to K 48; isolated lost requests: PDU1 K 8 and K 12, PDU2 K 20. Phase 2: one pass of 358 objects takes about 3.4 s on PDU1 at K 48 independent of requests in flight (request time 407, 810, 1207 ms for 1, 2, 3 in flight) and 117 to 177 ms on PDU2 (K 40: 161 ms with 1 in flight, 117 ms with 2); no stop; one lost request on PDU1 (2 in flight, K 8). Results under `work/baseline-direct-20261109-01/` |
+| T2 | 2026-11-10 | PDU2 only | Pass | `set_probe` refused PDU1 before opening a session (exit 5). On PDU2, 10 SETs on `sysLocation` all succeeded with no error status, every readback matched, and the original value (5 bytes) was restored and verified. SET request times in ms: 150, 469, 735, 737, 732, 732, 733, 725, 800, 793 (about 732 ms after the first two), against 2.3 ms (phase 0 p50) to 6.0 ms (largest phase 1 K 1 p50) for a single-object GET on PDU2. Result in `work/baseline-direct-20261109-01/set_probe.json` |
 | T3 | Not run | Both units, installed legacy module | Pending | The module defaults printed by the installed binary: `SessionRetries 5`, `SessionTimeout 10000000`, `PassivePollMSec 2000`; the phases are not run |
 | T4 | Not run | Both units, installed legacy module | Pending | none |
 | T5 | Not run | PDU2 | Pending | none |
+| T6 | 2026-11-10 (read-only form only) | PDU1 outlet 8 | Pending | Read-only run on 2026-11-10: initial state on, reboot duration 5 s, no SET sent; the write run awaits the owner's confirmation |
+| T7 | Not run | PDU1 outlet 8 | Pending | none |
+| T8 | Not run | Both units, `0.0.1` | Pending | none |
+| T9 | Not run | PDU1 outlet 8 | Pending | none |
 
 Preparation observed on 2026-11-10 (no device contacted, no `iocInit`): the legacy IOC exported from the application repository branch `refactor/snmp-db-processing`, built against the distribution Base and linked to `libdevSnmp.so` of `snmp-1.1.0.4ja` and the system `libnetsnmp.so.40`, was started with the planned loader switches and its loaded records listed with `dbl`. Each unit loads 255 records: 148 `longin`, 10 `ai` and 5 `stringin` use the SNMP device support (163 inputs), 27 `bo` use `Soft Channel`, and no output-type record uses the SNMP device support. Before the change to the export, the load template carried one record with an SNMP output link (the master control command), which is why it is removed from the exported copy; the removal is 23 lines of the template and is saved with the results.
+
+Preparation of step 3 observed on 2026-11-10 (no device contacted, no `iocInit`): the tag `0.0.1` of this repository and the application IOC of the application repository commit `3314b1e` were exported with `git archive` and built against the same distribution Base as the legacy IOC, so both steps run on one Base build and the system Net-SNMP 5.9.4. The application snmp3 IOC groups its inputs into polling tiers and group counters: 366 bindings per unit and 396 inputs per unit, of which 133 objects per unit have the same OID as a legacy input; 30 legacy inputs (24 outlet control command values, 5 identity strings of the older MIB, the master control switch value) have no binding in it. Reducing that IOC to the legacy objects would require changing its generator, so it is not used for the baseline. By owner decision of 2026-11-10, step 3 runs a measurement IOC built in this milestone: one snmp3 input per legacy SNMP input, with the same record name and the same OID (163 per unit, 326 in all). Under `work/baseline-snmp3-20261110-01/`, `measure/gen_measure.py` generates `measure/measure.db` and `private/configuration-measure.json` from the loaded legacy record list, the startup script is `apcpdu-snmp3/iocBoot/ioctestlab-ap8932/st.measure`, and the load check output is `measure/check.out`. A legacy record scanned every 10 seconds keeps that scan; a legacy `Passive` record, which the legacy driver polls every `PassivePollMSec` (2000 ms), gets `SCAN` `2 second`; a legacy `ai` conversion is not applied, so values are read as integers. The load check without `iocInit` shows 328 records, all with the snmp3 device support and none an output record: the 326 inputs, `longin` (316) or `lsi` (10), with the legacy record names, and one `sysUpTime` record per unit of type `int64in` with `SCAN` `2 second` for the interval measurement. The configuration uses `timeoutMs` 2000 and `retries` 1 as the laboratory IOC of step 2. The two steps then read the same signals; the polling tiers of the application IOC are not part of the baseline. The Passive-to-2-second equivalence is an assumption to be checked against the request interval observed at the wire in step 2.
+
+Preparation of the outlet 8 write observed on 2026-11-10: `work/baseline-direct-20261109-01/outlet_probe.c` is built to `bin/outlet_probe` and run through `outlet_probe.py`, which passes the write argument as yes for a read-only run (`CYCLES 0`) and otherwise only when `private/outlet8.json` holds `{"write": true}`. Run against the repository test agent `snmp3NativeAgent`, with the object identifiers of the program replaced at build time by a writable object of the agent (the agent registers device identifiers read only), it completed three cycles and restored the original state, ignored a reboot request from an outlet that starts off, refused to write from an unknown initial state, and after a reboot that never settled reported failure and restored the original state. Refusals (another label, no write flag, out-of-range arguments) sent no datagram, counted with a local UDP listener. The reboot of a device that goes off and on is not covered by this agent. A read-only run on PDU1 returned outlet 8 initial state on and a reboot duration of 5 s; no SET was sent.
 
 ##### Closure Evidence
 
@@ -255,7 +278,7 @@ Guarantee A states that one blocked, slow or absent address changes neither the 
 
 ##### Scope
 
-- One IOC, both units, the `0.0.1` product, the monitored record population of the laboratory loaders.
+- One IOC, both units, the product as it stands when M3 runs, the monitored record population of the laboratory loaders.
 - Three phases of at least 300 s each: both units up, NMC2 disconnected, NMC3 disconnected.
 - Record per phase: processing interval and value-change interval of one record per unit, worker containment and relaunch counts, and request outcomes.
 
@@ -265,12 +288,13 @@ Out of scope: performance criteria (M13), a product change, a new tool before an
 
 - For each phase the healthy unit's processing interval median and 95th percentile are recorded and the ratio to the both-up phase is at most 1.1, or the deviation is recorded with its cause.
 - The disconnected unit's records show the configured alarm with its message within one deadline of the disconnection.
+- The healthy unit's results are tabulated next to the step 2 and step 3 results of M2 for the same phases.
 
 ##### Dependencies And Decisions
 
 - G1 open; resume as Not started.
 - D4 selects the tools.
-- M2 provides the reference values of the legacy module and of Net-SNMP read directly.
+- M2 provides the reference values of the legacy module, of Net-SNMP read directly and of `0.0.1` on its measurement IOC (steps 1 to 3); M3 compares its phases with the results of steps 2 and 3.
 
 ##### Implementation Plan
 
@@ -281,13 +305,13 @@ Superseded Plan Artifacts: none
 
 1. Select the record per unit and the capture method from `docs/snmp-performance/module-database-procedure.md`.
 2. Run the three phases; disconnect by removing the unit's network link, not by stopping the IOC.
-3. Record intervals, outcomes and worker counts per phase under `work/` and summarize here.
+3. Record intervals, outcomes and worker counts per phase under `work/` and summarize here. Put the summary in a table next to the step 2 and step 3 results of M2 for the same phases.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Device cadence | Three 300 s phases with the existing capture tools on the laboratory IOC | Laboratory IOC, both units, `0.0.1` | Healthy unit ratio at most 1.1 in each phase |
+| T1 | Device cadence | Three 300 s phases with the existing capture tools on the laboratory IOC | Laboratory IOC, both units, the product as it stands when M3 runs | Healthy unit ratio at most 1.1 in each phase |
 | T2 | Alarm on loss | `camonitor` of the disconnected unit's records during the phase | Laboratory IOC | Alarm with message within one deadline |
 
 ##### Verification Results
