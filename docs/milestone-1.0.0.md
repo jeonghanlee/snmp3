@@ -808,7 +808,7 @@ GitHub Milestone: 1.0.0
 Observed State: open
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
-Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:35Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
+Last Compared: 2026-11-11T17:36Z; issue updatedAt 2026-11-11T17:28:55Z; title, label, assignee jeonghanlee and milestone verified with `gh issue view` after the body edit.
 
 #### M10 - Shared-library SONAME and symbolic-link versioning
 
