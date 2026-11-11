@@ -1287,7 +1287,7 @@ uninstrumented, and leak detection is disabled. The production inflight case
 uses the production worker stderr policy; the retained companion additionally
 captures worker stderr through the public qualification setting. Startup
 failure, all eleven record kinds individually, long-string/maximum-capacity
-buffers, isolated reuse and the remaining [deferred record cells](../../docs/milestone-1.0.0.md#m13---deferred-record-verification-cells) require separate evidence.
+buffers, isolated reuse and the remaining [deferred record cells](../../docs/milestone-1.0.0.md#m14---deferred-record-verification-cells) require separate evidence.
 
 
 ## Record Startup Failure
