@@ -911,7 +911,7 @@ GitHub Milestone: 1.0.0
 Observed State: open
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
-Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:39Z; milestone and assignee jeonglee verified with `gh issue list` after the milestone link
+Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:39Z; milestone and assignee jeonghanlee verified with `gh issue list` after the milestone link
 
 #### M11 - Release 1.0.0
 
