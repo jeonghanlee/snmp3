@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: M2, M3 (retired by D13) and G1 are complete; issue #3 stays open until the owner gives Issue authority. The Ready rows are M1, M4, M6, M9 and M10. M1 is the first product change (tag `0.0.2`); M4 opens the sizing and SET chain. Start with the row the owner chooses.
+Next session entry point: M2, M3 (retired by D13) and G1 are complete; issue #3 is closed. The Ready rows are M1, M4, M6, M9 and M10. M1 is the first product change (tag `0.0.2`); M4 opens the sizing and SET chain. Start with the row the owner chooses.
 
 ## Scope
 
@@ -480,17 +480,17 @@ Superseded Plan Artifacts: none
 
 - Retired by the owner's decision of 2026-11-13 (D13). Waived checks: T1 (three 300 s phases on the laboratory IOC, ratio of the healthy unit's interval at most 1.1) and T2 (alarm on loss observed on the laboratory IOC); neither was run.
 - What replaces them: the baseline run of the snmp3 `0.0.1` measurement IOC (the T8 run of the baseline measurement) shows the records of both units in `COMM INVALID` about 1.2 s after the PDU1 cut and no new value of either unit for the rest of the cut, and no request to the healthy unit for 270.0 s in the PDU1 cut, so the ratio criterion is not met on `0.0.1` and the alarm of the disconnected unit appeared within 1.2 s. These values are the reference for the reply-driven processing work and for the release acceptance, which keeps the three phases and the criteria of this row; the laboratory IOC population has no measurement on the product before those changes.
-- Issue #3: left open on 2026-11-13; closing it needs the Issue authority, which the owner has not given; this is the dated exception for the linked issue.
+- Issue #3: under the owner's Issue authority of 2026-11-13 its body gained a Result section and a rewritten first paragraph, a closing comment was posted and the issue was closed as completed; `gh issue view 3` read back state CLOSED, reason COMPLETED, at 2026-11-13T18:14Z.
 
 ##### GitHub Projection
 
 Title: Measure one unit while the other unit is disconnected
 Labels: enhancement
 GitHub Milestone: 1.0.0
-Observed State: open
+Observed State: closed (completed)
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
-Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:12Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
+Last Compared: 2026-11-13T18:14Z; issue updatedAt 2026-11-13T18:14:55Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the Result section.
 
 #### M4 - Request sizing with advertised message size and tooBig split
 
