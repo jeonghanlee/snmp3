@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: M2 is complete (results in its Verification Results and item 9 tables; issue #11 is closed). The Ready rows are M1, M6 and M10; M3 stays Blocked on G1, which is Open. Start with M1, M6 or M10 as the owner chooses.
+Next session entry point: M2 and G1 are complete (G1 by the baseline run of the measurement IOC, D12); M3, M4 and M9 are no longer Blocked. The Ready rows are M1, M3, M4, M6, M9 and M10. M3 measures the current product with the M2 phases and compares with the M2 results; M1 is the first product change (tag `0.0.2`). Start with the row the owner chooses.
 
 ## Scope
 
@@ -25,20 +25,20 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Gate | G1 | Laboratory NMC2 and NMC3 units reachable through snmp3 | External gate | Open | No | | Both units answer a GET through the laboratory IOC with snmp3 `0.0.1`; [detail](#g1---laboratory-nmc2-and-nmc3-units-reachable-through-snmp3) |
+| Gate | G1 | Laboratory NMC2 and NMC3 units reachable through snmp3 | External gate | Complete | No | D12 | Both units answer a GET through the laboratory IOC with snmp3 `0.0.1`; [detail](#g1---laboratory-nmc2-and-nmc3-units-reachable-through-snmp3) |
 | E | M1 | Probe spawn environment equal to the worker environment | Milestone | Not started | Yes | | Probe and worker receive the same environment list; `ConfigTest` passes; tag `0.0.2`; [detail](#m1---probe-spawn-environment-equal-to-the-worker-environment) |
 | Baseline | M2 | Baseline measurement on the two laboratory units | Milestone | Complete | No | D8, D9, D11 | Net-SNMP 5.9.4 read directly and the installed legacy module measured on both units, with the response time of a request and the interval of new values recorded; no product change; [detail](#m2---baseline-measurement-on-the-two-laboratory-units) |
-| A | M3 | Two-device isolation measurement on the current product | Milestone | Blocked | No | G1, D4, M2 | Measured cadence of the healthy unit with the other unit disconnected; [detail](#m3---two-device-isolation-measurement-on-the-current-product) |
-| B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Blocked | No | G1 | NMC2 accepts a 61-OID request without manual `maxVarbinds` tuning; tooBig reaches the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
+| A | M3 | Two-device isolation measurement on the current product | Milestone | Not started | Yes | G1, D4, M2 | Measured cadence of the healthy unit with the other unit disconnected; [detail](#m3---two-device-isolation-measurement-on-the-current-product) |
+| B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Not started | Yes | G1 | NMC2 accepts a 61-OID request without manual `maxVarbinds` tuning; tooBig reaches the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
 | B | M5 | SET outcome contract | Milestone | Not started | No | M4 | Output records complete only on the SET result; a timeout is an alarm; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
 | C | M6 | Reply time stamp on records | Milestone | Not started | Yes | | Record TIME equals the worker receive time with `TSE=-2`; tag `0.0.5`; [detail](#m6---reply-time-stamp-on-records) |
 | C | M7 | Reply-driven processing and driver-owned periodic acquisition | Milestone | Not started | No | M4, M6 | `SCAN=I/O Intr` records process on reply arrival at the configured period; tag `0.0.6`; [detail](#m7---reply-driven-processing-and-driver-owned-periodic-acquisition) |
 | Performance | M8 | GETBULK table reads | Milestone | Not started | No | M4 | A table read uses one GETBULK request where the profile allows it; tag `0.0.7`; [detail](#m8---getbulk-table-reads) |
-| D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Blocked | No | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag `0.0.8`; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
+| D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag `0.0.8`; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.9`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 1 Complete, 0 In progress, 7 Not started, 3 Blocked; G1 Open. Ready rows: M1, M6, M10. Backlog contains 1 Open and 2 Deferred rows and is excluded from this tally.
+Current work tally: 1 Complete, 0 In progress, 10 Not started, 0 Blocked; G1 Complete. Ready rows: M1, M3, M4, M6, M9, M10. Backlog contains 1 Open and 2 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -55,6 +55,7 @@ Current work tally: 1 Complete, 0 In progress, 7 Not started, 3 Blocked; G1 Open
 | D9 | Allow writes to outlet 8 of PDU1 (NMC2, loaded) only: immediate off, immediate on and immediate reboot. No other object of PDU1 is written. This amends D8, which allowed writes only on the unit without load. Each run restores the original state. | 2026-11-10 |
 | D10 | Configure snmp3 with localized keys. Both unit models, the NMC2 unit and the NMC3 unit, accept access with the localized keys computed from the existing passphrases and the unit's engine ID (SHA and AES-128), with no change on the unit, and a wrong key is rejected. The configuration carries localized keys instead of passphrase files, one pair (an authentication key and a privacy key) for each unit because the keys depend on the engine ID of the unit, and the tool and the procedure that produce and install them are developed in the SNMPv3 key work. Existing legacy deployments keep passphrase files. | 2026-11-11 |
 | D11 | Create the credential file `ver3.txt` of the legacy module only for the duration of the baseline runs: the run tool writes it from the existing secret files with mode 600 in a new mode-700 directory on tmpfs, and removes it as soon as the IOC has read it, when the run stops or when the tool is terminated; nothing is written under the repository, and each creation needs the owner's permission. | 2026-11-11 |
+| D12 | Accept the baseline run of the snmp3 `0.0.1` measurement IOC on both units (every request answered, the `EngineTime` records advancing) as the observation of G1, in place of a separate `caget` on the laboratory IOC of the application repository. | 2026-11-13 |
 
 ### ID Migration
 
@@ -81,7 +82,7 @@ A baseline row, created as M15 and placed as M2 on 2026-11-10 so the row order s
 
 Origin: 1.0.0 / G1
 GitHub Issue: none
-Status: Open
+Status: Complete
 
 ##### Summary
 
@@ -95,11 +96,11 @@ M3, M4 and M9 need one AP8932 unit with an NMC2 card and one with an NMC3 card, 
 
 | Observed At | Result | Evidence |
 | --- | --- | --- |
-| Not run | Pending | Owner observation on the laboratory IOC |
+| 2026-11-12 | Pass | Observed in the complete run of the snmp3 `0.0.1` measurement IOC of the baseline (the T8 run of the baseline measurement, started 2026-11-13T00:49Z): both units answered every request, 6895 to the NMC2 unit and 4498 to the NMC3 unit in the connected phase, and the `EngineTime` record of each unit advanced. The observation was made on the measurement IOC with `camonitor`, not with `caget` on the laboratory IOC; D12 accepts it in place of that observation. Unit cards: NMC2 and NMC3; module tag `0.0.1` |
 
 ##### Closure Evidence
 
-- none
+- Decision of 2026-11-13 (D12): the baseline run of the measurement IOC is the observation of this gate. The owner chose it over a separate `caget` on the laboratory IOC.
 
 #### M1 - Probe spawn environment equal to the worker environment
 
@@ -423,7 +424,7 @@ Last Compared: 2026-11-13T03:03Z; issue updatedAt 2026-11-13T03:03:28Z; title, l
 Origin: 1.0.0 / M2
 Identity History: M2 -> M3 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #3 - https://github.com/jeonghanlee/snmp3/issues/3
-Status: Blocked
+Status: Not started
 
 ##### Summary
 
@@ -445,7 +446,7 @@ Out of scope: performance criteria (M13), a product change, a new tool before an
 
 ##### Dependencies And Decisions
 
-- G1 open; resume as Not started.
+- G1 complete (2026-11-13); status restored to Not started.
 - D4 selects the tools.
 - M2 provides the reference values of the legacy module, of Net-SNMP read directly and of `0.0.1` on its measurement IOC (steps 1 to 3); M3 compares its phases with the results of steps 2 and 3.
 
@@ -493,7 +494,7 @@ Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:12Z; title, l
 Origin: 1.0.0 / M3
 Identity History: M3 -> M4 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #4 - https://github.com/jeonghanlee/snmp3/issues/4
-Status: Blocked
+Status: Not started
 
 ##### Summary
 
@@ -516,7 +517,7 @@ Out of scope: GETBULK (M8), learning the agent limit across restarts, and change
 
 ##### Dependencies And Decisions
 
-- G1 open; resume as Not started.
+- G1 complete (2026-11-13); status restored to Not started.
 
 ##### Implementation Plan
 
@@ -849,7 +850,7 @@ Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:33Z; title, l
 Origin: 1.0.0 / M8
 Identity History: M8 -> M9 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #9 - https://github.com/jeonghanlee/snmp3/issues/9
-Status: Blocked
+Status: Not started
 
 ##### Summary
 
@@ -877,7 +878,7 @@ Out of scope: an external secret store, changing the configuration-loader file c
 
 ##### Dependencies And Decisions
 
-- G1 open; resume as Not started.
+- G1 complete (2026-11-13); status restored to Not started.
 - D10 selects localized keys for the configuration.
 
 ##### Implementation Plan
