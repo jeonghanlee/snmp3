@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: M2 and G1 are complete (G1 by the baseline run of the measurement IOC, D12); M3, M4 and M9 are no longer Blocked. The Ready rows are M1, M3, M4, M6, M9 and M10. M3 measures the current product with the M2 phases and compares with the M2 results; M1 is the first product change (tag `0.0.2`). Start with the row the owner chooses.
+Next session entry point: M2, M3 (retired by D13) and G1 are complete; issue #3 stays open until the owner gives Issue authority. The Ready rows are M1, M4, M6, M9 and M10. M1 is the first product change (tag `0.0.2`); M4 opens the sizing and SET chain. Start with the row the owner chooses.
 
 ## Scope
 
@@ -28,7 +28,7 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | Gate | G1 | Laboratory NMC2 and NMC3 units reachable through snmp3 | External gate | Complete | No | D12 | Both units answer a GET through the laboratory IOC with snmp3 `0.0.1`; [detail](#g1---laboratory-nmc2-and-nmc3-units-reachable-through-snmp3) |
 | E | M1 | Probe spawn environment equal to the worker environment | Milestone | Not started | Yes | | Probe and worker receive the same environment list; `ConfigTest` passes; tag `0.0.2`; [detail](#m1---probe-spawn-environment-equal-to-the-worker-environment) |
 | Baseline | M2 | Baseline measurement on the two laboratory units | Milestone | Complete | No | D8, D9, D11 | Net-SNMP 5.9.4 read directly and the installed legacy module measured on both units, with the response time of a request and the interval of new values recorded; no product change; [detail](#m2---baseline-measurement-on-the-two-laboratory-units) |
-| A | M3 | Two-device isolation measurement on the current product | Milestone | Not started | Yes | G1, D4, M2 | Measured cadence of the healthy unit with the other unit disconnected; [detail](#m3---two-device-isolation-measurement-on-the-current-product) |
+| A | M3 | Two-device isolation measurement on the current product | Milestone | Complete | No | G1, D4, M2, D13 | Measured cadence of the healthy unit with the other unit disconnected; [detail](#m3---two-device-isolation-measurement-on-the-current-product) |
 | B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Not started | Yes | G1 | NMC2 accepts a 61-OID request without manual `maxVarbinds` tuning; tooBig reaches the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
 | B | M5 | SET outcome contract | Milestone | Not started | No | M4 | Output records complete only on the SET result; a timeout is an alarm; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
 | C | M6 | Reply time stamp on records | Milestone | Not started | Yes | | Record TIME equals the worker receive time with `TSE=-2`; tag `0.0.5`; [detail](#m6---reply-time-stamp-on-records) |
@@ -38,7 +38,7 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.9`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 1 Complete, 0 In progress, 10 Not started, 0 Blocked; G1 Complete. Ready rows: M1, M3, M4, M6, M9, M10. Backlog contains 1 Open and 2 Deferred rows and is excluded from this tally.
+Current work tally: 2 Complete, 0 In progress, 9 Not started, 0 Blocked; G1 Complete. Ready rows: M1, M4, M6, M9, M10. Backlog contains 1 Open and 2 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -56,6 +56,7 @@ Current work tally: 1 Complete, 0 In progress, 10 Not started, 0 Blocked; G1 Com
 | D10 | Configure snmp3 with localized keys. Both unit models, the NMC2 unit and the NMC3 unit, accept access with the localized keys computed from the existing passphrases and the unit's engine ID (SHA and AES-128), with no change on the unit, and a wrong key is rejected. The configuration carries localized keys instead of passphrase files, one pair (an authentication key and a privacy key) for each unit because the keys depend on the engine ID of the unit, and the tool and the procedure that produce and install them are developed in the SNMPv3 key work. Existing legacy deployments keep passphrase files. | 2026-11-11 |
 | D11 | Create the credential file `ver3.txt` of the legacy module only for the duration of the baseline runs: the run tool writes it from the existing secret files with mode 600 in a new mode-700 directory on tmpfs, and removes it as soon as the IOC has read it, when the run stops or when the tool is terminated; nothing is written under the repository, and each creation needs the owner's permission. | 2026-11-11 |
 | D12 | Accept the baseline run of the snmp3 `0.0.1` measurement IOC on both units (every request answered, the `EngineTime` records advancing) as the observation of G1, in place of a separate `caget` on the laboratory IOC of the application repository. | 2026-11-13 |
+| D13 | Retire the two-device isolation measurement on the current product: the baseline run of the snmp3 `0.0.1` measurement IOC on both units already records the cadence of the healthy unit while the other is cut, and a further run on the laboratory IOC would not change the reference. The three phases and criteria of that row stay the acceptance check of the release row. | 2026-11-13 |
 
 ### ID Migration
 
@@ -208,7 +209,7 @@ Out of scope: any change to the product or to Base, a verdict on improvement (th
 ##### Dependencies And Decisions
 
 - D8 defines the baseline, D9 amends it for outlet 8 of PDU1, and D11 fixes how the legacy credential file is created and removed. The owner's confirmation that no other client reads the two units is needed before step 1.
-- The two-unit measurement of the current product (M3) repeats the phases of step 2 on the product as it stands when M3 runs and compares with the results of steps 2 and 3; M3 measures the isolation of one unit with the other disconnected, and step 3 of this row measures `0.0.1` as the baseline.
+- The two-unit measurement of the current product (M3, retired 2026-11-13 by D13) was to repeat the phases of step 2 on the product as it stands when M3 runs and compares with the results of steps 2 and 3; M3 measures the isolation of one unit with the other disconnected, and step 3 of this row measures `0.0.1` as the baseline.
 
 ##### Implementation Plan
 
@@ -424,7 +425,7 @@ Last Compared: 2026-11-13T03:03Z; issue updatedAt 2026-11-13T03:03:28Z; title, l
 Origin: 1.0.0 / M2
 Identity History: M2 -> M3 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #3 - https://github.com/jeonghanlee/snmp3/issues/3
-Status: Not started
+Status: Complete
 
 ##### Summary
 
@@ -477,7 +478,9 @@ Superseded Plan Artifacts: none
 
 ##### Closure Evidence
 
-- none
+- Retired by the owner's decision of 2026-11-13 (D13). Waived checks: T1 (three 300 s phases on the laboratory IOC, ratio of the healthy unit's interval at most 1.1) and T2 (alarm on loss observed on the laboratory IOC); neither was run.
+- What replaces them: the baseline run of the snmp3 `0.0.1` measurement IOC (the T8 run of the baseline measurement) shows the records of both units in `COMM INVALID` about 1.2 s after the PDU1 cut and no new value of either unit for the rest of the cut, and no request to the healthy unit for 270.0 s in the PDU1 cut, so the ratio criterion is not met on `0.0.1` and the alarm of the disconnected unit appeared within 1.2 s. These values are the reference for the reply-driven processing work and for the release acceptance, which keeps the three phases and the criteria of this row; the laboratory IOC population has no measurement on the product before those changes.
+- Issue #3: left open on 2026-11-13; closing it needs the Issue authority, which the owner has not given; this is the dated exception for the linked issue.
 
 ##### GitHub Projection
 
