@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: Continue M2 in `docs/milestone-1.0.0.md`: step 1 is done (results in T1, T2 and T6; each further write run on outlet 8 waits for the owner's confirmation). The outlet 8 records, the startup scripts and the run and timing tools are built and tested against test agents (plan items 4 to 8 are prepared), and the short check of the legacy IOC passed on the units on 2026-11-11 (reads only). The plan, revised after a review against the test framework, was accepted by the owner on 2026-11-11, and the owner authorized step 2 the same day; T5, T7, T4, T3, T8 and T9 passed (results in those rows) and the owner confirmed on 2026-11-12 that the units can be cut; the results tables (item 9) are written, and closing M2 remains. The exported and built legacy IOC is under `work/baseline-legacy-20261110-01/` and the snmp3 measurement IOC for step 3 under `work/baseline-snmp3-20261110-01/`. M1, M6 and M10 are also Ready; G1 is Open.
+Next session entry point: M2 is complete (results in its Verification Results and item 9 tables; issue #11 is closed). The Ready rows are M1, M6 and M10; M3 stays Blocked on G1, which is Open. Start with M1, M6 or M10 as the owner chooses.
 
 ## Scope
 
@@ -27,7 +27,7 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Gate | G1 | Laboratory NMC2 and NMC3 units reachable through snmp3 | External gate | Open | No | | Both units answer a GET through the laboratory IOC with snmp3 `0.0.1`; [detail](#g1---laboratory-nmc2-and-nmc3-units-reachable-through-snmp3) |
 | E | M1 | Probe spawn environment equal to the worker environment | Milestone | Not started | Yes | | Probe and worker receive the same environment list; `ConfigTest` passes; tag `0.0.2`; [detail](#m1---probe-spawn-environment-equal-to-the-worker-environment) |
-| Baseline | M2 | Baseline measurement on the two laboratory units | Milestone | In progress | No | D8, D9, D11 | Net-SNMP 5.9.4 read directly and the installed legacy module measured on both units, with the response time of a request and the interval of new values recorded; no product change; [detail](#m2---baseline-measurement-on-the-two-laboratory-units) |
+| Baseline | M2 | Baseline measurement on the two laboratory units | Milestone | Complete | No | D8, D9, D11 | Net-SNMP 5.9.4 read directly and the installed legacy module measured on both units, with the response time of a request and the interval of new values recorded; no product change; [detail](#m2---baseline-measurement-on-the-two-laboratory-units) |
 | A | M3 | Two-device isolation measurement on the current product | Milestone | Blocked | No | G1, D4, M2 | Measured cadence of the healthy unit with the other unit disconnected; [detail](#m3---two-device-isolation-measurement-on-the-current-product) |
 | B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Blocked | No | G1 | NMC2 accepts a 61-OID request without manual `maxVarbinds` tuning; tooBig reaches the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
 | B | M5 | SET outcome contract | Milestone | Not started | No | M4 | Output records complete only on the SET result; a timeout is an alarm; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
@@ -38,7 +38,7 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.9`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 0 Complete, 1 In progress, 7 Not started, 3 Blocked; G1 Open. Ready rows: M1, M6, M10. Backlog contains 1 Open and 2 Deferred rows and is excluded from this tally.
+Current work tally: 1 Complete, 0 In progress, 7 Not started, 3 Blocked; G1 Open. Ready rows: M1, M6, M10. Backlog contains 1 Open and 2 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -173,7 +173,7 @@ Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:09Z; title, l
 Origin: 1.0.0 / M15
 Identity History: M15 -> M2 (created as the next free ID, then placed second so the row order is the execution order, 2026-11-10)
 GitHub Issue: #11 - https://github.com/jeonghanlee/snmp3/issues/11
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -282,6 +282,8 @@ T3, T4 and T8 each end with a run that is complete or incomplete as defined in t
 
 Results tables (item 9), built by `work/baseline-direct-20261109-01/make_tables.py` from the run records, the step 1 result files and the SET logs. The request time of steps 2 and 3 is read at the wire through the relay; that of step 1 is taken by the tool itself. The populations are the 358 objects of step 1 and the 163 legacy signals per unit plus the `EngineTime` record of steps 2 and 3.
 
+Units measured (reported by the owner on 2026-11-12; serial numbers, board numbers and names are not recorded here): PDU1 is an AP8932 with an NMC2 card (hardware revision 05; application and AOS 7.0.8, boot monitor 4.1.0); PDU2 is an AP8932 with an NMC3 card (hardware revision 21; application 2.5.2.5, AOS 2.5.3.2, boot monitor 4.2.9). The two units differ in card generation and firmware, so a difference between them is not attributed to the card alone.
+
 Verdict of each run (the `inputs.json` column compares the recorded SHA-256 with the files on disk):
 
 | Run | Settings | Phases | Verdict | `inputs.json` | Tool SHA-256 | Record directory |
@@ -290,7 +292,7 @@ Verdict of each run (the `inputs.json` column compares the recorded SHA-256 with
 | T3 legacy, module defaults | 600 s cuts | A, B, D, C, D | Complete | 51 of 51 match | `4e56357c` | `work/baseline-legacy-20261110-01/results/defaults-20261112T204054Z/` |
 | T8 snmp3 0.0.1 | 300 s cuts, silence limit 700 s | A, B, D, C, D | Complete | 17 of 17 match | `4e56357c` | `work/baseline-snmp3-20261110-01/results/snmp3-run-20261113T004952Z/` |
 
-Step 1, Net-SNMP read directly (358 objects, request time taken by the tool; a phase 1 entry holds 8 or 9 requests, so its p95 equals its maximum and is not listed separately). The step 1 result files carry the repeat counts (phase 0: 30 requests; phases 1 and 2: runs 0 to 4; SET sender: 10 SETs) but not the Net-SNMP version; the installed `snmpget --version` reports 5.9.4.pre2 (read on 2026-11-12).
+Step 1, Net-SNMP read directly (358 objects, request time taken by the tool; a phase 1 entry holds 8 or 9 requests, so its p95 equals its maximum and is not listed separately). The step 1 result files carry the repeat counts (phase 0: 30 requests; phases 1 and 2: runs 0 to 4; SET sender: 10 SETs) but not the Net-SNMP version; the installed `snmpget --version` reports 5.9.4.pre2 (read on 2026-11-12), and the owner accepted this separate record of the version on 2026-11-12.
 
 | Unit | Measurement | Requests | p50 (ms) | p95 (ms) | Maximum (ms) |
 | --- | --- | --- | --- | --- | --- |
@@ -401,17 +403,20 @@ Thirteen mutations of scratch copies, each aimed at one check of the tool, each 
 
 ##### Closure Evidence
 
-- none
+- Completion Criteria checked on 2026-11-12 against the Verification Results: step 1 files and T1, T2, T6; step 2 run files and T3, T4, T5, T7 with the loaded record list showing one output record on PDU1; the stall of the module on a cut unit measured at 60.1 s and 60.6 s (T3); the tables of item 9; T3, T4 and T8 each a complete run with every `inputs.json` matching the files on disk; the Passive-to-2-second check; T7 and T9 with the original state of outlet 8 restored. The owner accepted the record of the Net-SNMP version and asked for the two units' generation and firmware to be recorded (2026-11-12).
+- Landing: the results and tables are in commits 7eab1ab to 89842da of `docs/milestone-1.0.0.md`, pushed to `origin/master`; after the push of 89842da, `git rev-parse HEAD origin/master` printed the same commit (observed 2026-11-12). The commit that carries this closure edit is the next commit of the file in `git log`.
+- Unproven and left listed: exit code 4, the `WARNING` line and the contents of `inputs.json` beyond the relay script have no mutation row; termination by SIGKILL was not exercised.
+- Issue #11: under the owner's Issue authority of 2026-11-12 its body gained a Result section, a closing comment was posted and the issue was closed as completed; `gh issue view 11` read back state CLOSED, reason COMPLETED, at 2026-11-13T03:03Z.
 
 ##### GitHub Projection
 
 Title: Measure the baseline on both laboratory units
 Labels: enhancement
 GitHub Milestone: 1.0.0
-Observed State: open
+Observed State: closed (completed)
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
-Last Compared: 2026-11-11T06:36Z; issue updatedAt 2026-11-11T06:32:14Z; title, label, assignee jeonghanlee and milestone verified with `gh issue view` after creation.
+Last Compared: 2026-11-13T03:03Z; issue updatedAt 2026-11-13T03:03:28Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the Result section.
 
 #### M3 - Two-device isolation measurement on the current product
 
