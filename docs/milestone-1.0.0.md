@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: M2, M3 (retired by D13) and G1 are complete; issue #3 is closed. The Ready rows are M1, M4, M6, M9 and M10. M1 is the first product change (tag `0.0.2`); M4 opens the sizing and SET chain. Start with the row the owner chooses.
+Next session entry point: Continue M1 in `docs/milestone-1.0.0.md`: items 1 to 9 of the accepted plan are done, T1 to T4 are recorded as observed on the public 1.5.0 Base, and the differences from the plan were accepted on 2026-11-13 (D15); the change and the `CHANGELOG.md` entry are prepared for one commit and the register record for a second, and closing needs landing evidence: the push, the tag `0.0.2` and the update of issue #2 (commits, pushes, tags and issue actions each need their own authority). M2, M3 (retired by D13) and G1 are complete. The other Ready rows are M4, M6, M9 and M10.
 
 ## Scope
 
@@ -26,7 +26,7 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Gate | G1 | Laboratory NMC2 and NMC3 units reachable through snmp3 | External gate | Complete | No | D12 | Both units answer a GET through the laboratory IOC with snmp3 `0.0.1`; [detail](#g1---laboratory-nmc2-and-nmc3-units-reachable-through-snmp3) |
-| E | M1 | Probe spawn environment equal to the worker environment | Milestone | Not started | Yes | | Probe and worker receive the same environment list; `ConfigTest` passes; tag `0.0.2`; [detail](#m1---probe-spawn-environment-equal-to-the-worker-environment) |
+| E | M1 | Probe spawn environment equal to the worker environment | Milestone | In progress | No | D14, D15 | Probe and worker receive the same environment list built from the worker's libraries; the changed tests and the ordinary matrix stage pass; tag `0.0.2`; [detail](#m1---probe-spawn-environment-equal-to-the-worker-environment) |
 | Baseline | M2 | Baseline measurement on the two laboratory units | Milestone | Complete | No | D8, D9, D11 | Net-SNMP 5.9.4 read directly and the installed legacy module measured on both units, with the response time of a request and the interval of new values recorded; no product change; [detail](#m2---baseline-measurement-on-the-two-laboratory-units) |
 | A | M3 | Two-device isolation measurement on the current product | Milestone | Complete | No | G1, D4, M2, D13 | Measured cadence of the healthy unit with the other unit disconnected; [detail](#m3---two-device-isolation-measurement-on-the-current-product) |
 | B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Not started | Yes | G1 | NMC2 accepts a 61-OID request without manual `maxVarbinds` tuning; tooBig reaches the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
@@ -38,7 +38,7 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.9`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 2 Complete, 0 In progress, 9 Not started, 0 Blocked; G1 Complete. Ready rows: M1, M4, M6, M9, M10. Backlog contains 1 Open and 2 Deferred rows and is excluded from this tally.
+Current work tally: 2 Complete, 1 In progress, 8 Not started, 0 Blocked; G1 Complete. Ready rows: M4, M6, M9, M10. Backlog contains 1 Open and 2 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -57,6 +57,8 @@ Current work tally: 2 Complete, 0 In progress, 9 Not started, 0 Blocked; G1 Comp
 | D11 | Create the credential file `ver3.txt` of the legacy module only for the duration of the baseline runs: the run tool writes it from the existing secret files with mode 600 in a new mode-700 directory on tmpfs, and removes it as soon as the IOC has read it, when the run stops or when the tool is terminated; nothing is written under the repository, and each creation needs the owner's permission. | 2026-11-11 |
 | D12 | Accept the baseline run of the snmp3 `0.0.1` measurement IOC on both units (every request answered, the `EngineTime` records advancing) as the observation of G1, in place of a separate `caget` on the laboratory IOC of the application repository. | 2026-11-13 |
 | D13 | Retire the two-device isolation measurement on the current product: the baseline run of the snmp3 `0.0.1` measurement IOC on both units already records the cadence of the healthy unit while the other is cut, and a further run on the laboratory IOC would not change the reference. The three phases and criteria of that row stay the acceptance check of the release row. | 2026-11-13 |
+| D14 | Give the probe and the worker one environment list built by one function from the libraries of the worker executable: the worker path must be set before `snmp3Load`, the probe runs with that list, a load without a worker path or with a worker whose `ldd` fails is rejected, and a change of the worker path after a successful load is rejected. The sanitizer entries are not passed to the probe, which has no qualification, and stay unproven. | 2026-11-13 |
+| D15 | Accept the differences between the accepted plan of M1 and the work as run, as listed in its detail: the order of test writing and code change, the helper design, the scope of the startup-order search, the construction of the four preflight cases of `record-startup`, and the verification Base (the public 1.5.0 tree, after the earlier Base tree was removed). The ordinary-stage criterion is met by 40 PASS and 1 NOT APPLICABLE (`tsan`) cells whose names and statuses are equal on the unchanged and the changed tree. The plan text stays as accepted. Add the `0.0.2` entry of `CHANGELOG.md` to the commit that carries the change, so that tag `0.0.2` names it. | 2026-11-13 |
 
 ### ID Migration
 
@@ -108,7 +110,7 @@ M3, M4 and M9 need one AP8932 unit with an NMC2 card and one with an NMC3 card, 
 Origin: 1.0.0 / M1
 Identity History: none
 GitHub Issue: #2 - https://github.com/jeonghanlee/snmp3/issues/2
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -116,45 +118,91 @@ Status: Not started
 
 ##### Scope
 
-- One shared environment list used by the probe spawn and the worker spawn.
-- A configuration test that the probe runs with that list.
+- One function builds the environment list from the worker executable path and a sanitizer flag: `PATH=/usr/bin:/bin`, `LANG=C`, `LC_ALL=C`, `LD_LIBRARY_PATH` (the sorted, unique directories of the worker's libraries as `ldd` reports them, joined by `:`, the rule of `Supervisor.cpp` today) and the two sanitizer entries when the flag is set. The probe spawn in `Config.cpp` and the worker spawn in `Supervisor.cpp` both use it.
+- `snmp3WorkerPath` is called before `snmp3Load`. `Config::load` rejects a load while the worker path is unset, and rejects it when `ldd` of the worker fails, before any probe starts. A change of the worker path after a successful load is rejected, so the list that the probe received is the list of the worker that starts (setting the same path again stays accepted). The probe gets the list with the sanitizer flag off, because the load has no qualification.
+- Every tracked startup script, document, tool and test that calls `snmp3Load` sets the worker path first (20 tracked files by `grep` on 2026-11-13, calls and mentions together: `Register.cpp`, the C++ tests under `tests/rewrite`, the Python tests and `config/startup.cmd`, `docs/snmp-performance/tools`, and the documents that show the startup order), and `docs/legacy-review.md`, whose open finding about the probe environment (the rows at lines 101 and 122) is updated to the resolved behavior.
+- Tests: the environment of a real probe process and of a real worker process compared, and the two rejections.
 
-Out of scope: the catalogue format, the capability comparison in the supervisor, and any change to what the worker loads.
+Out of scope: the catalogue format, the capability comparison in the supervisor, any change to what the worker loads, the `ldd` spawn of `Supervisor.cpp`, which keeps its own three-entry list, and the startup scripts of other repositories.
 
 ##### Completion Criteria
 
-- The probe and the worker are spawned with byte-identical environment lists built by one function.
-- `ConfigTest` and the ordinary matrix stage pass on the changed product.
+- With the sanitizer flag off, the probe and the worker are spawned with byte-identical environment lists built by one function from the worker executable; the test compares the two environments observed from the running processes, not the return value of that function.
+- A load with the worker path unset, or with a worker for which `ldd` fails, is rejected with a clear error and starts no probe, and a change of the worker path after a successful load is rejected.
+- Every tracked file that calls `snmp3Load` sets the worker path first, the startup examples run as written, and the open finding about the probe environment in `docs/legacy-review.md` states the resolved behavior.
+- The checks of the changed tests were seen failing on the unchanged code and on each mutation of the table in the Test Plan, for the intended assertion.
+- The ordinary matrix stage passes on the changed product with the same cells as on the unchanged tree.
+- Tag `0.0.2` names the commit that carries the change; it is created and pushed only under separate tag authority.
+- Unproven by these checks: the sanitizer entries (the probe never receives them and the worker receives them only in a qualification run), and termination of the helper by a signal during the probe.
+- Compatibility fact recorded at closure: the startup of the application repository (`snmp3.iocsh` of its laboratory IOC, commit `3314b1e`) calls `snmp3Load` before `snmp3WorkerPath` and is rejected after this change until the two lines are swapped; that change is outside this repository. `tests/rewrite/test_apcpdu_startup.py` and `test_apcpdu_startup.pl` run that application startup, are not cells of the ordinary stage, and fail against an application whose startup keeps the old order; they stay unrun until the swap.
 
 ##### Dependencies And Decisions
 
-- none
+- D14 fixes one list from one function built from the worker's libraries, the worker path before the load, the three rejections (unset path, failing `ldd`, path change after a load), and the sanitizer entries left unproven.
+- Not part of this unit: the swap of the two startup lines in the application repository; the owner decides whether it becomes work of its own.
+- The body of issue #2 states the earlier acceptance criteria (a `ConfigTest` case, one function); it is updated at closure under separate issue authority.
+- D15 accepts the differences between the accepted plan and the work as run, which are listed here and recorded 2026-11-13; the plan text below is unchanged:
+  1. Order: the product code was edited before T1, T2 and the search of T4 were written (items 3 and 4 of the plan). The observation on the unchanged code was made afterwards, on a clone of the commit with only the new test files added, and it gives the same failing checks on the two Bases that were used.
+  2. Helper: the plan asked for an extra test library in a separate directory; the probe role of `snmp3EnvHelper` links Base `Com` instead (`tests/rewrite/Makefile`), and the earlier session observed directly that its set of `ldd` directories then differs from the worker's, which is the purpose of that library. The worker environment is read from `/proc/<pid>/environ` of the real `snmp3Worker` (the fallback the plan names), and the supervisor was not run once with the helper as the worker.
+  3. Search scope of T4: a Markdown file is searched per code block, any other file by a worker-path call earlier in the file; several scripts inside one code file are not told apart, and scripts generated at run time are covered by the cells of T3.
+  4. Wording of T3: the plan says all cells PASS, and both trees give 40 PASS and 1 NOT APPLICABLE (`tsan`, by design on every environment); D15 accepts that count as meeting the criterion.
+  5. Test change outside the listed scope: the four preflight cases of `tests/rewrite/test_record_startup.py` (`production-break`, `production-continue`, `failure-break`, `failure-continue`) gave `snmp3WorkerPath` a path that does not exist so that Supervisor construction fails. After this unit `Config::load` rejects such a path at load (`ldd` fails), so the Runtime preflight failure was no longer reached and the cell failed. The cases now give a link to the real worker and the runner removes it after `snmp3Load` returns, while the startup script waits on a FIFO; every check and expected value is unchanged. The ten cases of the cell pass, and a mutation of the new code (the removal left out) fails six checks, among them `startup-real-preflight-failure`, as predicted before the run. `tests/rewrite/README.md` describes the new construction in the paragraph on missing-worker cases.
+  6. Verification Base: the baseline of item 1 and the first run of T3 used the Base of the internal 1.3.0 tree, which the owner has since removed from this host. All results recorded here were produced again against the Base of the public `EPICS-env-distribution` 1.5.0 tree for Debian 13 (EPICS Base 7.0.10, the version the product requires); `configure/RELEASE.local`, which git ignores, names it. The products built against the earlier Base are kept under `work/products-alsu-1.3.0-base/`.
+  7. Unproven by these checks, unchanged from the criteria above: the sanitizer entries, and termination of the helper by a signal during the probe. The ordinary stage does not run the instrumented product.
+  8. Second-person pass on the changed documents (item 8 of the plan), run 2026-11-13 over the changed text of `docs/snmp-rewrite-config.md`, `docs/snmp-worker-reference.md`, `docs/configure-procedure.md`, `docs/legacy-review.md` and `tests/rewrite/README.md`: the first pass found one minor finding, that the sentence on the helper environment did not say that a sanitizer qualification run adds two options to the worker only; the owner had it applied, and the second pass, from the seat of a reader of the configuration reference alone, found nothing above the severity floor. The record is the report of that session. The SHA-256 manifest of the evidence directory was taken before that added sentence, so `docs/snmp-rewrite-config.md` is the one entry of it that differs from the file.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-11-13, accepted by the owner after the second-person and third-person passes of this detail converged
+Implementation Authorization: 2026-11-13, by the owner: items 1 to 9 of the accepted plan, that is edits and test runs in this repository; every commit, push, tag and issue action needs its own authority
 Superseded Plan Artifacts: none
 
-1. Move the worker environment list of `Supervisor.cpp` into one function visible to `Config.cpp`.
-2. Pass that list to the probe `posix_spawn` instead of `environ`.
-3. Add a `ConfigTest` case that runs the probe through a helper printing its environment and compares the list.
-4. Run `tests/rewrite/run_matrix.py --stages environment,ordinary`.
+1. On the unchanged tree run `python3 tests/rewrite/run_matrix.py --stages environment,ordinary --output work/matrix-m1-baseline` from the repository root (the output directory must not exist) and keep the result as the baseline; the series below starts only when every cell passes.
+2. Write a helper `snmp3EnvHelper` (source `tests/rewrite/EnvHelper.cpp`, target in `tests/rewrite/Makefile`) that writes its environment, one entry per line in order, to a file named from its own executable path and its mode (`--capabilities` or `--ipc-fd`). As the probe it also prints capability output that the load accepts, and it is linked to one extra test library in a separate directory so that the library directories of the probe helper and of the worker differ. Before writing T1, run the real supervisor once with the helper as the worker; if the supervisor refuses it for lack of the IPC start, T1 reads the environment of the real `snmp3Worker` from `/proc/<pid>/environ` instead, with the pid taken from `WorkerSnapshot::pid` of the supervisor.
+3. Write T1, T2 and the search of T4 before any code change. T1 runs the shipped load and launch paths from a test process whose environment holds a marker variable and a different `LD_LIBRARY_PATH`, with the worker path set first; the expected list is the three fixed entries as literals and the library path from the directories of the worker's `ldd` under the rule above (decided rule; source: the existing worker behavior in `Supervisor.cpp`). T2 loads with the worker path unset, loads with a worker that `ldd` rejects (a script), and changes the worker path after a successful load.
+4. Run T1, T2 and T4 on the unchanged code and require T1 to fail on the assertion that the probe environment holds no variable outside the list, T2 to fail because no rejection happens, and the search of T4 to fail because it finds the calls in the old order. Record the failing output.
+5. Implement the shared function, use it for both spawns, make `Config::load` require the worker path and reject a failing `ldd`, make `Config::setWorkerPath` reject a different path once a load has succeeded, keep the phrase `nativeProbe is absolute` in the help text of `snmp3Load` (`test_config.py` expects it), and update every file of the scope that calls `snmp3Load`.
+6. Run T1, T2 and T4 until all pass, then run each mutation of the table in the Test Plan on a scratch copy and require the predicted failing assertion.
+7. Run the ordinary stage again on the changed tree (T3), with `--output work/matrix-m1-changed`, and compare the name and status columns of its `cells.tsv` with those of the baseline of item 1.
+8. The documents that show the startup order changed, and the open finding in `docs/legacy-review.md` is updated: run a second-person pass on the changed text before the commit.
+9. Keep the helper, the test outputs and the SHA-256 of every test and product file the runs used under `work/`.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Configuration | `ConfigTest` case comparing the probe environment with the worker list | Linux host, ordinary product | Lists identical |
-| T2 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` | Linux host, ordinary product | All cells PASS |
+| T1 | Configuration and launch | Observe the environment of the real probe process and of the real worker process started through the shipped load and launch paths, with a marker variable and a different library path in the test process | Linux host, ordinary product | The two lists are byte-identical, hold no variable outside the list, and the library path equals the sorted unique directories from the worker's `ldd` |
+| T2 | Configuration failure | Load with the worker path unset, load with a worker for which `ldd` fails, and change the worker path after a successful load | Linux host, ordinary product | Each of the first two loads is rejected with an error and starts no probe, and the path change is rejected with the earlier path kept |
+| T3 | Regression | `python3 tests/rewrite/run_matrix.py --stages environment,ordinary --output <new directory>` from the repository root, once on the unchanged tree and once on the changed tree, each with its own output directory | Linux host, ordinary product | All cells PASS on both trees and the name and status columns of `cells.tsv` equal |
+| T4 | Documents and startup scripts | Run the startup example of `docs/snmp-rewrite-config.md` and of `docs/configure-procedure.md` as written against the shipped IOC with the configuration that the document prepares, and search the files of the scope for a `snmp3Load` call that is not preceded by `snmp3WorkerPath` in the same script or example | Linux host, ordinary product | Both examples reach `iocInit` without an error, and the search finds no call without the worker path before it |
+
+The search of T4 reads static text; the startup scripts that the Python and C++ tests generate are exercised by the cells of T3, where a missing worker path rejects the load.
+
+The mutations below are applied one at a time to scratch copies of the changed tree; the exact old and new text of each is written when the code exists, the failing assertion of each is fixed before the series, and the series starts only when the changed tree passes T1, T2 and T4:
+
+- V1: the probe spawn passes `environ` again; expected failing assertion: the probe environment holds no variable outside the list.
+- V2: the shared function leaves out `LD_LIBRARY_PATH`; expected failing assertion: the library path equals the directories from the worker's `ldd`.
+- V3: the probe path appends one extra entry; expected failing assertion: the two lists are byte-identical.
+- V4: the probe path reorders two entries; expected failing assertion: the two lists are byte-identical, order included.
+- V5: an `ldd` failure is ignored and an empty library path is used; expected failing assertion: the load with a failing `ldd` is rejected.
+- V6: the probe list is built from the probe's own `ldd`; expected failing assertion: the library path equals the directories from the worker's `ldd`.
+- V7: the load no longer rejects an unset worker path; expected failing assertion: the load with the worker path unset is rejected.
+- V8: the rejection of a worker path change after a successful load is removed; expected failing assertion: the path change after a load is rejected.
+- V9: the two startup lines of one example are put back in the old order; expected failing assertion: the search finds no call without the worker path before it.
+
+Not covered and listed as unproven: the sanitizer entries, because the probe never receives them and the planned stages do not run the instrumented product, and termination of the helper by a signal during the probe.
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Linux host, ordinary product | Pending | none |
-| T2 | Not run | Linux host, ordinary product | Pending | none |
+| T1 | 2026-11-14T01:44Z | Debian 13 host, ordinary product built against Base 7.0.10 of the public 1.5.0 tree | Pass | The 6 checks of `snmp3EnvTest` that belong to T1 pass (probe and worker observed, no variable outside the list, fixed entries equal the literals, probe and worker library paths equal the directories of the worker's `ldd`, probe and worker environments byte-identical); the worker environment is read from `/proc/<pid>/environ` of the real `snmp3Worker`. The same binary on the unchanged tree with the same test files (observed 2026-11-14T01:57Z) fails 4 of these 6; mutations V1 to V4 and V6 each fail the predicted checks. Evidence: `work/m1-evidence-base150/envtest.out`, `work/tmp/unchanged-base150/envtest.out`, `work/tmp/mutation-base150/` |
+| T2 | 2026-11-14T01:44Z | Same | Pass | The 7 checks of `snmp3EnvTest` that belong to T2 pass (load without a worker path, load with a worker whose `ldd` fails, each rejected with its reason and starting no probe; path change after a load rejected with the earlier path kept; the same path accepted again). On the unchanged tree 6 of these 7 fail (observed 2026-11-14T01:57Z); mutations V5 to V8 each fail the predicted checks. Evidence: same files as T1 |
+| T3 | 2026-11-14T01:26Z on the unchanged tree, 2026-11-14T01:17Z on the changed tree | Same host, one build per tree against the same public 1.5.0 Base | Pass, with a wording difference | Both runs end `PASS=40, NOT APPLICABLE=1`; the 41 rows of the two `cells.tsv` are equal in name and status (`diff` of the first two columns is empty); the only NOT APPLICABLE cell is `tsan`, which the matrix writes NOT APPLICABLE on every environment. The plan text says "all cells PASS"; the wording is listed under Dependencies And Decisions for the owner. Earlier run on the changed tree against the Base of the internal 1.3.0 tree (2026-11-13T21:28Z) ended with one FAIL, `record-startup`, for the reason recorded under Dependencies And Decisions; that Base tree is gone from this host, so both runs were redone on the public tree. Evidence: `work/matrix-m1-baseline-base150/`, `work/matrix-m1-changed-base150/`, `work/matrix-m1-changed/` (the earlier FAIL run) |
+| T4 | 2026-11-14T01:44Z to 2026-11-14T01:45Z | Same as T1 | Pass | The search checked 17 `snmp3Load` calls and found 0 without a worker path before it; on the unchanged tree it finds 11 of 17 (2026-11-14T01:57Z); mutation V9 makes it fail with exit 1. The block of `docs/snmp-rewrite-config.md` is identical to the shipped `tests/rewrite/config/startup.cmd`; run as written through the steps of `docs/configure-procedure.md` it reaches `iocInit`, prints the three `snmp3 config:` lines and exits 0. The block of `docs/snmp-worker-reference.md` also runs, from `Running` to `Stopped` with the worker reaped and not forced. Evidence: `work/m1-evidence-base150/order.out`, `example1.out`, `example2.out` |
+
+Mutation series V1 to V9 (rerun on the public 1.5.0 Base, observed 2026-11-14T01:57Z to 2026-11-14T01:59Z): each copy builds, the library the run loads is the copy's own, the SHA-256 of the mutated file equals the recorded `mutated_sha256`, and the set of failing checks equals the predicted `intended` plus `also` set in every row; V9 fails its search with exit 1. Evidence: `work/tmp/mutation-base150/` (table, copies, results). SHA-256 of the test and product files that the runs used: `work/m1-evidence-base150/SHA256SUMS` (23 files; the six product hashes equal those in `environment.json` of the changed matrix run).
 
 ##### Closure Evidence
 
