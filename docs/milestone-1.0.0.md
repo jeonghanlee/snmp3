@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: Review the plan of M4 in `docs/milestone-1.0.0.md` with `plan.md` of the milestone-tracking skill: it is the nearest Ready row and its plan is a draft, so acceptance and implementation authorization are still open (commits, pushes, tags and issue actions each need their own authority). M1 (tag `0.0.2`), M2, M3 (retired by D13) and G1 are complete. The other Ready rows are M6, M9 and M10.
+Next session entry point: M4 in `docs/milestone-1.0.0.md` is implemented and T1 to T4 are recorded (2026-11-14); nothing is committed. Next: a second-person pass of the changed documents, then commit, tag `0.0.3`, CHANGELOG entry and the update of issue #4, each under its own authority. M16, the recovery of a unit that returns after a power or network loss, follows; its plan is a draft.
 
 ## Scope
 
@@ -29,16 +29,17 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | E | M1 | Probe spawn environment equal to the worker environment | Milestone | Complete | No | D14, D15 | Probe and worker receive the same environment list built from the worker's libraries; the changed tests and the ordinary matrix stage pass; tag `0.0.2`; [detail](#m1---probe-spawn-environment-equal-to-the-worker-environment) |
 | Baseline | M2 | Baseline measurement on the two laboratory units | Milestone | Complete | No | D8, D9, D11 | Net-SNMP 5.9.4 read directly and the installed legacy module measured on both units, with the response time of a request and the interval of new values recorded; no product change; [detail](#m2---baseline-measurement-on-the-two-laboratory-units) |
 | A | M3 | Two-device isolation measurement on the current product | Milestone | Complete | No | G1, D4, M2, D13 | Measured cadence of the healthy unit with the other unit disconnected; [detail](#m3---two-device-isolation-measurement-on-the-current-product) |
-| B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Not started | Yes | G1 | NMC2 accepts a 61-OID request without manual `maxVarbinds` tuning; tooBig reaches the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
+| B | M4 | Request sizing with advertised message size and tooBig split | Milestone | In progress | No | G1, D16 | At `maxVarbinds=61` the records of both units fill without manual tuning; a rejection, read or unreadable, halves the batch and shows on the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
 | B | M5 | SET outcome contract | Milestone | Not started | No | M4 | Output records complete only on the SET result; a timeout is an alarm; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
 | C | M6 | Reply time stamp on records | Milestone | Not started | Yes | | Record TIME equals the worker receive time with `TSE=-2`; tag `0.0.5`; [detail](#m6---reply-time-stamp-on-records) |
 | C | M7 | Reply-driven processing and driver-owned periodic acquisition | Milestone | Not started | No | M4, M6 | `SCAN=I/O Intr` records process on reply arrival at the configured period; tag `0.0.6`; [detail](#m7---reply-driven-processing-and-driver-owned-periodic-acquisition) |
 | Performance | M8 | GETBULK table reads | Milestone | Not started | No | M4 | A table read uses one GETBULK request where the profile allows it; tag `0.0.7`; [detail](#m8---getbulk-table-reads) |
 | D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag `0.0.8`; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.9`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
-| Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
+| Recovery | M16 | Recovery when a unit returns after a power or network loss | Milestone | Not started | Yes | G1, D18 | With the IOC left running, the records of a unit return to normal by themselves after the unit's power and after its network link come back; tag `0.0.10`; [detail](#m16---recovery-when-a-unit-returns-after-a-power-or-network-loss) |
+| Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M16 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 3 Complete, 0 In progress, 8 Not started, 0 Blocked; G1 Complete. Ready rows: M4, M6, M9, M10. Backlog contains 1 Open and 2 Deferred rows and is excluded from this tally.
+Current work tally: 3 Complete, 1 In progress, 8 Not started, 0 Blocked; G1 Complete. Ready rows: M6, M9, M10, M16. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -59,6 +60,12 @@ Current work tally: 3 Complete, 0 In progress, 8 Not started, 0 Blocked; G1 Comp
 | D13 | Retire the two-device isolation measurement on the current product: the baseline run of the snmp3 `0.0.1` measurement IOC on both units already records the cadence of the healthy unit while the other is cut, and a further run on the laboratory IOC would not change the reference. The three phases and criteria of that row stay the acceptance check of the release row. | 2026-11-13 |
 | D14 | Give the probe and the worker one environment list built by one function from the libraries of the worker executable: the worker path must be set before `snmp3Load`, the probe runs with that list, a load without a worker path or with a worker whose `ldd` fails is rejected, and a change of the worker path after a successful load is rejected. The sanitizer entries are not passed to the probe, which has no qualification, and stay unproven. | 2026-11-13 |
 | D15 | Accept the differences between the accepted plan of M1 and the work as run, as listed in its detail: the order of test writing and code change, the helper design, the scope of the startup-order search, the construction of the four preflight cases of `record-startup`, and the verification Base (the public 1.5.0 tree, after the earlier Base tree was removed). The ordinary-stage criterion is met by 40 PASS and 1 NOT APPLICABLE (`tsan`) cells whose names and statuses are equal on the unchanged and the changed tree. The plan text stays as accepted. Add the `0.0.2` entry of `CHANGELOG.md` to the commit that carries the change, so that tag `0.0.2` names it. | 2026-11-13 |
+| D16 | Plan of M4 within its scope: the batch is halved rounded down with a minimum of 1; NMC3 is judged unchanged by a split count of 0 and no `tooBig` message on its records at `maxVarbinds=50`, and the interval of its `snmpEngineTime` record is recorded next to the T8 figures of M2 (PDU2, phase A: p50 4936, p95 10432, maximum 11403 ms) with no acceptance threshold, because performance criteria are out of the release scope (M13); the split count is the cumulative number since the IOC started and `snmp3RuntimeReport` shows it; the advertised size is checked on the wire for an SNMPv3 profile; T3 runs through the measurement IOC of the baseline rebuilt against the new module with the two startup lines swapped, and its worker-log check is replaced by the record state because production redirects the worker log to `/dev/null`. | 2026-11-14 |
+| D17 | M4 also adjusts on a timeout, after the diagnosis of both units on 2026-11-14: a timed-out request during which the library counted an unparsable reply (`snmpInASNParseErrs`) is a rejection that could not be read and halves the batch like a tooBig reply; a timed-out request with no such count is no reply from the unit and leaves the batch unchanged. The record message names which of the three it was. T3 runs both units with the bindings of the measurement IOC (164 read bindings per unit) at `maxVarbinds=61`. This revises the plan accepted under D16, whose rounding, split count and NMC3 comparison stay. | 2026-11-14 |
+| D18 | Add the recovery of a unit that returns as work of release 1.0.0 (M16): an IOC that stays up while a unit loses power or its network link must return to normal by itself when the unit answers again. The first step is to observe whether the current product already does. | 2026-11-14 |
+| D19 | New tests are written in bash, which starts and stops the processes, and Perl, which reads the records and judges; they join the matrix as new cells beside the existing Python cells, and T1 of M4 is the first. Moving the existing cells to bash and Perl is separate work (M17) in Backlog and starts by the owner's decision. | 2026-11-14 |
+| D20 | M4: the `tooBig` message is set on the records of every request that the unit rejects with tooBig, not only on a batch that has reached the floor, and `unreadable rejection` and `no reply` are set the same way. The record did fail for that reason in that round, and a message at the floor only would need the batch limit passed to the record side. This accepts difference 2 of M4; the Scope line of M4 keeps its earlier wording. | 2026-11-14 |
+| D21 | M4: differences 1, 3, 4, 5 and 6 between the accepted plan and the work as run are accepted as listed in the detail of M4. Difference 7, the batch limit shared by endpoints of one host address, is left as it is; the units in use have different addresses. | 2026-11-14 |
 
 ### ID Migration
 
@@ -549,61 +556,100 @@ Last Compared: 2026-11-13T18:14Z; issue updatedAt 2026-11-13T18:14:55Z; title, l
 Origin: 1.0.0 / M3
 Identity History: M3 -> M4 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #4 - https://github.com/jeonghanlee/snmp3/issues/4
-Status: Not started
+Status: In progress
 
 ##### Summary
 
-Problem 1 and cause B. `maxVarbinds` is a fixed per-profile value, the session does not advertise a maximum message size, and a tooBig reply is a `ProtocolFailure` without a product response. Net-SNMP sets the SNMPv3 header field `msgMaxSize` from the session `rcvMsgMaxSize` (minimum 484); with no setting the library advertises no limit, and the NMC2 card then returns malformed replies that the library drops. This unit advertises a configured size, splits the batch of an address once per tooBig reply down to a floor, and reports a tooBig at the floor as the record alarm message.
+Problem 1 and cause B. In the product as it stands (code read on 2026-11-14) `maxVarbinds` is a fixed per-profile value, the worker session sets no `rcvMsgMaxSize`, a reply with an error status ends every value of its request as a `ProtocolFailure` with an empty record message, and the scheduler builds the next request with the same number of values, so a request the unit rejects is sent again unchanged. The library advertises 65507 when nothing is set, the configured value from 484 to 65507 otherwise, refuses a session below 484 and caps a larger value at 65507 (observed on the wire with the fixture agent, Net-SNMP 5.9.4, `work/tmp/m4-verify/advertised.txt`). This unit advertises a configured size, halves the batch of an address when the unit rejects a request, whether the rejection can be read or not, and reports the cause as the record message.
+
+Diagnosis of both laboratory units on 2026-11-14, read only, with a single-request tool, the baseline relay and the library debug output (`work/tmp/m4-diagnose/`): the limit is the size of the reply, not the number of values. Both cards answer a reply of 1341 bytes on the wire (measured three times on each) and reject, three times of three on each, the request whose reply would be 1342 bytes; that size is calculated from the replies of the single objects, and the same calculation gave 1341 for the request measured at 1341 (`wire-limit2.txt`, `wire-limit3.txt`); 61 short values pass, and the 358-object set passes with 51 or 50 values depending on the order. A rejection is always a 118-byte tooBig reply with an empty binding list. A share of these rejections cannot be decrypted: the card encrypts with a time one second earlier than the engine time it writes in the header, and every captured unreadable message (3 of NMC2, 3 of NMC3) decrypts to the same tooBig reply with that earlier time. The library drops such a message, counts it in `snmpInASNParseErrs`, and the request ends as a timeout. Observed shares: NMC2 10 of 24 and 3 of 8, NMC3 3 of 150; the NMC2 card takes 0.3 to 0.5 s per reply and the NMC3 card about 0.02 s. No reply within the limit was unreadable in about 70 reads. Advertising a size is honored by both cards and does not change the unreadable share. Every statement of this detail about the units rests on these observations; earlier records of other units are not used.
 
 ##### Scope
 
 - Profile field `maxMessageSize` (default 1472, range 484 to 65507) set on the worker session.
-- On `ProtocolFailure` with status tooBig, the scheduler halves the batch of that address for the retry, down to one varbind, and keeps the reduced batch until the worker restarts.
+- On `ProtocolFailure` with status tooBig, the scheduler halves the batch of that address for the retry, rounded down (61, 30, 15, 7, 3, 1), down to one varbind, and keeps the reduced batch until the worker restarts.
 - Alarm message `tooBig` on the records of a batch that reaches the floor.
+- A timeout is classified by the library count of unparsable replies, read by the worker before and after the request: raised means a rejection arrived that could not be read, which halves the batch like a tooBig reply; unchanged means no reply from the unit, which leaves the batch as it is. Each case has its own record message. The count rises for an unparsable reply on an SNMPv3 session; on SNMPv2c it was observed not to rise, so such a reply is not told apart from no reply; SNMPv1 was not run.
 - Documentation of the field and the behavior in `snmp-rewrite-config.md`, `snmp-record-behavior.md` and `snmp-native-reference.md`.
 
 Out of scope: GETBULK (M8), learning the agent limit across restarts, and changes to other error statuses.
 
+Limits stated in the documentation of the field, with no work attached: an SNMPv1 or SNMPv2c message has no size field, so the setting has an effect on SNMPv3 sessions only; a request larger than `maxMessageSize` gets no reply at all, not even a tooBig, so the size must exceed the request of `maxVarbinds` values (observed 2026-11-14 with the fixture agent, `work/tmp/m4-verify/boundary.txt`).
+
 ##### Completion Criteria
 
-- With `maxVarbinds=61` the NMC2 unit's records fill without manual tuning, and the split count per address is visible in `snmp3Report`.
-- The fixture agent's tooBig cell produces the split and, at the floor, the `tooBig` message on the record.
-- The NMC3 unit's behavior is unchanged at `maxVarbinds=50`.
+- With `maxVarbinds=61` and the bindings of the measurement IOC (164 read bindings per unit; a request of their first 61 is rejected by both units and one of 30 or 32 is answered with 809 to 856 bytes, `work/tmp/m4-diagnose/wire-ioc-bindings.txt`) the records of both units fill without manual tuning, no request times out once the batch has settled, and the split count per address (cumulative since the IOC started) is visible in `snmp3RuntimeReport`.
+- The fixture agent's tooBig cell produces the split and, at the floor, the `tooBig` message on the record; another error status of the fixture agent changes neither the batch limit nor the message.
+- A timed-out request with a raised count of unparsable replies halves the batch like a tooBig reply; a timed-out request without it leaves the batch unchanged; the record message tells tooBig, an unreadable rejection and no reply apart.
+- For an SNMPv3 profile the advertised size seen on the wire equals the configured `maxMessageSize`.
+- The NMC3 unit's behavior is unchanged at `maxVarbinds=50`: its split count stays 0 and no record shows a `tooBig` message; the interval between new values of its `snmpEngineTime` record is recorded next to the T8 figures of M2, with no threshold.
+- The checks were seen failing on the unchanged code and on each mutation of the table in the Test Plan, for the intended assertion.
+- The 41 cells of the ordinary matrix stage on the unchanged tree keep their name and status on the changed tree (40 PASS and 1 NOT APPLICABLE, `tsan`, as accepted for M1 in D15), and the cells that M4 adds are PASS.
 
 ##### Dependencies And Decisions
 
 - G1 complete (2026-11-13); status restored to Not started.
+- D16 fixes the rounding, the NMC3 comparison, the meaning of the split count, the wire check of the advertised size, and the route and expected result of T3.
+- T3 needs an IOC built against the new module: the measurement IOC of the baseline (D12) rebuilt with the two startup lines swapped. The swap in the application repository stays the owner's question recorded under M1.
+- D17 adds the timeout as a signal and fixes how it is classified, from the diagnosis recorded in the Summary.
+- D19 fixes the T1 harness: bash starts and stops the processes, Perl reads the records and judges, and it joins the matrix as a new cell; the existing cells stay as they are.
+- D20 fixes where the three record messages are set: on every request that fails for that reason.
+- D21 accepts the other differences listed below and leaves difference 7 as it is.
+- Differences between the accepted plan and the work as run, recorded 2026-11-14 and accepted by D20 and D21; the plan text is unchanged:
+  1. Order: the T2 cells `unreadable-halves`, `no-reply-keeps` and `split-count` and the whole of T1 were written after the product code. T1 was then run on the unchanged code with only the test files added, and mutations V11 (an unreadable rejection does not halve) and V12 (the split is not counted) were added to the table to prove the three cells.
+  2. Message (D20): the plan sets the `tooBig` message on the records of a batch that reaches the floor. The code sets it on the records of every request that the unit rejects with tooBig, so the records of a larger rejected request show it for one round as well; `unreadable rejection` and `no reply` are set the same way.
+  3. Product fix outside the list of the plan, found by T1: Base keeps `NAMSG` when it equals `AMSG`, so a record that failed twice with the same message kept the message after its request succeeded. A completion without a message now clears `NAMSG` first (`Request.cpp`).
+  4. T3: the bindings of the measurement IOC carry no group and its requests hold one value, so at `maxVarbinds` 61 no request is rejected and the split cannot show. The split on the units was observed with 61 integer bindings of each unit in one group through the production `snmp3Ioc`, read only. The runtime report gives a new line `snmp3 batch:` after the queue line, because a check of `test_records.py` fixes the end of the `snmp3 queue:` line.
+  5. Test helper: `tests/rewrite/helpers/ipc_fault.py` walks the profile of the Bootstrap frame by fixed offsets and was adjusted by the 4 bytes of `maxMessageSize`.
+  6. Wire check (c): the engine discovery request of the Net-SNMP library carries 65507 whatever the session sets; the check covers the requests that ask for objects.
+  7. Observed and not acted on: two endpoints with the same host address and different ports share one address in the scheduler, and so one batch limit (seen when both units were reached through loopback relays).
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
-Superseded Plan Artifacts: none
+Plan Status: accepted
+Plan Acceptance: 2026-11-14, accepted by the owner after the second-person passes of this detail were closed
+Implementation Authorization: 2026-11-14, by the owner: items 1 to 6 of the accepted plan, that is edits and test runs in this repository and the read-only run against the two units in item 6; every commit, push, tag and issue action needs its own authority
+Superseded Plan Artifacts: the plan accepted on 2026-11-14 under D16, revised by D17 after the diagnosis of both units; its item 1 is partly done (the proxy records the advertised size, and the T2 cells for the tooBig rule were seen failing on the unchanged code, `work/m4-evidence/t2-unchanged.txt`)
 
-1. Add `maxMessageSize` to the configuration schema and the worker open path (`rcvMsgMaxSize`).
-2. Add the per-address batch reduction in the scheduler on tooBig and expose it in the report.
-3. Add the floor message in the request completion.
-4. Extend `NativeTest` with the fixture agent's tooBig cell and `SchedulerTest` with the reduction.
-5. Run both units with `maxVarbinds=61` and record the results.
+1. Write the checks before the code: make the fault proxy of the tests record the `msgMaxSize` of an SNMPv3 request (`header[1]` of the message header, which it parses but does not keep), write T1 and T2 and the table of mutations from D16 and D17, rehearse (d) on the worker path, run them on the unchanged code and record the failing output, and start the mutation series only after the changed tree passes every check.
+2. Add `maxMessageSize` to the configuration schema and the worker open path (`rcvMsgMaxSize`).
+3. Add the per-address batch reduction in the scheduler on tooBig and on a timeout that the worker reports with a raised count of unparsable replies (`snmp_get_statistic(STAT_SNMPINASNPARSEERRS)`, read before and after the request), and expose the split count in `snmp3RuntimeReport`.
+4. Add the three record messages (tooBig, unreadable rejection, no reply) in the request completion, and document the field and its limits.
+5. Run T1 and T2 until they pass, then each mutation of the table on a scratch copy against the same Base as the unchanged run.
+6. Build the measurement IOC of the baseline against the new module with the two startup lines swapped, run both units with `maxVarbinds=61` (NMC3 with 50) and record the results with T4.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Native | `NativeTest` against the fixture agent cell returning tooBig | Linux host, ordinary product | Split then completion; floor reports the message |
-| T2 | Scheduler | `SchedulerTest` cases for the batch reduction and persistence | Linux host | Reduction per address as specified |
-| T3 | Device | Both units at `maxVarbinds=61` through the laboratory IOC | Laboratory IOC, both units | NMC2 fills after splits; NMC3 unchanged; no ScopedPDU error in the worker log |
-| T4 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` | Linux host | All cells PASS |
+| T1 | IOC | A new matrix cell in bash and Perl (D19), with the real IOC, worker and fixture agent behind the fault proxy, in place of `NativeTest`, which includes only `Config.h`, `Capabilities.h` and `Worker.h` and cannot observe the split or the record message. (a) The agent cell that always answers tooBig, on one SNMPv2c and one SNMPv3 profile: the batch limit goes 8, 4, 2, 1 and only that record shows `tooBig`, the others fill. (b) No tooBig, and the agent cell that answers another error status: the batch limit does not change and no `tooBig` message shows. (c) SNMPv3 profile: the advertised size on the wire equals the configured one. (d) SNMPv3 profile with the engine ID set, so that the worker skips the engine discovery at session open: the proxy cuts the last byte of the reply, which the library cannot parse (observed: timeout and the count raised by one on SNMPv3, timeout and no count on SNMPv2c, `work/tmp/m4-verify/malformed.txt`), so the request times out with the count of unparsable replies raised: the batch halves and the records show the message of an unreadable rejection. (e) SNMPv2c profile: the proxy drops every reply (on SNMPv3 the engine discovery fails first, which is not a request timeout): the batch does not change and the records show the message of no reply | Linux host, ordinary product | Expected values from D16, not from the implementation; evidence is the fault proxy record (request length, advertised size, error status of the reply) |
+| T2 | Scheduler | `SchedulerTest` cases: the halving rule of D16 (61, 30, 15, 7, 3, 1), the minimum of 1, independence of addresses, reset when the worker restarts, no change on other error statuses, the split counter | Linux host | Behavior as specified in D16 |
+| T3 | Device | Both units with the bindings of the measurement IOC at `maxVarbinds=61`, then NMC3 at 50, through the measurement IOC rebuilt against the new module | Measurement IOC, both units | At 61 the records of both units fill with no alarm once the splits settle, and no request times out after that; at 50 NMC3 keeps a split count of 0 and shows no `tooBig` message, and its `snmpEngineTime` interval is recorded next to the T8 figures; the split count shows in `snmp3RuntimeReport`; times in UTC |
+| T4 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` on the unchanged and the changed tree against the same Base | Linux host | The 41 cells of the unchanged tree keep their name and status (40 PASS and 1 NOT APPLICABLE, `tsan`), and the cells that M4 adds are PASS |
+
+The mutations below are applied one at a time to scratch copies of the changed tree; the exact old and new text of each is written when the code exists, the failing assertion of each is fixed before the series, and the series starts only when the changed tree passes T1 and T2:
+
+- V1: the session no longer sets `rcvMsgMaxSize`; expected failing assertion: T1 (c).
+- V2: a tooBig reply leaves the batch limit unchanged; expected failing assertion: T2 halving rule, and T1 (a) within its bounded wait.
+- V3: the halving rounds up; expected failing assertion: T2 halving rule.
+- V4: the minimum of 1 is removed; expected failing assertion: T2 minimum.
+- V5: the reset when the worker restarts is removed; expected failing assertion: T2 reset.
+- V6: the batch limit applies to every address; expected failing assertion: T2 independence of addresses.
+- V7: every error status is taken as tooBig; expected failing assertion: T1 (b).
+- V8: the `tooBig` message is not set at the floor; expected failing assertion: T1 (a).
+- V9: the count of unparsable replies is ignored, so a rejection that could not be read is taken as no reply; expected failing assertion: T1 (d).
+- V10: a timeout with no reply halves the batch; expected failing assertion: T1 (e).
+
+Not covered and listed as unproven: SNMPv1 sessions, the default 1472 and the range 484 to 65507 of `maxMessageSize`, a unit whose rejection differs from the two units measured on 2026-11-14, and the production worker log, which is redirected to `/dev/null`.
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Linux host, ordinary product | Pending | none |
-| T2 | Not run | Linux host | Pending | none |
-| T3 | Not run | Laboratory IOC, both units | Pending | none |
-| T4 | Not run | Linux host | Pending | none |
+| T1 | 2026-11-14T21:36Z to 2026-11-14T21:45Z | Debian 13 host, ordinary product built against Base 7.0.10 of the public 1.5.0 tree | Pass | The matrix cell `request-sizing` (`tests/rewrite/test_request_sizing.bash` with `request_sizing.pl`) passes its 217 checks in 6 cases, each with its own IOC: tooBig on SNMPv2c and on SNMPv3 (limit 4, 2, 1, 1 and split count 1, 2, 3, 3 over four rounds of an 8-member group; all 8 records show `tooBig` after the first round and only the eighth after the fourth), another error status and plain answers (limit 0, count 0, no `tooBig`), an unreadable reply on SNMPv3 with the engine ID set (limit 4, count 1, message `unreadable rejection`, proxy mutation observed), and dropped replies on SNMPv2c (limit 0, count 0, message `no reply`, drops observed). For (c) every SNMPv3 request for objects carries 2000, the configured value; the engine discovery request of the library carries 65507 and no object. On the unchanged code with only the new test files (2026-11-14T21:36Z) the cell exits 2: five cases fail on the limit, the count and the messages, and the SNMPv3 tooBig case cannot be judged because the loader rejects `maxMessageSize`. Mutations V1, V2, V4, V7, V8, V9, V10, V11 and V12 fail the predicted checks. Evidence: `work/matrix-m4-changed-2/o-request-sizing/`, `work/m4-evidence/t1-unchanged.log`, `work/tmp/m4-mutation/results/`, `work/m4-evidence/mutation-table.json`, `work/m4-evidence/sources.sha256` |
+| T2 | 2026-11-14T21:26Z to 2026-11-14T21:36Z | Same as T1 | Pass | The seven cells of `snmp3SchedulerTest` pass on the changed tree (`toobig-halving` with 61, 30, 15, 7, 3, 1, 1; `toobig-per-address`; `toobig-reset`; `toobig-other-status`; `unreadable-halves`; `no-reply-keeps`; `split-count`), and the whole suite passes inside the matrix. On the unchanged code `toobig-halving`, `toobig-per-address` and `toobig-reset` fail on the first expected size (2026-11-14T18:55Z). Mutations V2 to V7 and V10 to V12 fail the predicted cells with the predicted sizes (V3: 31 for 30; V4: 61 for 1; V5: 4 for 8 after the restart; V6: peer 4 for 8). Evidence: `work/m4-evidence/t2-unchanged.txt`, `work/tmp/m4-mutation/results/*/t2-rerun.txt` |
+| T3 | 2026-11-14T21:46Z to 2026-11-14T22:02Z | Both units, read only (GET requests; no write); measurement IOC rebuilt against the changed module with the two startup lines swapped, and the production `snmp3Ioc` of the changed tree for the grouped runs | Pass with a changed method (difference 4) | Measurement IOC, 180 s each at `maxVarbinds` 61, 120 and 50: split count 0 and limit 0 on both addresses in all 19 reports of each run, all 328 read records without alarm from the second sample on, no `tooBig` message. A relay on the wire at 120 shows why: the bindings carry no group, so a request holds one value (in 120 s 2778 of 2780 requests to the NMC2 unit and 1795 of 1796 to the NMC3 unit are 140 bytes or less; the others are 160 bytes, and the largest reply is 162 bytes), and `maxVarbinds` has no effect on this IOC. With 61 integer bindings of each unit in one group (6 runs, 3 rounds each): the first request is rejected every time, on the NMC2 unit 4 times as `unreadable rejection` after the 4 s of the two timeouts and 2 times as `tooBig`, on the NMC3 unit 6 times as `tooBig`; the limit of that address becomes 30 with split count 1, the other address is untouched, and in rounds 2 and 3 all 61 records fill without alarm in every run. These 6 runs had no relay and give no sizes. Sizes come from one more run of 4 rounds through loopback relays (`group-61`), in which both units share one address and so one limit: the NMC2 unit got one request of 1460 bytes and answered with 117 bytes (`tooBig`), then per round requests of 778, 787 and 140 bytes answered with 809, 817 and 141 bytes; the NMC3 unit, already under the limit of 30, got no request of 61 values and per round requests of 778, 787 and 140 bytes answered with 808, 817 and 141 bytes. With 50 in one group (1 run): no rejection, limit 0 and count 0 on both units. Interval between new values of the `snmpEngineTime` record at 50: NMC3 unit p50 2000, p95 2191, max 2279 ms (90 intervals); NMC2 unit p50 5847, p95 8700, max 9433 ms (33 intervals); no threshold. Evidence: `work/m4-t3/runs/` |
+| T4 | 2026-11-14T21:36Z to 2026-11-14T21:45Z | Same as T1 | Pass | `run_matrix.py --stages environment,ordinary` on the changed tree: 41 PASS and `tsan` NOT APPLICABLE; the 41 cells of the M1 run on the same Base (`work/matrix-m1-changed-base150/cells.tsv`, the product code of commit 746a498) keep name and status, and the added cell `request-sizing` is PASS. A first run before the helper fix of difference 5 had `qualification` FAIL (`work/matrix-m4-changed-1/`). Evidence: `work/matrix-m4-changed-2/cells.tsv` |
 
 ##### Closure Evidence
 
@@ -1059,6 +1105,75 @@ Observed Labels: enhancement
 Observed Milestone: 1.0.0
 Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:39Z; milestone and assignee jeonghanlee verified with `gh issue list` after the milestone link
 
+#### M16 - Recovery when a unit returns after a power or network loss
+
+Origin: 1.0.0 / M16
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+An IOC stays up for months while a unit can lose its power or its network link. For the IOC the two look the same: requests time out. When the unit answers again, the records must return to normal by themselves, with no restart of the IOC and no operator action. The owner met the opposite on another device support: the device lost power, came back with its network, and the IOC kept waiting. This unit verifies the behavior of snmp3 and closes any gap it finds.
+
+Known so far: in the baseline run of snmp3 `0.0.1` (M2 / T8) the network link of each unit was cut for 300 s and restored, and the unit was answered again after the restore (55 of 55 and 19 of 19 requests in the restored phases). A power loss of a unit has not been observed. After a power loss the card restarts, so its SNMPv3 engine boots and engine time change, which a link cut does not cause. Whether the current product recovers from that is not known.
+
+##### Scope
+
+- Observe the current product first: a link cut and restore, and a power loss and return, of one unit while the IOC runs, with the other unit as the control.
+- If a case does not recover by itself, change the product so that it does, and state in the documentation how long recovery takes.
+- A record message that tells a unit that does not answer from a rejected request, as far as M4 leaves it open.
+
+Out of scope: a restart of the IOC itself, the application repository, and performance criteria (M13).
+
+##### Completion Criteria
+
+- With the IOC left running, after the link of a unit is restored its records leave the alarm state and take new values without any action, and the time from the first answered request to the first new value is recorded.
+- The same holds after the unit lost its power and came back, with its engine boots changed.
+- During the loss the other unit keeps its values and its request rate.
+- The fixture run reproduces both cases on the real path and fails on the unchanged code if the observation found a gap.
+
+##### Dependencies And Decisions
+
+- G1 complete (2026-11-13).
+- D18 places this unit in release 1.0.0 and sets the observation as its first step.
+- The power loss of a unit is an action on equipment: each run needs the owner's permission, and the owner or an operator the owner names performs the cut. Outlet 8 of PDU1 is the only output that may be written (D9); what it powers is not recorded here.
+- Its tag `0.0.10` follows the tag of M10; the row is placed before the release row and keeps the next free ID, so the row order stays the execution order while the ID does not follow it.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Observe the current product on both units through the measurement IOC: cut and restore the link of one unit, then let it lose power and return, and record requests, answers, record alarms and the report lines before, during and after.
+2. Reproduce both cases with the fixture agent: answers withheld and resumed, and the agent stopped and started again with a changed engine boots value. Whether the fixture agent can be started with another engine boots value has not been tried; if it cannot, the power case is observed on the units only and listed as unproven for the fixture.
+3. If a case does not recover, write the failing check first, then the change, then the mutations that prove the check.
+4. Document the recovery behavior and its time.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Fixture | The real IOC and worker against the fixture agent: answers withheld and resumed; the agent stopped and started again with changed engine boots | Linux host, ordinary product | Records return to normal without a restart of the IOC in both cases |
+| T2 | Device, link | Cut and restore the network link of one unit while the IOC runs | Measurement IOC, both units | The unit's records return to normal by themselves; the other unit is unaffected |
+| T3 | Device, power | One unit loses power and returns while the IOC runs | Measurement IOC, both units | The unit's records return to normal by themselves with the changed engine boots; the other unit is unaffected |
+| T4 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` on the unchanged and the changed tree | Linux host | The cells of the unchanged tree keep their name and status, and added cells are PASS |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Linux host, ordinary product | Pending | none |
+| T2 | Not run | Measurement IOC, both units | Pending | none |
+| T3 | Not run | Measurement IOC, both units | Pending | none |
+| T4 | Not run | Linux host | Pending | none |
+
+##### Closure Evidence
+
+- none
+
 #### M11 - Release 1.0.0
 
 Origin: 1.0.0 / M10
@@ -1186,6 +1301,7 @@ Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:38Z; title, l
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Tools | M12 | Negative-control harness outcome classification | Carry-forward | Open | No | D2 | Scope decided and selected outcomes classified by real execution or retained by dated decision; [detail](#m12---negative-control-harness-outcome-classification) |
 | Performance | M13 | Predictable acquisition performance and second-client impact | Carry-forward | Deferred | No | D5 | Existing performance criteria met on their identified scope or changed by an explicit decision; [detail](#m13---predictable-acquisition-performance-and-second-client-impact) |
+| Tools | M17 | Matrix cells moved from Python to bash and Perl | Milestone | Deferred | No | D19 | Each moved cell kills the same mutations as the Python cell it replaces, and the matrix gives the same cell names and statuses; [detail](#m17---matrix-cells-moved-from-python-to-bash-and-perl) |
 | Records | M14 | Deferred record verification cells | Carry-forward | Deferred | No | D6 | Each listed cell has a real-path receipt or a dated retirement; [detail](#m14---deferred-record-verification-cells) |
 
 ### Backlog Details
@@ -1351,6 +1467,62 @@ Superseded Plan Artifacts: none
 | T1 | Not run | Linux host, ordinary and instrumented products | Deferred | none |
 | T2 | Not run | Linux host, ordinary and instrumented products | Deferred | none |
 | T3 | Not run | Linux host, ordinary and instrumented products | Deferred | none |
+
+##### Closure Evidence
+
+- none
+
+#### M17 - Matrix cells moved from Python to bash and Perl
+
+Origin: 1.0.0 / M17
+Identity History: none
+GitHub Issue: none
+Status: Deferred
+
+##### Summary
+
+The cells of `tests/rewrite/run_matrix.py` are driven by Python harnesses (25 harness files of 10,442 lines and 5 helper files of 1,134 lines, counted on 2026-11-14). The owner writes new tests in bash and Perl (D19). This unit moves the existing cells to the same form, one cell at a time, without losing what each cell proves.
+
+##### Scope
+
+- Move each Python cell to bash, which starts and stops the processes, and Perl, which reads the records and judges.
+- For each moved cell, run the old and the new cell on the same inputs and the same mutation table and compare the mutations each kills.
+- Decide whether the matrix runner itself and the fault proxy move as well.
+
+Out of scope: the C++ test bodies, product changes, and new checks.
+
+##### Completion Criteria
+
+- A mutation killed by the Python cell and surviving in the moved cell is resolved before the move of that cell is accepted; a mutation surviving in both is recorded and not fixed inside the move.
+- The matrix gives the same cell names and statuses before and after the move.
+
+##### Dependencies And Decisions
+
+- D19 places this work in Backlog. Transition date: 2026-11-14. It starts by the owner's decision, which also names the order of the cells.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. List the cells with their mutation tables, or write the table of a cell that has none, before its move.
+2. Move one cell, compare the killed sets, and repeat.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Conversion | The old and the new cell on the same inputs and the same mutation table | Linux host, ordinary product | The same mutations are killed |
+| T2 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` before and after | Linux host | The same cell names and statuses |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Linux host, ordinary product | Pending | none |
+| T2 | Not run | Linux host | Pending | none |
 
 ##### Closure Evidence
 
