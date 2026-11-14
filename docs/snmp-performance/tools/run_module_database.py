@@ -934,8 +934,8 @@ def run_case(bench, args, rows, label, agent_port, version, delay, target=None):
             'on error break\n'
             f'dbLoadDatabase("{ROOT}/dbd/snmp3Ioc.dbd")\n'
             'snmp3Ioc_registerRecordDeviceDriver(pdbbase)\n'
-            f'snmp3Load("{config}","{PRODUCTS}/snmp3NativeProbe")\n'
             f'snmp3WorkerPath("{PRODUCTS}/snmp3Worker")\n'
+            f'snmp3Load("{config}","{PRODUCTS}/snmp3NativeProbe")\n'
             f'dbLoadRecords("{case}/records.db")\n'
             'iocInit\n')
         # The objects in tier order (state, meas, slow; list order inside a tier): the object file of the direct

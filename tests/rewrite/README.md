@@ -1317,8 +1317,10 @@ agent and a loopback UDP observer in each case.
 The companion links unchanged production Main with a generated registrar and
 `StartupTest.cpp`. Its setup command registers the observer after production
 registration and before iocInit. AfterInitDatabase captures the two valid
-contexts before Runtime starts. Missing-worker cases select a nonexistent
-absolute path inside their private evidence directory: real Supervisor
+contexts before Runtime starts. Missing-worker cases give `snmp3WorkerPath` a
+link to the worker inside their private evidence directory. The startup
+script reads a FIFO after `snmp3Load`, and the runner removes the link while
+the IOC waits there: the load sees the worker, and real Supervisor
 construction fails before Requests starts or a Runtime thread is created.
 No internal function is replaced. Preflight failure has activation zero and
 closed Requests entry. Thread failure has activation one and no created,

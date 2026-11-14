@@ -189,6 +189,13 @@ and execution to five seconds. Child failure, invalid output, excessive output,
 or timeout rejects the complete candidate; the module waits for child cleanup.
 Helper stdin and stderr use `/dev/null`.
 
+The helper runs with the environment list of the worker and with no other variable: `PATH=/usr/bin:/bin`, `LANG=C`,
+`LC_ALL=C` and `LD_LIBRARY_PATH`, whose value is the sorted, unique directories of the worker's libraries as `ldd`
+reports them, joined by `:`. A sanitizer qualification run adds two sanitizer options to the worker only. Call
+`snmp3WorkerPath` before `snmp3Load`. A load while no worker path is set, or with a
+worker for which `ldd` fails, is rejected before the helper starts. After a successful load a different worker path is
+rejected, so the catalogue always comes from the worker that starts.
+
 The configuration retains the helper path, version, algorithm types, and OIDs.
 The separate native adapter compares that complete canonical catalogue with its
 shared native implementation before discovery/session open. Actual binary
@@ -226,7 +233,7 @@ the DSET performs no request until actual record processing.
 | `snmp3Report` | `owned-worker-transport; recordSupport=available` capability |
 | `snmp3RuntimeReport` | Lifecycle, pending reservation, worker state/counters and the servicing-loop pass count (`snmp3 loop:`; fields in [Runtime report lines](snmp-worker-reference.md#runtime-report-lines)) |
 | `snmp3Stop` | Freeze, admission closure, worker containment and one thread join |
-| `snmp3WorkerPath(path)` | Absolute actual worker product before freeze |
+| `snmp3WorkerPath(path)` | Absolute actual worker product; call it before `snmp3Load`; a different path after a successful load is rejected |
 | `snmp3QueueLimit(address,count,bytes)` | Live count 1-16384 and bytes 1-67108864; preserve accepted work |
 
 `recordSupport=available` identifies a compiled feature, not configuration
@@ -274,8 +281,8 @@ Ordinary Base expansion applies to these IOC arguments:
 on error break
 dbLoadDatabase("dbd/snmp3Ioc.dbd")
 snmp3Ioc_registerRecordDeviceDriver(pdbbase)
-snmp3Load("$(CONFIG_JSON)", "$(NATIVE_PROBE)")
 snmp3WorkerPath("$(WORKER_PATH)")
+snmp3Load("$(CONFIG_JSON)", "$(NATIVE_PROBE)")
 snmp3ConfigReport
 dbLoadRecords("tests/rewrite/db/lifecycle.db", "P=Config_")
 iocInit

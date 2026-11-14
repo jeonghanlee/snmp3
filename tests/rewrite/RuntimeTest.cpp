@@ -76,8 +76,8 @@ int main(int argc,char** argv)
             testdbPrepare(); testdbReadDatabase(argv[5],nullptr,nullptr);
             check(snmp3RuntimeTest_registerRecordDeviceDriver(pdbbase)==0);
             if(cycle==0) {
-                command("snmp3Load("+quoted(argv[1])+","+quoted(argv[2])+")");
                 command("snmp3WorkerPath("+quoted(argv[3])+")");
+                command("snmp3Load("+quoted(argv[1])+","+quoted(argv[2])+")");
                 Qualification mode; mode.stderrPath=argv[4];
 #ifdef __SANITIZE_ADDRESS__
                 mode.sanitizers=true;

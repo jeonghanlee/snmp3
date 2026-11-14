@@ -63,10 +63,10 @@ const iocshArg addressArgument = {"address",iocshArgString};
 const iocshArg countArgument = {"count",iocshArgString};
 const iocshArg bytesArgument = {"bytes",iocshArgString};
 const iocshArg* const queueArguments[] = {&addressArgument,&countArgument,&bytesArgument};
-const iocshFuncDef workerDefinition = {"snmp3WorkerPath",1,workerArguments,"Select an absolute worker product before binding/startup/stop freeze."};
+const iocshFuncDef workerDefinition = {"snmp3WorkerPath",1,workerArguments,"Select an absolute worker product before snmp3Load; a different path after a load is rejected."};
 const iocshFuncDef queueDefinition = {"snmp3QueueLimit",3,queueArguments,"Set per-address count 1-16384 and bytes 1-67108864; retain accepted work."};
 const iocshFuncDef loadDefinition = {
-    "snmp3Load", 2, loadArguments, "Load schema-1 JSON before binding/iocInit; nativeProbe is absolute."
+    "snmp3Load", 2, loadArguments, "Load schema-1 JSON after snmp3WorkerPath and before binding/iocInit; nativeProbe is absolute."
 };
 const iocshFuncDef configDefinition = {
     "snmp3ConfigReport", 0, NULL, "Report revision, frozen state and definition counts; no secret values."

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Verify rejected records and real Runtime startup failures through IOC exit."""
 import argparse
+import errno
 import json
+import os
 import re
 import subprocess
 import sys
@@ -161,6 +163,32 @@ def trace_checks(check, evidence, failure):
           all(e["syscall"] == CLONE3 and e["return_value"] == -38 for e in limited[:-1]))
 
 
+def remove_after_load(child, gate, worker):
+    """Remove the worker link after snmp3Load has returned and before iocInit runs.
+
+    The startup script reads the gate FIFO right after snmp3Load, and the IOC blocks while it opens
+    the FIFO. A nonblocking open for writing succeeds only during that wait, so the removal happens
+    between the two commands; closing the FIFO lets the script continue.
+    """
+    writer = []
+
+    def reached():
+        if child.poll() is not None:
+            return True
+        try:
+            writer.append(os.open(gate, os.O_WRONLY | os.O_NONBLOCK))
+        except OSError as error:
+            if error.errno != errno.ENXIO:
+                raise
+            return False
+        return True
+
+    if not wait_for(reached, PROCESS_SECONDS) or not writer:
+        raise RuntimeError("load gate not reached")
+    worker.unlink()
+    os.close(writer[0])
+
+
 def run_case(case, output, products, sanitizers):
     output.mkdir(mode=0o700)
     runner = Runner(output, products, sanitizers)
@@ -234,14 +262,17 @@ def run_case(case, output, products, sanitizers):
                    for name, op, tag, index in (("StartupRead", "get", "integer", 1),
                                                 ("StartupWrite", "set", "opaqueFloat", 9))]})
         worker = output / "missing-worker" if phase == "preflight" else products / "snmp3Worker"
-        if phase == "preflight" and worker.exists():
-            raise RuntimeError("failure boundary already exists")
+        gate = output / "load-gate.fifo"
+        if phase == "preflight":
+            worker.symlink_to(products / "snmp3Worker")
+            os.mkfifo(gate, 0o600)
         script = output / "startup.cmd"
         setup = "" if production else f'snmp3StartupSetup({int(failure)},"{output}/worker.stderr",{int(sanitizers)})\n'
+        hold = f'< {gate}\n' if phase == "preflight" else ""
         script.write_text(f'on error {policy}\n' + f'dbLoadDatabase("{ROOT}/dbd/{executable}.dbd")\n' +
                           f'{executable}_registerRecordDeviceDriver(pdbbase)\n' + setup +
-                          f'snmp3Load("{config}","{products}/snmp3NativeProbe")\n' +
                           f'snmp3WorkerPath("{worker}")\n' +
+                          f'snmp3Load("{config}","{products}/snmp3NativeProbe")\n' + hold +
                           f'dbLoadRecords("{ROOT}/tests/rewrite/db/record-startup.db","P=Startup_")\n' +
                           'iocInit\n' + ('snmp3StartupExercise\n' if not failure else '') +
                           'echo STARTUP_SCRIPT_COMPLETED\nsnmp3RuntimeReport\n')
@@ -261,7 +292,10 @@ def run_case(case, output, products, sanitizers):
             runner.check("ioc:expected-exit", receipt["expected_exit"])
             trace_checks(runner.check, evidence, failure)
         else:
-            finish(launch("ioc", argv))
+            ioc = launch("ioc", argv)
+            if phase == "preflight":
+                remove_after_load(ioc["child"], gate, worker)
+            finish(ioc)
     except Exception as error:
         aborted = True
         write_json(output / "abort.json", {"class": type(error).__name__, "message": str(error)})

@@ -86,8 +86,8 @@ def main():
         script.write_text('on error break\n'
                           f'dbLoadDatabase("{ROOT}/dbd/snmp3Ioc.dbd")\n'
                           'snmp3Ioc_registerRecordDeviceDriver(pdbbase)\n'
-                          f'snmp3Load("{config}","{products}/snmp3NativeProbe")\n'
                           f'snmp3WorkerPath("{products}/snmp3Worker")\n'
+                          f'snmp3Load("{config}","{products}/snmp3NativeProbe")\n'
                           f'dbLoadRecords("{ROOT}/tests/rewrite/db/record-ca.db","P=Ca_")\n'
                           'iocInit\nsnmp3Report\n')
         for name in ("repeater", "ioc"):

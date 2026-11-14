@@ -1,4 +1,5 @@
 #include "Supervisor.h"
+#include "Environment.h"
 #include <algorithm>
 #include <cerrno>
 #include <cstdlib>
@@ -96,6 +97,19 @@ std::map<std::string,std::array<uint8_t,32>> libraries(const std::string& execut
     }
     require(!result.empty()); return result;
 }
+std::string libraryPathFrom(const std::map<std::string,std::array<uint8_t,32>>& libraries)
+{
+    std::set<std::string> dirs; for(const auto& lib:libraries)dirs.insert(lib.first.substr(0,lib.first.find_last_of('/')));
+    std::string result; for(const auto& dir:dirs) { if(!result.empty())result+=':'; result+=dir; }
+    require(result.size()<=4096); return result;
+}
+}
+std::string libraryPathOf(const std::string& executable) { return libraryPathFrom(libraries(absolute(executable))); }
+std::vector<std::string> environmentList(const std::string& libraryPath,bool sanitizers)
+{
+    std::vector<std::string> list={"PATH=/usr/bin:/bin","LANG=C","LC_ALL=C","LD_LIBRARY_PATH="+libraryPath};
+    if(sanitizers) { list.push_back("ASAN_OPTIONS=detect_leaks=0:abort_on_error=1"); list.push_back("UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1"); }
+    return list;
 }
 uint64_t monotonicUs()
 {
@@ -108,9 +122,7 @@ Supervisor::Supervisor(std::shared_ptr<Scheduler> owner,const std::string& path,
     require(bool(scheduler)); scheduler->reserveConfiguration(16777216+65536);
     selected.capabilities=scheduler->configuration()->capabilities;
     selected.executable=ipc::digest(executable); selected.libraries=libraries(executable);
-    std::set<std::string> dirs; for(const auto& lib:selected.libraries)dirs.insert(lib.first.substr(0,lib.first.find_last_of('/')));
-    for(const auto& dir:dirs) { if(!libraryPath.empty())libraryPath+=':'; libraryPath+=dir; }
-    require(libraryPath.size()<=4096);
+    libraryPath=libraryPathFrom(selected.libraries);
     auto ids=scheduler->addresses(); uint64_t storage=16777216+65536;
     for(const auto id:ids) {
         require(ipc::bootstrapOwnedBytes(*scheduler->configuration(),scheduler->key(id))<=33554432);
@@ -179,8 +191,7 @@ void Supervisor::launch(Address& a,uint64_t now)
     Actions actions; if(qualificationFd>=0)actions.duplicate(qualificationFd,2); else actions.null(2);
     actions.null(0); actions.null(1); actions.duplicate(safe.value,3); actions.closeFrom(4);
     std::string argument="--ipc-fd=3"; char* argv[]={&executable[0],&argument[0],nullptr};
-    std::vector<std::string> environment={"PATH=/usr/bin:/bin","LANG=C","LC_ALL=C","LD_LIBRARY_PATH="+libraryPath};
-    if(qualification.sanitizers) { environment.push_back("ASAN_OPTIONS=detect_leaks=0:abort_on_error=1"); environment.push_back("UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1"); }
+    std::vector<std::string> environment=environmentList(libraryPath,qualification.sanitizers);
     uint64_t envBytes=0; std::vector<char*> env; for(auto& entry:environment) { envBytes=ipc::add(envBytes,entry.size()+1); env.push_back(&entry[0]); } env.push_back(nullptr); require(envBytes<=8192);
     pid_t pid=0; systemCheck(posix_spawn(&pid,executable.c_str(),&actions.value,nullptr,argv,env.data()));
     a.status.pid=pid; a.spawned=now; a.sent=a.received=a.origin=0; a.term=a.kill=a.closed=a.reading=a.keep=a.batchSent=false;

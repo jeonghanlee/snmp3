@@ -280,8 +280,8 @@ def run_case(case, output, products, sanitizers):
         prepare = "snmp3ShutdownPrepare\n" if case == "retained" else ""
         script.write_text('on error break\n' + f'dbLoadDatabase("{ROOT}/dbd/{executable}.dbd")\n' +
                           f'{executable}_registerRecordDeviceDriver(pdbbase)\n' + setup +
-                          f'snmp3Load("{config}","{products}/snmp3NativeProbe")\n' +
                           f'snmp3WorkerPath("{products}/snmp3Worker")\n' +
+                          f'snmp3Load("{config}","{products}/snmp3NativeProbe")\n' +
                           f'dbLoadRecords("{ROOT}/tests/rewrite/db/record-shutdown.db","P=Shutdown_")\n' +
                           'iocInit\n' + prepare)
         rep = launch("repeater", [str(base / "bin" / ARCH / "caRepeater")])

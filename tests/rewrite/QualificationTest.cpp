@@ -50,7 +50,7 @@ struct Fixture {
         return view;
     }
     Fixture(char** argv) {
-        config.load(argv[1],argv[2]); const auto frozen=config.snapshot();
+        config.setWorkerPath(argv[3]); config.load(argv[1],argv[2]); const auto frozen=config.snapshot();
         scheduler=std::make_shared<Scheduler>(frozen.configuration,frozen.revision,1);
         for(const auto& definition:frozen.configuration->bindings) {
             const auto binding=config.bind(definition.first);

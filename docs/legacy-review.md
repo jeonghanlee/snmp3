@@ -98,7 +98,7 @@ The Net-SNMP calls of the worker, from `snmp3App/native`, are `snmp_sess_init`, 
 | Processing on reply arrival (problems 4, 5) | Not answered. The DSETs report `noInterrupt`; `SCAN=I/O Intr` is not offered. |
 | Localized keys instead of passphrases (item 13) | Not answered. `securityAuthLocalKey` and `securityPrivLocalKey` are not used. |
 | Table reads in one request | Not answered. `SNMP_MSG_GETBULK` is not used. |
-| Probe process environment | Open minor finding from the snmp3 source read of this review, recorded only on this page: `Config.cpp:200` spawns the native probe with the IOC environment while `Supervisor.cpp:182` spawns the worker with a scrubbed environment. A catalogue that depends on the IOC environment can differ from the worker's library set. |
+| Probe process environment | Resolved after `0.0.1`: the native probe runs with the same environment list as the worker, built by one function from the libraries of the worker, so the catalogue cannot depend on the IOC environment. The load requires the worker path first. The finding came from the snmp3 source read of this review: the probe was spawned with the IOC environment while the worker was spawned with a scrubbed environment. |
 
 ## EPICS Base 7.0.10: facilities for a new driver
 
@@ -119,5 +119,5 @@ The Net-SNMP calls of the worker, from `snmp3App/native`, are `snmp_sess_init`, 
 - Confirm with two devices on one IOC that a silent or slow device leaves the other device's cadence unchanged under snmp3 (problem 2).
 - Decide whether the next driver processes records on reply arrival (`I/O Intr`) and stamps them with the reply time (problems 4 and 5).
 - Decide the SNMPv3 credential handling: localized keys, permitted authentication and privacy protocols per card generation, and the secret file procedure (item 13; the work register carries this as its secret management unit).
-- Decide whether the probe spawn uses the worker's scrubbed environment (the probe process environment row above).
+- Decided: the probe spawn uses the worker's environment list (the probe process environment row above).
 - Keep `GETBULK` and adaptive request splitting as design options for problem 1 and for performance.

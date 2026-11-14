@@ -28,7 +28,7 @@ int main(int argc,char** argv)
     if(argc!=5)return 2;
     std::unique_ptr<Supervisor> owner;
     try {
-        Config config; config.load(argv[1],argv[2]);
+        Config config; config.setWorkerPath(argv[3]); config.load(argv[1],argv[2]);
         const auto frozen=config.snapshot(); auto scheduler=std::make_shared<Scheduler>(frozen.configuration,frozen.revision,1);
         std::map<uint64_t,std::vector<uint64_t>> groups; std::map<uint64_t,std::string> specs;
         for(const auto& definition:frozen.configuration->bindings) {

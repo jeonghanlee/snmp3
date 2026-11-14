@@ -20,7 +20,7 @@ make -j4
 
 The startup file accepts `CONFIG_JSON`, `NATIVE_PROBE`, and `WORKER_PATH` through the IOC environment. Configuration must be complete schema-1 JSON, and secret files must be private files owned by the effective user. The [configuration reference](snmp-rewrite-config.md) describes both.
 
-For a configured IOC, select the absolute worker path before the first binding, `iocBuild`, `iocInit`, or stop freezes Config. Repeating the identical path after the freeze is allowed. Changing it is rejected. An empty foundation Config needs no worker.
+For a configured IOC, select the absolute worker path before `snmp3Load`; the load is rejected while no worker path is set. A different path after a successful load or after the first binding, `iocBuild`, `iocInit`, or stop freezes Config is rejected. Repeating the identical path is allowed. An empty foundation Config needs no worker.
 
 This IOC shell sequence uses prepared absolute paths:
 
@@ -28,8 +28,8 @@ This IOC shell sequence uses prepared absolute paths:
 on error break
 dbLoadDatabase("dbd/snmp3Ioc.dbd")
 snmp3Ioc_registerRecordDeviceDriver(pdbbase)
-snmp3Load("<config_json>", "<native_probe>")
 snmp3WorkerPath("<worker_path>")
+snmp3Load("<config_json>", "<native_probe>")
 snmp3QueueLimit("<address>", 1024, 1048576)
 iocInit
 snmp3Report
@@ -39,13 +39,13 @@ snmp3Stop
 snmp3RuntimeReport
 ```
 
-Replace `<config_json>`, `<native_probe>`, and `<worker_path>` with the absolute paths of existing files. Replace `<address>` with a numeric address that appears in that JSON. The load and the worker selection must succeed before `iocInit`. The `on error break` line propagates a command failure. The Base Continue policy can proceed after a rejected command, so it does not prove success.
+Replace `<config_json>`, `<native_probe>`, and `<worker_path>` with the absolute paths of existing files. Replace `<address>` with a numeric address that appears in that JSON. The worker selection and the load must succeed before `iocInit`. The `on error break` line propagates a command failure. The Base Continue policy can proceed after a rejected command, so it does not prove success.
 
 ## Operator commands of the IOC
 
 | Command | Contract |
 | --- | --- |
-| `snmp3WorkerPath(absolutePath)` | Startup product selector; at most 4096 path bytes |
+| `snmp3WorkerPath(absolutePath)` | Startup product selector, called before `snmp3Load`; at most 4096 path bytes |
 | `snmp3QueueLimit(address,count,bytes)` | Atomic live limits, before or after `iocInit` |
 | `snmp3Stop` | Freezes Config, closes admission, contains workers, and joins once |
 

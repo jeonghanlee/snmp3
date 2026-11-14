@@ -1,4 +1,5 @@
 #include "Config.h"
+#include "Environment.h"
 #include "Ipc.h"
 #include "Json.h"
 
@@ -11,6 +12,7 @@
 #include <initializer_list>
 #include <limits>
 #include <stdexcept>
+#include <vector>
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -21,8 +23,6 @@
 #include <unistd.h>
 #include <epicsGuard.h>
 #include <epicsThread.h>
-
-extern char** environ;
 
 namespace snmp3 {
 namespace {
@@ -179,7 +179,7 @@ std::vector<uint32_t> oid(const std::string& value)
     return result;
 }
 
-std::string observeCapabilities(const std::string& executable)
+std::string observeCapabilities(const std::string& executable, const std::vector<std::string>& environment)
 {
     if (executable.empty() || executable[0] != '/' || executable.find('\0') != std::string::npos)
         reject("native executable rejected");
@@ -197,7 +197,13 @@ std::string observeCapabilities(const std::string& executable)
     error |= posix_spawn_file_actions_addclose(&actions, writer.get());
     pid_t pid = -1;
     char* args[] = {const_cast<char*>(executable.c_str()), const_cast<char*>("--capabilities"), NULL};
-    if (!error) error = posix_spawn(&pid, executable.c_str(), &actions, NULL, args, environ);
+    std::vector<std::string> entries(environment);
+    std::vector<char*> envp;
+    size_t envBytes = 0;
+    for (auto& entry : entries) { envBytes += entry.size() + 1; envp.push_back(&entry[0]); }
+    envp.push_back(NULL);
+    if (envBytes > 8192) reject("native environment rejected");
+    if (!error) error = posix_spawn(&pid, executable.c_str(), &actions, NULL, args, envp.data());
     posix_spawn_file_actions_destroy(&actions);
     if (error) reject("native spawn failed");
     writer.reset();
@@ -233,9 +239,9 @@ std::string observeCapabilities(const std::string& executable)
     if (failed || !WIFEXITED(status) || WEXITSTATUS(status)) reject("native capability process failed");
     return output;
 }
-Capabilities capabilities(const std::string& executable)
+Capabilities capabilities(const std::string& executable, const std::vector<std::string>& environment)
 {
-    const Json root = Json::parse(observeCapabilities(executable));
+    const Json root = Json::parse(observeCapabilities(executable, environment));
     fields(root, {"schema", "version", "authentication", "privacy"});
     if (number(required(root, "schema"), 1, 1) != 1) reject("native schema rejected");
     Capabilities result; result.executable = executable; result.nativeVersion = string(root, "version");
@@ -301,7 +307,8 @@ void validateGroups(const Configuration& configuration)
             reject("group exceeds the request frame");
     }
 }
-std::shared_ptr<Configuration> candidate(const std::string& file, const std::string& executable)
+std::shared_ptr<Configuration> candidate(const std::string& file, const std::string& executable,
+                                         const std::vector<std::string>& environment)
 {
     char* resolved = realpath(file.c_str(), NULL);
     if (!resolved) reject("configuration path rejected");
@@ -311,7 +318,7 @@ std::shared_ptr<Configuration> candidate(const std::string& file, const std::str
     fields(root, {"schema", "profiles", "endpoints", "bindings"});
     number(required(root, "schema"), 1, 1);
     auto result = std::make_shared<Configuration>();
-    result->capabilities = capabilities(executable);
+    result->capabilities = capabilities(executable, environment);
     for (const Json& item : array(root, "profiles")) {
         fields(item, {"id", "version", "timeoutMs", "retries", "maxVarbinds", "checkRanges",
                       "communityFile", "user", "securityLevel", "authAlgorithm", "authSecretFile",
@@ -401,10 +408,15 @@ Config::Config() : current(std::make_shared<Configuration>()) {}
 Config& Config::instance() { epicsThreadOnce(&once, initialize, NULL); return *owner; }
 void Config::load(const std::string& file, const std::string& nativeProbe)
 {
-    { epicsGuard<epicsMutex> guard(mutex); if (frozen) reject("configuration frozen"); }
-    auto next = candidate(file, nativeProbe);
+    std::string worker;
+    { epicsGuard<epicsMutex> guard(mutex); if (frozen) reject("configuration frozen"); worker = workerPath; }
+    if (worker.empty()) reject("worker path required before load");
+    std::string libraryPath;
+    try { libraryPath = libraryPathOf(worker); } catch (const std::exception&) { reject("worker library listing failed"); }
+    auto next = candidate(file, nativeProbe, environmentList(libraryPath, false));
     epicsGuard<epicsMutex> guard(mutex);
     if (frozen) reject("configuration frozen");
+    if (workerPath != worker) reject("worker path changed during load");
     if (revision == std::numeric_limits<uint64_t>::max()) reject("configuration revision exhausted");
     current = std::move(next);
     ++revision;
@@ -426,6 +438,7 @@ void Config::setWorkerPath(const std::string& path)
     epicsGuard<epicsMutex> guard(mutex);
     if(path==workerPath)return;
     if(frozen)reject("worker path frozen");
+    if(revision>0)reject("worker path fixed by a loaded configuration");
     workerPath=path;
 }
 ConfigState Config::snapshot()

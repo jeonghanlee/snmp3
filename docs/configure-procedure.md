@@ -67,4 +67,4 @@ snmp3 config: revision=1 frozen=1 profiles=1 endpoints=1 bindings=1
 snmp3 config: revision=1 frozen=1 profiles=1 endpoints=1 bindings=1
 ```
 
-A rejected load leaves the previous snapshot unchanged. The startup file begins with `on error break`, so a failed `snmp3Load` ends the IOC with the message `snmp3Ioc: startup script failed` and exit status 1. The [startup configuration reference](snmp-rewrite-config.md) lists every field and every rejection rule.
+The startup file sets the worker path before the load, and a load while no worker path is set is rejected. A rejected load leaves the previous snapshot unchanged. The startup file begins with `on error break`, so a failed `snmp3Load` ends the IOC with the message `snmp3Ioc: startup script failed` and exit status 1. The [startup configuration reference](snmp-rewrite-config.md) lists every field and every rejection rule.

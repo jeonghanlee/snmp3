@@ -21,8 +21,8 @@ def main():
         script = output / "operator.cmd"
         commands = ["on error break", 'dbLoadDatabase("' + str(ROOT / "dbd/snmp3Ioc.dbd") + '")',
                     "snmp3Ioc_registerRecordDeviceDriver(pdbbase)",
-                    'snmp3Load("' + str(config) + '", "' + str(runner.products / "snmp3NativeProbe") + '")',
                     'snmp3WorkerPath("' + str(runner.products / "snmp3Worker") + '")',
+                    'snmp3Load("' + str(config) + '", "' + str(runner.products / "snmp3NativeProbe") + '")',
                     'snmp3QueueLimit("127.0.0.1", 1024, 1048576)', "iocInit", "snmp3Report",
                     "snmp3ConfigReport", "snmp3RuntimeReport", "snmp3Stop", "snmp3RuntimeReport"]
         script.write_text("\n".join(commands) + "\n")

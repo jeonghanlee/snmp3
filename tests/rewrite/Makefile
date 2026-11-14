@@ -14,6 +14,14 @@ PROD_HOST += snmp3ConfigTest
 snmp3ConfigTest_SRCS += ConfigTest.cpp
 snmp3ConfigTest_LIBS += snmp3 Com
 
+PROD_HOST += snmp3EnvHelper
+snmp3EnvHelper_SRCS += EnvHelper.cpp
+snmp3EnvHelper_LIBS += Com
+
+PROD_HOST += snmp3EnvTest
+snmp3EnvTest_SRCS += EnvTest.cpp
+snmp3EnvTest_LIBS += snmp3 snmp3Wire Com
+
 PROD_HOST += snmp3ConversionTest
 snmp3ConversionTest_SRCS += ConversionTest.cpp
 snmp3ConversionTest_LIBS += snmp3 Com

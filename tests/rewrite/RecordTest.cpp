@@ -3829,8 +3829,8 @@ int main(int argc,char** argv)
           check(callbackSetQueueSize(ring?std::atoi(ring):8)==0,"callback queue size setup failed"); }
         testdbPrepare(); testdbReadDatabase(argv[4],nullptr,nullptr);
         check(snmp3RecordTest_registerRecordDeviceDriver(pdbbase)==0,"record registrar failed");
-        command("snmp3Load("+quoted(argv[1])+","+quoted(argv[2])+")");
         command("snmp3WorkerPath("+quoted(argv[3])+")");
+        command("snmp3Load("+quoted(argv[1])+","+quoted(argv[2])+")");
         Qualification qualification; qualification.stderrPath=argv[7];
 #ifdef __SANITIZE_ADDRESS__
         qualification.sanitizers=true;

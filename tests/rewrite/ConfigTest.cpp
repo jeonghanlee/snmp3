@@ -98,6 +98,7 @@ void positive(const char* file, const char* probe, const char* replacement)
 {
     using namespace snmp3;
     Config config;
+    config.setWorkerPath("/usr/bin/true");
     config.load(file, probe);
     const ConfigState original = config.snapshot();
     const auto& first = *original.configuration;
@@ -129,7 +130,7 @@ void positive(const char* file, const char* probe, const char* replacement)
     expect(config.snapshot().configuration == second.configuration, "repeated freeze preserves snapshot");
     values();
 
-    Config concurrent; concurrent.load(file, probe);
+    Config concurrent; concurrent.setWorkerPath("/usr/bin/true"); concurrent.load(file, probe);
     std::atomic<bool> valid(true);
     std::vector<std::thread> callers;
     for (int i = 0; i < 4; ++i) callers.emplace_back([&] {
@@ -150,7 +151,7 @@ void positive(const char* file, const char* probe, const char* replacement)
 }
 void negative(const char* good, const char* probe, const char* bad, const char* badProbe, const char* reason = NULL)
 {
-    snmp3::Config config; config.load(good, probe);
+    snmp3::Config config; config.setWorkerPath("/usr/bin/true"); config.load(good, probe);
     const auto before = config.snapshot();
     std::string message;
     expect(rejects([&] {
@@ -167,6 +168,7 @@ void negative(const char* good, const char* probe, const char* bad, const char* 
 void accepted(const char* file, const char* probe)
 {
     snmp3::Config config;
+    config.setWorkerPath("/usr/bin/true");
     config.load(file, probe);
     const auto state = config.snapshot();
     expect(state.revision == 1 && !state.frozen, "accepted whole candidate");
@@ -180,6 +182,7 @@ void publicationRace(const char* file, const char* probe, const char* gate,
                      const char* marker, const char* release, bool bind)
 {
     snmp3::Config config;
+    config.setWorkerPath("/usr/bin/true");
     config.load(file, probe);
     const auto before = config.snapshot();
     std::atomic<bool> frozenRejection(false);

@@ -119,6 +119,7 @@ int main(int argc, char** argv)
     try {
         const std::string mode = argv[1], endpoint = argv[4];
         Config config;
+        config.setWorkerPath("/usr/bin/true");
         config.load(argv[2], argv[3]);
         const auto snapshot = config.snapshot().configuration;
         std::vector<int> held;

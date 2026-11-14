@@ -234,8 +234,8 @@ include $(TOP)/configure/RULES
     loaders = output / "iocsh"
     loaders.mkdir()
     (loaders / "configuration.cmd").write_text(f'''on error break
-snmp3Load("$(CONFIG)","{ROOT}/bin/{ARCH}/snmp3NativeProbe")
 snmp3WorkerPath("{ROOT}/bin/{ARCH}/snmp3Worker")
+snmp3Load("$(CONFIG)","{ROOT}/bin/{ARCH}/snmp3NativeProbe")
 ''')
     (loaders / "device.cmd").write_text(f'''on error break
 iocshLoad("{loaders}/configuration.cmd","CONFIG=$(CONFIG)")

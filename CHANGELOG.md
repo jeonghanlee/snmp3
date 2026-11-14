@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.0.2 — Probe Environment
+
+### Product
+
+- `snmp3Load` launches the native probe with the same environment list as the worker, built by one function from the libraries of the worker executable, so the capability catalogue no longer depends on the IOC environment.
+- `snmp3WorkerPath` must be called before `snmp3Load`. A load while no worker path is set, or with a worker for which `ldd` fails, is rejected before the probe starts, and a different worker path after a successful load is rejected.
+
+### Compatibility
+
+- A startup script that calls `snmp3Load` before `snmp3WorkerPath` is rejected: swap the two lines. The startup of an application repository must be changed the same way.
+
+### Known limits
+
+- The sanitizer options of a qualification run reach the worker only; the probe never receives them.
+- Termination of the probe by a signal during the load is not covered by the checks.
+
 ## 0.0.1 — Baseline Release
 
 First tagged state of the snmp3 module. It fixes the accepted scope and its limits as the reference point for later versions; it is not a completion claim.
