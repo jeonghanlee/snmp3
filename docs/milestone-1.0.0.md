@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: Continue M1 in `docs/milestone-1.0.0.md`: items 1 to 9 of the accepted plan are done, T1 to T4 are recorded as observed on the public 1.5.0 Base, and the differences from the plan were accepted on 2026-11-13 (D15); the change and the `CHANGELOG.md` entry are prepared for one commit and the register record for a second, and closing needs landing evidence: the push, the tag `0.0.2` and the update of issue #2 (commits, pushes, tags and issue actions each need their own authority). M2, M3 (retired by D13) and G1 are complete. The other Ready rows are M4, M6, M9 and M10.
+Next session entry point: Review the plan of M4 in `docs/milestone-1.0.0.md` with `plan.md` of the milestone-tracking skill: it is the nearest Ready row and its plan is a draft, so acceptance and implementation authorization are still open (commits, pushes, tags and issue actions each need their own authority). M1 (tag `0.0.2`), M2, M3 (retired by D13) and G1 are complete. The other Ready rows are M6, M9 and M10.
 
 ## Scope
 
@@ -26,7 +26,7 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Gate | G1 | Laboratory NMC2 and NMC3 units reachable through snmp3 | External gate | Complete | No | D12 | Both units answer a GET through the laboratory IOC with snmp3 `0.0.1`; [detail](#g1---laboratory-nmc2-and-nmc3-units-reachable-through-snmp3) |
-| E | M1 | Probe spawn environment equal to the worker environment | Milestone | In progress | No | D14, D15 | Probe and worker receive the same environment list built from the worker's libraries; the changed tests and the ordinary matrix stage pass; tag `0.0.2`; [detail](#m1---probe-spawn-environment-equal-to-the-worker-environment) |
+| E | M1 | Probe spawn environment equal to the worker environment | Milestone | Complete | No | D14, D15 | Probe and worker receive the same environment list built from the worker's libraries; the changed tests and the ordinary matrix stage pass; tag `0.0.2`; [detail](#m1---probe-spawn-environment-equal-to-the-worker-environment) |
 | Baseline | M2 | Baseline measurement on the two laboratory units | Milestone | Complete | No | D8, D9, D11 | Net-SNMP 5.9.4 read directly and the installed legacy module measured on both units, with the response time of a request and the interval of new values recorded; no product change; [detail](#m2---baseline-measurement-on-the-two-laboratory-units) |
 | A | M3 | Two-device isolation measurement on the current product | Milestone | Complete | No | G1, D4, M2, D13 | Measured cadence of the healthy unit with the other unit disconnected; [detail](#m3---two-device-isolation-measurement-on-the-current-product) |
 | B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Not started | Yes | G1 | NMC2 accepts a 61-OID request without manual `maxVarbinds` tuning; tooBig reaches the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
@@ -38,7 +38,7 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.9`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 2 Complete, 1 In progress, 8 Not started, 0 Blocked; G1 Complete. Ready rows: M4, M6, M9, M10. Backlog contains 1 Open and 2 Deferred rows and is excluded from this tally.
+Current work tally: 3 Complete, 0 In progress, 8 Not started, 0 Blocked; G1 Complete. Ready rows: M4, M6, M9, M10. Backlog contains 1 Open and 2 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -110,7 +110,7 @@ M3, M4 and M9 need one AP8932 unit with an NMC2 card and one with an NMC3 card, 
 Origin: 1.0.0 / M1
 Identity History: none
 GitHub Issue: #2 - https://github.com/jeonghanlee/snmp3/issues/2
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -206,17 +206,21 @@ Mutation series V1 to V9 (rerun on the public 1.5.0 Base, observed 2026-11-14T01
 
 ##### Closure Evidence
 
-- none
+- Completion Criteria checked on 2026-11-13 against the Verification Results: byte-identical environment lists of the probe and the worker (T1), the three rejections (T2), every tracked `snmp3Load` call preceded by the worker path and the startup examples run as written (T4), the checks seen failing on the unchanged code and on each of V1 to V9, and the ordinary stage with the same 41 cells on both trees (T3, accepted wording D15). The differences from the plan are accepted by D15.
+- Landing: the change and its `CHANGELOG.md` entry `0.0.2` are commit `6b89552f028542f06b5198b3fee0df3f275edb16`, and the register record of the plan, decisions and results is commit `c3f9dcac5fc9e616861704d3ed4a6fa4e984790e`; both were pushed to `origin/master`. After the push, `git rev-parse HEAD '@{upstream}'` printed `c3f9dca` twice and `git diff --name-only 513929d origin/master` listed the 29 paths of the two commits (observed 2026-11-14T04:57Z); `git fetch` and `git status -sb` showed no difference again at 2026-11-14T05:08Z.
+- Tag: the annotated tag `0.0.2` (object `9db6471d0337273b72ad0514c7c5ef69c14d233b`) names `6b89552`, created and pushed under the owner's tag authority of 2026-11-13. Recheck with `git ls-remote --tags origin refs/tags/0.0.2 'refs/tags/0.0.2^{}'`, which printed that object and the peeled commit at 2026-11-14T05:08Z.
+- Issue #2: under the owner's Issue authority of 2026-11-13 its body was rewritten to the final behavior with the five acceptance items checked, a closing comment was posted and the issue was closed as completed. Recheck with `gh issue view 2 --json state,stateReason,closedAt`, which printed CLOSED, COMPLETED and 2026-11-14T05:03:27Z at 2026-11-14T05:08Z.
+- Unproven and left listed: the sanitizer entries, termination of the helper by a signal during the probe, and the application repository, whose startup keeps the old order of the two lines until the owner decides whether the swap becomes work of its own.
 
 ##### GitHub Projection
 
 Title: Spawn the native probe with the worker environment
 Labels: bug
 GitHub Milestone: 1.0.0
-Observed State: open
+Observed State: closed (completed)
 Observed Labels: bug
 Observed Milestone: 1.0.0
-Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:09Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
+Last Compared: 2026-11-14T05:08Z; issue updatedAt 2026-11-14T05:03:28Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the final behavior and the checked acceptance criteria.
 
 #### M2 - Baseline measurement on the two laboratory units
 
