@@ -1,0 +1,45 @@
+# Eight passive inputs of one binding group and one fanout that processes all of them in one pass, so that the
+# eight requests reach the scheduler together and leave as one batch.
+record(fanout, "$(P)Round") {
+    field(SELM, "All")
+    field(LNK0, "$(P)R1")
+    field(LNK1, "$(P)R2")
+    field(LNK2, "$(P)R3")
+    field(LNK3, "$(P)R4")
+    field(LNK4, "$(P)R5")
+    field(LNK5, "$(P)R6")
+    field(LNK6, "$(P)R7")
+    field(LNK7, "$(P)R8")
+}
+record(longin, "$(P)R1") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=R1 deadline_ms=5000")
+}
+record(longin, "$(P)R2") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=R2 deadline_ms=5000")
+}
+record(longin, "$(P)R3") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=R3 deadline_ms=5000")
+}
+record(longin, "$(P)R4") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=R4 deadline_ms=5000")
+}
+record(longin, "$(P)R5") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=R5 deadline_ms=5000")
+}
+record(longin, "$(P)R6") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=R6 deadline_ms=5000")
+}
+record(longin, "$(P)R7") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=R7 deadline_ms=5000")
+}
+record(longin, "$(P)R8") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=R8 deadline_ms=5000")
+}

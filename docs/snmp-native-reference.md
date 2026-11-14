@@ -15,7 +15,7 @@ Abbreviations on this page: SNMP is the Simple Network Management Protocol.
 | Outcome | Meaning |
 | --- | --- |
 | Complete | Accepted response with owned positional values |
-| Timeout | Native request exhausted its actual deadline and retries |
+| Timeout | Native request exhausted its actual deadline and retries, and no unparsable reply was counted |
 | OpenFailure | Local or native open failed; no application request admitted |
 | SendFailure | Native send failed; the caller-owned PDU is released |
 | SecurityFailure | Native security-error callback or real key-setup failure |
@@ -25,6 +25,7 @@ Abbreviations on this page: SNMP is the Simple Network Management Protocol.
 | ResponseRejected | Response identity, position, tag, or storage is invalid |
 | Cancelled | Session or owner closed with the request pending |
 | InvalidRequest | Batch, binding, payload, or native representation is invalid |
+| Unreadable | Native request timed out while the library counted a reply that it could not parse |
 
 Open and admission errors use `NativeError`. An admitted operation produces one terminal completion. Wrong credentials can produce a native timeout rather than SecurityFailure. A particular key-derivation failure is qualified only when an actual native call fails, because an open failure does not prove it.
 

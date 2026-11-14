@@ -46,7 +46,7 @@ bool sameProfile(const Profile& a, const Profile& b)
     return a.id == b.id && a.version == b.version && a.securityLevel == b.securityLevel &&
         a.user == b.user && a.contextName == b.contextName && a.securityEngineId == b.securityEngineId &&
         a.contextEngineId == b.contextEngineId && a.timeoutMs == b.timeoutMs && a.retries == b.retries &&
-        a.maxVarbinds == b.maxVarbinds && a.checkRanges == b.checkRanges && a.community == b.community &&
+        a.maxVarbinds == b.maxVarbinds && a.maxMessageSize == b.maxMessageSize && a.checkRanges == b.checkRanges && a.community == b.community &&
         a.authSecret == b.authSecret && a.privSecret == b.privSecret &&
         sameAlgorithm(a.authentication, b.authentication) && sameAlgorithm(a.privacy, b.privacy);
 }
@@ -295,7 +295,9 @@ int callback(int operation, netsnmp_session*, int requestId, netsnmp_pdu* pdu, v
         if (session.closing) result.outcome = NativeOutcome::Cancelled;
         else if (operation == NETSNMP_CALLBACK_OP_RESEND || operation == NETSNMP_CALLBACK_OP_CONNECT)
             return 0;
-        else if (operation == NETSNMP_CALLBACK_OP_TIMED_OUT) result.outcome = NativeOutcome::Timeout;
+        else if (operation == NETSNMP_CALLBACK_OP_TIMED_OUT)
+            result.outcome = snmp_get_statistic(STAT_SNMPINASNPARSEERRS) != request.parseErrors ?
+                NativeOutcome::Unreadable : NativeOutcome::Timeout;
         else if (operation == NETSNMP_CALLBACK_OP_SEC_ERROR) result.outcome = NativeOutcome::SecurityFailure;
         else if (operation == NETSNMP_CALLBACK_OP_SEND_FAILED) result.outcome = NativeOutcome::SendFailure;
         else if (operation == NETSNMP_CALLBACK_OP_RECEIVED_MESSAGE && pdu && pdu->command == SNMP_MSG_REPORT) {
@@ -387,6 +389,7 @@ std::shared_ptr<Session> open(Service& owner, const Profile& profile, const Endp
     native.version = profile.version == Version::V1 ? SNMP_VERSION_1 :
         profile.version == Version::V2c ? SNMP_VERSION_2c : SNMP_VERSION_3;
     native.timeout = static_cast<long>(profile.timeoutMs) * 1000; native.retries = profile.retries;
+    native.rcvMsgMaxSize = profile.maxMessageSize;
     Oids auth, privacy;
     SecurityMaterial material;
     if (profile.version == Version::V3) {
@@ -513,6 +516,7 @@ uint64_t submit(Session& session, const std::vector<std::shared_ptr<const Bindin
     auto* context = request.get();
     session.requests.emplace(token, std::move(request));
     owner.enter();
+    context->parseErrors = snmp_get_statistic(STAT_SNMPINASNPARSEERRS);
     const int sent = snmp_sess_async_send(session.handle, pdu.get(), callback, context);
     owner.event("native_send", session.identity.session, token, 0, sent);
     if (sent) pdu.release();

@@ -60,11 +60,23 @@ within the complete candidate; a missing referenced ID rejects the candidate.
 | `timeoutMs` | Integer | Default 1000; range 1-60000 |
 | `retries` | Integer | Default 3; range 0-10 |
 | `maxVarbinds` | Integer | Default 32; range 1-1024 |
+| `maxMessageSize` | Integer | Default 1472; range 484-65507 |
 | `checkRanges` | Boolean | Default `true` |
 
 Version 1 and 2c require `communityFile`. They reject every v3 field listed
 below. The native adapter uses timeout, retry and batch settings. Configuration
 loading itself executes no request and converts no record field.
+
+`maxMessageSize` is the largest message, in bytes, that the worker session
+accepts. An SNMPv3 request for objects carries it as `msgMaxSize`, and the unit sizes its
+reply against it. A version 1 or 2c message has no size field, so the value
+has no effect on the wire for those versions. The request itself must fit:
+with the Net-SNMP agent of the tests and a size of 484, requests of 484 bytes
+and more got no reply while requests of 467 bytes and less were answered; the
+APC units were not run this way. `maxVarbinds` is the
+upper bound of one request; the scheduler lowers the number of values per
+request of an address when the unit rejects a request as too large, as
+described in [Record behavior](snmp-record-behavior.md).
 
 Version 3 rejects `communityFile`. It requires `user` and `securityLevel`.
 The `user` string contains 1-32 UTF-8 bytes; `contextName` defaults to empty

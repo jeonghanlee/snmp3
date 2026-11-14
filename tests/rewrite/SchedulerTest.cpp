@@ -446,6 +446,106 @@ void groupBehindRetirement()
     check(s.holdRelease(1)==0); auto next=s.dispatch(1,2000); check(next.commands.size()==3);
 }
 
+// Batch limit of an address after a tooBig reply. The expected sizes follow the halving rule of the plan
+// (rounded down, minimum one) and are written here as literals, not read from the scheduler.
+constexpr int64_t TooBigStatus=1, GenErrStatus=5;
+constexpr uint16_t AnsweredCode=0, TimeoutCode=2, ProtocolFailureCode=6, UnreadableCode=12;
+std::shared_ptr<const Configuration> sizedConfiguration(unsigned mainReads, unsigned peerReads, unsigned maxVarbinds)
+{
+    auto c=std::make_shared<Configuration>(); Profile p; p.id="Default"; p.community={'f'}; p.maxVarbinds=maxVarbinds; c->profiles[p.id]=p;
+    Endpoint e; e.id="Main"; e.profile=p.id; e.address="127.0.0.1"; c->endpoints[e.id]=e;
+    e.id="Peer"; e.address="127.0.0.2"; c->endpoints[e.id]=e;
+    for(unsigned i=0;i<mainReads+peerReads;++i) {
+        BindingDefinition b; b.id="Read"+std::to_string(i); b.endpoint=i<mainReads ? "Main":"Peer"; b.oid={1,3,6,1,4,1,53864,1,0}; c->bindings[b.id]=b;
+    }
+    return c;
+}
+std::vector<uint64_t> handles(Scheduler& s, unsigned first, unsigned count)
+{ std::vector<uint64_t> v; for(unsigned i=0;i<count;++i)v.push_back(handle(s,"Read"+std::to_string(first+i))); return v; }
+std::vector<ipc::Result> failures(const Dispatch& d, uint16_t code, int64_t status)
+{
+    std::vector<ipc::Result> v;
+    for(const auto& c:d.commands) {
+        ipc::Result r; r.id=c.id; r.outcome=ipc::Outcome::NativeFailure; r.nativeOutcome=code; r.errorStatus=status;
+        v.push_back(std::move(r));
+    }
+    return v;
+}
+void expectSize(const char* label, size_t got, size_t want)
+{
+    ++checks;
+    if(got!=want)
+        throw std::runtime_error(std::string(label)+": the first request of the round holds "+std::to_string(got)+" values, expected "+std::to_string(want));
+}
+// One round admits every handle once, ends the first request with the given native outcome code and error status
+// (AnsweredCode answers it normally) and answers every later request normally, and returns the number of values in
+// the first request.
+size_t runRound(Scheduler& s, uint64_t address, const std::vector<uint64_t>& all, uint16_t code, int64_t status, uint64_t& now)
+{
+    s.admit(all,{},100,now);
+    size_t first=0; bool initial=true;
+    for(auto d=s.dispatch(address,now); !d.commands.empty(); d=s.dispatch(address,now)) {
+        const bool failing=initial && code!=AnsweredCode;
+        if(initial)first=d.commands.size();
+        s.transmitted(address,d.batch);
+        check(s.complete(address,d.batch,failing ? failures(d,code,status) : results(d),now+1));
+        check(s.retired(address,d.batch,identities(d)));
+        for(const auto& c:d.commands)consume(s,c.id,failing ? ipc::Outcome::NativeFailure : ipc::Outcome::Complete);
+        initial=false;
+    }
+    check(s.settled()); now+=1000;
+    return first;
+}
+void tooBigHalving()
+{
+    Scheduler s(sizedConfiguration(61,0,61),1,1); const auto all=handles(s,0,61); uint64_t now=1000;
+    const size_t expected[]={61,30,15,7,3,1,1};
+    for(const size_t want:expected)expectSize("tooBig halving",runRound(s,1,all,ProtocolFailureCode,TooBigStatus,now),want);
+}
+void tooBigPerAddress()
+{
+    Scheduler s(sizedConfiguration(8,8,8),1,1); const auto main=handles(s,0,8), peer=handles(s,8,8); uint64_t now=1000;
+    expectSize("main before",runRound(s,1,main,ProtocolFailureCode,TooBigStatus,now),8);
+    expectSize("peer unchanged",runRound(s,2,peer,AnsweredCode,0,now),8);
+    expectSize("main halved",runRound(s,1,main,AnsweredCode,0,now),4);
+}
+void tooBigReset()
+{
+    Scheduler s(sizedConfiguration(8,0,8),1,1); const auto all=handles(s,0,8); uint64_t now=1000;
+    expectSize("before",runRound(s,1,all,ProtocolFailureCode,TooBigStatus,now),8);
+    expectSize("halved",runRound(s,1,all,AnsweredCode,0,now),4);
+    s.workerLost(1,ipc::Outcome::WorkerFailure); s.reaped(1);
+    expectSize("after the worker restart",runRound(s,1,all,AnsweredCode,0,now),8);
+}
+void tooBigOtherStatus()
+{
+    Scheduler s(sizedConfiguration(8,0,8),1,1); const auto all=handles(s,0,8); uint64_t now=1000;
+    expectSize("general error status",runRound(s,1,all,ProtocolFailureCode,GenErrStatus,now),8);
+    expectSize("after the general error status",runRound(s,1,all,AnsweredCode,0,now),8);
+}
+void unreadableHalves()
+{
+    Scheduler s(sizedConfiguration(8,0,8),1,1); const auto all=handles(s,0,8); uint64_t now=1000;
+    expectSize("before",runRound(s,1,all,UnreadableCode,0,now),8);
+    expectSize("after an unreadable rejection",runRound(s,1,all,AnsweredCode,0,now),4);
+}
+void noReplyKeeps()
+{
+    Scheduler s(sizedConfiguration(8,0,8),1,1); const auto all=handles(s,0,8); uint64_t now=1000;
+    expectSize("before",runRound(s,1,all,TimeoutCode,0,now),8);
+    expectSize("after a timeout with no reply",runRound(s,1,all,AnsweredCode,0,now),8);
+}
+void splitCount()
+{
+    Scheduler s(sizedConfiguration(8,0,8),1,1); const auto all=handles(s,0,8); uint64_t now=1000;
+    check(s.snapshot(1).batchLimit==0 && s.snapshot(1).splits==0);
+    runRound(s,1,all,ProtocolFailureCode,TooBigStatus,now); check(s.snapshot(1).batchLimit==4 && s.snapshot(1).splits==1);
+    runRound(s,1,all,UnreadableCode,0,now); check(s.snapshot(1).batchLimit==2 && s.snapshot(1).splits==2);
+    runRound(s,1,all,TimeoutCode,0,now); check(s.snapshot(1).batchLimit==2 && s.snapshot(1).splits==2);
+    s.workerLost(1,ipc::Outcome::WorkerFailure); s.reaped(1);
+    check(s.snapshot(1).batchLimit==0 && s.snapshot(1).splits==2);
+}
+
 int main(int argc,char** argv)
 {
     // One ordered list drives both modes: with no argument every cell runs in order; with exactly one
@@ -457,7 +557,10 @@ int main(int argc,char** argv)
         {"two-generation-lifecycle",twoGenerationLifecycle},{"forged-retirement",forgedRetirement},
         {"grace-outcomes",graceOutcomes},{"grace-exclusion",graceExclusion},{"behind-classification",behindClassification},{"take-identity",takeIdentity},{"admission-bursts",admissionBursts},
         {"group-batches",groupBatches},{"group-hold",groupHold},{"group-hold-bound",groupHoldBound},{"group-caps",groupCaps},
-        {"group-expiry",groupExpiry},{"group-behind-retirement",groupBehindRetirement}};
+        {"group-expiry",groupExpiry},{"group-behind-retirement",groupBehindRetirement},
+        {"toobig-halving",tooBigHalving},{"toobig-per-address",tooBigPerAddress},{"toobig-reset",tooBigReset},
+        {"toobig-other-status",tooBigOtherStatus},{"unreadable-halves",unreadableHalves},{"no-reply-keeps",noReplyKeeps},
+        {"split-count",splitCount}};
     if(argc>2) { std::fprintf(stderr,"Usage: snmp3SchedulerTest [cell]\n"); return 2; }
     try {
         if(argc==2) {

@@ -49,7 +49,23 @@ The `deadline_ms` value bounds a request from its admission. Queueing, relaunch,
 
 A request ends at the earlier of its native outcome and its deadline. The profile fields `timeoutMs` and `retries` set the native service time of a lost response, so a `deadline_ms` below that time ends the request as a Deadline instead of a native timeout.
 
-A request that reaches its deadline before transmission is reported as COMM/INVALID with the AMSG text `deadline before send`. A request that was sent keeps an empty AMSG.
+A request that reaches its deadline before transmission is reported as COMM/INVALID with the AMSG text `deadline before send`. A request that was sent and failed carries one of the AMSG texts below; every other outcome of a sent request keeps an empty AMSG.
+
+| AMSG | Alarm | Cause |
+| --- | --- | --- |
+| `tooBig` | READ or WRITE, INVALID | The unit answered the request with the error status tooBig |
+| `unreadable rejection` | READ or WRITE, INVALID | The request timed out and the library counted a reply that it could not parse while the request was pending |
+| `no reply` | COMM, INVALID | The request timed out and no unparsable reply was counted |
+
+The count of unparsable replies is the `snmpInASNParseErrs` statistic of the Net-SNMP library, read by the worker when it sends the request and when the request times out. It rises for an unparsable reply on an SNMPv3 session. On an SNMPv2c session it was observed not to rise, so such a reply is reported as `no reply`; SNMPv1 was not run.
+
+## Request size per address
+
+A request holds at most `maxVarbinds` values. When the unit rejects a request, by a tooBig reply or by a reply that ends as `unreadable rejection`, the scheduler sets the limit of that address to half the number of values of the rejected request, rounded down and never below one. The records of the rejected request complete with the alarm above, and the following requests of the address use the lower limit: a rejected request of 61 values is followed by requests of at most 30, and each further rejection halves the limit again, to 15, 7, 3, and 1. A rejection never raises the limit. A `no reply` timeout and every other error status leave the limit unchanged.
+
+The limit belongs to one address and lasts until its worker is restarted; the first request after the restart uses `maxVarbinds` again. `snmp3RuntimeReport` prints the limit and the number of reductions since the IOC started in the `snmp3 batch:` line of the address.
+
+Observed on 2026-11-14 with two APC AP8932 units: with 328 read bindings and no `group`, of 4576 requests in 120 s, 4571 were 134 to 140 bytes, one value each, 2 were engine discovery requests of 64 bytes, and 3 were 160 bytes, and no request was rejected at `maxVarbinds` 61 or 120. A group of 61 integer bindings left as one request of 1460 bytes, which the unit rejected; after the limit became 30 the same group left as requests of 778, 787, and 140 bytes and every record filled.
 
 A successor admitted behind a retirement keeps the deadline of its own admission. When its predecessor ends in a Deadline, the worker ends that request at the deadline on its own, and the successor is dispatched after the Retired frame on the same worker. A worker that sends nothing within the 1000 ms retire grace is contained, reaped, and relaunched; the successor is then dispatched only if its budget outlasts the grace, the reap, the restart backoff, the relaunch, and the Ready frame. Otherwise it expires unsent.
 

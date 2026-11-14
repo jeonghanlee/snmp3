@@ -250,6 +250,8 @@ void Runtime::report()
                     (unsigned long long)queue.undelivered,(unsigned long long)queue.retirementPending,
                     (unsigned long long)queue.behindRetirement,(unsigned long long)queue.behindAdmitted,
                     (unsigned long long)queue.behindNeverSent);
+        std::printf("snmp3 batch: address=%llu limit=%llu splits=%llu\n",
+                    (unsigned long long)id,(unsigned long long)queue.batchLimit,(unsigned long long)queue.splits);
         std::printf("snmp3 admit: address=%llu admissions=%llu bursts=%llu burstSpanMaxUs=%llu burstGapMaxUs=%llu\n",
                     (unsigned long long)id,(unsigned long long)queue.admissions,(unsigned long long)queue.bursts,
                     (unsigned long long)queue.burstSpanMaxUs,(unsigned long long)queue.burstGapMaxUs);

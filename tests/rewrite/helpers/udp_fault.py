@@ -84,7 +84,7 @@ def parse(data):
             raise ValueError("invalid SNMPv3 flags")
         security_root, _ = tlv(outer[2]["body"])
         security = items(security_root["body"])
-        metadata.update(message_id=integer(header[0]), engine_length=len(security[0]["body"]),
+        metadata.update(message_id=integer(header[0]), max_size=integer(header[1]), engine_length=len(security[0]["body"]),
                         boots=integer(security[1]), engine_time=integer(security[2]),
                         user_length=len(security[3]["body"]), discovery=not security[3]["body"],
                         flags=header[2]["body"][0])

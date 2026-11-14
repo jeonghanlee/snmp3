@@ -166,7 +166,7 @@ class Forwarder:
                 raise RuntimeError("actual Bootstrap has no profile")
             position += 8
             text()
-            position += 20
+            position += 24
             for _ in range(4):
                 text()
             if not number():

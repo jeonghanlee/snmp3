@@ -16,6 +16,9 @@ struct QueueSnapshot {
     // the previous one; the span is the first to the last call of a burst, the gap the largest distance
     // between two consecutive calls inside a burst. Values are microseconds of the admission clock.
     uint64_t admissions=0, bursts=0, burstSpanMaxUs=0, burstGapMaxUs=0;
+    // Batch limit learned from rejections of the unit (zero while the profile limit applies) and the number
+    // of reductions since the scheduler was built.
+    uint64_t batchLimit=0, splits=0;
     bool accepting=false;
 };
 struct Dispatch {
@@ -91,6 +94,9 @@ private:
         uint64_t count=0, bytes=0, nextAdmission=1, nextBatch=1, batch=0;
         uint64_t behindAdmitted=0, behindNeverSent=0;
         uint64_t admissions=0, bursts=0, burstSpanMaxUs=0, burstGapMaxUs=0, burstStartUs=0, lastAdmissionUs=0;
+        // Largest number of values of one request after a rejection, kept until the worker restarts; zero
+        // leaves the profile limit in force.
+        uint64_t batchLimit=0, splits=0;
         bool accepting=true;
         std::deque<Key> queue;
         std::vector<Key> active;

@@ -162,6 +162,9 @@ void Requests::callback(epicsCallback* callback)
                     context.alarm=context.definition.binding->definition().operation==Operation::Get ? READ_ALARM:WRITE_ALARM;
                 }
             }
+            // Base keeps NAMSG when it equals AMSG, so a message raised twice in a row would stay on the record
+            // after the request succeeds; a completion without a message starts from an empty NAMSG.
+            if(!context.message)record->namsg[0]='\0';
             if(context.alarm) {
                 if(context.message)recGblSetSevrMsg(record,context.alarm,INVALID_ALARM,"%s",context.message);
                 else recGblSetSevr(record,context.alarm,INVALID_ALARM);

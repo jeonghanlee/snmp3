@@ -84,6 +84,12 @@ void prepare(RecordContext& context,const ipc::Result& result)
         context.alarm=result.outcome==ipc::Outcome::NativeFailure && !transport ?
                       (input(definition.kind)?READ_ALARM:WRITE_ALARM):COMM_ALARM;
         if(result.outcome==ipc::Outcome::Deadline && !context.terminal.sent)context.message="deadline before send";
+        // The cause of a failed request that the unit or its silence decided.
+        if(result.outcome==ipc::Outcome::NativeFailure) {
+            if(result.nativeOutcome==ipc::NativeProtocolFailure && result.errorStatus==ipc::ErrorStatusTooBig)context.message="tooBig";
+            else if(result.nativeOutcome==ipc::NativeUnreadable)context.message="unreadable rejection";
+            else if(result.nativeOutcome==ipc::NativeTimeout)context.message="no reply";
+        }
         return;
     }
     if(result.nativeOutcome!=NativeComplete) { context.alarm=input(definition.kind)?READ_ALARM:WRITE_ALARM; return; }

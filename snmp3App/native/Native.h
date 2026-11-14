@@ -9,7 +9,10 @@ namespace detail { struct Session; }
 class Worker;
 enum class NativeOutcome {
     Complete, Timeout, OpenFailure, SendFailure, SecurityFailure, ProtocolFailure,
-    SecurityConflict, CapabilityMismatch, ResponseRejected, Cancelled, InvalidRequest
+    SecurityConflict, CapabilityMismatch, ResponseRejected, Cancelled, InvalidRequest,
+    // The request timed out while the library counted a reply it could not parse: an answer arrived and
+    // could not be read, which a unit produces when it rejects an oversized reply with a faulty message.
+    Unreadable
 };
 class NativeError : public std::runtime_error {
 public:

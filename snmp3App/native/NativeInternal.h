@@ -24,6 +24,9 @@ struct Request {
     Session* session;
     uint64_t token;
     bool terminal = false;
+    // Library count of unparsable replies when the request was sent; a larger count at its timeout means
+    // that a reply arrived and could not be read. One request is in flight per worker process.
+    unsigned parseErrors = 0;
     Operation operation;
     std::vector<std::shared_ptr<const Binding>> bindings;
     std::vector<Value> payload;

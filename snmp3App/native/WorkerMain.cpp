@@ -24,7 +24,7 @@ uint16_t nativeCode(NativeOutcome outcome)
     case NativeOutcome::SecurityFailure:return 5; case NativeOutcome::ProtocolFailure:return 6;
     case NativeOutcome::SecurityConflict:return 7; case NativeOutcome::CapabilityMismatch:return 8;
     case NativeOutcome::ResponseRejected:return 9; case NativeOutcome::Cancelled:return 10;
-    case NativeOutcome::InvalidRequest:return 11;
+    case NativeOutcome::InvalidRequest:return 11; case NativeOutcome::Unreadable:return 12;
     }
     throw std::runtime_error("unknown native outcome");
 }

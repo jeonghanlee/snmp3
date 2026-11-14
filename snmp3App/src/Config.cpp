@@ -320,13 +320,14 @@ std::shared_ptr<Configuration> candidate(const std::string& file, const std::str
     auto result = std::make_shared<Configuration>();
     result->capabilities = capabilities(executable, environment);
     for (const Json& item : array(root, "profiles")) {
-        fields(item, {"id", "version", "timeoutMs", "retries", "maxVarbinds", "checkRanges",
+        fields(item, {"id", "version", "timeoutMs", "retries", "maxVarbinds", "maxMessageSize", "checkRanges",
                       "communityFile", "user", "securityLevel", "authAlgorithm", "authSecretFile",
                       "privAlgorithm", "privSecretFile", "contextName", "securityEngineId", "contextEngineId"});
         Profile profile; profile.id = id(item, "id");
         profile.timeoutMs = option(item, "timeoutMs", 1000, 1, 60000);
         profile.retries = option(item, "retries", 3, 0, 10);
         profile.maxVarbinds = option(item, "maxVarbinds", 32, 1, 1024);
+        profile.maxMessageSize = option(item, "maxMessageSize", 1472, 484, 65507);
         if (present(item, "checkRanges")) {
             const Json& value = required(item, "checkRanges");
             if (value.kind != Json::Kind::Boolean) reject("boolean option required");

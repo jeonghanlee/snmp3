@@ -153,6 +153,7 @@ QueueSnapshot Scheduler::snapshot(uint64_t address) const
 {
     std::lock_guard<std::mutex> guard(mutex); const auto& a=queues.at(address); QueueSnapshot r;
     r.address=address; r.count=a.count; r.bytes=a.bytes; r.countLimit=a.countLimit; r.byteLimit=a.byteLimit; r.accepting=accepting && a.accepting;
+    r.batchLimit=a.batchLimit; r.splits=a.splits;
     for(const auto& e:a.generations) {
         const auto& g=*e.second;
         if(g.selected) { if(!g.consumed)++r.undelivered; else if(!g.retired)++r.retirementPending; }
@@ -205,7 +206,8 @@ Dispatch Scheduler::dispatch(uint64_t address, uint64_t nowUs)
     if(initial.command.deadline<=nowUs)return d;
     const auto release=holdLocked(a);
     if(release && nowUs<release)return d;
-    const auto maximum=std::min<unsigned>(handles.at(first.first).binding->profile().maxVarbinds,ipc::MaxMembers);
+    auto maximum=std::min<unsigned>(handles.at(first.first).binding->profile().maxVarbinds,ipc::MaxMembers);
+    if(a.batchLimit)maximum=std::min<unsigned>(maximum,unsigned(a.batchLimit));
     uint64_t commandBytes=8,resultBytes=8;
     for(auto id:a.queue) {
         const auto& g=*a.generations.at(id);
@@ -256,11 +258,22 @@ bool Scheduler::complete(uint64_t address, uint64_t batch, std::vector<ipc::Resu
     // Validate the entire frame before committing any terminal ownership.
     for(const auto& r:results) {
         const auto& b=handles.at(r.id.binding).binding->definition();
-        require(uint16_t(r.outcome)>=1 && uint16_t(r.outcome)<=6 && r.nativeOutcome<=11);
+        require(uint16_t(r.outcome)>=1 && uint16_t(r.outcome)<=6 && r.nativeOutcome<=ipc::MaxNativeOutcome);
         if(r.outcome==ipc::Outcome::Complete) {
             require(r.nativeOutcome==1 && r.value.size()<=ipc::responseBytes(b)); ipc::Reader reader(r.value);
             require(reader.oid()==b.oid); ipc::decodeValue(reader,b,false); reader.end();
         } else require(r.value.empty());
+    }
+    // A rejection of the unit, a tooBig reply or a reply that could not be read, halves the batch of this
+    // address for the following requests, rounded down and never below one value.
+    const bool rejected=std::any_of(results.begin(),results.end(),[](const ipc::Result& r) {
+        return r.outcome==ipc::Outcome::NativeFailure &&
+               ((r.nativeOutcome==ipc::NativeProtocolFailure && r.errorStatus==ipc::ErrorStatusTooBig) ||
+                r.nativeOutcome==ipc::NativeUnreadable);
+    });
+    if(rejected) {
+        const uint64_t reduced=std::max<uint64_t>(1,results.size()/2);
+        if(!a.batchLimit || reduced<a.batchLimit) { a.batchLimit=reduced; ++a.splits; }
     }
     for(auto& r:results) {
         auto& g=*a.generations.at(key(r.id)); if(g.selected)continue;
@@ -315,6 +328,7 @@ void Scheduler::reaped(uint64_t address)
     }
     // Recover only zero-byte commands at their original FIFO positions.
     recovered.insert(recovered.end(),a.queue.begin(),a.queue.end()); a.queue.swap(recovered); a.active.clear(); a.batch=0;
+    a.batchLimit=0;
 }
 void Scheduler::stop()
 {

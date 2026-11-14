@@ -70,7 +70,7 @@ bool validId(const std::string& id)
 void validateProfile(const Profile& p)
 {
     require(validId(p.id) && p.timeoutMs>=1 && p.timeoutMs<=60000 && p.retries<=10 &&
-            p.maxVarbinds>=1 && p.maxVarbinds<=1024 && p.user.size()<=32 && p.contextName.size()<=255);
+            p.maxVarbinds>=1 && p.maxVarbinds<=1024 && p.maxMessageSize>=484 && p.maxMessageSize<=65507 && p.user.size()<=32 && p.contextName.size()<=255);
     auto engine=[](const std::vector<uint8_t>& v) {
         return v.empty() || (v.size()>=5 && v.size()<=32 &&
             !std::all_of(v.begin(),v.end(),[](uint8_t b){return b==0;}) &&
@@ -300,7 +300,7 @@ std::vector<uint8_t> encodeResults(const std::vector<Result>& v)
     uint64_t length=8; for(const auto& c:v)length=add(length,add(48,c.value.size()));
     Writer w(DataBytes,size(length)); members(w,v.size());
     for(const auto& c:v) {
-        require(uint16_t(c.outcome)>=1 && uint16_t(c.outcome)<=6 && c.nativeOutcome<=11 && (c.outcome==Outcome::Complete || c.value.empty()));
+        require(uint16_t(c.outcome)>=1 && uint16_t(c.outcome)<=6 && c.nativeOutcome<=MaxNativeOutcome && (c.outcome==Outcome::Complete || c.value.empty()));
         identity(w,c.id); w.u16(uint16_t(c.outcome)); w.u16(c.nativeOutcome); w.u32(c.value.size());
         uint64_t bits; std::memcpy(&bits,&c.errorStatus,8); w.u64(bits); std::memcpy(&bits,&c.errorIndex,8); w.u64(bits); w.raw(c.value.data(),c.value.size());
     }
@@ -310,7 +310,7 @@ std::vector<Result> decodeResults(const std::vector<uint8_t>& b)
 {
     require(b.size()<=DataBytes); Reader r(b); auto n=members(r); require(n<=r.left()/48); std::vector<Result> v; v.reserve(n);
     while(n--) {
-        Result c; c.id=identity(r); auto op=r.u16(); require(op>=1 && op<=6); c.outcome=Outcome(op); c.nativeOutcome=r.u16(); require(c.nativeOutcome<=11);
+        Result c; c.id=identity(r); auto op=r.u16(); require(op>=1 && op<=6); c.outcome=Outcome(op); c.nativeOutcome=r.u16(); require(c.nativeOutcome<=MaxNativeOutcome);
         auto len=r.u32(); auto bits=r.u64(); std::memcpy(&c.errorStatus,&bits,8); bits=r.u64(); std::memcpy(&c.errorIndex,&bits,8);
         require(len<=DataBytes && (c.outcome==Outcome::Complete || len==0)); auto p=r.raw(len); c.value.assign(p,p+len); v.push_back(std::move(c));
     }
@@ -329,7 +329,7 @@ std::vector<Result> decodeResults(const std::vector<uint8_t>& b,
     for(const auto& e:expected) {
         if(!(identity(r)==e.id))throw StaleIdentity();
         const auto outcome=r.u16(); require(outcome>=1 && outcome<=6);
-        require(r.u16()<=11); const auto length=r.u32(); r.u64(); r.u64();
+        require(r.u16()<=MaxNativeOutcome); const auto length=r.u32(); r.u64(); r.u64();
         require(length<=responseBytes(*e.definition) && (outcome==1 || length==0));
         r.raw(length);
     }
@@ -355,7 +355,7 @@ void bootstrap(Writer& w,const Configuration& c,const std::string& address)
         if(!selectedProfiles.count(e.first))continue;
         const auto& p=e.second; validateProfile(p); w.u64(profiles.at(e.first)); w.text(e.first);
         w.u16(p.version==Version::V1 ? 1:p.version==Version::V2c ? 2:3); w.u16(p.securityLevel==SecurityLevel::NoAuthNoPriv ? 1:p.securityLevel==SecurityLevel::AuthNoPriv ? 2:3);
-        w.u32(p.timeoutMs); w.u32(p.retries); w.u32(p.maxVarbinds); w.u32(p.checkRanges ? 1:0); w.text(p.user); w.text(p.contextName); w.text(p.authentication.name); w.text(p.privacy.name);
+        w.u32(p.timeoutMs); w.u32(p.retries); w.u32(p.maxVarbinds); w.u32(p.maxMessageSize); w.u32(p.checkRanges ? 1:0); w.text(p.user); w.text(p.contextName); w.text(p.authentication.name); w.text(p.privacy.name);
         w.bytes(p.community); w.bytes(p.authSecret); w.bytes(p.privSecret); w.bytes(p.securityEngineId); w.bytes(p.contextEngineId);
     }
     w.u32(selectedEndpoints.size());
@@ -404,7 +404,7 @@ std::shared_ptr<const Configuration> decodeBootstrap(const std::vector<uint8_t>&
     for(uint64_t index=0;index<count;++index) {
         Profile p; const auto id=r.u64(); require(id>previous); previous=id; p.id=r.text(64); auto v=r.u16(); require(v>=1 && v<=3); p.version=v==1 ? Version::V1:v==2 ? Version::V2c:Version::V3;
         auto level=r.u16(); require(level>=1 && level<=3); p.securityLevel=level==1 ? SecurityLevel::NoAuthNoPriv:level==2 ? SecurityLevel::AuthNoPriv:SecurityLevel::AuthPriv;
-        p.timeoutMs=r.u32(); p.retries=r.u32(); p.maxVarbinds=r.u32(); auto ranges=r.u32(); require(ranges<=1); p.checkRanges=ranges;
+        p.timeoutMs=r.u32(); p.retries=r.u32(); p.maxVarbinds=r.u32(); p.maxMessageSize=r.u32(); auto ranges=r.u32(); require(ranges<=1); p.checkRanges=ranges;
         p.user=r.text(255); p.contextName=r.text(255); auto auth=r.text(128),priv=r.text(128);
         if(!auth.empty()) { const auto& a=c->capabilities.authentication.at(auth); r.reserveOwned(a.name.capacity()+1+multiply(a.oid.capacity(),4)); p.authentication=a; }
         if(!priv.empty()) { const auto& a=c->capabilities.privacy.at(priv); r.reserveOwned(a.name.capacity()+1+multiply(a.oid.capacity(),4)); p.privacy=a; }
