@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: Review the plan of M5 in `docs/milestone-1.0.0.md` with `plan.md` of the milestone-tracking skill: it is the nearest Ready row and its plan is a draft, so acceptance and implementation authorization are still open (commits, pushes, tags and issue actions each need their own authority). M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`) and G1 are complete. The other Ready rows are M6, M8, M9, M10 and M16; the owner may take M16, the recovery of a unit that returns after a power or network loss, first.
+Next session entry point: Continue M16 in `docs/milestone-1.0.0.md` (plan accepted and implementation authorized on 2026-11-15; commits, pushes, tags and issue actions each need their own authority). Items 1 to 6 are done and T1, T2, T3 and T6 are recorded (2026-11-15); nothing of M16 is committed; the differences from the plan are accepted by D25. Remaining: item 7 on the units, T4 (link cut and restore) and T5 (power loss and return, by the owner, with engine ID and boots read before and after), a second-person pass of the changed documents, then commit, `CHANGELOG.md` entry `0.0.4`, tag and closure, each under its own authority. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`) and G1 are complete. The Ready rows are M5, M6, M8, M9 and M10. The bodies of issues #5 and #6 still name the earlier tags and are updated under Issue authority.
 
 ## Scope
 
@@ -30,16 +30,16 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | Baseline | M2 | Baseline measurement on the two laboratory units | Milestone | Complete | No | D8, D9, D11 | Net-SNMP 5.9.4 read directly and the installed legacy module measured on both units, with the response time of a request and the interval of new values recorded; no product change; [detail](#m2---baseline-measurement-on-the-two-laboratory-units) |
 | A | M3 | Two-device isolation measurement on the current product | Milestone | Complete | No | G1, D4, M2, D13 | Measured cadence of the healthy unit with the other unit disconnected; [detail](#m3---two-device-isolation-measurement-on-the-current-product) |
 | B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Complete | No | G1, D16 | At `maxVarbinds=61` the records of both units fill without manual tuning; a rejection, read or unreadable, halves the batch and shows on the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
-| B | M5 | SET outcome contract | Milestone | Not started | Yes | M4 | Output records complete only on the SET result; a timeout is an alarm; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
-| C | M6 | Reply time stamp on records | Milestone | Not started | Yes | | Record TIME equals the worker receive time with `TSE=-2`; tag `0.0.5`; [detail](#m6---reply-time-stamp-on-records) |
-| C | M7 | Reply-driven processing and driver-owned periodic acquisition | Milestone | Not started | No | M4, M6 | `SCAN=I/O Intr` records process on reply arrival at the configured period; tag `0.0.6`; [detail](#m7---reply-driven-processing-and-driver-owned-periodic-acquisition) |
-| Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4 | A table read uses one GETBULK request where the profile allows it; tag `0.0.7`; [detail](#m8---getbulk-table-reads) |
-| D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag `0.0.8`; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
-| Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.9`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
-| Recovery | M16 | Recovery when a unit returns after a power or network loss | Milestone | Not started | Yes | G1, D18 | With the IOC left running, the records of a unit return to normal by themselves after the unit's power and after its network link come back; tag `0.0.10`; [detail](#m16---recovery-when-a-unit-returns-after-a-power-or-network-loss) |
+| Recovery | M16 | Recovery when a unit returns after a power or network loss | Milestone | In progress | No | G1, D18, D22, D23, D24, D25 | With the IOC left running, the records of a unit return to normal by themselves when the unit comes back with its engine ID unchanged; a changed engine ID is shown and recorded, and until the IOC is restarted no SET is sent and no value is taken except system information; tag `0.0.4`; [detail](#m16---recovery-when-a-unit-returns-after-a-power-or-network-loss) |
+| B | M5 | SET outcome contract | Milestone | Not started | Yes | M4 | Output records complete only on the SET result; a timeout is an alarm; tag `0.0.5`; [detail](#m5---set-outcome-contract) |
+| C | M6 | Reply time stamp on records | Milestone | Not started | Yes | | Record TIME equals the worker receive time with `TSE=-2`; tag `0.0.6`; [detail](#m6---reply-time-stamp-on-records) |
+| C | M7 | Reply-driven processing and driver-owned periodic acquisition | Milestone | Not started | No | M4, M6 | `SCAN=I/O Intr` records process on reply arrival at the configured period; tag `0.0.7`; [detail](#m7---reply-driven-processing-and-driver-owned-periodic-acquisition) |
+| Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4 | A table read uses one GETBULK request where the profile allows it; tag `0.0.8`; [detail](#m8---getbulk-table-reads) |
+| D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag `0.0.9`; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
+| Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.10`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M16 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 4 Complete, 0 In progress, 8 Not started, 0 Blocked; G1 Complete. Ready rows: M5, M6, M8, M9, M10, M16. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
+Current work tally: 4 Complete, 1 In progress, 7 Not started, 0 Blocked; G1 Complete. Ready rows: M5, M6, M8, M9, M10. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -66,6 +66,10 @@ Current work tally: 4 Complete, 0 In progress, 8 Not started, 0 Blocked; G1 Comp
 | D19 | New tests are written in bash, which starts and stops the processes, and Perl, which reads the records and judges; they join the matrix as new cells beside the existing Python cells, and T1 of M4 is the first. Moving the existing cells to bash and Perl is separate work (M17) in Backlog and starts by the owner's decision. | 2026-11-14 |
 | D20 | M4: the `tooBig` message is set on the records of every request that the unit rejects with tooBig, not only on a batch that has reached the floor, and `unreadable rejection` and `no reply` are set the same way. The record did fail for that reason in that round, and a message at the floor only would need the batch limit passed to the record side. This accepts difference 2 of M4; the Scope line of M4 keeps its earlier wording. | 2026-11-14 |
 | D21 | M4: differences 1, 3, 4, 5 and 6 between the accepted plan and the work as run are accepted as listed in the detail of M4. Difference 7, the batch limit shared by endpoints of one host address, is left as it is; the units in use have different addresses. | 2026-11-14 |
+| D22 | M16 runs next, before M5. Its tag becomes `0.0.4`, and the tags of M5, M6, M7, M8, M9 and M10 each move up by one, to `0.0.5` through `0.0.10`, so that tags rise in the order of execution; the M16 row moves to follow M4. The IDs do not change. | 2026-11-14 |
+| D23 | M16, the owner's policy for a unit that returns: the IOC is never left dead, and it tells apart what came back. A unit whose engine ID is unchanged is recovered fully, also when its engine time went back. A changed engine ID at the same address is suspicious, because the network gives an address only to a registered MAC address: the IOC keeps basic communication, asks whether it is the same unit, never returns to normal operation by itself, shows the change on the records and records it so that the user can restart the IOC and trace what happened. In that state a SET is never sent, values read from the unit are not put into records, and only bindings marked as system information (firmware, name, MAC address, status) are read and shown, with an alarm. A responder that fails authentication is reported as well. A profile with a passphrase and a profile with localized keys only must both work; with localized keys only the changed unit cannot be authenticated and is reported as unverified. | 2026-11-14 |
+| D24 | M16, rules the policy of D23 left open, filled in at the owner's instruction and open to change in the plan review. (1) An SNMPv3 endpoint asks the address for its engine ID again after 2 consecutive failed requests; the least interval between two questions follows the beacon of the Channel Access server of EPICS Base (`rsrv/online_notify.c`): it starts at 0.02 s, doubles after each question and stays at 15 s, the default of `EPICS_CAS_BEACON_PERIOD`, and it starts again after a recovery. (2) In the fixture, recovery and the entry into a changed state are due within 30 s of the agent's return. (3) In a changed state every record of the endpoint is COMM/INVALID: the records whose values are withheld keep the value they had, and the system information records take their values. (4) The messages are `no reply`, `engine ID changed: restart IOC` and `engine ID unverified: restart IOC`. (5) One log line is written when a state is entered, none per failed request. (6) A changed state lasts until the IOC is restarted, also when the earlier engine ID answers again. (7) A profile that cannot authenticate the new engine ID, because it holds localized keys only, has no authentication, or names its engine ID in the configuration, is unverified; with the engine ID named in the configuration a restart does not accept another engine ID, the configuration must be changed. (8) The tests of this unit are limited to what the purpose needs; what is left out is listed with its reason in the detail. | 2026-11-14 |
+| D25 | M16: the seven differences between the accepted plan and the work as run are accepted as listed in the detail of M16. With difference 2 an endpoint that has no system information binding is unverified at once, which adds a case to D24 (7). | 2026-11-15 |
 
 ### ID Migration
 
@@ -1115,65 +1119,129 @@ Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:39Z; mileston
 Origin: 1.0.0 / M16
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: In progress
 
 ##### Summary
 
-An IOC stays up for months while a unit can lose its power or its network link. For the IOC the two look the same: requests time out. When the unit answers again, the records must return to normal by themselves, with no restart of the IOC and no operator action. The owner met the opposite on another device support: the device lost power, came back with its network, and the IOC kept waiting. This unit verifies the behavior of snmp3 and closes any gap it finds.
+An IOC stays up for months while a unit can lose its power or its network link. For the IOC the two look the same: requests time out. When the unit answers again, the IOC must start to communicate again by itself, with no restart of the IOC and no operator action. The owner met the opposite on another device support: the device lost power, came back with its network, and the IOC kept waiting. SNMP runs over UDP and has no connection to restore; SNMPv1 and SNMPv2c keep no state per unit, while an SNMPv3 client remembers the engine ID, the engine boots and the engine time of the unit.
 
-Known so far: in the baseline run of snmp3 `0.0.1` (M2 / T8) the network link of each unit was cut for 300 s and restored, and the unit was answered again after the restore (55 of 55 and 19 of 19 requests in the restored phases). A power loss of a unit has not been observed. After a power loss the card restarts, so its SNMPv3 engine boots and engine time change, which a link cut does not cause. Whether the current product recovers from that is not known.
+Observed on 2026-11-15 (UTC) with the unchanged product, the production `snmp3Ioc` and worker, and the fixture agent stopped and started again while four IOCs kept running (SNMPv1, SNMPv2c, SNMPv3 with engine discovery, SNMPv3 with the engine ID set); 16 request rounds in about 50 s after the return (`work/tmp/m16-observe/`; `RUNS.txt` there names the runs that count and the ones discarded):
+
+| The agent returns as | SNMPv1 | SNMPv2c | SNMPv3, both profiles |
+| --- | --- | --- | --- |
+| Paused 20 s and continued, so its engine ran on (stands for a link cut) | recovers | recovers | recovers |
+| Started for the first time 20 s after the IOC | recovers | recovers | recovers |
+| Restarted with higher engine boots | recovers | recovers | recovers |
+| Restarted with the same boots after the IOC ran 20 s | recovers | recovers | recovers |
+| Restarted with the same boots after the IOC ran 200 s | recovers | recovers | stays INVALID with `no reply` |
+| Restarted with another engine ID (IOC ran 20 s; also with higher boots after 200 s) | recovers | recovers | stays INVALID with `no reply` |
+
+Recovers means normal from the first round after the return. In the two cases that do not recover, all 16 rounds fail with the message `no reply` and the worker is not restarted. What the agent sent back in these rounds was not recorded. When the IOC starts while no agent runs, the records of the SNMPv3 profile with engine discovery are INVALID with an empty message until the agent starts; after an agent that had answered is stopped, they carry `no reply` like the others. The fixture agent stands for a unit here only as a server that disappears and returns; what the two laboratory units do to their engine ID and boots over a power loss has not been observed. Read from both units on 2026-11-15T10:42Z, read only: the engine ID of each is 11 bytes in the format of RFC 3411 with enterprise number 318 and format octet 3, which is a MAC address of 6 bytes, so an unchanged engine ID means the same network card; the engine boots are 125 on the NMC2 unit and 16 on the NMC3 unit, and the engine time equals `sysUpTime` in seconds on both (212995 s and 106229 s). The values themselves are kept in `work/m16-evidence/private/`. In the baseline run of snmp3 `0.0.1` (M2 / T8) the network link of each unit was cut for 300 s and restored, and the unit was answered again.
 
 ##### Scope
 
-- Observe the current product first: a link cut and restore, and a power loss and return, of one unit while the IOC runs, with the other unit as the control.
-- If a case does not recover by itself, change the product so that it does, and state in the documentation how long recovery takes.
-- A record message that tells a unit that does not answer from a rejected request, as far as M4 leaves it open.
+- Full recovery by itself when the unit returns with its engine ID unchanged, including engine time that went back with the same boots: an SNMPv3 endpoint asks the address for its engine ID again after 2 consecutive failed requests, with a least interval that doubles from 0.02 s to 15 s like the Channel Access beacon (D24), and synchronizes again when the engine ID is the same.
+- A state per SNMPv3 endpoint, entered when the responder shows another engine ID than the one first used and kept until the IOC is restarted (D23, D24):
+  - changed: the responder answers an authenticated request under the profile's passphrase with its new engine ID;
+  - unverified: that request fails, or the profile cannot authenticate another engine ID (localized keys only, no authentication, or the engine ID named in the configuration).
+- In either state no SET is sent and no value read from the unit is put into a record: those records are COMM/INVALID with the message of the state and keep the value they had. In the changed state the bindings marked as system information are read and shown, also with COMM/INVALID and the message.
+- A binding field that marks system information (read only), for objects such as firmware revision, name, MAC address and status.
+- Messages: `no reply` whenever a unit does not answer, also for an SNMPv3 profile with engine discovery whose unit has not answered since the IOC started, where the message is empty today; `engine ID changed: restart IOC`; `engine ID unverified: restart IOC`.
+- One log line when a state is entered, with the UTC time, the endpoint, the earlier and the new engine ID and whether the request was authenticated, and a line per address in `snmp3RuntimeReport` with the state.
+- Documentation of the states, the messages, the field, the log and report lines, and the limits: SNMPv1 and SNMPv2c carry no engine ID, so a replaced unit cannot be told apart there.
 
-Out of scope: a restart of the IOC itself, the application repository, and performance criteria (M13).
+Out of scope: a restart of the IOC itself, the application repository, performance criteria (M13), receiving traps, a probe for endpoints that no record reads periodically, reading the MAC address from the host's neighbor table, a record of a recovery with the engine ID unchanged, a message of its own for the seconds between the first failed request and the outcome of the new question, and the change of the configuration to localized keys (M9).
 
 ##### Completion Criteria
 
-- With the IOC left running, after the link of a unit is restored its records leave the alarm state and take new values without any action, and the time from the first answered request to the first new value is recorded.
-- The same holds after the unit lost its power and came back, with its engine boots changed.
-- During the loss the other unit keeps its values and its request rate.
-- The fixture run reproduces both cases on the real path and fails on the unchanged code if the observation found a gap.
+- Recovery: in the fixture the records are normal again within 30 s after the agent returns as paused and continued, started after the IOC, restarted with higher boots, and restarted with the same boots after 200 s of IOC run time; while the agent is away the message is `no reply`, also before its first start.
+- Changed engine ID: within 30 s the endpoint is in the changed state with the same secrets and in the unverified state with other secrets; no SET reaches the agent, no withheld record takes a value of the returned agent, the system information records show the returned agent's values with COMM/INVALID in the changed state, every record carries the message, the log holds exactly one line for the event and the report shows the state; the state is still held after further rounds.
+- Another address is unaffected: its records stay normal and its SET is still sent while the first address is in a changed state.
+- On the laboratory units: after a link cut and after a power loss the records return to normal by themselves if the engine ID is unchanged; the engine ID, the boots and the time without power are recorded.
+- The checks were seen failing on the unchanged code or on a mutation of the table in the Test Plan, for the intended assertion, and the cells of the ordinary matrix stage keep their name and status.
 
 ##### Dependencies And Decisions
 
 - G1 complete (2026-11-13).
-- D18 places this unit in release 1.0.0 and sets the observation as its first step.
-- The power loss of a unit is an action on equipment: each run needs the owner's permission, and the owner or an operator the owner names performs the cut. Outlet 8 of PDU1 is the only output that may be written (D9); what it powers is not recorded here.
-- Its tag `0.0.10` follows the tag of M10; the row is placed before the release row and keeps the next free ID, so the row order stays the execution order while the ID does not follow it.
+- D18 places this unit in release 1.0.0 and sets the observation as its first step. The observation with the fixture agent is done (Summary); the observation on the units remains.
+- D22 runs this unit next, after M4: its tag is `0.0.4` and its row follows M4, so the row order stays the execution order while the ID does not follow it.
+- D23 is the policy this detail implements, and D24 fills the rules it left open and limits the tests to what the purpose needs.
+- D25 accepts the differences listed below.
+- M9 changes the configuration to localized keys. This unit defines the behavior for that form (unverified after a change); its check runs when M9 provides the form.
+- The power loss of a unit is an action on equipment: each run needs the owner's permission, and the owner or an operator the owner names performs the cut; the owner plans it for the week after 2026-11-14. Outlet 8 of PDU1 is the only output that may be written (D9); what it powers is not recorded here.
+- New tests are written in bash and Perl as a matrix cell (D19).
+- Differences between the accepted plan and the work as run, recorded 2026-11-15 and accepted by D25; the plan text is unchanged:
+  1. The new question for the engine ID is a new start of the session: after 2 consecutive requests without a reply the worker closes the SNMPv3 session of the endpoint and drops the remembered engine time, and the next request opens a session, which asks for the engine ID where the profile discovers it. A profile that names its engine ID is asked by a separate question at that moment.
+  2. The state is decided in two steps. The worker answers a request of an endpoint with another engine ID unsent, with native outcome 13 and both engine IDs; the IOC then lets only the system information bindings through, and the first of them that is answered under authentication gives `changed`, a security failure gives `unverified`. Until then the endpoint is shown as `unverified` and nothing is logged. An endpoint without a system information binding cannot be asked and is `unverified` at once; D24 (7) did not name this case.
+  3. A unit that does not answer the question for its engine ID now ends as the native outcome Timeout, where it was OpenFailure, so that its records carry `no reply`.
+  4. The SET and the values are held back in more than one place (the start of a request in the IOC, the worker, and the handling of a result), so no single change sends a SET or takes a value. V3 changes the IOC and the worker together, V4 the IOC in two places and the worker. The predictions that did not hold were corrected after the run and the mechanism checked in the output: under V3 the output record still alarms because the result is withheld, and the mutant is seen by the SET in the agent's log and the value 9 that it wrote; under V4 the state also arrives late or never, because the unsent answer is the IOC's only notice; under V8 the state is entered again at every reading, which gives 59 log lines; under V11 the empty message also shows after a session start again.
+  5. The worker and the IOC must come from the same build: the binding of the worker bootstrap carries the system information mark, and a result may carry the native outcome 13 with a note of at most 66 bytes.
+  6. `tests/rewrite/run_independence.py` holds the list of the objects of the IOC and was given the new `Peer.o`.
+  7. The fixture controls are two environment variables of `snmp3NativeAgent`, `SNMP3_FIXTURE_ENGINE_BOOTS` and `SNMP3_FIXTURE_INTEGER`.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
-Superseded Plan Artifacts: none
+Plan Status: accepted
+Plan Acceptance: 2026-11-15, accepted by the owner after the third-person passes of this detail were closed
+Implementation Authorization: 2026-11-15, by the owner: items 1 to 7 of the accepted plan, that is edits and test runs in this repository and read-only runs against the two units; the power loss of a unit in item 7 needs the owner's permission for each run and is performed by the owner or an operator the owner names; every commit, push, tag and issue action needs its own authority
+Superseded Plan Artifacts: the draft of 2026-11-14 that began with an observation on the units, and the first rewrite of the same day, which D24 narrows
 
-1. Observe the current product on both units through the measurement IOC: cut and restore the link of one unit, then let it lose power and return, and record requests, answers, record alarms and the report lines before, during and after.
-2. Reproduce both cases with the fixture agent: answers withheld and resumed, and the agent stopped and started again with a changed engine boots value. Whether the fixture agent can be started with another engine boots value has not been tried; if it cannot, the power case is observed on the units only and listed as unproven for the fixture.
-3. If a case does not recover, write the failing check first, then the change, then the mutations that prove the check.
-4. Document the recovery behavior and its time.
+1. Fixture: let `snmp3NativeAgent` start with a given engine boots value, with its own time list entry set to the same value (an override after initialization that leaves that entry behind gives an inconsistent agent, observed 2026-11-15), and with a given start value of its objects so that a returned agent holds other values than before. The engine ID argument exists.
+2. Write the checks first, from one table of checks kept with the cell (claim, input, state read, source of the expected value): a matrix cell in bash and Perl for T1 to T3, with waits on completion signals and declared bounds as in the request sizing cell, and with the agent's ready line (engine ID, boots) and the measured run time as the evidence that each case was applied. Run it on the unchanged code and record the failing output.
+3. Worker: the new question for the engine ID by the rule of D24, the new synchronization for the same engine ID, the authenticated request for another engine ID where the profile allows it, and the report of the outcome to the IOC.
+4. IOC: the state per endpoint until the IOC stops, no SET and no value in a state, the system information bindings in the changed state, the alarms and messages of D24, the log line and the report line, and `no reply` in place of the empty message.
+5. Configuration: the binding field for system information, with its loader checks.
+6. Documentation.
+7. Run the cell and the mutations, then the units: link cut and restore, and a power loss and return by the owner, with engine ID and boots read before and after.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Fixture | The real IOC and worker against the fixture agent: answers withheld and resumed; the agent stopped and started again with changed engine boots | Linux host, ordinary product | Records return to normal without a restart of the IOC in both cases |
-| T2 | Device, link | Cut and restore the network link of one unit while the IOC runs | Measurement IOC, both units | The unit's records return to normal by themselves; the other unit is unaffected |
-| T3 | Device, power | One unit loses power and returns while the IOC runs | Measurement IOC, both units | The unit's records return to normal by themselves with the changed engine boots; the other unit is unaffected |
-| T4 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` on the unchanged and the changed tree | Linux host | The cells of the unchanged tree keep their name and status, and added cells are PASS |
+| T1 | Fixture, engine ID unchanged | The real IOC and worker against the fixture agent. SNMPv3 with engine discovery and SNMPv3 with the engine ID set: paused 20 s and continued; started 20 s after the IOC; restarted with higher boots after 200 s of measured IOC run time; restarted with the same boots after 200 s. SNMPv2c: paused and continued; started after the IOC; restarted once | Linux host, ordinary product | `no reply` while the agent is away, also before its first start; records normal within 30 s of the return in every case |
+| T2 | Fixture, changed engine ID | The agent restarted with another engine ID and other object values, once with the same secrets and once with other secrets, under SNMPv3 with engine discovery; input records, one output record written before and after the change, and system information records; rounds continue for 30 s after the state is seen | Linux host, ordinary product | Changed state with the same secrets, unverified with other secrets, within 30 s; the SET before the change is seen in the agent's log and the SET after it is not; withheld records keep their earlier values with COMM/INVALID and the message; system information records show the new values with COMM/INVALID in the changed state; exactly one log line; the report line; the state still held at the end |
+| T3 | Fixture, two addresses | Two agents; the first restarted with another engine ID, the second left running | Linux host, ordinary product | The records of the second address stay normal and its SET is seen in its agent's log while the first address is in the changed state |
+| T4 | Device, link | Cut and restore the network link of one unit while the IOC runs | Measurement IOC, both units | The unit's records return to normal by themselves; the other unit stays normal |
+| T5 | Device, power | One unit loses power and returns while the IOC runs; engine ID and boots read before and after, and the time without power recorded | Measurement IOC, both units | With the engine ID unchanged the records return to normal by themselves; the other unit stays normal. If the engine ID is unchanged, the changed state is not exercised on a unit and stays a fixture result |
+| T6 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` on the unchanged and the changed tree | Linux host | The cells of the unchanged tree keep their name and status, and the added cell is PASS |
+
+The pause of the fixture agent stands for a link cut with one difference: requests sent during the pause are answered when the agent continues, and the client drops them as late. The cut of a real link is T4.
+
+The mutations are applied one at a time to scratch copies of the changed tree; the exact old and new text of each is written when the code exists, and the failing assertion of each is fixed before the series:
+
+- V1: the engine ID is not asked again after failed requests; expected failing assertion: T1, same boots after 200 s.
+- V2: another engine ID is accepted as normal operation; expected failing assertion: T2 state and message.
+- V3: a SET is sent in a state; expected failing assertion: T2, SET not seen after the change.
+- V4: read values are put into records in a state; expected failing assertion: T2, withheld records keep their earlier values.
+- V5: the system information bindings are withheld in the changed state; expected failing assertion: T2, new values shown.
+- V6: the system information records carry no alarm; expected failing assertion: T2, COMM/INVALID on the system information records.
+- V7: a failed authentication is taken as authenticated; expected failing assertion: T2 with other secrets.
+- V8: the state ends when requests succeed again; expected failing assertion: T2, state still held at the end.
+- V9: the log line is written per failed request, or not at all; expected failing assertion: T2, exactly one log line.
+- V10: the state of one address is applied to every address; expected failing assertion: T3.
+- V11: the empty message stays for a unit that has not answered since the IOC started, under engine discovery; expected failing assertion: T1, `no reply` before the first start of the agent.
+
+Left out, with the reason (D24):
+
+- SNMPv1 in the cell: it shares the stateless path of SNMPv2c, and the observation of 2026-11-15 in the Summary ran it in every case.
+- A restart with the same boots after 20 s: the 200 s case contains it, and the unchanged product already passes it.
+- Normal operation after a restart of the IOC: the state lives in the memory of the IOC process, so a new process cannot hold it.
+- The earlier engine ID answering again during a state: the state is latched by one rule, which T2 checks by the rounds after the state is seen (V8).
+- A profile with no authentication, and one with the engine ID named in the configuration: they take the same branch as a failed authentication, which T2 checks with other secrets.
+- The request count of the other address: the isolation of two addresses was measured on the units in M2, and T3 checks what this change could break, the state reaching another address.
+
+Not covered and listed as unproven until its condition holds: a profile with localized keys only (M9), and a unit whose return differs from the cases above.
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Linux host, ordinary product | Pending | none |
-| T2 | Not run | Measurement IOC, both units | Pending | none |
-| T3 | Not run | Measurement IOC, both units | Pending | none |
-| T4 | Not run | Linux host | Pending | none |
+| T1 | 2026-11-15T10:01Z to 2026-11-15T10:14Z | Debian 13 host, ordinary product built against Base 7.0.10 of the public 1.5.0 tree | Pass | The matrix cell `recovery` (`tests/rewrite/test_recovery.bash` with `recovery.pl`), scenarios `pause`, `late`, `boots` and `same`: 48 checks pass. SNMPv2c, SNMPv3 with engine discovery and SNMPv3 with the engine ID set carry `no reply` while the agent is away and are normal within 30 s of its return in every scenario; the run time before the loss is at least 200 s in `boots` and `same`, and the returned agent reports boots 2 and 1. On the product before the change (2026-11-15T09:25Z) the same cell fails `same` for both SNMPv3 profiles (never normal, `no reply` to the end) and `late` for engine discovery (empty message). Mutation V1 fails `same`, and V11 fails the `no reply` check of engine discovery in `late` and, after a session start again, in `pause`, `boots` and `same`. Evidence: `work/matrix-m16-2/o-recovery/`, `work/m16-evidence/unchanged-1.log`, `work/tmp/m16-mutation/results/`, `work/m16-evidence/mutation-table.json`, `mutation-combined.json`, `sources.sha256` |
+| T2 | Same run as T1 | Same as T1 | Pass | Scenarios `changed` and `unverified`: 22 checks pass. Within 30 s of the return of an agent with another engine ID the report shows `changed` with the same secrets and `unverified` with other secrets, and holds it for the 30 s of rounds that follow; the SET of 5 before the loss is in the first agent's log and the SET of 9 in the state is not in the returned agent's; the two input records keep 5 with COMM/INVALID and the message of the state; the system information record shows 77 in `changed` and keeps 5 in `unverified`, with COMM/INVALID and the message; the output record is INVALID with the message; the IOC log holds exactly one `snmp3 engine:` line with both engine IDs and `authenticated` 1 or 0. On the product before the change 14 of these checks fail. Mutations V2, V5, V6, V7, V8 and V9 fail the checks named for them; V3 and V4 are combined mutants (difference 4). Same evidence as T1 |
+| T3 | Same run as T1 | Same as T1 | Pass | Scenario `two`: 5 checks pass. The first address, on 127.0.0.1, is `changed` within 30 s and the second, on ::1 with its own agent and engine ID, stays normal in every sample; its SET of 6 during the state adds a commit to its agent's log; the report shows one `changed` and one `normal`. On the product before the change 2 checks fail (no state). Mutation V10 fails the two checks of the second address. Same evidence as T1 |
+| T4 | Not run | Measurement IOC, both units | Pending | none |
+| T5 | Not run | Measurement IOC, both units | Pending | none |
+| T6 | 2026-11-15T10:01Z to 2026-11-15T10:14Z | Same as T1 | Pass | `run_matrix.py --stages environment,ordinary` on the changed tree: 42 PASS and `tsan` NOT APPLICABLE; the 42 cells of the M4 run on the same Base (`work/matrix-m4-changed-2/cells.tsv`) keep name and status, and the added cell `recovery` is PASS with 75 checks. A first run had `config` and `lifecycle` FAIL on the object list of difference 6 (`work/matrix-m16-1/`). Evidence: `work/matrix-m16-2/cells.tsv` |
 
 ##### Closure Evidence
 
@@ -1241,7 +1309,7 @@ Superseded Plan Artifacts: none
 
 | Field | File | Before | Planned After | Pre-check | Pre-check Label | Post-check | Post-check Label |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| latest changelog entry | `CHANGELOG.md` | `0.0.9` | `1.0.0` | read the first entry heading | Release Verification 8 | read the first entry heading | Release Verification 9 |
+| latest changelog entry | `CHANGELOG.md` | `0.0.10` | `1.0.0` | read the first entry heading | Release Verification 8 | read the first entry heading | Release Verification 9 |
 
 ##### Release Execution
 
@@ -1265,7 +1333,7 @@ Superseded Plan Artifacts: none
 | Release Verification 5 | Installed libraries | pre-change | consumer identity inspection | Debian 13 and Rocky Linux 8.10 | Intended libraries load | inspection record |
 | Release Verification 6 | Device acceptance | pre-change | laboratory two-unit run | Laboratory IOC | All criteria met | run record under `work/` summarized here |
 | Release Verification 7 | Installation | post-release | documented installation on a clean host | Rocky Linux 8.10 | IOC acquires from the fixture agent | installation record |
-| Release Verification 8 | Version | pre-change | read `CHANGELOG.md` first heading | repository | `0.0.9` | command output |
+| Release Verification 8 | Version | pre-change | read `CHANGELOG.md` first heading | repository | `0.0.10` | command output |
 | Release Verification 9 | Version | post-change | read `CHANGELOG.md` first heading | repository | `1.0.0` | command output |
 | Release Verification 10 | Release objects | post-release | `git rev-parse 1.0.0^{commit}` and `gh release view 1.0.0` | repository and GitHub | Tag and release on the changelog commit | command output |
 
