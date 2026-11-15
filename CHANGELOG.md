@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.0.3 — Request Sizing
+
+### Product
+
+- When a unit rejects a request as too large, the scheduler halves the number of values per request of that address, rounded down and never below one, and keeps the lower limit until the worker of the address restarts. A tooBig reply and a timeout during which the library counted a reply it could not parse both count as a rejection; a timeout with no reply and every other error status leave the limit unchanged.
+- A failed request sets the alarm message of its records to `tooBig`, `unreadable rejection`, or `no reply`.
+- The profile field `maxMessageSize` (default 1472, range 484 to 65507) sets the message size that an SNMPv3 session advertises to the unit.
+- `snmp3RuntimeReport` prints a `snmp3 batch:` line per address with the current limit and the number of reductions since the IOC started.
+- A record that failed twice in a row with the same alarm message no longer keeps that message after its request succeeds.
+
+### Compatibility
+
+- The worker and the IOC must come from the same build: the profile of the worker bootstrap carries the new field.
+- A sent request that fails with tooBig, an unreadable rejection or no reply now carries an alarm message where the field was empty before.
+
+### Known limits
+
+- In the device run, bindings without a `group` travelled one value per request in 4571 of 4574 object requests, and no request was rejected; a declared group of 61 values was rejected and then split.
+- The count of unparsable replies rises on SNMPv3 sessions only; on SNMPv2c such a reply is reported as `no reply`, and SNMPv1 was not run.
+- Endpoints with the same host address and different ports share one limit.
+
 ## 0.0.2 — Probe Environment
 
 ### Product
