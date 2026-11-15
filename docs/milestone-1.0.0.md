@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: M4 in `docs/milestone-1.0.0.md` is implemented and T1 to T4 are recorded (2026-11-14); nothing is committed. Next: a second-person pass of the changed documents, then commit, tag `0.0.3`, CHANGELOG entry and the update of issue #4, each under its own authority. M16, the recovery of a unit that returns after a power or network loss, follows; its plan is a draft.
+Next session entry point: Review the plan of M5 in `docs/milestone-1.0.0.md` with `plan.md` of the milestone-tracking skill: it is the nearest Ready row and its plan is a draft, so acceptance and implementation authorization are still open (commits, pushes, tags and issue actions each need their own authority). M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`) and G1 are complete. The other Ready rows are M6, M8, M9, M10 and M16; the owner may take M16, the recovery of a unit that returns after a power or network loss, first.
 
 ## Scope
 
@@ -29,17 +29,17 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | E | M1 | Probe spawn environment equal to the worker environment | Milestone | Complete | No | D14, D15 | Probe and worker receive the same environment list built from the worker's libraries; the changed tests and the ordinary matrix stage pass; tag `0.0.2`; [detail](#m1---probe-spawn-environment-equal-to-the-worker-environment) |
 | Baseline | M2 | Baseline measurement on the two laboratory units | Milestone | Complete | No | D8, D9, D11 | Net-SNMP 5.9.4 read directly and the installed legacy module measured on both units, with the response time of a request and the interval of new values recorded; no product change; [detail](#m2---baseline-measurement-on-the-two-laboratory-units) |
 | A | M3 | Two-device isolation measurement on the current product | Milestone | Complete | No | G1, D4, M2, D13 | Measured cadence of the healthy unit with the other unit disconnected; [detail](#m3---two-device-isolation-measurement-on-the-current-product) |
-| B | M4 | Request sizing with advertised message size and tooBig split | Milestone | In progress | No | G1, D16 | At `maxVarbinds=61` the records of both units fill without manual tuning; a rejection, read or unreadable, halves the batch and shows on the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
-| B | M5 | SET outcome contract | Milestone | Not started | No | M4 | Output records complete only on the SET result; a timeout is an alarm; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
+| B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Complete | No | G1, D16 | At `maxVarbinds=61` the records of both units fill without manual tuning; a rejection, read or unreadable, halves the batch and shows on the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
+| B | M5 | SET outcome contract | Milestone | Not started | Yes | M4 | Output records complete only on the SET result; a timeout is an alarm; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
 | C | M6 | Reply time stamp on records | Milestone | Not started | Yes | | Record TIME equals the worker receive time with `TSE=-2`; tag `0.0.5`; [detail](#m6---reply-time-stamp-on-records) |
 | C | M7 | Reply-driven processing and driver-owned periodic acquisition | Milestone | Not started | No | M4, M6 | `SCAN=I/O Intr` records process on reply arrival at the configured period; tag `0.0.6`; [detail](#m7---reply-driven-processing-and-driver-owned-periodic-acquisition) |
-| Performance | M8 | GETBULK table reads | Milestone | Not started | No | M4 | A table read uses one GETBULK request where the profile allows it; tag `0.0.7`; [detail](#m8---getbulk-table-reads) |
+| Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4 | A table read uses one GETBULK request where the profile allows it; tag `0.0.7`; [detail](#m8---getbulk-table-reads) |
 | D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag `0.0.8`; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.9`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Recovery | M16 | Recovery when a unit returns after a power or network loss | Milestone | Not started | Yes | G1, D18 | With the IOC left running, the records of a unit return to normal by themselves after the unit's power and after its network link come back; tag `0.0.10`; [detail](#m16---recovery-when-a-unit-returns-after-a-power-or-network-loss) |
 | Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M16 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 3 Complete, 1 In progress, 8 Not started, 0 Blocked; G1 Complete. Ready rows: M6, M9, M10, M16. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
+Current work tally: 4 Complete, 0 In progress, 8 Not started, 0 Blocked; G1 Complete. Ready rows: M5, M6, M8, M9, M10, M16. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -556,7 +556,7 @@ Last Compared: 2026-11-13T18:14Z; issue updatedAt 2026-11-13T18:14:55Z; title, l
 Origin: 1.0.0 / M3
 Identity History: M3 -> M4 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #4 - https://github.com/jeonghanlee/snmp3/issues/4
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -653,17 +653,22 @@ Not covered and listed as unproven: SNMPv1 sessions, the default 1472 and the ra
 
 ##### Closure Evidence
 
-- none
+- Completion Criteria checked on 2026-11-14 against the Verification Results: the split and the `tooBig` message with the fixture agent and no change on another error status (T1, T2), the two kinds of timeout told apart with their effect on the batch and their messages (T1, T2), the advertised size on the wire for the requests that ask for objects (T1, difference 6), the checks seen failing on the unchanged code and on each of V1 to V12, and the ordinary stage with the same 41 cells and the added cell (T4). On the units the records fill at `maxVarbinds=61` and the split count shows in the report; the split itself was observed with a group of 61 values and not with the ungrouped bindings of the measurement IOC, and the NMC3 unit at 50 keeps a split count of 0 with no `tooBig` message (T3, difference 4). The differences from the plan are accepted by D20 and D21.
+- Landing: the change is commit `1a0ff9b4426967189df68466f134728a5dfa5a9f`, the register record of the plan, decisions and results is commit `62cc494729df97009c3e205e6071280e54112509`, and the `CHANGELOG.md` entry `0.0.3` is commit `d2919b6749bbdce36e5d2ab336095c071ccfb223`; all three were pushed to `origin/master`. After `git fetch`, `git rev-parse HEAD origin/master` printed `d2919b6` twice and `git diff --name-only 746a498 origin/master` listed the 26 paths of the three commits (observed 2026-11-15T01:04Z).
+- Tag: the annotated tag `0.0.3` (object `4601368588689c6adfb7ea6e3bb9fc53fb4dff9c`) names `d2919b6`, the commit that holds the `CHANGELOG.md` entry, created and pushed under the owner's tag authority of 2026-11-14. Recheck with `git ls-remote --tags origin refs/tags/0.0.3 'refs/tags/0.0.3^{}'`, which printed that object and the peeled commit at 2026-11-15T01:04Z.
+- Issue #4: under the owner's Issue authority of 2026-11-14 its body was rewritten to the final behavior with the three acceptance items checked and the known limits, a closing comment was posted and the issue was closed as completed. Recheck with `gh issue view 4 --json state,stateReason,closedAt`, which printed CLOSED, COMPLETED and 2026-11-15T00:46:22Z at 2026-11-15T00:46Z.
+- The `CHANGELOG.md` entry was committed without a second-person pass, by the owner's decision of 2026-11-14.
+- Unproven and left listed: SNMPv1 sessions, the default 1472 and the range of `maxMessageSize`, a unit whose rejection differs from the two units measured, and the limit shared by endpoints of one host address (difference 7).
 
 ##### GitHub Projection
 
 Title: Advertise a message size and split the batch on tooBig
 Labels: enhancement
 GitHub Milestone: 1.0.0
-Observed State: open
+Observed State: closed (completed)
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
-Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:14Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
+Last Compared: 2026-11-15T00:46Z; issue updatedAt 2026-11-15T00:46:22Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the final behavior, the checked acceptance criteria and the known limits.
 
 #### M5 - SET outcome contract
 
