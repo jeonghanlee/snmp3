@@ -200,6 +200,7 @@ def ordinary(matrix, base):
     matrix.run("config", py("tests/rewrite/test_config.py", "--base", base, "--output", str(out / "o-config")))
     matrix.run("lifecycle", py("tests/rewrite/test_lifecycle.py", "--base", base, "--output", str(out / "o-lifecycle")))
     matrix.run("request-sizing", ["bash", "tests/rewrite/test_request_sizing.bash", "--output", str(out / "o-request-sizing")])
+    matrix.run("recovery", ["bash", "tests/rewrite/test_recovery.bash", "--output", str(out / "o-recovery")])
 
 
 def instrumented(matrix):
@@ -274,7 +275,7 @@ def main():
     if args.list:
         print("ordinary:", ", ".join(["rec-" + c for c in RECORD_CASES]) + ", record-shutdown, record-startup, record-ca, "
               "supervisor-ioc, qualification, r5-components, spawn-descriptors, r5-operator, native-adapter, config, lifecycle, "
-              "request-sizing")
+              "request-sizing, recovery")
         print("controls:", ", ".join(json.loads((HERE / "control-groups.json").read_text())))
         return 0
     if not os.environ.get("EPICS_BASE"):

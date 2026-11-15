@@ -32,6 +32,7 @@ struct Request {
     std::vector<Value> payload;
     Native::Completion completion;
 };
+std::vector<uint8_t> discoverEngine(Service& owner, const Profile& profile, const Endpoint& endpoint);
 struct SecurityMaterial {
     SecurityLevel level;
     Algorithm authentication, privacy;

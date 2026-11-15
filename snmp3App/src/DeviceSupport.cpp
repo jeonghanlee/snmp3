@@ -1,6 +1,7 @@
 #define USE_TYPED_DSET
 #include "Request.h"
 #include "Config.h"
+#include "Peer.h"
 #include <alarm.h>
 #include <dbCommon.h>
 #include <devSup.h>
@@ -78,6 +79,33 @@ void prepare(RecordContext& context,const ipc::Result& result)
     const auto& definition=context.definition;
     const auto& binding=definition.binding->definition();
     if(definition.kind==RecordKind::Waveform)as<waveformRecord>(context.record).busy=FALSE;
+    // The unit at the address shows another engine ID than the endpoint used before. The state is kept until the
+    // IOC ends: no value read from the unit reaches a record, except system information once the responder has
+    // answered an authenticated request, and that is shown with the alarm of the state.
+    const auto& endpoint=definition.binding->endpoint();
+    auto& peers=Peers::instance();
+    if(result.outcome==ipc::Outcome::NativeFailure && result.nativeOutcome==ipc::NativeEngineChanged) {
+        std::vector<uint8_t> previous,current; const auto& note=result.value;
+        if(!note.empty() && size_t(note[0])+2<=note.size() && size_t(note[0])+2+note[note[0]+1]==note.size()) {
+            previous.assign(note.begin()+1,note.begin()+1+note[0]);
+            current.assign(note.begin()+note[0]+2,note.end());
+        }
+        peers.engineChanged(endpoint.id,ipc::addressKey(endpoint.address),previous,current,definition.binding->verifiable());
+    }
+    auto state=peers.state(endpoint.id);
+    if(state==PeerState::Pending && binding.systemInfo) {
+        const bool answered=result.outcome==ipc::Outcome::Complete ||
+            (result.outcome==ipc::Outcome::NativeFailure && result.nativeOutcome==ipc::NativeProtocolFailure);
+        if(answered)peers.verified(endpoint.id,true);
+        else if(result.outcome==ipc::Outcome::NativeFailure && result.nativeOutcome==ipc::NativeSecurityFailure)
+            peers.verified(endpoint.id,false);
+        state=peers.state(endpoint.id);
+    }
+    if(state!=PeerState::Normal) {
+        context.alarm=COMM_ALARM; context.message=Peers::message(state);
+        if(!(state==PeerState::Changed && binding.systemInfo && result.outcome==ipc::Outcome::Complete))return;
+        context.valueWithAlarm=true;
+    }
     if(result.outcome!=ipc::Outcome::Complete) {
         const bool transport=result.nativeOutcome==NativeTimeout || result.nativeOutcome==NativeOpenFailure ||
                              result.nativeOutcome==NativeSendFailure || result.nativeOutcome==NativeCancelled;
@@ -237,11 +265,18 @@ long process(dbCommon* record,RecordKind kind)
     try {
         if(record->pact) {
             require(Requests::instance().completing(*context));
-            if(context->alarm)return -1;
+            if(context->alarm && !context->valueWithAlarm)return -1;
             if(input(kind)) { require(bool(context->staged)); publish(*context); }
             return kind==RecordKind::Ai?2:0;
         }
         if(kind==RecordKind::Waveform)as<waveformRecord>(record).busy=FALSE;
+        // An endpoint whose unit shows another engine ID sends nothing but the reading of system information,
+        // and that only while the responder may still authenticate or has done so.
+        const auto state=Peers::instance().state(context->definition.binding->endpoint().id);
+        if(state!=PeerState::Normal &&
+           !(context->definition.binding->definition().systemInfo && input(kind) && state!=PeerState::Unverified)) {
+            recGblSetSevrMsg(record,COMM_ALARM,INVALID_ALARM,"%s",Peers::message(state)); return -1;
+        }
         std::vector<Value> payload;
         if(!input(kind))payload.push_back(capture(*context));
         Requests::instance().admit(*context,payload);

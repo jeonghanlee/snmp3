@@ -67,7 +67,7 @@ State Running means the servicing owner is ready. It does not promise that a dev
 
 ## Runtime report lines
 
-`snmp3RuntimeReport` prints these lines in this order. The `snmp3 queue:`, `snmp3 batch:`, `snmp3 admit:`, and `snmp3 worker:` lines repeat once for each address. The queue, batch, and admit lines of each address print first, address by address. The worker lines follow.
+`snmp3RuntimeReport` prints these lines in this order. The `snmp3 queue:`, `snmp3 batch:`, `snmp3 peer:`, `snmp3 admit:`, and `snmp3 worker:` lines repeat once for each address. The queue, batch, peer, and admit lines of each address print first, address by address. The worker lines follow.
 
 | Line | Fields |
 | --- | --- |
@@ -75,7 +75,8 @@ State Running means the servicing owner is ready. It does not promise that a dev
 | `snmp3 records:` | The counters and flags of the record contexts, listed in the next table |
 | `snmp3 queue:` | Per address: `count`, `bytes`, the four classes `queued`, `active`, `undelivered`, and `retirementPending`, and the live limits `countLimit` and `byteLimit` against which `count` and `bytes` are charged. Three more numbers end the line: `behindRetirement`, `behindAdmitted`, and `behindNeverSent`. |
 | `snmp3 batch:` | Per address, printed after its queue line: `limit`, the largest number of values of one request after a rejection of the unit, 0 while no rejection has lowered it; `splits`, the number of reductions since the IOC started |
-| `snmp3 admit:` | Per address, printed after its batch line: the admission statistics described below |
+| `snmp3 peer:` | Per address, printed after its batch line: `state` is `normal`, `changed`, or `unverified`, the gravest state of the endpoints of the address after a responder showed another engine ID; see [Record behavior](snmp-record-behavior.md) |
+| `snmp3 admit:` | Per address, printed after its peer line: the admission statistics described below |
 | `snmp3 worker:` | Per address: the address, the epoch, the PID, `ready`, `closing`, the active `batch`, `launches`, `reaps`, and `forced` signals |
 | `snmp3 loop:` | `passes`, the number of servicing-loop passes since the process started |
 

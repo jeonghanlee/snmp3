@@ -69,6 +69,40 @@ Observed on 2026-11-14 with two APC AP8932 units: with 328 read bindings and no 
 
 A successor admitted behind a retirement keeps the deadline of its own admission. When its predecessor ends in a Deadline, the worker ends that request at the deadline on its own, and the successor is dispatched after the Retired frame on the same worker. A worker that sends nothing within the 1000 ms retire grace is contained, reaped, and relaunched; the successor is then dispatched only if its budget outlasts the grace, the reap, the restart backoff, the relaunch, and the Ready frame. Otherwise it expires unsent.
 
+## A unit that is lost and returns
+
+A unit that does not answer gives COMM/INVALID with the AMSG text `no reply`, also when it has not answered since the IOC started. SNMP has no connection to restore: when the unit answers again, the next request of a record succeeds, and the records return to normal without a restart of the IOC.
+
+An SNMPv3 session remembers the engine ID, the engine boots and the engine time of its unit. After 2 consecutive requests of an SNMPv3 endpoint without a reply, the worker closes the session of the endpoint and drops the remembered engine time, so that the next request asks the unit for its engine ID and synchronizes its time from the start. This recovers a unit that returns with its engine time behind the remembered one and the same boots, which the library otherwise refuses for good. The least interval between two such new starts follows the beacon of the Channel Access server: 0.02 s at first, doubled each time, 15 s at most; a reply sets it back.
+
+### Another engine ID at the address
+
+A responder that shows another engine ID than the one the endpoint used first is not taken for the same unit. The endpoint enters a state that lasts until the IOC is restarted, also when the earlier engine ID answers again:
+
+| State | Condition |
+| --- | --- |
+| `changed` | The responder answered an authenticated request under the secrets of the profile with its new engine ID |
+| `unverified` | That request failed, or the responder cannot be asked: the profile names its engine ID in the configuration, has no authentication, or the endpoint has no `systemInfo` binding to read |
+
+Until the responder has answered the first reading of a `systemInfo` binding, the endpoint is shown as `unverified`; it becomes `changed` when that reading is answered under authentication, usually within seconds.
+
+In either state:
+
+- no SET is sent; an output record completes with the alarm below;
+- no value read from the unit reaches a record; the records keep the value they had;
+- every record of the endpoint is COMM/INVALID with the AMSG text `engine ID changed: restart IOC` or `engine ID unverified: restart IOC`;
+- in the state `changed` the bindings marked `systemInfo` are still read, and their records show the responder's values with the same alarm and message.
+
+The entry into a state writes one line to the IOC log:
+
+```
+snmp3 engine: endpoint=<id> state=<changed|unverified> previous=<hex> current=<hex> authenticated=<0|1> time=<UTC>
+```
+
+`snmp3RuntimeReport` shows the state of each address in its `snmp3 peer:` line. After the cause is known, restart the IOC; an endpoint whose profile names its engine ID needs the new engine ID in the configuration first.
+
+SNMPv1 and SNMPv2c carry no engine ID, so a replaced unit cannot be told apart there.
+
 ## Declared groups of bindings
 
 A binding can carry a `group` label (see [Startup configuration](snmp-rewrite-config.md)). The records of the bindings of one group are admitted one by one, each with its own `deadline_ms`. The dispatcher combines compatible members at the queue front, subject to profile and IPC batch limits. One declared group can span several native requests.

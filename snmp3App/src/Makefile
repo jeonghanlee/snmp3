@@ -5,7 +5,7 @@ LIBRARY_IOC += snmp3
 LIBRARY_IOC += snmp3Wire
 snmp3Wire_SRCS += Ipc.cpp Identity.cpp
 snmp3_SRCS += Register.cpp Runtime.cpp Config.cpp Json.cpp Scheduler.cpp Supervisor.cpp
-snmp3_SRCS += Conversion.cpp Request.cpp DeviceSupport.cpp
+snmp3_SRCS += Conversion.cpp Request.cpp DeviceSupport.cpp Peer.cpp
 snmp3_LIBS += snmp3Wire dbCore Com
 
 DBD += snmp3.dbd snmp3Ioc.dbd

@@ -129,7 +129,8 @@ Bytes discover(Service& owner, const Profile& profile, std::string& address)
     probe.securityPrivProtoLen = OID_LENGTH(usmNoPrivProtocol);
     void* handle = snmp_sess_open(&probe);
     owner.event("discovery_open", 0, 0, 0, handle ? 1 : 0);
-    if (!handle) throw NativeError(NativeOutcome::OpenFailure, "native discovery failed");
+    // A unit that does not answer the question for its engine ID is a unit that does not reply.
+    if (!handle) throw NativeError(NativeOutcome::Timeout, "native discovery failed");
     Bytes engine;
     try {
         auto* session = snmp_sess_session(handle);
@@ -344,6 +345,11 @@ int callback(int operation, netsnmp_session*, int requestId, netsnmp_pdu* pdu, v
 Session::~Session()
 {
     if(owner && reservation) { owner->release(reservation); --owner->liveCount; }
+}
+std::vector<uint8_t> discoverEngine(Service& owner, const Profile& profile, const Endpoint& endpoint)
+{
+    std::string address = peer(endpoint);
+    return discover(owner, profile, address);
 }
 std::shared_ptr<Session> open(Service& owner, const Profile& profile, const Endpoint& endpoint,
                               const Capabilities& expected)

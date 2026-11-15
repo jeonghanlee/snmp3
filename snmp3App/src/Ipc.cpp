@@ -300,7 +300,8 @@ std::vector<uint8_t> encodeResults(const std::vector<Result>& v)
     uint64_t length=8; for(const auto& c:v)length=add(length,add(48,c.value.size()));
     Writer w(DataBytes,size(length)); members(w,v.size());
     for(const auto& c:v) {
-        require(uint16_t(c.outcome)>=1 && uint16_t(c.outcome)<=6 && c.nativeOutcome<=MaxNativeOutcome && (c.outcome==Outcome::Complete || c.value.empty()));
+        require(uint16_t(c.outcome)>=1 && uint16_t(c.outcome)<=6 && c.nativeOutcome<=MaxNativeOutcome &&
+                (c.outcome==Outcome::Complete || c.value.empty() || (c.nativeOutcome==NativeEngineChanged && c.value.size()<=EngineNoteBytes)));
         identity(w,c.id); w.u16(uint16_t(c.outcome)); w.u16(c.nativeOutcome); w.u32(c.value.size());
         uint64_t bits; std::memcpy(&bits,&c.errorStatus,8); w.u64(bits); std::memcpy(&bits,&c.errorIndex,8); w.u64(bits); w.raw(c.value.data(),c.value.size());
     }
@@ -312,7 +313,7 @@ std::vector<Result> decodeResults(const std::vector<uint8_t>& b)
     while(n--) {
         Result c; c.id=identity(r); auto op=r.u16(); require(op>=1 && op<=6); c.outcome=Outcome(op); c.nativeOutcome=r.u16(); require(c.nativeOutcome<=MaxNativeOutcome);
         auto len=r.u32(); auto bits=r.u64(); std::memcpy(&c.errorStatus,&bits,8); bits=r.u64(); std::memcpy(&c.errorIndex,&bits,8);
-        require(len<=DataBytes && (c.outcome==Outcome::Complete || len==0)); auto p=r.raw(len); c.value.assign(p,p+len); v.push_back(std::move(c));
+        require(len<=DataBytes && (c.outcome==Outcome::Complete || len==0 || (c.nativeOutcome==NativeEngineChanged && len<=EngineNoteBytes))); auto p=r.raw(len); c.value.assign(p,p+len); v.push_back(std::move(c));
     }
     r.end(); return v;
 }
@@ -323,14 +324,15 @@ std::vector<Result> decodeResults(const std::vector<uint8_t>& b,
 {
     require(b.size()<=DataBytes); Reader r(b); const auto count=members(r);
     require(count==expected.size());
-    uint64_t maximum=8;
+    uint64_t maximum=add(8,EngineNoteBytes);
     for(const auto& e:expected) { require(e.definition); maximum=add(maximum,add(48,responseBytes(*e.definition))); }
     require(b.size()<=maximum);
     for(const auto& e:expected) {
         if(!(identity(r)==e.id))throw StaleIdentity();
         const auto outcome=r.u16(); require(outcome>=1 && outcome<=6);
-        require(r.u16()<=MaxNativeOutcome); const auto length=r.u32(); r.u64(); r.u64();
-        require(length<=responseBytes(*e.definition) && (outcome==1 || length==0));
+        const auto native=r.u16(); require(native<=MaxNativeOutcome); const auto length=r.u32(); r.u64(); r.u64();
+        require((length<=responseBytes(*e.definition) && (outcome==1 || length==0)) ||
+                (outcome!=1 && native==NativeEngineChanged && length<=EngineNoteBytes));
         r.raw(length);
     }
     r.end(); return decodeResults(b);
@@ -363,7 +365,7 @@ void bootstrap(Writer& w,const Configuration& c,const std::string& address)
     uint32_t selectedBindings=0;
     for(const auto& b:c.bindings)if(selectedEndpoints.count(b.second.endpoint))++selectedBindings;
     id=0; w.u32(selectedBindings);
-    for(const auto& e:c.bindings) { ++id; const auto& b=e.second; if(!selectedEndpoints.count(b.endpoint))continue; w.u64(id); w.text(e.first); w.u64(endpoints.at(b.endpoint)); w.oid(b.oid); w.u16(b.operation==Operation::Get ? 1:2); w.u16(tag(b.valueType)); require(b.capacity<=UINT32_MAX); w.u32(b.capacity); }
+    for(const auto& e:c.bindings) { ++id; const auto& b=e.second; if(!selectedEndpoints.count(b.endpoint))continue; w.u64(id); w.text(e.first); w.u64(endpoints.at(b.endpoint)); w.oid(b.oid); w.u16(b.operation==Operation::Get ? 1:2); w.u16(tag(b.valueType)); require(b.capacity<=UINT32_MAX); w.u32(b.capacity); w.u32(b.systemInfo ? 1:0); }
 }
 }
 size_t bootstrapBytes(const Configuration& c,const std::string& address)
@@ -418,7 +420,7 @@ std::shared_ptr<const Configuration> decodeBootstrap(const std::vector<uint8_t>&
     count=r.u32(); require(count<=4096 && count<=r.left()/36);
     r.reserveOwned(multiply(count,sizeof(BindingDefinition)+sizeof(Binding)+512+256));
     std::map<uint64_t,std::string> decodedDefinitions; previous=0;
-    for(uint64_t index=0;index<count;++index) { BindingDefinition b; const auto id=r.u64(); require(id>previous); previous=id; b.id=r.text(64); b.endpoint=endpoints.at(r.u64()); b.oid=r.oid(); auto op=r.u16(); require(op==1 || op==2); b.operation=op==1 ? Operation::Get:Operation::Set; b.valueType=type(r.u16()); b.capacity=r.u32(); require(validId(b.id) && !exception(b.valueType)); if(b.valueType!=ValueType::Octets && b.valueType!=ValueType::ObjectId)require(b.capacity==1); contentBytes(b); decodedDefinitions[id]=b.id; const auto name=b.id; require(c->bindings.emplace(name,std::move(b)).second); }
+    for(uint64_t index=0;index<count;++index) { BindingDefinition b; const auto id=r.u64(); require(id>previous); previous=id; b.id=r.text(64); b.endpoint=endpoints.at(r.u64()); b.oid=r.oid(); auto op=r.u16(); require(op==1 || op==2); b.operation=op==1 ? Operation::Get:Operation::Set; b.valueType=type(r.u16()); b.capacity=r.u32(); auto system=r.u32(); require(system<=1 && (!system || b.operation==Operation::Get)); b.systemInfo=system; require(validId(b.id) && !exception(b.valueType)); if(b.valueType!=ValueType::Octets && b.valueType!=ValueType::ObjectId)require(b.capacity==1); contentBytes(b); decodedDefinitions[id]=b.id; const auto name=b.id; require(c->bindings.emplace(name,std::move(b)).second); }
     r.end(); if(definitions)*definitions=std::move(decodedDefinitions); return c;
 }
 Channel::Channel(int value) : fd(value)

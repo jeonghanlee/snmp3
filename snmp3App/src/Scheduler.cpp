@@ -167,6 +167,10 @@ QueueSnapshot Scheduler::snapshot(uint64_t address) const
     r.admissions=a.admissions; r.bursts=a.bursts; r.burstSpanMaxUs=a.burstSpanMaxUs; r.burstGapMaxUs=a.burstGapMaxUs;
     return r;
 }
+std::string Scheduler::addressKey(uint64_t address) const
+{
+    std::lock_guard<std::mutex> guard(mutex); return queues.at(address).key;
+}
 std::vector<uint64_t> Scheduler::addresses() const
 { std::vector<uint64_t> ids; for(const auto& a:queues)ids.push_back(a.first); return ids; }
 const std::string& Scheduler::key(uint64_t address) const { return queues.at(address).key; }
@@ -262,7 +266,7 @@ bool Scheduler::complete(uint64_t address, uint64_t batch, std::vector<ipc::Resu
         if(r.outcome==ipc::Outcome::Complete) {
             require(r.nativeOutcome==1 && r.value.size()<=ipc::responseBytes(b)); ipc::Reader reader(r.value);
             require(reader.oid()==b.oid); ipc::decodeValue(reader,b,false); reader.end();
-        } else require(r.value.empty());
+        } else require(r.value.empty() || r.nativeOutcome==ipc::NativeEngineChanged);
     }
     // A rejection of the unit, a tooBig reply or a reply that could not be read, halves the batch of this
     // address for the following requests, rounded down and never below one value.

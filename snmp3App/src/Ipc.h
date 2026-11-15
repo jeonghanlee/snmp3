@@ -15,7 +15,11 @@ constexpr uint64_t MaxCount = 16384, MaxBytes = 67108864;
 enum class Kind : uint16_t { Bootstrap=1, Ready=2, Batch=3, Result=4,
                              Retired=5, Close=6, Closed=7, Fault=8 };
 // Native outcome codes of a Result that the scheduler and the device support read.
-constexpr uint16_t NativeTimeout=2, NativeProtocolFailure=6, NativeUnreadable=12, MaxNativeOutcome=12;
+constexpr uint16_t NativeTimeout=2, NativeSecurityFailure=5, NativeProtocolFailure=6, NativeUnreadable=12;
+// The worker did not send the request: the unit at the address shows another engine ID than the endpoint used
+// before. The first result of such a batch carries both engine IDs, each as one length byte and its bytes.
+constexpr uint16_t NativeEngineChanged=13, MaxNativeOutcome=13;
+constexpr uint32_t EngineNoteBytes=66;
 constexpr int64_t ErrorStatusTooBig=1;
 enum class Outcome : uint16_t { Complete=1, Deadline=2, ChannelFailure=3,
                                 WorkerFailure=4, Stopping=5, NativeFailure=6 };

@@ -381,7 +381,7 @@ std::shared_ptr<Configuration> candidate(const std::string& file, const std::str
         if (!result->endpoints.emplace(name, std::move(endpoint)).second) reject("duplicate endpoint");
     }
     for (const Json& item : array(root, "bindings")) {
-        fields(item, {"id", "endpoint", "group", "oid", "operation", "valueType", "capacity"});
+        fields(item, {"id", "endpoint", "group", "oid", "operation", "valueType", "capacity", "systemInfo"});
         BindingDefinition binding; binding.id = id(item, "id"); binding.endpoint = id(item, "endpoint");
         if (present(item, "group")) binding.group = id(item, "group");
         binding.oid = oid(string(item, "oid"));
@@ -389,6 +389,12 @@ std::shared_ptr<Configuration> candidate(const std::string& file, const std::str
         if (operation == "get") binding.operation = Operation::Get;
         else if (operation == "set") binding.operation = Operation::Set;
         else reject("binding operation rejected");
+        if (present(item, "systemInfo")) {
+            const Json& value = required(item, "systemInfo");
+            if (value.kind != Json::Kind::Boolean) reject("boolean option required");
+            binding.systemInfo = value.boolean;
+            if (binding.systemInfo && binding.operation != Operation::Get) reject("binding systemInfo requires get");
+        }
         binding.valueType = valueType(string(item, "valueType"));
         const unsigned maximum = binding.valueType == ValueType::Octets ? MaxConfigBytes :
             binding.valueType == ValueType::ObjectId ? MaxOidArcs : 1;

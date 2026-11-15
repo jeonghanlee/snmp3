@@ -45,6 +45,9 @@ struct BindingDefinition {
     Operation operation = Operation::Get;
     ValueType valueType = ValueType::Integer;
     size_t capacity = 1;
+    // A read binding of system information (firmware, name, MAC address, status): the only kind that is still
+    // read and shown, with an alarm, after the unit at the address shows another engine ID.
+    bool systemInfo = false;
 };
 struct Configuration {
     Capabilities capabilities;
@@ -60,6 +63,17 @@ public:
     const Endpoint& endpoint() const { return config->endpoints.at(spec.endpoint); }
     const Profile& profile() const { return config->profiles.at(endpoint().profile); }
     const Capabilities& capabilities() const { return config->capabilities; }
+    // True when a responder with another engine ID can be asked to authenticate: the profile derives its keys
+    // from secrets for an engine ID it discovers, and the endpoint has a system information binding to read.
+    bool verifiable() const
+    {
+        const auto& p = profile();
+        if (p.version != Version::V3 || !p.securityEngineId.empty() || p.securityLevel == SecurityLevel::NoAuthNoPriv)
+            return false;
+        for (const auto& b : config->bindings)
+            if (b.second.endpoint == spec.endpoint && b.second.systemInfo) return true;
+        return false;
+    }
 private:
     const std::shared_ptr<const Configuration> config;
     const BindingDefinition spec;

@@ -85,7 +85,7 @@ void Requests::admit(RecordContext& context,const std::vector<Value>& payload)
             context.callbackState==CallbackState::Idle && context.record);
     const auto identities=Runtime::instance().admit({context.handle},payload,context.definition.budgetMs);
     context.identity=identities.front(); context.active=true; context.published=false;
-    context.alarm=0; context.message=nullptr;
+    context.alarm=0; context.message=nullptr; context.valueWithAlarm=false;
     context.record->pact=TRUE;
 }
 bool Requests::completing(RecordContext& context)

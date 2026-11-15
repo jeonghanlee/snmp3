@@ -40,6 +40,8 @@ public:
     void limits(const std::string& address, uint64_t count, uint64_t bytes);
     QueueSnapshot snapshot(uint64_t address) const;
     std::vector<uint64_t> addresses() const;
+    // The address key of an address ID, as the endpoints of the configuration give it.
+    std::string addressKey(uint64_t address) const;
     const std::string& key(uint64_t address) const;
     std::shared_ptr<const Configuration> configuration() const { return config; }
     uint64_t configurationRevision() const { return revision; }

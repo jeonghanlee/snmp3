@@ -55,6 +55,21 @@ private:
     std::unique_ptr<ipc::BatchReader> decoder;
     std::unique_ptr<Worker> native;
     std::map<std::string,std::shared_ptr<Native>> sessions;
+    // Consecutive requests of an SNMPv3 endpoint that ended without a reply, and the earliest time of the next
+    // new start of its session. The least interval follows the beacon of the Channel Access server: it starts
+    // at 0.02 s, doubles with every new start and stays at 15 s; a reply sets it back.
+    struct Peer { unsigned failures=0; uint64_t nextAt=0, intervalUs=FirstRestartUs; };
+    static constexpr unsigned RestartFailures=2;
+    static constexpr uint64_t FirstRestartUs=20000, LastRestartUs=15000000;
+    std::map<std::string,Peer> peers;
+    std::string activeEndpoint;
+    // The engine ID each SNMPv3 endpoint used first in this process, and for an endpoint whose unit shows
+    // another one since, the earlier and the new engine ID. A request of such an endpoint is sent only when it
+    // reads system information and the profile derives keys for the engine ID it discovers; every other
+    // request, and so every SET, is answered unsent.
+    std::map<std::string,std::vector<uint8_t>> engines;
+    std::map<std::string,std::pair<std::vector<uint8_t>,std::vector<uint8_t>>> replaced;
+    void engineChanged();
     std::vector<ipc::Command> commands;
     std::vector<uint8_t> resultFrame;
     std::vector<ipc::Identity> retired;
@@ -98,10 +113,33 @@ void AddressWorker::local(ipc::Outcome outcome,uint16_t code,int64_t status,int6
     }
     resultFrame=ipc::encodeResults(results); resultReady=true;
 }
+// Answers the active batch unsent with the engine IDs of the endpoint in the first result.
+void AddressWorker::engineChanged()
+{
+    require(activeBatch && !resultReady);
+    const auto& ids=replaced.at(activeEndpoint);
+    std::vector<ipc::Result> results; results.reserve(commands.size());
+    for(auto& command:commands) {
+        std::vector<uint8_t>().swap(command.value);
+        ipc::Result result; result.id=command.id; result.outcome=ipc::Outcome::NativeFailure;
+        result.nativeOutcome=ipc::NativeEngineChanged;
+        if(results.empty() && ids.first.size()<=32 && ids.second.size()<=32) {
+            result.value.push_back(uint8_t(ids.first.size()));
+            result.value.insert(result.value.end(),ids.first.begin(),ids.first.end());
+            result.value.push_back(uint8_t(ids.second.size()));
+            result.value.insert(result.value.end(),ids.second.begin(),ids.second.end());
+        }
+        results.push_back(std::move(result));
+    }
+    resultFrame=ipc::encodeResults(results); resultReady=true;
+}
 void AddressWorker::completion(NativeResult result)
 {
     require(activeBatch && !resultReady);
     const auto code=nativeCode(result.outcome);
+    auto& peer=peers[activeEndpoint];
+    if(result.outcome==NativeOutcome::Timeout)++peer.failures;
+    else if(result.outcome==NativeOutcome::Complete || result.outcome==NativeOutcome::ProtocolFailure)peer=Peer();
     if(result.outcome!=NativeOutcome::Complete || closing || nowUs()>=deadline) {
         local(closing ? ipc::Outcome::Stopping:nowUs()>=deadline ? ipc::Outcome::Deadline:ipc::Outcome::NativeFailure,code,result.errorStatus,result.errorIndex);
         return;
@@ -125,12 +163,51 @@ void AddressWorker::batch()
     if(closing || nowUs()>=deadline) { local(closing ? ipc::Outcome::Stopping:ipc::Outcome::Deadline); return; }
     const auto binding=definitions.at(commands.front().definition);
     std::shared_ptr<Native> session;
+    activeEndpoint=binding->endpoint().id;
     try {
         auto found=sessions.find(binding->endpoint().id);
+        // An SNMPv3 session whose requests keep ending without a reply starts again from nothing: the session is
+        // closed and the remembered engine time dropped, so the next request asks the unit for its engine ID
+        // and its time again.
+        auto& peer=peers[activeEndpoint];
+        if(found!=sessions.end() && binding->profile().version==Version::V3 && peer.failures>=RestartFailures &&
+           nowUs()>=peer.nextAt) {
+            const auto engine=found->second->identity().securityEngineId;
+            found->second->close(); sessions.erase(found); found=sessions.end();
+            native->forgetEngineTime(engine);
+            peer.nextAt=ipc::add(nowUs(),peer.intervalUs);
+            peer.intervalUs=std::min<uint64_t>(peer.intervalUs*2,LastRestartUs);
+            // A profile that names its engine ID never discovers another one by opening a session, so the unit
+            // is asked here.
+            if(!binding->profile().securityEngineId.empty() && !replaced.count(activeEndpoint)) {
+                try {
+                    const auto asked=native->discoverEngine(binding->profile(),binding->endpoint());
+                    if(asked!=binding->profile().securityEngineId)
+                        replaced[activeEndpoint]=std::make_pair(binding->profile().securityEngineId,asked);
+                } catch(const NativeError&) {}
+                events();
+            }
+        }
         if(found==sessions.end()) {
+            if(replaced.count(activeEndpoint) && !binding->profile().securityEngineId.empty()) { engineChanged(); return; }
             session=native->open(binding->profile(),binding->endpoint(),config->capabilities);
             sessions.emplace(binding->endpoint().id,session);
+            if(binding->profile().version==Version::V3) {
+                const auto& engine=session->identity().securityEngineId;
+                const auto first=engines.find(activeEndpoint);
+                if(first==engines.end())engines[activeEndpoint]=engine;
+                else if(first->second!=engine && !replaced.count(activeEndpoint))
+                    replaced[activeEndpoint]=std::make_pair(first->second,engine);
+            }
         } else session=found->second;
+        if(replaced.count(activeEndpoint)) {
+            bool allowed=binding->verifiable();
+            for(const auto& command:commands) {
+                const auto& spec=definitions.at(command.definition)->definition();
+                allowed=allowed && spec.systemInfo && command.operation==Operation::Get;
+            }
+            if(!allowed) { engineChanged(); return; }
+        }
         events();
         // Open may block in discovery. Service actual queued Close before any submit.
         input(nowUs());
@@ -145,6 +222,7 @@ void AddressWorker::batch()
         session->submit(bindings,payload,[this](NativeResult result){completion(std::move(result));});
         events();
     } catch(const NativeError& error) {
+        if(error.outcome()==NativeOutcome::Timeout)++peers[activeEndpoint].failures;
         if(!resultReady)local(ipc::Outcome::NativeFailure,nativeCode(error.outcome()));
     }
 }

@@ -120,7 +120,10 @@ void externalObjects(const char* path)
 Var value(unsigned index, unsigned context)
 {
     netsnmp_variable_list* result = nullptr;
-    const long integer = -123L - static_cast<long>(context);
+    // SNMP3_FIXTURE_INTEGER replaces the base of the integer objects, so that an agent started again can hold
+    // other values than the one before it.
+    const char* base = std::getenv("SNMP3_FIXTURE_INTEGER");
+    const long integer = (base ? std::strtol(base, nullptr, 10) : -123L) - static_cast<long>(context);
     const unsigned long unsignedValue = 0xffffffffUL;
     const counter64 wide = {index == 19 ? 0x80000000UL : 0xffffffffUL,
                             index == 19 ? 0UL : 0xffffffffUL};
@@ -322,6 +325,22 @@ int main(int argc, char** argv)
             }
         }
         init_snmp("snmpd");
+        // SNMP3_FIXTURE_ENGINE_BOOTS starts the engine with that boots value. The engine's own entry of the time
+        // list was written at initialization and must carry the same value, or the agent checks requests against
+        // one boots value and stamps its replies with another.
+        if (const char* boots = std::getenv("SNMP3_FIXTURE_ENGINE_BOOTS")) {
+            char* end = nullptr;
+            const unsigned long wanted = std::strtoul(boots, &end, 10);
+            if (!*boots || *end || wanted < 1 || wanted > 2147483646UL) throw std::runtime_error("fixture boots invalid");
+            char text[16];
+            std::snprintf(text, sizeof(text), "%lu", wanted - 1);
+            engineBoots_conf("engineBoots", text);
+            unsigned char self[MAX_ENGINEID_LENGTH];
+            const size_t selfLength = snmpv3_get_engineID(self, sizeof(self));
+            if (snmpv3_local_snmpEngineBoots() != wanted ||
+                set_enginetime(self, selfLength, wanted, snmpv3_local_snmpEngineTime(), TRUE) != SNMPERR_SUCCESS)
+                throw std::runtime_error("fixture boots override failed");
+        }
         if (init_master_agent()) throw std::runtime_error("fixture bind failed");
         std::signal(SIGTERM, stop);
         std::signal(SIGINT, stop);

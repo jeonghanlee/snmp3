@@ -47,6 +47,9 @@ struct RecordContext {
     TerminalView terminal;
     CallbackState callbackState=CallbackState::Idle;
     bool active=false, published=false, nativeSuccess=false;
+    // The staged value is published although an alarm is raised: system information of a unit whose engine ID
+    // changed.
+    bool valueWithAlarm=false;
     unsigned alarm=0;
     const char* message=nullptr;
     unsigned storageType=0;

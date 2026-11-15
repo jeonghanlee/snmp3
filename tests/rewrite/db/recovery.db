@@ -1,0 +1,24 @@
+# Records of one endpoint of the recovery cell: two inputs, one system information input and one output, with a
+# fanout that processes the three inputs in one pass. B is the prefix of the binding names of the endpoint.
+record(fanout, "$(P)Round") {
+    field(SELM, "All")
+    field(LNK0, "$(P)R1")
+    field(LNK1, "$(P)R2")
+    field(LNK2, "$(P)Sys")
+}
+record(longin, "$(P)R1") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=$(B)In1 deadline_ms=5000")
+}
+record(longin, "$(P)R2") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=$(B)In2 deadline_ms=5000")
+}
+record(longin, "$(P)Sys") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=$(B)Sys deadline_ms=5000")
+}
+record(longout, "$(P)Out") {
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=$(B)Out deadline_ms=5000")
+}

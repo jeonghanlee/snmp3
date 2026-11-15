@@ -1,5 +1,6 @@
 #include "NativeInternal.h"
 #include <net-snmp/library/large_fd_set.h>
+#include <net-snmp/library/lcd_time.h>
 #include <chrono>
 #include <cerrno>
 #include <atomic>
@@ -188,6 +189,19 @@ std::shared_ptr<Native> Worker::open(const Profile& profile, const Endpoint& end
 void Worker::service(unsigned maximumWaitMs) { state->poll(maximumWaitMs); }
 void Worker::service(uint64_t maximumWaitUs, int channel, bool channelWrite)
 { state->poll(maximumWaitUs, channel, channelWrite); }
+void Worker::forgetEngineTime(const std::vector<uint8_t>& engine)
+{
+    state->check();
+    if (engine.empty()) return;
+    std::vector<uint8_t> copy(engine);
+    free_enginetime(copy.data(), copy.size());
+    state->event("engine_time_forgotten", 0, 0, 0, static_cast<long>(copy.size()));
+}
+std::vector<uint8_t> Worker::discoverEngine(const Profile& profile, const Endpoint& endpoint)
+{
+    state->check();
+    return detail::discoverEngine(*state, profile, endpoint);
+}
 std::vector<NativeEvent> Worker::takeEvents()
 {
     state->check();

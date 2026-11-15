@@ -127,6 +127,7 @@ profile and context identities for the same address.
 | `operation` | String | Required `get` or `set` |
 | `valueType` | String | Required type from the table below |
 | `capacity` | Integer | Default 1; bounded by value type |
+| `systemInfo` | Boolean | Default `false`; allowed on a `get` binding only. Marks system information of the unit (firmware revision, name, MAC address, status), the only values still read and shown after the unit at the address shows another engine ID; see [Record behavior](snmp-record-behavior.md) |
 
 An object identifier (OID) has 2-128 unsigned 32-bit arcs. A leading dot is
 optional. The first arc is 0, 1, or 2; the second is at most 39 when the first
