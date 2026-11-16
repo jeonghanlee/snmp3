@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.5 — Shared Library Names
+
+### Product
+
+- The three shared libraries of the module are installed under a versioned name, the way EPICS Base installs its own: `libsnmp3.so.1`, `libsnmp3Wire.so.1` and `libsnmp3Native.so.1` are the libraries, each with its own name as SONAME, and `libsnmp3.so`, `libsnmp3Wire.so` and `libsnmp3Native.so` are links to them.
+- The number is the ABI number of the module, `SHRLIB_VERSION` in `snmp3App/src/Makefile` and `snmp3App/native/Makefile`. It is one number for the three libraries, independent of the release number, and raised only for an incompatible change of an interface that a release has promised. It stays 1 until `1.0.0`.
+
+### Compatibility
+
+- A consumer built before this version names `libsnmp3.so` and keeps starting through the link.
+- A consumer built from this version on names `libsnmp3.so.1` and does not start against an installation that holds only another ABI number.
+
 ## 0.0.4 — SET Outcome
 
 ### Product
@@ -10,7 +22,7 @@
 
 ### Included and not yet verified on a unit
 
-This version also holds the recovery of a unit that returns, which is verified with the fixture agent and waits for the runs on the laboratory units before it is closed as `0.0.5`:
+This version also holds the recovery of a unit that returns, which is verified with the fixture agent and waits for the runs on the laboratory units before it is closed:
 
 - After 2 consecutive requests without a reply the worker starts the SNMPv3 session of the endpoint again and drops the remembered engine time, so a unit that returns with its engine time behind the remembered one is synchronized again. A unit that has not answered since the IOC started carries `no reply`.
 - A responder with another engine ID at the address puts the endpoint into the state `changed` or `unverified` until the IOC is restarted: no SET is sent and no value is taken, except bindings marked `systemInfo` in the state `changed`; the records carry `engine ID changed: restart IOC` or `engine ID unverified: restart IOC`, the IOC log holds one `snmp3 engine:` line, and `snmp3RuntimeReport` prints a `snmp3 peer:` line per address.
