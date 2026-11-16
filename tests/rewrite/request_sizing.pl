@@ -31,8 +31,9 @@ my %CASES = (
         [4, 1, 'tooBig', 'tooBig'], [2, 2, undef, undef], [1, 3, undef, undef], [1, 3, '', 'tooBig'] ] },
     'toobig-v3' => { version => '3', proxy => 'pass', last => $OID_TOO_BIG, advertised => 1, rounds => [
         [4, 1, 'tooBig', 'tooBig'], [2, 2, undef, undef], [1, 3, undef, undef], [1, 3, '', 'tooBig'] ] },
+    # The eighth value of the request is the object that answers genErr, so the unit names index 8.
     'other-status' => { version => '2c', proxy => '', last => $OID_GEN_ERR, never => 'tooBig', rounds => [
-        [0, 0, undef, ''], [0, 0, undef, ''] ] },
+        [0, 0, undef, 'genErr index 8'], [0, 0, undef, 'genErr index 8'] ] },
     'answered' => { version => '2c', proxy => '', last => $OID_VALUE, rounds => [ [0, 0, '', ''], [0, 0, '', ''] ] },
     'unreadable' => { version => '3', proxy => 'malformed', last => $OID_VALUE, engine => 1, event => 'fault_mutation',
         rounds => [ [4, 1, 'unreadable rejection', 'unreadable rejection'], [4, 1, '', ''] ] },

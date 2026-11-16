@@ -74,6 +74,14 @@ bool validate(RecordContext& context)
     default: return true;
     }
 }
+// Name of an SNMP error status as RFC 3416 lists them; null for a value outside the list.
+const char* statusName(int64_t status)
+{
+    static const char* const names[]={nullptr,"tooBig","noSuchName","badValue","readOnly","genErr","noAccess",
+        "wrongType","wrongLength","wrongEncoding","wrongValue","noCreation","inconsistentValue",
+        "resourceUnavailable","commitFailed","undoFailed","authorizationError","notWritable","inconsistentName"};
+    return status>=1 && status<int64_t(sizeof(names)/sizeof(names[0])) ? names[status]:nullptr;
+}
 void prepare(RecordContext& context,const ipc::Result& result)
 {
     const auto& definition=context.definition;
@@ -115,6 +123,11 @@ void prepare(RecordContext& context,const ipc::Result& result)
         // The cause of a failed request that the unit or its silence decided.
         if(result.outcome==ipc::Outcome::NativeFailure) {
             if(result.nativeOutcome==ipc::NativeProtocolFailure && result.errorStatus==ipc::ErrorStatusTooBig)context.message="tooBig";
+            // Any other error status of the unit: its name and the index of the value it names.
+            else if(result.nativeOutcome==ipc::NativeProtocolFailure && statusName(result.errorStatus)) {
+                context.failure=std::string(statusName(result.errorStatus))+" index "+std::to_string(result.errorIndex);
+                context.message=context.failure.c_str();
+            }
             else if(result.nativeOutcome==ipc::NativeUnreadable)context.message="unreadable rejection";
             else if(result.nativeOutcome==ipc::NativeTimeout)context.message="no reply";
         }

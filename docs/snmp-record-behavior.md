@@ -37,6 +37,16 @@ The pending request keeps the payload it captured at admission. The module never
 
 A put-callback completes when Base finishes the completion processing of the record, after the final outcome of the request has been applied to the record. The record's alarm status (STAT), severity (SEVR), and alarm message (AMSG) fields carry the outcome. A SET completion does not show device readback. A separate GET does.
 
+## Outcome of a SET
+
+An output record stays active until the result of its SET arrives; it never reports a SET that was only sent. The module keeps no queue of values of its own: three puts that each wait for completion give three SETs in the order written, and plain puts that arrive while a request of the record is pending are merged by Base into one further SET with the latest value.
+
+| Result | Record |
+| --- | --- |
+| The unit accepts the SET | No alarm; a later GET of the object returns the written value |
+| The unit refuses it with an error status | WRITE/INVALID with the AMSG text `<status> index <n>`, or `tooBig` |
+| No reply | COMM/INVALID with the AMSG text `no reply`; the record keeps the written value in VAL although the unit did not take it |
+
 ## Behavior in simulation mode
 
 Base input simulation is a separate value source. A record whose simulation mode (SIMM) selects simulation reads the simulation input link (SIOL) before admission and sends no native request.
@@ -56,6 +66,7 @@ A request that reaches its deadline before transmission is reported as COMM/INVA
 | `tooBig` | READ or WRITE, INVALID | The unit answered the request with the error status tooBig |
 | `unreadable rejection` | READ or WRITE, INVALID | The request timed out and the library counted a reply that it could not parse while the request was pending |
 | `no reply` | COMM, INVALID | The request timed out and no unparsable reply was counted |
+| `<status> index <n>` | READ or WRITE, INVALID | The unit answered the request with another error status: its name as RFC 3416 lists it and the error index, the position in the request of the value it names, for example `wrongType index 1` |
 
 The count of unparsable replies is the `snmpInASNParseErrs` statistic of the Net-SNMP library, read by the worker when it sends the request and when the request times out. It rises for an unparsable reply on an SNMPv3 session. On an SNMPv2c session it was observed not to rise, so such a reply is reported as `no reply`; SNMPv1 was not run.
 

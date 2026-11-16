@@ -52,6 +52,8 @@ struct RecordContext {
     bool valueWithAlarm=false;
     unsigned alarm=0;
     const char* message=nullptr;
+    // Storage of a message that is built for one result, such as an error status with its index.
+    std::string failure;
     unsigned storageType=0;
     void* storage=nullptr;
     std::unique_ptr<Value> staged;

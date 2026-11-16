@@ -1,0 +1,59 @@
+# Records of the SET contract cell: one output per output record type with an input on the same object, an output
+# whose value type the agent refuses, an output behind the delaying proxy, and two outputs for consecutive writes.
+record(ao, "$(P)Ao") {
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=FloatWrite deadline_ms=5000")
+}
+record(longout, "$(P)Longout") {
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=IntegerWrite deadline_ms=5000")
+}
+record(int64out, "$(P)Int64out") {
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=Counter64Write deadline_ms=5000")
+}
+record(stringout, "$(P)Stringout") {
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=OctetsWrite deadline_ms=5000")
+}
+record(lso, "$(P)Lso") {
+    field(DTYP, "snmp3")
+    field(SIZV, "64")
+    field(OUT, "@binding=OctetsWrite deadline_ms=5000")
+}
+record(ai, "$(P)AoRead") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=FloatRead deadline_ms=5000")
+}
+record(longin, "$(P)LongoutRead") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=IntegerRead deadline_ms=5000")
+}
+record(int64in, "$(P)Int64outRead") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=Counter64Read deadline_ms=5000")
+}
+record(stringin, "$(P)OctetsRead") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=OctetsRead deadline_ms=5000")
+}
+record(longout, "$(P)Refused") {
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=RefusedWrite deadline_ms=5000")
+}
+record(longout, "$(P)Delayed") {
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=DelayedWrite deadline_ms=5000")
+}
+record(longout, "$(P)Sequence") {
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=SequenceWrite deadline_ms=5000")
+}
+record(longout, "$(P)Burst") {
+    field(DTYP, "snmp3")
+    field(OUT, "@binding=BurstWrite deadline_ms=8000")
+}
+record(longin, "$(P)BurstRead") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=BurstRead deadline_ms=5000")
+}
