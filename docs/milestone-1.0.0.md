@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: Continue M16 in `docs/milestone-1.0.0.md` (plan accepted and implementation authorized on 2026-11-15; commits, pushes, tags and issue actions each need their own authority). Items 1 to 6 are done, T1, T2, T3 and T6 are recorded (2026-11-15), the differences from the plan are accepted by D25, and the change and the register record are on `origin/master` (commits `07859a8` and `a2ccdd8`). Remaining: item 7 on the units, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then the `CHANGELOG.md` entry `0.0.5`, the tag and the closure, each under its own authority. Meanwhile M5 is in progress: items 1 to 4 of its accepted plan are done and T1 to T3 are recorded (2026-11-16); nothing of M5 is committed; D27 accepts its differences from the plan and gives it the tag `0.0.4`. Next for M5: a second-person pass of the changed documents, then commit, the `CHANGELOG.md` entry `0.0.4`, the tag, the update and closing of issue #5 (its criterion on consecutive puts is replaced by D26) and the closure, each under its own authority. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`) and G1 are complete. The other Ready rows are M6, M8, M9 and M10.
+Next session entry point: Two paths are open in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then the `CHANGELOG.md` entry `0.0.5`, the tag and the closure, each under its own authority. Until then the nearest Ready row is M6, whose plan is a draft, so its review with `plan.md` of the milestone-tracking skill, acceptance and implementation authorization are open. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`) and G1 are complete. The other Ready rows are M8, M9 and M10. Commits, pushes, tags and issue actions each need their own authority.
 
 ## Scope
 
@@ -31,7 +31,7 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | A | M3 | Two-device isolation measurement on the current product | Milestone | Complete | No | G1, D4, M2, D13 | Measured cadence of the healthy unit with the other unit disconnected; [detail](#m3---two-device-isolation-measurement-on-the-current-product) |
 | B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Complete | No | G1, D16 | At `maxVarbinds=61` the records of both units fill without manual tuning; a rejection, read or unreadable, halves the batch and shows on the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
 | Recovery | M16 | Recovery when a unit returns after a power or network loss | Milestone | In progress | No | G1, D18, D22, D23, D24, D25 | With the IOC left running, the records of a unit return to normal by themselves when the unit comes back with its engine ID unchanged; a changed engine ID is shown and recorded, and until the IOC is restarted no SET is sent and no value is taken except system information; tag `0.0.5`; [detail](#m16---recovery-when-a-unit-returns-after-a-power-or-network-loss) |
-| B | M5 | SET outcome contract | Milestone | In progress | No | M4, D26, D27 | Output records complete only on the SET result; a refused SET and a SET without a reply are alarms with a message; consecutive writes follow Base; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
+| B | M5 | SET outcome contract | Milestone | Complete | No | M4, D26, D27 | Output records complete only on the SET result; a refused SET and a SET without a reply are alarms with a message; consecutive writes follow Base; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
 | C | M6 | Reply time stamp on records | Milestone | Not started | Yes | | Record TIME equals the worker receive time with `TSE=-2`; tag `0.0.6`; [detail](#m6---reply-time-stamp-on-records) |
 | C | M7 | Reply-driven processing and driver-owned periodic acquisition | Milestone | Not started | No | M4, M6 | `SCAN=I/O Intr` records process on reply arrival at the configured period; tag `0.0.7`; [detail](#m7---reply-driven-processing-and-driver-owned-periodic-acquisition) |
 | Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4 | A table read uses one GETBULK request where the profile allows it; tag `0.0.8`; [detail](#m8---getbulk-table-reads) |
@@ -39,7 +39,7 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.10`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M16 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 4 Complete, 2 In progress, 6 Not started, 0 Blocked; G1 Complete. Ready rows: M6, M8, M9, M10. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
+Current work tally: 5 Complete, 1 In progress, 6 Not started, 0 Blocked; G1 Complete. Ready rows: M6, M8, M9, M10. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -681,7 +681,7 @@ Last Compared: 2026-11-15T00:46Z; issue updatedAt 2026-11-15T00:46:22Z; title, l
 Origin: 1.0.0 / M4
 Identity History: M4 -> M5 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #5 - https://github.com/jeonghanlee/snmp3/issues/5
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -772,17 +772,22 @@ Left out, with the reason:
 
 ##### Closure Evidence
 
-- none
+- Completion Criteria checked on 2026-11-16 against the Verification Results: the five output record types with their SET at the agent and the written value on the next GET, the delayed record active until its reply, the refused SET and the SET without a reply with their alarms and messages (T1), the two routes of consecutive writes (T2), the check of the refused SET seen failing on the unchanged code and the checks of T1 on the mutations V1 to V5, and the ordinary stage with the same 43 cells and the added cell (T3). The differences from the plan are decided by D27.
+- Landing: the change is commit `4d47b302e3eec291db13336ddf95e6039b81e264`, the register record of the plan, decisions and results is commit `82394731c0f23b77b639fc7af989fd12901b9877`, and the `CHANGELOG.md` entry `0.0.4` is commit `4f4ab5e20455d4994bda72277d195a53e0e5f3ba`; all three were pushed to `origin/master`. After `git fetch`, `git rev-parse HEAD origin/master` printed `4f4ab5e` twice and `git diff --name-only 5ad4e82 origin/master` listed the 10 paths of the three commits (observed 2026-11-16T08:38Z).
+- Tag: the annotated tag `0.0.4` (object `7fb67c62988fe5f21db1d338ab328819017e5140`) names `4f4ab5e`, the commit that holds the `CHANGELOG.md` entry, created and pushed under the owner's tag authority of 2026-11-16. Recheck with `git ls-remote --tags origin refs/tags/0.0.4 'refs/tags/0.0.4^{}'`, which printed that object and the peeled commit at 2026-11-16T08:38Z. The tagged tree also holds the code of M16, which is not closed; the `CHANGELOG.md` entry `0.0.4` names it as included and not yet verified on a unit.
+- Issue #5: under the owner's Issue authority of 2026-11-16 its body was rewritten to the final behavior with the four acceptance items checked, the criterion on consecutive puts replaced by the behavior of Base (D26) and the known limits; a closing comment was posted and the issue was closed as completed. Recheck with `gh issue view 5 --json state,stateReason,closedAt`, which printed CLOSED, COMPLETED and 2026-11-16T08:37:54Z at 2026-11-16T08:38Z.
+- The `CHANGELOG.md` entry was committed without a second-person pass, by the owner's decision of 2026-11-16.
+- Unproven and left listed: a SET that a unit answers with tooBig, and any write to a laboratory unit.
 
 ##### GitHub Projection
 
 Title: Complete output records on the SET result
 Labels: enhancement
 GitHub Milestone: 1.0.0
-Observed State: open
+Observed State: closed (completed)
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
-Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:17Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
+Last Compared: 2026-11-16T08:38Z; issue updatedAt 2026-11-16T08:37:54Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the final behavior, the checked acceptance criteria and the known limits.
 
 #### M6 - Reply time stamp on records
 
