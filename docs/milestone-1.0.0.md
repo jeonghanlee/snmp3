@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: Two paths are open in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. Until then the owner took M10 next: items 1 to 4 of its accepted plan are done and T1 to T3 are recorded (2026-11-16); nothing of M10 is committed. Next for M10: commit, the `CHANGELOG.md` entry `0.0.5`, the tag `0.0.5` (D31), the update and closing of issue #1 and the closure, each under its own authority. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`) and G1 are complete. The other Ready rows are M7, M8, M9 and M18; M18, the state of the module as records, was added on 2026-11-16 by D30. Commits, pushes, tags and issue actions each need their own authority.
+Next session entry point: One unit is in progress in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. Until then the next step is the review of the plan of M18, which is a draft; M7, M8 and M9 are the other Ready rows. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`) and G1 are complete. M18, the state of the module as records, was added on 2026-11-16 by D30. Commits, pushes, tags and issue actions each need their own authority.
 
 ## Scope
 
@@ -35,11 +35,11 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | C | M7 | Reply-driven processing and driver-owned periodic acquisition | Milestone | Not started | Yes | M4, D28 | `SCAN=I/O Intr` records process on reply arrival at the configured period; tag: the next free number at its closing; [detail](#m7---reply-driven-processing-and-driver-owned-periodic-acquisition) |
 | Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4 | A table read uses one GETBULK request where the profile allows it; tag: the next free number at its closing; [detail](#m8---getbulk-table-reads) |
 | D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag: the next free number at its closing; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
-| Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | In progress | No | D3, D29, D31 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.5`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
+| Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Complete | No | D3, D29, D31 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.5`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Records | M18 | Module state as records | Milestone | Not started | Yes | D30 | The runtime state and the state of each address are readable as records of a database the module installs, and an application needs no header of the module; [detail](#m18---module-state-as-records) |
 | Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M18 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 5 Complete, 2 In progress, 5 Not started, 0 Blocked; G1 Complete. Ready rows: M7, M8, M9, M18. Backlog contains 1 Open and 4 Deferred rows and is excluded from this tally.
+Current work tally: 6 Complete, 1 In progress, 5 Not started, 0 Blocked; G1 Complete. Ready rows: M7, M8, M9, M18. Backlog contains 1 Open and 4 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -1033,7 +1033,7 @@ Last Compared: 2026-11-11T17:36Z; issue updatedAt 2026-11-11T17:28:55Z; title, l
 Origin: 1.0.0 / M9
 Identity History: M9 -> M10 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #1 - https://github.com/jeonghanlee/snmp3/issues/1
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -1115,17 +1115,22 @@ Left out, with the reason:
 
 ##### Closure Evidence
 
-- none
+- Completion Criteria checked on 2026-11-16 against the Verification Results: the real file, the SONAME and the link of each of the three libraries after a build and after a second build, and the versioned names in `snmp3Ioc`, `snmp3Worker` and `snmp3NativeProbe` (T1); the consumer that does not start against another number and names the missing library, and the consumer built before the change that starts through the link (T2); the ordinary stage with the same 44 cells and the added cell (T3); the names, the rule for the number and the three facts of the move in `docs/configure-procedure.md`. No difference from the plan was recorded.
+- Landing: the change is commit `14bcb99`, the register record of the results and of D31 is commit `9b010dd`, and the `CHANGELOG.md` entry `0.0.5` is commit `a1a66d675ba8ae5cb04d98ad045f956d6c70f45b`; all three were pushed to `origin/master`. After `git fetch`, `git rev-parse HEAD origin/master` printed `a1a66d6` twice and `git diff --name-only cdfbefe origin/master` listed the 8 paths of the three commits (observed 2026-11-16T20:57Z).
+- Tag: the annotated tag `0.0.5` (object `6aaa4b82572927a2571ab9a0776e12914a54f0a2`) names `a1a66d6`, the commit that holds the `CHANGELOG.md` entry, created and pushed under the owner's tag authority of 2026-11-16. Recheck with `git ls-remote --tags origin refs/tags/0.0.5 'refs/tags/0.0.5^{}'`, which printed that object and the peeled commit at 2026-11-16T20:57Z. The tagged tree also holds the code of M16, which is not closed; the `CHANGELOG.md` entry `0.0.4` names it as included and not yet verified on a unit.
+- Issue #1: under the owner's Issue authority of 2026-11-16 its body was rewritten to the final form with the four acceptance items checked, the three-level chain replaced by the two-level form of Base (D29), the Rocky Linux build and the package path named as not run with the reason, and the known limits; the issue was closed as completed. Recheck with `gh issue view 1 --json state,stateReason,closedAt`, which printed CLOSED, COMPLETED and 2026-11-16T20:56:56Z at 2026-11-16T20:57Z.
+- The document changes of the first two commits had one second-person pass before commit; the `CHANGELOG.md` entry was committed without one, by the owner's decision of 2026-11-16.
+- Unproven and left listed: a build on Rocky Linux 8.10 (Release Verification 5 and 7 of M11), a replacement by a compatible library of the same number, and a check of the exported symbols.
 
 ##### GitHub Projection
 
 Title: Version SNMP3 shared libraries with ABI SONAMEs
 Labels: enhancement
 GitHub Milestone: 1.0.0
-Observed State: open
+Observed State: closed (completed)
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
-Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:39Z; milestone and assignee jeonghanlee verified with `gh issue list` after the milestone link
+Last Compared: 2026-11-16T20:57Z; issue updatedAt 2026-11-16T20:56:56Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the final form, the checked acceptance criteria and the known limits.
 
 #### M18 - Module state as records
 
