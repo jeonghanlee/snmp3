@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.0.4 — SET Outcome
+
+### Product
+
+- A request that the unit answers with an error status other than tooBig sets the alarm message of its records to the name of the status and the error index, as `<status> index <n>` (for example `wrongType index 1`), for a SET and a GET alike.
+- The SET path is qualified for `ao`, `longout`, `int64out`, `stringout` and `lso`: an output record stays active until the result of its SET arrives, a refused SET is WRITE/INVALID with the message above, and a SET without a reply is COMM/INVALID with `no reply`.
+- Consecutive writes to one record follow EPICS Base: a put that waits for completion is sent on its own, in order, and plain puts that arrive while a request of the record is pending are merged into one further SET with the latest value. The module keeps no queue of values of its own.
+
+### Included and not yet verified on a unit
+
+This version also holds the recovery of a unit that returns, which is verified with the fixture agent and waits for the runs on the laboratory units before it is closed as `0.0.5`:
+
+- After 2 consecutive requests without a reply the worker starts the SNMPv3 session of the endpoint again and drops the remembered engine time, so a unit that returns with its engine time behind the remembered one is synchronized again. A unit that has not answered since the IOC started carries `no reply`.
+- A responder with another engine ID at the address puts the endpoint into the state `changed` or `unverified` until the IOC is restarted: no SET is sent and no value is taken, except bindings marked `systemInfo` in the state `changed`; the records carry `engine ID changed: restart IOC` or `engine ID unverified: restart IOC`, the IOC log holds one `snmp3 engine:` line, and `snmp3RuntimeReport` prints a `snmp3 peer:` line per address.
+- The binding field `systemInfo` marks system information of a unit.
+
+### Compatibility
+
+- A sent request that fails with an error status now carries an alarm message where the field was empty before.
+- The worker and the IOC must come from the same build: the binding of the worker bootstrap carries the system information mark, and a result may carry the native outcome 13.
+- A unit that does not answer the question for its engine ID ends as a timeout, where it was an open failure.
+
+### Known limits
+
+- A SET that a unit answers with tooBig was not run; it takes the path of a read request.
+- SNMPv1 and SNMPv2c carry no engine ID, so a replaced unit cannot be told apart there.
+
 ## 0.0.3 — Request Sizing
 
 ### Product
