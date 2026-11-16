@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: Two paths are open in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then the `CHANGELOG.md` entry `0.0.5`, the tag and the closure, each under its own authority. Until then the owner took M10 next: its plan was rewritten on 2026-11-16 after the inventory (D29) and is a draft, so the owner's review, acceptance and implementation authorization are open. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`) and G1 are complete. The other Ready rows are M7, M8, M9 and M18; M18, the state of the module as records, was added on 2026-11-16 by D30. Commits, pushes, tags and issue actions each need their own authority.
+Next session entry point: Two paths are open in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. Until then the owner took M10 next: items 1 to 4 of its accepted plan are done and T1 to T3 are recorded (2026-11-16); nothing of M10 is committed. Next for M10: commit, the `CHANGELOG.md` entry `0.0.5`, the tag `0.0.5` (D31), the update and closing of issue #1 and the closure, each under its own authority. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`) and G1 are complete. The other Ready rows are M7, M8, M9 and M18; M18, the state of the module as records, was added on 2026-11-16 by D30. Commits, pushes, tags and issue actions each need their own authority.
 
 ## Scope
 
@@ -30,16 +30,16 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | Baseline | M2 | Baseline measurement on the two laboratory units | Milestone | Complete | No | D8, D9, D11 | Net-SNMP 5.9.4 read directly and the installed legacy module measured on both units, with the response time of a request and the interval of new values recorded; no product change; [detail](#m2---baseline-measurement-on-the-two-laboratory-units) |
 | A | M3 | Two-device isolation measurement on the current product | Milestone | Complete | No | G1, D4, M2, D13 | Measured cadence of the healthy unit with the other unit disconnected; [detail](#m3---two-device-isolation-measurement-on-the-current-product) |
 | B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Complete | No | G1, D16 | At `maxVarbinds=61` the records of both units fill without manual tuning; a rejection, read or unreadable, halves the batch and shows on the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
-| Recovery | M16 | Recovery when a unit returns after a power or network loss | Milestone | In progress | No | G1, D18, D22, D23, D24, D25 | With the IOC left running, the records of a unit return to normal by themselves when the unit comes back with its engine ID unchanged; a changed engine ID is shown and recorded, and until the IOC is restarted no SET is sent and no value is taken except system information; tag `0.0.5`; [detail](#m16---recovery-when-a-unit-returns-after-a-power-or-network-loss) |
+| Recovery | M16 | Recovery when a unit returns after a power or network loss | Milestone | In progress | No | G1, D18, D22, D23, D24, D25, D31 | With the IOC left running, the records of a unit return to normal by themselves when the unit comes back with its engine ID unchanged; a changed engine ID is shown and recorded, and until the IOC is restarted no SET is sent and no value is taken except system information; tag: the next free number at its closing; [detail](#m16---recovery-when-a-unit-returns-after-a-power-or-network-loss) |
 | B | M5 | SET outcome contract | Milestone | Complete | No | M4, D26, D27 | Output records complete only on the SET result; a refused SET and a SET without a reply are alarms with a message; consecutive writes follow Base; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
-| C | M7 | Reply-driven processing and driver-owned periodic acquisition | Milestone | Not started | Yes | M4, D28 | `SCAN=I/O Intr` records process on reply arrival at the configured period; tag `0.0.6`; [detail](#m7---reply-driven-processing-and-driver-owned-periodic-acquisition) |
-| Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4 | A table read uses one GETBULK request where the profile allows it; tag `0.0.7`; [detail](#m8---getbulk-table-reads) |
-| D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag `0.0.8`; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
-| Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3, D29 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.9`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
+| C | M7 | Reply-driven processing and driver-owned periodic acquisition | Milestone | Not started | Yes | M4, D28 | `SCAN=I/O Intr` records process on reply arrival at the configured period; tag: the next free number at its closing; [detail](#m7---reply-driven-processing-and-driver-owned-periodic-acquisition) |
+| Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4 | A table read uses one GETBULK request where the profile allows it; tag: the next free number at its closing; [detail](#m8---getbulk-table-reads) |
+| D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag: the next free number at its closing; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
+| Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | In progress | No | D3, D29, D31 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.5`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Records | M18 | Module state as records | Milestone | Not started | Yes | D30 | The runtime state and the state of each address are readable as records of a database the module installs, and an application needs no header of the module; [detail](#m18---module-state-as-records) |
 | Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M18 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 5 Complete, 1 In progress, 6 Not started, 0 Blocked; G1 Complete. Ready rows: M7, M8, M9, M10, M18. Backlog contains 1 Open and 4 Deferred rows and is excluded from this tally.
+Current work tally: 5 Complete, 2 In progress, 5 Not started, 0 Blocked; G1 Complete. Ready rows: M7, M8, M9, M18. Backlog contains 1 Open and 4 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -75,6 +75,7 @@ Current work tally: 5 Complete, 1 In progress, 6 Not started, 0 Blocked; G1 Comp
 | D28 | M6 is deferred and moved to the Backlog: measured on 2026-11-16 with the fixture agent and on both units, the TIME of a record with `TSE=0` already lies within 1 ms of the arrival of its reply, so the fault that M6 answered is absent and what remains is an exactly equal time stamp for the values of one reply. M7 no longer depends on M6, because a record that processes on the arrival of a reply takes its time there. The measurements are kept in the detail of M6 for a later look. The tags of the units that follow are taken in the order of closing; with M6 out, M7, M8, M9 and M10 are planned as `0.0.6` to `0.0.9`. | 2026-11-16 |
 | D29 | M10: the shared libraries are versioned the way EPICS Base does it, with `SHRLIB_VERSION` in the Makefiles: the real file is `lib<name>.so.<ABI>`, its SONAME is the same name, and `lib<name>.so` is a link to it, two levels and not the three of the earlier wording. One ABI number serves the three libraries and starts at 1. It is independent of the release number and is raised only for an incompatible change of an interface that a release has promised; until `1.0.0` no interface is promised, so it stays 1 through the units that still change the worker protocol. | 2026-11-16 |
 | D30 | An IOC application uses snmp3 the way it uses the other support modules: it adds the database definition file and the library, runs the registered shell commands, and reads the state of the module from records. It includes no header of the module and reads no C++ object of it. The module therefore offers its state as records (M18), and what `1.0.0` promises to an application is the database definition file, the shell commands and those records. The application `apcpdu`, whose main reads `snmp3::Runtime` through a header taken from the module's source directory, is written again in its own repository with the IOC template generator. | 2026-11-16 |
+| D31 | Tags follow the order of closing (D27, D28): M10 closes before M16 and takes `0.0.5`. Only the next number is fixed: every other open unit, M16, M7, M8, M9 and M18, takes the next free number when it closes, and the numbers that D22 and D28 planned for them no longer hold. | 2026-11-16 |
 
 ### ID Migration
 
@@ -1032,7 +1033,7 @@ Last Compared: 2026-11-11T17:36Z; issue updatedAt 2026-11-11T17:28:55Z; title, l
 Origin: 1.0.0 / M9
 Identity History: M9 -> M10 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #1 - https://github.com/jeonghanlee/snmp3/issues/1
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -1069,14 +1070,15 @@ Out of scope: a policy for all EPICS modules, device behavior, a three-level lin
 
 - D3 includes this work in `1.0.0`.
 - D29 fixes the two-level form of Base, the single ABI number starting at 1, and the rule for raising it.
-- The tag of this unit is taken in the order of closing (D27, D28).
+- The tag of this unit is taken in the order of closing (D27, D28): D31 gives it `0.0.5`, because it closes before M16.
 - New tests are written in bash and Perl as a matrix cell (D19), and are limited to what the purpose needs.
+- The work as run follows the accepted plan; no difference was recorded (2026-11-16).
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-11-16, accepted by the owner after the third-person and second-person passes of this detail were closed
+Implementation Authorization: 2026-11-16, by the owner: items 1 to 4 of the accepted plan, that is edits and test runs in this repository; every commit, push, tag and issue action needs its own authority
 Superseded Plan Artifacts: the draft that began with the inventory and proposed the rules afterwards; the inventory is done and recorded in the Summary, and D29 holds the rules
 
 1. Write the check first: a matrix cell in bash and Perl that reads, for the tree it runs in, the real files, links, SONAMEs and NEEDED entries, with the expected names built from the ABI number 1 and the library names as literals. Run it on the unchanged code and record the failing output.
@@ -1107,9 +1109,9 @@ Left out, with the reason:
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Debian 13 host, ordinary product | Pending | none |
-| T2 | Not run | Debian 13 host | Pending | none |
-| T3 | Not run | Debian 13 host | Pending | none |
+| T1 | 2026-11-16T18:51Z | Debian 13 host, ordinary product built against Base 7.0.10 of the public 1.5.0 tree | Pass | The cell `library-names` (`tests/rewrite/test_library_names.bash` with `library_names.pl`) passes its 13 checks on the built tree, and again after a second build: for `snmp3`, `snmp3Wire` and `snmp3Native` a regular file `lib<name>.so.1` with that SONAME and a link `lib<name>.so` to it; `snmp3Ioc` names `libsnmp3.so.1`, `libsnmp3.so.1` names `libsnmp3Wire.so.1`, `snmp3Worker` names `libsnmp3Native.so.1` and `libsnmp3Wire.so.1`, `snmp3NativeProbe` names `libsnmp3Native.so.1`. In the working tree the first build replaced the three unversioned files by links. On the unchanged tree all 13 checks fail. Mutation V1 fails the six checks of `snmp3` and `snmp3Wire` and the three consumer checks that name them; V2 fails the three checks of `snmp3Native` and the two consumer checks that name it. Evidence: `work/m10-evidence/unchanged-1.log`, `changed-1.log`, `changed-2.log`, `mutation-table.json`, `sources.sha256`, `work/tmp/m10-mutation/results/` |
+| T2 | 2026-11-16T18:51Z | Debian 13 host | Pass | A `snmp3Ioc` built before the change, which names `libsnmp3.so`, placed beside the changed libraries loads `libsnmp3.so` through the link and `libsnmp3Wire.so.1` behind it, runs a startup script that loads the database definition, registers the support and prints the report, and exits 0. The `snmp3Ioc` of the changed tree, which names `libsnmp3.so.1`, placed beside the libraries of a scratch build with `SHRLIB_VERSION = 2` (`libsnmp3.so.2` and its link) does not start: `error while loading shared libraries: libsnmp3.so.1: cannot open shared object file`, exit 127. Evidence: `work/m10-evidence/t2/` |
+| T3 | 2026-11-16T18:52Z to 2026-11-16T19:05Z | Same as T1 | Pass | `run_matrix.py --stages environment,ordinary` on the changed tree: 44 PASS and `tsan` NOT APPLICABLE; the 44 cells of the M5 run on the same Base (`work/matrix-m5-1/cells.tsv`) keep name and status, and the added cell `library-names` is PASS with 13 checks. Evidence: `work/matrix-m10-1/cells.tsv` |
 
 ##### Closure Evidence
 
@@ -1235,7 +1237,7 @@ Out of scope: a restart of the IOC itself, the application repository, performan
 
 - G1 complete (2026-11-13).
 - D18 places this unit in release 1.0.0 and sets the observation as its first step. The observation with the fixture agent is done (Summary); the observation on the units remains.
-- D22 runs this unit next, after M4, and its row follows M4, so the row order stays the execution order while the ID does not follow it. D22 gave it the tag `0.0.4`; D27 changes it to `0.0.5`, because M5 closes first.
+- D22 runs this unit next, after M4, and its row follows M4, so the row order stays the execution order while the ID does not follow it. D22 gave it the tag `0.0.4`; D27 changes it to `0.0.5`, because M5 closes first. D31 gives `0.0.5` to M10, which closes first, and this unit the next free number at its closing.
 - D23 is the policy this detail implements, and D24 fills the rules it left open and limits the tests to what the purpose needs.
 - D25 accepts the differences listed below.
 - M9 changes the configuration to localized keys. This unit defines the behavior for that form (unverified after a change); its check runs when M9 provides the form.
@@ -1380,7 +1382,7 @@ Superseded Plan Artifacts: none
 
 | Field | File | Before | Planned After | Pre-check | Pre-check Label | Post-check | Post-check Label |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| latest changelog entry | `CHANGELOG.md` | `0.0.9` | `1.0.0` | read the first entry heading | Release Verification 8 | read the first entry heading | Release Verification 9 |
+| latest changelog entry | `CHANGELOG.md` | the number of the last closed unit | `1.0.0` | read the first entry heading | Release Verification 8 | read the first entry heading | Release Verification 9 |
 
 ##### Release Execution
 
@@ -1404,7 +1406,7 @@ Superseded Plan Artifacts: none
 | Release Verification 5 | Installed libraries | pre-change | consumer identity inspection | Debian 13 and Rocky Linux 8.10 | Intended libraries load | inspection record |
 | Release Verification 6 | Device acceptance | pre-change | laboratory two-unit run | Laboratory IOC | All criteria met | run record under `work/` summarized here |
 | Release Verification 7 | Installation | post-release | documented installation on a clean host | Rocky Linux 8.10 | IOC acquires from the fixture agent | installation record |
-| Release Verification 8 | Version | pre-change | read `CHANGELOG.md` first heading | repository | `0.0.9` | command output |
+| Release Verification 8 | Version | pre-change | read `CHANGELOG.md` first heading | repository | the number of the last closed unit | command output |
 | Release Verification 9 | Version | post-change | read `CHANGELOG.md` first heading | repository | `1.0.0` | command output |
 | Release Verification 10 | Release objects | post-release | `git rev-parse 1.0.0^{commit}` and `gh release view 1.0.0` | repository and GitHub | Tag and release on the changelog commit | command output |
 
