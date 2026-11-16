@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: Two paths are open in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then the `CHANGELOG.md` entry `0.0.5`, the tag and the closure, each under its own authority. Until then the nearest Ready row is M6, whose plan is a draft, so its review with `plan.md` of the milestone-tracking skill, acceptance and implementation authorization are open. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`) and G1 are complete. The other Ready rows are M8, M9 and M10. Commits, pushes, tags and issue actions each need their own authority.
+Next session entry point: Two paths are open in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then the `CHANGELOG.md` entry `0.0.5`, the tag and the closure, each under its own authority. Until then the nearest Ready row is M7, whose plan is a draft, so its review with `plan.md` of the milestone-tracking skill, acceptance and implementation authorization are open; M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`) and G1 are complete. The other Ready rows are M8, M9 and M10. Commits, pushes, tags and issue actions each need their own authority.
 
 ## Scope
 
@@ -32,14 +32,13 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Complete | No | G1, D16 | At `maxVarbinds=61` the records of both units fill without manual tuning; a rejection, read or unreadable, halves the batch and shows on the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
 | Recovery | M16 | Recovery when a unit returns after a power or network loss | Milestone | In progress | No | G1, D18, D22, D23, D24, D25 | With the IOC left running, the records of a unit return to normal by themselves when the unit comes back with its engine ID unchanged; a changed engine ID is shown and recorded, and until the IOC is restarted no SET is sent and no value is taken except system information; tag `0.0.5`; [detail](#m16---recovery-when-a-unit-returns-after-a-power-or-network-loss) |
 | B | M5 | SET outcome contract | Milestone | Complete | No | M4, D26, D27 | Output records complete only on the SET result; a refused SET and a SET without a reply are alarms with a message; consecutive writes follow Base; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
-| C | M6 | Reply time stamp on records | Milestone | Not started | Yes | | Record TIME equals the worker receive time with `TSE=-2`; tag `0.0.6`; [detail](#m6---reply-time-stamp-on-records) |
-| C | M7 | Reply-driven processing and driver-owned periodic acquisition | Milestone | Not started | No | M4, M6 | `SCAN=I/O Intr` records process on reply arrival at the configured period; tag `0.0.7`; [detail](#m7---reply-driven-processing-and-driver-owned-periodic-acquisition) |
-| Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4 | A table read uses one GETBULK request where the profile allows it; tag `0.0.8`; [detail](#m8---getbulk-table-reads) |
-| D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag `0.0.9`; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
-| Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.10`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
-| Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M16 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
+| C | M7 | Reply-driven processing and driver-owned periodic acquisition | Milestone | Not started | Yes | M4, D28 | `SCAN=I/O Intr` records process on reply arrival at the configured period; tag `0.0.6`; [detail](#m7---reply-driven-processing-and-driver-owned-periodic-acquisition) |
+| Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4 | A table read uses one GETBULK request where the profile allows it; tag `0.0.7`; [detail](#m8---getbulk-table-reads) |
+| D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag `0.0.8`; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
+| Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.9`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
+| Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 5 Complete, 1 In progress, 6 Not started, 0 Blocked; G1 Complete. Ready rows: M6, M8, M9, M10. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
+Current work tally: 5 Complete, 1 In progress, 5 Not started, 0 Blocked; G1 Complete. Ready rows: M7, M8, M9, M10. Backlog contains 1 Open and 4 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -72,6 +71,7 @@ Current work tally: 5 Complete, 1 In progress, 6 Not started, 0 Blocked; G1 Comp
 | D25 | M16: the seven differences between the accepted plan and the work as run are accepted as listed in the detail of M16. With difference 2 an endpoint that has no system information binding is unverified at once, which adds a case to D24 (7). | 2026-11-15 |
 | D26 | M5: consecutive writes to one output record follow EPICS Base as it is. A put that waits for completion is sent on its own, in order; plain puts that arrive while a request of the record is pending are merged by Base into one further processing with the latest value. The module does not queue values of its own, so that no old value reaches a unit late. The criterion of issue #5 that every consecutive put is sent is replaced by this. | 2026-11-15 |
 | D27 | M5: differences 1 and 2 between its accepted plan and the work as run are accepted as listed in its detail. Tags follow the order of closing: M5 closes first and takes `0.0.4`, and M16, which waits for the runs on the units, takes `0.0.5`; the tags of M6 to M10 stay as D22 set them. | 2026-11-16 |
+| D28 | M6 is deferred and moved to the Backlog: measured on 2026-11-16 with the fixture agent and on both units, the TIME of a record with `TSE=0` already lies within 1 ms of the arrival of its reply, so the fault that M6 answered is absent and what remains is an exactly equal time stamp for the values of one reply. M7 no longer depends on M6, because a record that processes on the arrival of a reply takes its time there. The measurements are kept in the detail of M6 for a later look. The tags of the units that follow are taken in the order of closing; with M6 out, M7, M8, M9 and M10 are planned as `0.0.6` to `0.0.9`. | 2026-11-16 |
 
 ### ID Migration
 
@@ -91,6 +91,12 @@ A baseline row, created as M15 and placed as M2 on 2026-11-10 so the row order s
 | M11 | M12 | Baseline row inserted before it | Work table, Deps, details, anchors, Integrated Verification sources |
 | M12 | M13 | Baseline row inserted before it | Work table, Deps, details, anchors, Integrated Verification sources |
 | M13 | M14 | Baseline row inserted before it | Work table, Deps, details, anchors, Integrated Verification sources |
+
+### Assignment History
+
+| Work Identity | From Canonical | To Canonical | Target Commit | Authority Moved At |
+| --- | --- | --- | --- | --- |
+| 1.0.0 / M5, current ID M6 | `docs/milestone-1.0.0.md`, Milestone | `docs/milestone-1.0.0.md`, Backlog | this synchronization commit | this synchronization commit |
 
 ### Milestone Details
 
@@ -789,75 +795,6 @@ Observed Labels: enhancement
 Observed Milestone: 1.0.0
 Last Compared: 2026-11-16T08:38Z; issue updatedAt 2026-11-16T08:37:54Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the final behavior, the checked acceptance criteria and the known limits.
 
-#### M6 - Reply time stamp on records
-
-Origin: 1.0.0 / M5
-Identity History: M5 -> M6 (baseline row inserted before it, 2026-11-10)
-GitHub Issue: #6 - https://github.com/jeonghanlee/snmp3/issues/6
-Status: Not started
-
-##### Summary
-
-Problems 4 and 5, cause C. A record's TIME is its processing time, so a client cannot tell when the value was read from the device. Base 7.0.10 lets device support set the time stamp when `TSE=-2`. This unit carries the worker's receive time of each reply through the IPC result and writes it into the record when `TSE=-2`; `TSE=0` records keep Base behavior.
-
-##### Scope
-
-- Receive time (monotonic and wall clock) in the native result and the IPC result frame.
-- Device support writes `prec->time` from the wall-clock receive time when `TSE=-2`.
-- Documentation of the field in `snmp-record-behavior.md` and `snmp-native-reference.md`.
-
-Out of scope: `I/O Intr` (M7), UTAG, and time synchronization of the IOC host.
-
-##### Completion Criteria
-
-- With `TSE=-2`, record TIME equals the worker receive time recorded in the result within the IPC transfer latency, for every input record type.
-- With `TSE=0`, TIME is unchanged from `0.0.1` behavior.
-
-##### Dependencies And Decisions
-
-- none
-
-##### Implementation Plan
-
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
-Superseded Plan Artifacts: none
-
-1. Add the receive time to the native result and the result frame; bump the frame layout version.
-2. Write `prec->time` in the completion when `TSE=-2`.
-3. Add `RecordTest` cases and an `IpcTest` case for the frame field.
-
-##### Test Plan
-
-| Label | Layer | Method | Environment | Expected Result |
-| --- | --- | --- | --- | --- |
-| T1 | IPC | `IpcTest` round trip of the receive time | Linux host | Field preserved |
-| T2 | Record | `RecordTest` with `TSE=-2` and `TSE=0` per input record type against the fixture agent | Linux host, ordinary product | TIME as specified |
-| T3 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` | Linux host | All cells PASS |
-
-##### Verification Results
-
-| Label | Observed At | Environment | Result | Evidence |
-| --- | --- | --- | --- | --- |
-| T1 | Not run | Linux host | Pending | none |
-| T2 | Not run | Linux host, ordinary product | Pending | none |
-| T3 | Not run | Linux host | Pending | none |
-
-##### Closure Evidence
-
-- none
-
-##### GitHub Projection
-
-Title: Stamp records with the reply arrival time
-Labels: enhancement
-GitHub Milestone: 1.0.0
-Observed State: open
-Observed Labels: enhancement
-Observed Milestone: 1.0.0
-Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:20Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
-
 #### M7 - Reply-driven processing and driver-owned periodic acquisition
 
 Origin: 1.0.0 / M6
@@ -886,7 +823,7 @@ Out of scope: output records, event-driven SNMP traps, and changing the behavior
 
 ##### Dependencies And Decisions
 
-- M4 (batch rules) and M6 (receive time) must be Complete.
+- M4 (batch rules) must be Complete, and is. D28 removes the dependency on M6 (receive time): a record that processes on the arrival of a reply takes its TIME there, which was measured to lie within 1 ms of the arrival.
 
 ##### Implementation Plan
 
@@ -1341,7 +1278,6 @@ Superseded Plan Artifacts: none
 | --- | --- | --- | --- | --- | --- |
 | M1 / T1 | any later change to `Config.cpp` or `Supervisor.cpp` | process spawn | Release Verification 1 | Lists identical | pending |
 | M4 / T1, M4 / T2 | M5, M7, M8 | request outcome and batch rules | Release Verification 2 | Split and message as specified | pending |
-| M6 / T2 | M7 | completion path | Release Verification 3 | TIME equals receive time | pending |
 | M5 / T1 | M7, M8 | outcome path | Release Verification 4 | SET completion and alarms as specified | pending |
 | M10 / T2 | any library change after M10 | installed library identity | Release Verification 5 | Intended libraries load | pending |
 
@@ -1356,7 +1292,7 @@ Superseded Plan Artifacts: none
 
 | Field | File | Before | Planned After | Pre-check | Pre-check Label | Post-check | Post-check Label |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| latest changelog entry | `CHANGELOG.md` | `0.0.10` | `1.0.0` | read the first entry heading | Release Verification 8 | read the first entry heading | Release Verification 9 |
+| latest changelog entry | `CHANGELOG.md` | `0.0.9` | `1.0.0` | read the first entry heading | Release Verification 8 | read the first entry heading | Release Verification 9 |
 
 ##### Release Execution
 
@@ -1380,7 +1316,7 @@ Superseded Plan Artifacts: none
 | Release Verification 5 | Installed libraries | pre-change | consumer identity inspection | Debian 13 and Rocky Linux 8.10 | Intended libraries load | inspection record |
 | Release Verification 6 | Device acceptance | pre-change | laboratory two-unit run | Laboratory IOC | All criteria met | run record under `work/` summarized here |
 | Release Verification 7 | Installation | post-release | documented installation on a clean host | Rocky Linux 8.10 | IOC acquires from the fixture agent | installation record |
-| Release Verification 8 | Version | pre-change | read `CHANGELOG.md` first heading | repository | `0.0.10` | command output |
+| Release Verification 8 | Version | pre-change | read `CHANGELOG.md` first heading | repository | `0.0.9` | command output |
 | Release Verification 9 | Version | post-change | read `CHANGELOG.md` first heading | repository | `1.0.0` | command output |
 | Release Verification 10 | Release objects | post-release | `git rev-parse 1.0.0^{commit}` and `gh release view 1.0.0` | repository and GitHub | Tag and release on the changelog commit | command output |
 
@@ -1423,6 +1359,7 @@ Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:38Z; title, l
 | Performance | M13 | Predictable acquisition performance and second-client impact | Carry-forward | Deferred | No | D5 | Existing performance criteria met on their identified scope or changed by an explicit decision; [detail](#m13---predictable-acquisition-performance-and-second-client-impact) |
 | Tools | M17 | Matrix cells moved from Python to bash and Perl | Milestone | Deferred | No | D19 | Each moved cell kills the same mutations as the Python cell it replaces, and the matrix gives the same cell names and statuses; [detail](#m17---matrix-cells-moved-from-python-to-bash-and-perl) |
 | Records | M14 | Deferred record verification cells | Carry-forward | Deferred | No | D6 | Each listed cell has a real-path receipt or a dated retirement; [detail](#m14---deferred-record-verification-cells) |
+| Records | M6 | Reply time stamp on records | Milestone | Deferred | No | D28 | Record TIME equals the worker receive time with `TSE=-2`, when an exactly equal time stamp for the values of one reply is asked for; [detail](#m6---reply-time-stamp-on-records) |
 
 ### Backlog Details
 
@@ -1647,6 +1584,89 @@ Superseded Plan Artifacts: none
 ##### Closure Evidence
 
 - none
+
+#### M6 - Reply time stamp on records
+
+Origin: 1.0.0 / M5
+Identity History: M5 -> M6 (baseline row inserted before it, 2026-11-10)
+GitHub Issue: #6 - https://github.com/jeonghanlee/snmp3/issues/6
+Status: Deferred
+
+##### Summary
+
+Problems 4 and 5, cause C. A record's TIME is its processing time, so a client cannot tell when the value was read from the device. Base 7.0.10 lets device support set the time stamp when `TSE=-2`. This unit carries the worker's receive time of each reply through the IPC result and writes it into the record when `TSE=-2`; `TSE=0` records keep Base behavior.
+
+Deferred by D28 on 2026-11-16 after the delay was measured on the product of commit `37008cb`, with `TSE=0`: the time from the arrival of a reply at the IOC host to the TIME of the record that takes its value, the TIME read through a Channel Access monitor.
+
+| Where | Case | Updates | Min | p50 | p95 | Max |
+| --- | --- | --- | --- | --- | --- | --- |
+| Fixture agent, 40 s | Record with its own request | 41 | 31 us | 132 us | 397 us | 441 us |
+| Fixture agent, 40 s | Eight records of one group, all | 328 | 78 us | 257 us | 586 us | 685 us |
+| Fixture agent, 40 s | First and last record of the group | 41 each | 78 and 87 us | 238 and 271 us | 504 and 599 us | 590 and 685 us |
+| NMC2 unit, 60 s | Record with its own request | 61 | 112 us | 227 us | 398 us | 556 us |
+| NMC2 unit, 60 s | Eight records of one group, all | 488 | 159 us | 334 us | 627 us | 773 us |
+| NMC3 unit, 60 s | Record with its own request | 61 | 40 us | 121 us | 269 us | 495 us |
+| NMC3 unit, 60 s | Eight records of one group, all | 488 | 92 us | 209 us | 468 us | 588 us |
+
+How it was measured, for a later look: on the fixture the arrival is the instant the fault proxy in `pass` mode logs the reply before it forwards it, converted from the monotonic to the wall clock with an offset read before and after the run (drift 0 us); on the units (2026-11-16T16:06Z to 16:07Z, read only) it is the wall time a loopback relay logs right after it forwarded the reply, so the true delay is longer than the figure by the time of that forward. Each record is paired with the latest reply of its kind before its TIME; the one-value and the eight-value reply differ in length (140 and 299 bytes on the units, 63 each). Both runs use a small IOC of 9 and 18 records processed once a second; the delay under a burst of some hundred records was not measured. The scripts, the monitor output and the relay and proxy logs are in `work/m6-evidence/` (`observe.sh` and `analyze.pl` with `run-1/` for the fixture, `units.sh` and `analyze_units.pl` with `units-1/` for the units); that directory is local and untracked, and its `private/` part holds the unit addresses.
+
+##### Scope
+
+- Receive time (monotonic and wall clock) in the native result and the IPC result frame.
+- Device support writes `prec->time` from the wall-clock receive time when `TSE=-2`.
+- Documentation of the field in `snmp-record-behavior.md` and `snmp-native-reference.md`.
+
+Out of scope: `I/O Intr` (M7), UTAG, and time synchronization of the IOC host.
+
+##### Completion Criteria
+
+- With `TSE=-2`, record TIME equals the worker receive time recorded in the result within the IPC transfer latency, for every input record type.
+- With `TSE=0`, TIME is unchanged from `0.0.1` behavior.
+
+##### Dependencies And Decisions
+
+- D28 defers this unit and moves it to the Backlog; its issue #6 stays open, and its milestone assignment on GitHub is unchanged until the owner decides otherwise.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Add the receive time to the native result and the result frame; bump the frame layout version.
+2. Write `prec->time` in the completion when `TSE=-2`.
+3. Add `RecordTest` cases and an `IpcTest` case for the frame field.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | IPC | `IpcTest` round trip of the receive time | Linux host | Field preserved |
+| T2 | Record | `RecordTest` with `TSE=-2` and `TSE=0` per input record type against the fixture agent | Linux host, ordinary product | TIME as specified |
+| T3 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` | Linux host | All cells PASS |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Linux host | Pending | none |
+| T2 | Not run | Linux host, ordinary product | Pending | none |
+| T3 | Not run | Linux host | Pending | none |
+
+##### Closure Evidence
+
+- none
+
+##### GitHub Projection
+
+Title: Stamp records with the reply arrival time
+Labels: enhancement
+GitHub Milestone: 1.0.0
+Observed State: open
+Observed Labels: enhancement
+Observed Milestone: 1.0.0
+Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:20Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
 
 ## History
 
