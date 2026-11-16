@@ -1625,7 +1625,7 @@ Out of scope: `I/O Intr` (M7), UTAG, and time synchronization of the IOC host.
 
 ##### Dependencies And Decisions
 
-- D28 defers this unit and moves it to the Backlog; its issue #6 stays open, and its milestone assignment on GitHub is unchanged until the owner decides otherwise.
+- D28 defers this unit and moves it to the Backlog. Its issue #6 stays open: under the owner's Issue authority of 2026-11-16 its body was given a section on the current state with the deferral and the measurements, and the issue was taken out of the GitHub milestone `1.0.0`.
 
 ##### Implementation Plan
 
@@ -1662,11 +1662,11 @@ Superseded Plan Artifacts: none
 
 Title: Stamp records with the reply arrival time
 Labels: enhancement
-GitHub Milestone: 1.0.0
+GitHub Milestone: none
 Observed State: open
 Observed Labels: enhancement
-Observed Milestone: 1.0.0
-Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:20Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
+Observed Milestone: none
+Last Compared: 2026-11-16T17:12Z; issue updatedAt 2026-11-16T17:12:08Z; state open, label and assignee jeonghanlee unchanged, no milestone; body carries the current state with the deferral and the measurements.
 
 ## History
 
