@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: Two paths are open in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then the `CHANGELOG.md` entry `0.0.5`, the tag and the closure, each under its own authority. Until then the nearest Ready row is M7, whose plan is a draft, so its review with `plan.md` of the milestone-tracking skill, acceptance and implementation authorization are open; M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`) and G1 are complete. The other Ready rows are M8, M9 and M10. Commits, pushes, tags and issue actions each need their own authority.
+Next session entry point: Two paths are open in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then the `CHANGELOG.md` entry `0.0.5`, the tag and the closure, each under its own authority. Until then the owner took M10 next: its plan was rewritten on 2026-11-16 after the inventory (D29) and is a draft, so the owner's review, acceptance and implementation authorization are open. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`) and G1 are complete. The other Ready rows are M7, M8, M9 and M18; M18, the state of the module as records, was added on 2026-11-16 by D30. Commits, pushes, tags and issue actions each need their own authority.
 
 ## Scope
 
@@ -35,10 +35,11 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | C | M7 | Reply-driven processing and driver-owned periodic acquisition | Milestone | Not started | Yes | M4, D28 | `SCAN=I/O Intr` records process on reply arrival at the configured period; tag `0.0.6`; [detail](#m7---reply-driven-processing-and-driver-owned-periodic-acquisition) |
 | Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4 | A table read uses one GETBULK request where the profile allows it; tag `0.0.7`; [detail](#m8---getbulk-table-reads) |
 | D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag `0.0.8`; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
-| Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.9`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
-| Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
+| Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3, D29 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.9`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
+| Records | M18 | Module state as records | Milestone | Not started | Yes | D30 | The runtime state and the state of each address are readable as records of a database the module installs, and an application needs no header of the module; [detail](#m18---module-state-as-records) |
+| Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M18 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 5 Complete, 1 In progress, 5 Not started, 0 Blocked; G1 Complete. Ready rows: M7, M8, M9, M10. Backlog contains 1 Open and 4 Deferred rows and is excluded from this tally.
+Current work tally: 5 Complete, 1 In progress, 6 Not started, 0 Blocked; G1 Complete. Ready rows: M7, M8, M9, M10, M18. Backlog contains 1 Open and 4 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -72,6 +73,8 @@ Current work tally: 5 Complete, 1 In progress, 5 Not started, 0 Blocked; G1 Comp
 | D26 | M5: consecutive writes to one output record follow EPICS Base as it is. A put that waits for completion is sent on its own, in order; plain puts that arrive while a request of the record is pending are merged by Base into one further processing with the latest value. The module does not queue values of its own, so that no old value reaches a unit late. The criterion of issue #5 that every consecutive put is sent is replaced by this. | 2026-11-15 |
 | D27 | M5: differences 1 and 2 between its accepted plan and the work as run are accepted as listed in its detail. Tags follow the order of closing: M5 closes first and takes `0.0.4`, and M16, which waits for the runs on the units, takes `0.0.5`; the tags of M6 to M10 stay as D22 set them. | 2026-11-16 |
 | D28 | M6 is deferred and moved to the Backlog: measured on 2026-11-16 with the fixture agent and on both units, the TIME of a record with `TSE=0` already lies within 1 ms of the arrival of its reply, so the fault that M6 answered is absent and what remains is an exactly equal time stamp for the values of one reply. M7 no longer depends on M6, because a record that processes on the arrival of a reply takes its time there. The measurements are kept in the detail of M6 for a later look. The tags of the units that follow are taken in the order of closing; with M6 out, M7, M8, M9 and M10 are planned as `0.0.6` to `0.0.9`. | 2026-11-16 |
+| D29 | M10: the shared libraries are versioned the way EPICS Base does it, with `SHRLIB_VERSION` in the Makefiles: the real file is `lib<name>.so.<ABI>`, its SONAME is the same name, and `lib<name>.so` is a link to it, two levels and not the three of the earlier wording. One ABI number serves the three libraries and starts at 1. It is independent of the release number and is raised only for an incompatible change of an interface that a release has promised; until `1.0.0` no interface is promised, so it stays 1 through the units that still change the worker protocol. | 2026-11-16 |
+| D30 | An IOC application uses snmp3 the way it uses the other support modules: it adds the database definition file and the library, runs the registered shell commands, and reads the state of the module from records. It includes no header of the module and reads no C++ object of it. The module therefore offers its state as records (M18), and what `1.0.0` promises to an application is the database definition file, the shell commands and those records. The application `apcpdu`, whose main reads `snmp3::Runtime` through a header taken from the module's source directory, is written again in its own repository with the IOC template generator. | 2026-11-16 |
 
 ### ID Migration
 
@@ -1033,55 +1036,80 @@ Status: Not started
 
 ##### Summary
 
-Give the snmp3 shared libraries on Linux explicit ABI-versioned SONAMEs and reproducible symbolic-link installation. Distinguish the real versioned file, the runtime SONAME and the unversioned consumer link name. `1.0.0` asserts a stable library interface, so this work precedes the release (D3).
+Give the snmp3 shared libraries on Linux explicit ABI-versioned SONAMEs and reproducible symbolic-link installation. `1.0.0` asserts a stable library interface, so this work precedes the release (D3).
+
+Inventory of 2026-11-16 on the product of commit `dcca500`:
+
+| Library | SONAME today | Exported symbols | Consumers |
+| --- | --- | --- | --- |
+| `libsnmp3.so` | `libsnmp3.so` | 249 | `snmp3Ioc`, and every IOC application that links the module |
+| `libsnmp3Wire.so` | `libsnmp3Wire.so` | 102 | `libsnmp3.so`, `snmp3Worker`, and the measurement IOC application `apcpdu`, whose Makefile links it beside `snmp3` |
+| `libsnmp3Native.so` | `libsnmp3Native.so` | 98 | `snmp3Worker`, `snmp3NativeProbe` |
+
+The module installs no header files, and `dbd/snmp3.dbd` names the registrar and eleven device support entries. A consumer outside the module can use more than that: the measurement IOC application `apcpdu` takes `Runtime.h` from the module's source directory (`USR_INCLUDES += -I$(SNMP3)/snmp3App/src`), calls `snmp3::Runtime::instance()` and `snmp3::Runtime::snapshot()`, and links `libsnmp3Wire.so` beside `libsnmp3.so`. `libsnmp3Native.so` is used only by the module's own executables.
+
+Base 7.0.10 has the mechanism: with `SHRLIB_VERSION` set, its build rules write the real file with the version in its name, give it that name as SONAME, and make the unversioned link, as for its own `libCom.so -> libCom.so.3.25.0`. Tried in a scratch copy with `SHRLIB_VERSION = 1` in `snmp3App/src/Makefile` and `snmp3App/native/Makefile`: the three libraries are installed as `lib<name>.so.1` with the link `lib<name>.so`, their SONAMEs and the NEEDED entries of `snmp3Ioc`, `snmp3Worker` and `snmp3NativeProbe` carry `.so.1`, and the `set-contract` cell passes on that build (`work/tmp/m10-probe/`).
 
 ##### Scope
 
-- Inventory `snmp3`, `snmp3Wire`, `snmp3Native`, their consumers and retained compatibility names; define the stable ABI boundaries.
-- Define compatible and incompatible SONAME changes independently of project release numbers.
-- Implement versioned output and symbolic-link creation through the EPICS build and install, with `libname.so -> libname.so.<ABI> -> libname.so.<full-version>` for the selected policy.
-- Verify installation, upgrades and loading for the IOC, native probe and worker, including actual loaded-library identities.
+- `SHRLIB_VERSION` in the two Makefiles, with the ABI number of D29.
+- The rule of D29 for when the number changes, and what an installation looks like, in the documentation, with the move from an installation without versions: the build replaces the unversioned file by the link of the same name, a consumer built before the change names the unversioned library and keeps starting through that link, and a rebuild of the consumer records the versioned name.
+- A check of the installed names: real files, links, SONAMEs and the NEEDED entries of the consumers.
 
-Out of scope: a policy for all EPICS modules, and device behavior.
+Out of scope: a policy for all EPICS modules, device behavior, a three-level link chain (D29), and installed header files.
 
 ##### Completion Criteria
 
-- Each library has an ABI policy, intended ELF SONAME, versioned real file and correct links after normal build and install.
-- Actual consumers record the intended SONAME dependencies and load the installed libraries; real IOC and worker paths succeed.
-- A compatible replacement preserves an already linked consumer. An incompatible ABI uses a distinct SONAME and does not silently replace the old ABI.
-- Repeated installation preserves valid links and targets. Migration from unversioned libraries is documented and tested.
+- After a normal build each of the three libraries is a real file `lib<name>.so.<ABI>` with that name as its SONAME and a link `lib<name>.so` to it, and a second build leaves the links valid.
+- `snmp3Ioc`, `snmp3Worker` and `snmp3NativeProbe` name the versioned SONAMEs, and the real IOC, worker and probe paths run: the cells of the ordinary matrix stage keep their name and status.
+- A consumer linked against one ABI number does not start against an installation that holds only another number, and says which library it misses; a consumer linked before the change, which names `libsnmp3.so`, still starts through the link.
+- The documentation states the names, the rule for the number and the three facts of the move from an installation without versions that the Scope lists.
 
 ##### Dependencies And Decisions
 
-- D3 includes this work in `1.0.0`. Inventory precedes selecting an ABI number.
+- D3 includes this work in `1.0.0`.
+- D29 fixes the two-level form of Base, the single ABI number starting at 1, and the rule for raising it.
+- The tag of this unit is taken in the order of closing (D27, D28).
+- New tests are written in bash and Perl as a matrix cell (D19), and are limited to what the purpose needs.
 
 ##### Implementation Plan
 
 Plan Status: draft
 Plan Acceptance: none
 Implementation Authorization: none
-Superseded Plan Artifacts: none
+Superseded Plan Artifacts: the draft that began with the inventory and proposed the rules afterwards; the inventory is done and recorded in the Summary, and D29 holds the rules
 
-1. Inventory exports, consumer dependencies, names and applicable EPICS build and install rules.
-2. Propose compatibility and version rules and migration; obtain plan acceptance and implementation authority.
-3. Apply the selected build and install policy, consumer identity checks and documentation.
-4. Execute actual build, install, consumer and upgrade checks.
+1. Write the check first: a matrix cell in bash and Perl that reads, for the tree it runs in, the real files, links, SONAMEs and NEEDED entries, with the expected names built from the ABI number 1 and the library names as literals. Run it on the unchanged code and record the failing output.
+2. Set `SHRLIB_VERSION` in `snmp3App/src/Makefile` and `snmp3App/native/Makefile`.
+3. Document the names, the rule of D29 and the move from an installation without versions, as the Scope lists it, in `docs/configure-procedure.md`.
+4. Run the cell, the two checks of T2 in scratch copies, the mutations and the ordinary matrix.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Build and install | Build and install actual libraries, inspect ELF SONAME and NEEDED, real files and links, then repeat installation | Debian 13 and Rocky Linux 8.10 build hosts | Names, dependencies and links match policy without dangling targets |
-| T2 | Consumer runtime | Real installed IOC, probe and worker against the fixture agent; inspect loaded-library identities | Debian 13 and Rocky Linux 8.10 runtime hosts | Intended libraries load; acquisition and shutdown succeed |
-| T3 | Upgrade and migration | Already linked consumer after compatible replacement; distinct incompatible SONAME; unversioned migration | Isolated installed Linux trees | Compatible consumers work; incompatible ABIs remain distinct; migration succeeds |
+| T1 | Build and install | The new cell on the built tree, run twice with a build between the runs | Debian 13 host, ordinary product | For `snmp3`, `snmp3Wire` and `snmp3Native`: a real file `lib<name>.so.1`, SONAME `lib<name>.so.1`, a link `lib<name>.so` to it; `snmp3Ioc` names `libsnmp3.so.1`, `libsnmp3.so.1` names `libsnmp3Wire.so.1`, `snmp3Worker` names `libsnmp3Native.so.1` and `libsnmp3Wire.so.1`, `snmp3NativeProbe` names `libsnmp3Native.so.1`; the same after the second build |
+| T2 | Another number and an earlier consumer | In scratch copies: the `snmp3Ioc` of a build with the number 1 started against the libraries of a build with the number 2; and a `snmp3Ioc` built before the change, which names `libsnmp3.so`, started against the changed libraries | Debian 13 host | The first does not start and the loader names `libsnmp3.so.1` as missing; the second starts and runs a startup script to its end |
+| T3 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` on the unchanged and the changed tree | Debian 13 host | The cells of the unchanged tree keep their name and status, and the added cell is PASS |
+
+The mutations are applied one at a time to scratch copies of the changed tree; the exact old and new text of each is written when the code exists:
+
+- V1: `SHRLIB_VERSION` is removed from `snmp3App/src/Makefile`; expected failing assertion: T1, names of `snmp3` and `snmp3Wire`.
+- V2: `SHRLIB_VERSION` is removed from `snmp3App/native/Makefile`; expected failing assertion: T1, names of `snmp3Native`.
+
+Left out, with the reason:
+
+- A build on Rocky Linux 8.10: the names come from the build rules of Base, which are the same file on both systems (`RULES_BUILD`, `CONFIG.Common.UnixCommon` and `CONFIG_COMMON` of the local Debian 13 and Rocky Linux 8.10 trees of Base 7.0.10 have equal hashes); Release Verification 5 and 7 of M11 inspect the installed libraries and install on Rocky Linux 8.10.
+- A replacement of a library by a compatible one of the same number: the consumer names the SONAME, and a file of the same name is loaded whatever build wrote it; T2 shows the two cases in which the name decides.
+- A check of the exported symbols against a list: no interface is promised before `1.0.0` (D29).
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Debian 13 and Rocky Linux 8.10 build hosts | Pending | none |
-| T2 | Not run | Debian 13 and Rocky Linux 8.10 runtime hosts | Pending | none |
-| T3 | Not run | Isolated installed Linux trees | Pending | none |
+| T1 | Not run | Debian 13 host, ordinary product | Pending | none |
+| T2 | Not run | Debian 13 host | Pending | none |
+| T3 | Not run | Debian 13 host | Pending | none |
 
 ##### Closure Evidence
 
@@ -1096,6 +1124,66 @@ Observed State: open
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
 Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:39Z; milestone and assignee jeonghanlee verified with `gh issue list` after the milestone link
+
+#### M18 - Module state as records
+
+Origin: 1.0.0 / M18
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+An IOC application uses a support module through its database definition file, its library, its shell commands and its records (D30). The site modules do the same: autosave reports its state to the records of `save_restoreStatus.db`, and iocStats offers its values as records. The state of snmp3 is visible today only in the output of `snmp3Report` and `snmp3RuntimeReport`, which a person types at the IOC shell. The application `apcpdu` therefore reads it another way: its main includes `Runtime.h` from the module's source directory, calls `snmp3::Runtime::instance().snapshot()` and ends the process with status 1 when the state is Failed, as the module's own `snmp3Ioc` does, and for that it also links `libsnmp3Wire.so` (observed 2026-11-16 on the application repository commit `3314b1e`). The state of an address after a responder showed another engine ID (M16) is likewise only on the alarm message of the records of that address and in the shell report.
+
+##### Scope
+
+- A database that the module installs, with records for the runtime state and, per address, the state that `snmp3RuntimeReport` prints in its `snmp3 peer:` and `snmp3 batch:` lines.
+- The device support or the mechanism that keeps those records current.
+- Documentation of the records and of how an application loads them.
+
+Out of scope: the rewrite of the application `apcpdu`, which belongs to its own repository (D30); a process exit status that follows the module state; and records for the queue and admission counters of the report.
+
+##### Completion Criteria
+
+- With the database loaded, the records show the runtime state and the state of each address, and they change when the state changes: an address whose unit returns with another engine ID shows `changed` or `unverified` on its record.
+- An application reads the state with no header of the module and with only `snmp3` in its libraries.
+- The cells of the ordinary matrix stage keep their name and status, and the added checks pass.
+
+##### Dependencies And Decisions
+
+- D30 sets the rule this unit serves.
+- The code of M16 is on `origin/master`; this unit reads the state it keeps and does not wait for its runs on the units.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Decide which values become records and how they are kept current, after reading how the state is held today (`Runtime`, `Peers`, the scheduler snapshot).
+2. Write the checks first, as a matrix cell in bash and Perl (D19).
+3. Add the database, the support and the documentation.
+4. Run the cell, the mutations and the ordinary matrix.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Fixture | The real IOC with the state database loaded, against the fixture agent: a normal run, and an agent that returns with another engine ID | Linux host, ordinary product | The state records show the runtime state and `normal`, then `changed` for the address |
+| T2 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` on the unchanged and the changed tree | Linux host | The cells of the unchanged tree keep their name and status, and the added cell is PASS |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Linux host, ordinary product | Pending | none |
+| T2 | Not run | Linux host | Pending | none |
+
+##### Closure Evidence
+
+- none
 
 #### M16 - Recovery when a unit returns after a power or network loss
 
