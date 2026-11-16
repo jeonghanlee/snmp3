@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: Continue M16 in `docs/milestone-1.0.0.md` (plan accepted and implementation authorized on 2026-11-15; commits, pushes, tags and issue actions each need their own authority). Items 1 to 6 are done, T1, T2, T3 and T6 are recorded (2026-11-15), the differences from the plan are accepted by D25, and the change and the register record are on `origin/master` (commits `07859a8` and `a2ccdd8`). Remaining: item 7 on the units, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then the `CHANGELOG.md` entry `0.0.4`, the tag and the closure, each under its own authority. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`) and G1 are complete. The Ready rows are M5, M6, M8, M9 and M10.
+Next session entry point: Continue M16 in `docs/milestone-1.0.0.md` (plan accepted and implementation authorized on 2026-11-15; commits, pushes, tags and issue actions each need their own authority). Items 1 to 6 are done, T1, T2, T3 and T6 are recorded (2026-11-15), the differences from the plan are accepted by D25, and the change and the register record are on `origin/master` (commits `07859a8` and `a2ccdd8`). Remaining: item 7 on the units, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then the `CHANGELOG.md` entry `0.0.5`, the tag and the closure, each under its own authority. Meanwhile M5 is in progress: items 1 to 4 of its accepted plan are done and T1 to T3 are recorded (2026-11-16); nothing of M5 is committed; D27 accepts its differences from the plan and gives it the tag `0.0.4`. Next for M5: a second-person pass of the changed documents, then commit, the `CHANGELOG.md` entry `0.0.4`, the tag, the update and closing of issue #5 (its criterion on consecutive puts is replaced by D26) and the closure, each under its own authority. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`) and G1 are complete. The other Ready rows are M6, M8, M9 and M10.
 
 ## Scope
 
@@ -30,8 +30,8 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | Baseline | M2 | Baseline measurement on the two laboratory units | Milestone | Complete | No | D8, D9, D11 | Net-SNMP 5.9.4 read directly and the installed legacy module measured on both units, with the response time of a request and the interval of new values recorded; no product change; [detail](#m2---baseline-measurement-on-the-two-laboratory-units) |
 | A | M3 | Two-device isolation measurement on the current product | Milestone | Complete | No | G1, D4, M2, D13 | Measured cadence of the healthy unit with the other unit disconnected; [detail](#m3---two-device-isolation-measurement-on-the-current-product) |
 | B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Complete | No | G1, D16 | At `maxVarbinds=61` the records of both units fill without manual tuning; a rejection, read or unreadable, halves the batch and shows on the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
-| Recovery | M16 | Recovery when a unit returns after a power or network loss | Milestone | In progress | No | G1, D18, D22, D23, D24, D25 | With the IOC left running, the records of a unit return to normal by themselves when the unit comes back with its engine ID unchanged; a changed engine ID is shown and recorded, and until the IOC is restarted no SET is sent and no value is taken except system information; tag `0.0.4`; [detail](#m16---recovery-when-a-unit-returns-after-a-power-or-network-loss) |
-| B | M5 | SET outcome contract | Milestone | Not started | Yes | M4 | Output records complete only on the SET result; a timeout is an alarm; tag `0.0.5`; [detail](#m5---set-outcome-contract) |
+| Recovery | M16 | Recovery when a unit returns after a power or network loss | Milestone | In progress | No | G1, D18, D22, D23, D24, D25 | With the IOC left running, the records of a unit return to normal by themselves when the unit comes back with its engine ID unchanged; a changed engine ID is shown and recorded, and until the IOC is restarted no SET is sent and no value is taken except system information; tag `0.0.5`; [detail](#m16---recovery-when-a-unit-returns-after-a-power-or-network-loss) |
+| B | M5 | SET outcome contract | Milestone | In progress | No | M4, D26, D27 | Output records complete only on the SET result; a refused SET and a SET without a reply are alarms with a message; consecutive writes follow Base; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
 | C | M6 | Reply time stamp on records | Milestone | Not started | Yes | | Record TIME equals the worker receive time with `TSE=-2`; tag `0.0.6`; [detail](#m6---reply-time-stamp-on-records) |
 | C | M7 | Reply-driven processing and driver-owned periodic acquisition | Milestone | Not started | No | M4, M6 | `SCAN=I/O Intr` records process on reply arrival at the configured period; tag `0.0.7`; [detail](#m7---reply-driven-processing-and-driver-owned-periodic-acquisition) |
 | Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4 | A table read uses one GETBULK request where the profile allows it; tag `0.0.8`; [detail](#m8---getbulk-table-reads) |
@@ -39,7 +39,7 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Not started | Yes | D3 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.10`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M16 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 4 Complete, 1 In progress, 7 Not started, 0 Blocked; G1 Complete. Ready rows: M5, M6, M8, M9, M10. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
+Current work tally: 4 Complete, 2 In progress, 6 Not started, 0 Blocked; G1 Complete. Ready rows: M6, M8, M9, M10. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -70,6 +70,8 @@ Current work tally: 4 Complete, 1 In progress, 7 Not started, 0 Blocked; G1 Comp
 | D23 | M16, the owner's policy for a unit that returns: the IOC is never left dead, and it tells apart what came back. A unit whose engine ID is unchanged is recovered fully, also when its engine time went back. A changed engine ID at the same address is suspicious, because the network gives an address only to a registered MAC address: the IOC keeps basic communication, asks whether it is the same unit, never returns to normal operation by itself, shows the change on the records and records it so that the user can restart the IOC and trace what happened. In that state a SET is never sent, values read from the unit are not put into records, and only bindings marked as system information (firmware, name, MAC address, status) are read and shown, with an alarm. A responder that fails authentication is reported as well. A profile with a passphrase and a profile with localized keys only must both work; with localized keys only the changed unit cannot be authenticated and is reported as unverified. | 2026-11-14 |
 | D24 | M16, rules the policy of D23 left open, filled in at the owner's instruction and open to change in the plan review. (1) An SNMPv3 endpoint asks the address for its engine ID again after 2 consecutive failed requests; the least interval between two questions follows the beacon of the Channel Access server of EPICS Base (`rsrv/online_notify.c`): it starts at 0.02 s, doubles after each question and stays at 15 s, the default of `EPICS_CAS_BEACON_PERIOD`, and it starts again after a recovery. (2) In the fixture, recovery and the entry into a changed state are due within 30 s of the agent's return. (3) In a changed state every record of the endpoint is COMM/INVALID: the records whose values are withheld keep the value they had, and the system information records take their values. (4) The messages are `no reply`, `engine ID changed: restart IOC` and `engine ID unverified: restart IOC`. (5) One log line is written when a state is entered, none per failed request. (6) A changed state lasts until the IOC is restarted, also when the earlier engine ID answers again. (7) A profile that cannot authenticate the new engine ID, because it holds localized keys only, has no authentication, or names its engine ID in the configuration, is unverified; with the engine ID named in the configuration a restart does not accept another engine ID, the configuration must be changed. (8) The tests of this unit are limited to what the purpose needs; what is left out is listed with its reason in the detail. | 2026-11-14 |
 | D25 | M16: the seven differences between the accepted plan and the work as run are accepted as listed in the detail of M16. With difference 2 an endpoint that has no system information binding is unverified at once, which adds a case to D24 (7). | 2026-11-15 |
+| D26 | M5: consecutive writes to one output record follow EPICS Base as it is. A put that waits for completion is sent on its own, in order; plain puts that arrive while a request of the record is pending are merged by Base into one further processing with the latest value. The module does not queue values of its own, so that no old value reaches a unit late. The criterion of issue #5 that every consecutive put is sent is replaced by this. | 2026-11-15 |
+| D27 | M5: differences 1 and 2 between its accepted plan and the work as run are accepted as listed in its detail. Tags follow the order of closing: M5 closes first and takes `0.0.4`, and M16, which waits for the runs on the units, takes `0.0.5`; the tags of M6 to M10 stay as D22 set them. | 2026-11-16 |
 
 ### ID Migration
 
@@ -679,55 +681,94 @@ Last Compared: 2026-11-15T00:46Z; issue updatedAt 2026-11-15T00:46:22Z; title, l
 Origin: 1.0.0 / M4
 Identity History: M4 -> M5 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #5 - https://github.com/jeonghanlee/snmp3/issues/5
-Status: Not started
+Status: In progress
 
 ##### Summary
 
-Item 9 of cause B. The legacy module reported a SET as successful before sending it and dropped a timed-out SET without alarm. snmp3 has output device support for `ao`, `longout`, `int64out`, `stringout` and `lso`, but the accepted scope of `0.0.1` is GET-only. This unit qualifies the SET path: an output record completes only when the SET result arrives, a timeout or error is an alarm with its message, and consecutive puts keep their order per record.
+Item 9 of cause B. The legacy module reported a SET as successful before sending it and dropped a timed-out SET without alarm. snmp3 has output device support for `ao`, `longout`, `int64out`, `stringout` and `lso`, but the accepted scope of `0.0.1` is GET-only. This unit qualifies the SET path.
+
+Observed on 2026-11-15 with the product of commit `5ad4e82`, the production `snmp3Ioc` and worker and the fixture agent (`work/tmp/m5-observe/run-1/`):
+
+| Case | Observed |
+| --- | --- |
+| One put to each of the five output record types | No alarm; the agent's log holds 5 SET commits; the next GET returns 2.5, 41, 123456789012 and the written text |
+| A SET whose reply is delayed by 750 ms | The record stays active (PACT 1) until the reply and completes without alarm after it |
+| A SET while the agent is gone | COMM/INVALID with `no reply`; the record keeps the written value in VAL |
+| A SET that the agent refuses (an integer written to an octet string object) | WRITE/INVALID with an empty message |
+| Three plain puts to one record in one burst (7, 8, 9) | The agent commits 2 values, the next GET returns 9, the record holds 9 |
+
+The two faults of the legacy module are absent. What is missing is the reason on the record when the unit refuses a request, and the merging of plain puts is the behavior of Base that `snmp-record-behavior.md` describes (D26).
 
 ##### Scope
 
-- Output record completion on the SET result through the same outcome path as M4.
-- Alarm messages for SET timeout, tooBig, and error status with index.
-- Readback agreement: the written value equals the next GET of the same OID on the fixture agent.
+- An alarm message on the records of a request that the unit answers with an error status other than tooBig: the name of the status and the error index, as `<name> index <n>`, for the statuses of RFC 3416 (for example `wrongType index 1`). The message of tooBig stays as M4 set it.
+- Checks that fix the SET contract as observed: completion on the result, the written value on the next GET for each output record type, the alarm and message of a refused SET and of a SET without a reply, and the two routes of consecutive writes of D26.
+- Documentation of the SET contract and the message in `snmp-record-behavior.md`.
 
-Out of scope: write to a laboratory unit's outlet; the deferred long active client-write cells (M14).
+Out of scope: a write to a laboratory unit's outlet; values queued by the module (D26); the deferred long active client-write cells (M14).
 
 ##### Completion Criteria
 
-- `RecordTest` cases for each output record type show completion on result, alarm on timeout and error, and order of consecutive puts.
-- The fixture agent shows the written value on the next GET.
+- For each of `ao`, `longout`, `int64out`, `stringout` and `lso` a put completes without alarm, the agent's log holds its SET, and the next GET of the same object returns the written value.
+- An output record whose reply is delayed stays active until the reply arrives.
+- A SET that the agent refuses gives WRITE/INVALID with the status name and index in the message; a SET without a reply gives COMM/INVALID with `no reply`.
+- Three puts that each wait for completion give three SETs at the agent in the order written; three plain puts in one burst give the first and the last value at the agent, and the last one on the next GET.
+- The checks were seen failing on the unchanged code or on a mutation of the table in the Test Plan, for the intended assertion, and the cells of the ordinary matrix stage keep their name and status.
 
 ##### Dependencies And Decisions
 
-- M4 must be Complete; the SET path uses the same outcome and message additions.
+- M4 is Complete (tag `0.0.3`): the SET path uses its outcome and message additions.
+- D26 fixes the behavior of consecutive writes.
+- D22 gave this unit the tag `0.0.5`; D27 changes it to `0.0.4`, because this unit closes before M16.
+- New tests are written in bash and Perl as a matrix cell (D19), and are limited to what the purpose needs, as D24 (8) set for M16.
+- Differences between the accepted plan and the work as run, recorded 2026-11-16 and decided by D27; the plan text is unchanged:
+  1. The message is set for every request that the unit answers with an error status, a GET as well as a SET, because both take one path. The cell of M4 expected an empty message for the object that answers genErr; its expectation is now `genErr index 8`, the eighth value of that request (`tests/rewrite/request_sizing.pl`). The batch limit is still unchanged by such a status.
+  2. Under V3 more checks fail than the delayed record: with the record no longer active the result is never applied, so the refused put and the put without an agent show no alarm, and the consecutive writes change. The row of the table named the merged puts and the readings before the result; the rest follows from the same mechanism and was checked in the output.
+  3. The closing order of the tags: D22 gave M16 the tag `0.0.4` and this unit `0.0.5`, and M16 waits for the runs on the units. D27 gives this unit `0.0.4` and M16 `0.0.5`.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
-Superseded Plan Artifacts: none
+Plan Status: accepted
+Plan Acceptance: 2026-11-15, accepted by the owner
+Implementation Authorization: 2026-11-15, by the owner: items 1 to 4 of the accepted plan, that is edits and test runs in this repository; no write to a unit; every commit, push, tag and issue action needs its own authority
+Superseded Plan Artifacts: the draft that named `RecordTest` cases and a review of the completion path; the observation of 2026-11-15 replaces the review
 
-1. Review the output completion path in `Request.cpp` and `DeviceSupport.cpp` against the criteria.
-2. Add the missing messages and tests; change the product only where a criterion fails.
-3. Document the SET contract in `snmp-record-behavior.md`.
+1. Write the checks first: a matrix cell in bash and Perl with the real IOC, worker and fixture agent, from one table of checks kept with the cell; puts that wait for completion go through the Channel Access client of Base on private loopback ports, as `test_record_ca.py` does. Run it on the unchanged code and record the failing output: the message of the refused SET is expected to fail, the other checks to pass.
+2. Add the message for an error status with its index in `DeviceSupport.cpp`.
+3. Document the SET contract and the message in `snmp-record-behavior.md`.
+4. Run the cell, the mutations and the ordinary matrix.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Record | `RecordTest` SET cases per output record type against the fixture agent | Linux host, ordinary product | Completion on result; alarms as specified |
-| T2 | Readback | GET after SET on the fixture agent | Linux host | Value equals the written value |
-| T3 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` | Linux host | All cells PASS |
+| T1 | Fixture, one write | One put to each of the five output record types, a GET of each object after it; one put through a proxy that delays the reply by 750 ms; one put that the agent refuses; one put after the agent is stopped | Linux host, ordinary product | No alarm and the written value on the GET for each type; the delayed record active before the reply and without alarm after it; WRITE/INVALID with `wrongType index 1` for the refused put; COMM/INVALID with `no reply` for the put without an agent |
+| T2 | Fixture, consecutive writes | Three puts that wait for completion (7, 8, 9) to one record; three plain puts in one burst (7, 8, 9) to another | Linux host, ordinary product | The agent's log holds the SETs 7, 8, 9 in that order for the first record, and the SETs 7 and 9 for the second, with 9 on the next GET |
+| T3 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` on the unchanged and the changed tree | Linux host | The cells of the unchanged tree keep their name and status, and the added cell is PASS |
+
+The status and index that the fixture agent returns for the refused put are read from its reply in the first run on the unchanged code, with a client other than the module, before the expected text is fixed.
+
+The mutations are applied one at a time to scratch copies of the changed tree; the exact old and new text of each is written when the code exists, and the failing assertion of each is fixed before the series:
+
+- V1: the message of an error status is not set; expected failing assertion: T1, refused put.
+- V2: the message carries the wrong index; expected failing assertion: T1, refused put.
+- V3: an output record completes when its request is sent; expected failing assertion: T1, delayed reply.
+- V4: a SET without a reply raises no alarm; expected failing assertion: T1, put without an agent.
+- V5: the value sent is not the value written; expected failing assertion: T1, GET after the put.
+
+Left out, with the reason:
+
+- tooBig on a SET: it takes the path of M4, and the fixture agent has no object that answers a SET with tooBig.
+- A mutation for the order of the puts that wait for completion and for the merged plain puts: both are behavior of Base, which this unit does not change; the checks of T2 guard against a later change of the module that would alter it.
+- A check on a laboratory unit: no write to a unit is in scope.
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Linux host, ordinary product | Pending | none |
-| T2 | Not run | Linux host | Pending | none |
-| T3 | Not run | Linux host | Pending | none |
+| T1 | 2026-11-16T03:19Z to 2026-11-16T03:32Z | Debian 13 host, ordinary product built against Base 7.0.10 of the public 1.5.0 tree | Pass | The matrix cell `set-contract` (`tests/rewrite/test_set_contract.bash` with `set_contract.pl`), 21 checks of one write: for `ao`, `longout`, `int64out`, `stringout` and `lso` no alarm, the SET in the agent's log (41 and 123456789012 as logged values) and 2.5, 41, 123456789012, `abc` and `longer text` on the next GET; the delayed record active (PACT 1) right after the put and complete without alarm after the reply; the refused put WRITE/INVALID with `wrongType index 1`; the put without an agent COMM/INVALID with `no reply`. The status 7 and index 1 of the refusal were read from the agent's reply with `snmpset` beforehand (`work/m5-evidence/refused-set.txt`). On the product before the change (2026-11-16T03:17Z) the refused put fails with an empty message and the other checks pass. Mutations V1 and V2 fail the refused put, V3 the delayed record, V4 the put without an agent, V5 the logged value and the GET of `longout`. Evidence: `work/matrix-m5-1/o-set-contract/`, `work/m5-evidence/unchanged-1.log`, `work/tmp/m5-mutation/results/`, `work/m5-evidence/mutation-table.json`, `sources.sha256` |
+| T2 | Same run as T1 | Same as T1 | Pass | 4 checks of consecutive writes in the same cell: three `caput -c` to one record end with status 0 each and the agent's log holds 7, 8, 9 in that order; three plain puts in one write to a record behind the delayed reply give 7 and 9 in the agent's log, and the record and the next GET hold 9. The same on the product before the change. V3 and V5 also change these values, as their rows of the table predicted for the merged puts. Same evidence as T1 |
+| T3 | 2026-11-16T03:19Z to 2026-11-16T03:32Z | Same as T1 | Pass | `run_matrix.py --stages environment,ordinary` on the changed tree: 43 PASS and `tsan` NOT APPLICABLE; the 43 cells of the M16 run on the same Base (`work/matrix-m16-2/cells.tsv`) keep name and status, and the added cell `set-contract` is PASS with 25 checks. Evidence: `work/matrix-m5-1/cells.tsv` |
 
 ##### Closure Evidence
 
@@ -1164,7 +1205,7 @@ Out of scope: a restart of the IOC itself, the application repository, performan
 
 - G1 complete (2026-11-13).
 - D18 places this unit in release 1.0.0 and sets the observation as its first step. The observation with the fixture agent is done (Summary); the observation on the units remains.
-- D22 runs this unit next, after M4: its tag is `0.0.4` and its row follows M4, so the row order stays the execution order while the ID does not follow it.
+- D22 runs this unit next, after M4, and its row follows M4, so the row order stays the execution order while the ID does not follow it. D22 gave it the tag `0.0.4`; D27 changes it to `0.0.5`, because M5 closes first.
 - D23 is the policy this detail implements, and D24 fills the rules it left open and limits the tests to what the purpose needs.
 - D25 accepts the differences listed below.
 - M9 changes the configuration to localized keys. This unit defines the behavior for that form (unverified after a change); its check runs when M9 provides the form.
