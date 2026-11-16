@@ -68,3 +68,20 @@ snmp3 config: revision=1 frozen=1 profiles=1 endpoints=1 bindings=1
 ```
 
 The startup file sets the worker path before the load, and a load while no worker path is set is rejected. A rejected load leaves the previous snapshot unchanged. The startup file begins with `on error break`, so a failed `snmp3Load` ends the IOC with the message `snmp3Ioc: startup script failed` and exit status 1. The [startup configuration reference](snmp-rewrite-config.md) lists every field and every rejection rule.
+
+## Shared library names
+
+The build installs each shared library of the module under a versioned name, the way EPICS Base does for its own libraries:
+
+| File in `lib/<arch>/` | What it is |
+| --- | --- |
+| `libsnmp3.so.1`, `libsnmp3Wire.so.1`, `libsnmp3Native.so.1` | The library. Its SONAME is the same name |
+| `libsnmp3.so`, `libsnmp3Wire.so`, `libsnmp3Native.so` | A link to the file above, used when a consumer is linked |
+
+The number is the ABI number of the module, set as `SHRLIB_VERSION` in `snmp3App/src/Makefile` and `snmp3App/native/Makefile`. It is one number for the three libraries, it is independent of the release number, and it is raised only for an incompatible change of an interface that a release has promised. A consumer records the versioned name, so an IOC linked against one number does not start against an installation that holds only another: the loader reports the missing `libsnmp3.so.<number>`.
+
+Moving from an installation without versioned names:
+
+- The build replaces the earlier unversioned file by the link of the same name.
+- A consumer built before the change names `libsnmp3.so` and keeps starting through that link.
+- A rebuild of the consumer records the versioned name.

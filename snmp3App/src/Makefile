@@ -1,6 +1,9 @@
 TOP = ../..
 include $(TOP)/configure/CONFIG
 
+# ABI number of the module's shared libraries: the real file is lib<name>.so.<number>, that name is its SONAME,
+# and lib<name>.so is a link to it. It is raised only for an incompatible change of a promised interface.
+SHRLIB_VERSION = 1
 LIBRARY_IOC += snmp3
 LIBRARY_IOC += snmp3Wire
 snmp3Wire_SRCS += Ipc.cpp Identity.cpp
