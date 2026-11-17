@@ -1,0 +1,35 @@
+# State of one endpoint of the snmp3 configuration, read from the IOC process; no request goes to a unit.
+# P        : PV prefix
+# ENDPOINT : id of the endpoint in the snmp3 configuration
+# SCAN     : scan period of the records (default "1 second"); a state is visible at most one period late
+record(mbbi, "$(P)PeerState") {
+    field(DESC, "Engine ID state of the endpoint")
+    field(DTYP, "snmp3 state")
+    field(INP,  "@peer=$(ENDPOINT)")
+    field(SCAN, "$(SCAN=1 second)")
+    field(PINI, "YES")
+    field(ZRVL, "0")
+    field(ZRST, "normal")
+    field(ONVL, "1")
+    field(ONST, "changed")
+    field(ONSV, "MAJOR")
+    field(TWVL, "2")
+    field(TWST, "unverified")
+    field(TWSV, "MAJOR")
+}
+# Largest number of values of one request after a rejection of the unit. 0: no rejection has lowered it, or the
+# worker of the address has ended or was restarted since.
+record(longin, "$(P)BatchLimit") {
+    field(DESC, "Values per request after a rejection")
+    field(DTYP, "snmp3 state")
+    field(INP,  "@batchLimit=$(ENDPOINT)")
+    field(SCAN, "$(SCAN=1 second)")
+    field(PINI, "YES")
+}
+record(longin, "$(P)BatchSplits") {
+    field(DESC, "Reductions of the request size")
+    field(DTYP, "snmp3 state")
+    field(INP,  "@batchSplits=$(ENDPOINT)")
+    field(SCAN, "$(SCAN=1 second)")
+    field(PINI, "YES")
+}

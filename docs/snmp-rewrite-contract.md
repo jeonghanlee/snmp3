@@ -83,6 +83,8 @@ The binding `IntegerRead` must exist in the loaded configuration, and its value 
 
 ## Supported record types
 
+The table lists the record types of `DTYP="snmp3"`, whose records send a request. The records of `DTYP="snmp3 state"`, which read the state of the module and of an endpoint and send nothing, are described in [State of the module as records](snmp-record-behavior.md#state-of-the-module-as-records).
+
 | Record | Native operation and representation |
 | --- | --- |
 | ai | Numeric GET to direct double VAL; LINR NO CONVERSION; exact integer conversion required |

@@ -1,0 +1,26 @@
+# State of the snmp3 module in this IOC, read from the IOC process; no request goes to a unit.
+# P    : PV prefix
+# SCAN : scan period of the record (default "1 second"); the state is visible at most one period late
+record(mbbi, "$(P)RuntimeState") {
+    field(DESC, "snmp3 runtime state")
+    field(DTYP, "snmp3 state")
+    field(INP,  "@runtime")
+    field(SCAN, "$(SCAN=1 second)")
+    field(PINI, "YES")
+    field(ZRVL, "0")
+    field(ZRST, "Cold")
+    field(ONVL, "1")
+    field(ONST, "Starting")
+    field(TWVL, "2")
+    field(TWST, "Running")
+    field(THVL, "3")
+    field(THST, "Stopping")
+    field(FRVL, "4")
+    field(FRST, "Stopped")
+    field(FVVL, "5")
+    field(FVST, "IncompleteStopped")
+    field(FVSV, "MAJOR")
+    field(SXVL, "6")
+    field(SXST, "Failed")
+    field(SXSV, "MAJOR")
+}

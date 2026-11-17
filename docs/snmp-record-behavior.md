@@ -1,10 +1,10 @@
 # Record request behavior
 
-A record of the Experimental Physics and Industrial Control System (EPICS) can admit an asynchronous GET or SET when Base calls the snmp3 device support. Completion processing consumes that request's result without admitting another request. This page explains processing order, pending writes, simulation mode, deadlines, and declared groups of bindings.
+A record of the Experimental Physics and Industrial Control System (EPICS) can admit an asynchronous GET or SET when Base calls the snmp3 device support. Completion processing consumes that request's result without admitting another request. This page explains processing order, pending writes, the outcome of a SET, simulation mode, deadlines, the request size per address, a unit that is lost and returns, the state of the module as records, declared groups of bindings, and the recovery time after a containment.
 
 ## Scope
 
-This page covers the behavior of one record request and of requests that share a declared group. It explains the rules that the record contract states as values.
+This page covers the behavior of one record request and of requests that share a declared group, what the records of an endpoint show when its unit rejects a request, does not answer or is replaced, and the records that show the state of the module. It explains the rules that the record contract states as values.
 
 **Out of scope:** the record types, the alarm mapping, and the exact limits (see [Module contract and record support](snmp-rewrite-contract.md)); the worker protocol and timers (see [Worker commands, limits and timers](snmp-worker-reference.md)); the migration of an existing IOC database.
 
@@ -110,9 +110,29 @@ The entry into a state writes one line to the IOC log:
 snmp3 engine: endpoint=<id> state=<changed|unverified> previous=<hex> current=<hex> authenticated=<0|1> time=<UTC>
 ```
 
-`snmp3RuntimeReport` shows the state of each address in its `snmp3 peer:` line. After the cause is known, restart the IOC; an endpoint whose profile names its engine ID needs the new engine ID in the configuration first.
+`snmp3RuntimeReport` shows the state of each address in its `snmp3 peer:` line and the state of each endpoint, with the time of the change, in its `snmp3 endpoint:` line; the record `$(P)PeerState` shows the state of an endpoint as a PV (see [State of the module as records](#state-of-the-module-as-records)). After the cause is known, restart the IOC; an endpoint whose profile names its engine ID needs the new engine ID in the configuration first.
 
 SNMPv1 and SNMPv2c carry no engine ID, so a replaced unit cannot be told apart there.
+
+## State of the module as records
+
+The module installs two databases into `db/`. Their records read the state that the IOC process holds; no request goes to a unit. An IOC application loads them with `dbLoadRecords`, the runtime database once and the endpoint database once for each endpoint it wants to show:
+
+```
+dbLoadRecords("$(SNMP3)/db/snmp3Runtime.db", "P=<prefix>")
+dbLoadRecords("$(SNMP3)/db/snmp3Endpoint.db", "P=<prefix of the unit>,ENDPOINT=<endpoint id>")
+```
+
+| Record | Type | Value |
+| --- | --- | --- |
+| `$(P)RuntimeState` | `mbbi` | State of the module, as the `snmp3 runtime:` line prints it: `Cold`, `Starting`, `Running`, `Stopping`, `Stopped`, `IncompleteStopped`, or `Failed`. `IncompleteStopped` and `Failed` carry MAJOR |
+| `$(P)PeerState` | `mbbi` | State of the endpoint after a responder showed another engine ID: `normal`, `changed`, or `unverified`. `changed` and `unverified` carry MAJOR. While the responder is still being asked to authenticate, the record reads `unverified` |
+| `$(P)BatchLimit` | `longin` | `limit` of the `snmp3 batch:` line of the address of the endpoint. 0 means that no rejection has lowered the request size, or that the worker of the address has ended or was restarted since. `$(P)BatchSplits` tells the two apart: 0 there means that no request was ever rejected, and a number above 0 beside a limit of 0 means that the limit was lowered and then forgotten with the worker |
+| `$(P)BatchSplits` | `longin` | `splits` of the same line, the number of reductions since the IOC started |
+
+`ENDPOINT` is the `id` of an endpoint in the configuration; a record that names an endpoint the loaded configuration does not hold is rejected at initialization, and the IOC prints `snmp3: record initialization rejected: <record>`. Endpoints that share an address share its request size, so their `$(P)BatchLimit` and `$(P)BatchSplits` records read the same values.
+
+Every record has `PINI=YES` and is scanned periodically; the macro `SCAN` sets the period and defaults to `1 second`. Its value is one of the periodic choices of the Base SCAN menu, written as the menu writes it, for example `5 second` or `.5 second`. A change of state is therefore visible on a record at most one scan period after it happened. The device support, `DTYP` `snmp3 state`, does not offer `SCAN=I/O Intr`.
 
 ## Declared groups of bindings
 

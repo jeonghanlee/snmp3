@@ -67,7 +67,7 @@ State Running means the servicing owner is ready. It does not promise that a dev
 
 ## Runtime report lines
 
-`snmp3RuntimeReport` prints these lines in this order. The `snmp3 queue:`, `snmp3 batch:`, `snmp3 peer:`, `snmp3 admit:`, and `snmp3 worker:` lines repeat once for each address. The queue, batch, peer, and admit lines of each address print first, address by address. The worker lines follow.
+`snmp3RuntimeReport` prints these lines in this order. The `snmp3 queue:`, `snmp3 batch:`, `snmp3 peer:`, `snmp3 admit:`, and `snmp3 worker:` lines repeat once for each address. The queue, batch, peer, and admit lines of each address print first, address by address. The worker lines follow, then one `snmp3 endpoint:` line for each endpoint of the configuration.
 
 | Line | Fields |
 | --- | --- |
@@ -78,6 +78,7 @@ State Running means the servicing owner is ready. It does not promise that a dev
 | `snmp3 peer:` | Per address, printed after its batch line: `state` is `normal`, `changed`, or `unverified`, the gravest state of the endpoints of the address after a responder showed another engine ID; see [Record behavior](snmp-record-behavior.md) |
 | `snmp3 admit:` | Per address, printed after its peer line: the admission statistics described below |
 | `snmp3 worker:` | Per address: the address, the epoch, the PID, `ready`, `closing`, the active `batch`, `launches`, `reaps`, and `forced` signals |
+| `snmp3 endpoint:` | Per endpoint, in the order of the endpoint IDs: `id`, the ID of the endpoint in the configuration; `address`, the number its address has in the lines above; `state`, which is `normal`, `changed`, or `unverified`; and, once the endpoint is settled as `changed` or `unverified`, `since`, the time of the `snmp3 engine:` line of that change in the IOC log. While the responder is still being asked to authenticate, the line shows `unverified` without `since` |
 | `snmp3 loop:` | `passes`, the number of servicing-loop passes since the process started |
 
 The last three numbers of the queue line mean:

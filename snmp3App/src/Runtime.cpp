@@ -264,6 +264,19 @@ void Runtime::report()
                     (unsigned long long)worker.address,(unsigned long long)worker.epoch,(long long)worker.pid,
                     worker.ready ? 1u:0u,worker.closing ? 1u:0u,(unsigned long long)worker.batch,
                     (unsigned long long)worker.spawnAttempts,(unsigned long long)worker.reaps,(unsigned long long)worker.forced);
+    // One line per endpoint of the configuration: the number its address has in the lines above, its state, and
+    // for a settled Changed or Unverified endpoint the time of the log line of that change.
+    if(owner) {
+        std::map<std::string,uint64_t> numbers;
+        for(const auto id:owner->addresses())numbers[owner->addressKey(id)]=id;
+        for(const auto& endpoint:owner->configuration()->endpoints) {
+            const auto view=Peers::instance().view(endpoint.first);
+            const auto number=numbers.find(ipc::addressKey(endpoint.second.address));
+            std::printf("snmp3 endpoint: id=%s address=%llu state=%s%s%s\n",endpoint.first.c_str(),
+                        (unsigned long long)(number==numbers.end() ? 0:number->second),Peers::name(view.state),
+                        view.since.empty() ? "":" since=",view.since.c_str());
+        }
+    }
     std::printf("snmp3 loop: passes=%llu\n",(unsigned long long)passes.load());
 }
 

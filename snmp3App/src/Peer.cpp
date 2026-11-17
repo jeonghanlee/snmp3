@@ -27,6 +27,7 @@ void Peers::enter(const std::string& endpoint, Entry& entry, PeerState state, bo
     const std::time_t now = std::time(nullptr);
     std::tm utc;
     if (gmtime_r(&now, &utc)) std::strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%SZ", &utc);
+    entry.since = stamp;
     std::fprintf(stderr, "snmp3 engine: endpoint=%s state=%s previous=%s current=%s authenticated=%d time=%s\n",
                  endpoint.c_str(), name(state), hex(entry.previous).c_str(), hex(entry.current).c_str(),
                  authenticated ? 1 : 0, stamp);
@@ -58,6 +59,16 @@ PeerState Peers::shown(const std::string& address) const
         if (entry.second.state == PeerState::Pending || entry.second.state == PeerState::Unverified)
             result = PeerState::Unverified;
     }
+    return result;
+}
+Peers::View Peers::view(const std::string& endpoint) const
+{
+    std::lock_guard<std::mutex> guard(mutex);
+    View result;
+    const auto found = entries.find(endpoint);
+    if (found == entries.end()) return result;
+    result.state = found->second.state == PeerState::Pending ? PeerState::Unverified : found->second.state;
+    result.since = found->second.since;
     return result;
 }
 const char* Peers::name(PeerState state)
