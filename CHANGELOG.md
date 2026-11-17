@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.0.6 — Module State Records
+
+### Product
+
+- The module installs two databases into `db/`. `snmp3Runtime.db` gives `$(P)RuntimeState`, the state of the module. `snmp3Endpoint.db`, loaded once per endpoint with the macro `ENDPOINT`, gives `$(P)PeerState`, the state of the endpoint after a responder showed another engine ID (`normal`, `changed`, `unverified`), and `$(P)BatchLimit` and `$(P)BatchSplits`, the request size of its address. `changed`, `unverified`, `IncompleteStopped` and `Failed` carry MAJOR.
+- The records read the state the IOC process holds and send nothing to a unit. They have `PINI=YES` and a periodic scan, 1 second unless the macro `SCAN` sets another period, so a change is visible at most one scan period late.
+- `snmp3RuntimeReport` prints one `snmp3 endpoint:` line per endpoint with its `id`, the number of its address, its state and, once the state is settled as `changed` or `unverified`, the time of the change.
+
+### Compatibility
+
+- `dbd/snmp3.dbd` gains the device support `snmp3 state` for `mbbi` and `longin`. The records of `DTYP="snmp3"` are unchanged.
+- The lines that `snmp3RuntimeReport` printed before keep their text; the `snmp3 endpoint:` lines follow the worker lines.
+
+### Known limits
+
+- The state records do not offer `SCAN=I/O Intr`.
+
 ## 0.0.5 — Shared Library Names
 
 ### Product
