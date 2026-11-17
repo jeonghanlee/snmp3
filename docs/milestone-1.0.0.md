@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: One unit is in progress in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. Until then the next step is the review of the plan of M18, which is a draft; M7, M8 and M9 are the other Ready rows. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`) and G1 are complete. M18, the state of the module as records, was added on 2026-11-16 by D30. Commits, pushes, tags and issue actions each need their own authority.
+Next session entry point: Two units are in progress in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. M18 is In progress: items 1 to 8 of its accepted plan are done and T1 to T5 are recorded (2026-11-16); nothing of it is committed, and D33 accepts its five differences from the plan. Next for M18: commit, the `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. M7, M8 and M9 are the Ready rows. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`) and G1 are complete. M18, the state of the module as records, was added on 2026-11-16 by D30. Commits, pushes, tags and issue actions each need their own authority.
 
 ## Scope
 
@@ -36,10 +36,10 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4 | A table read uses one GETBULK request where the profile allows it; tag: the next free number at its closing; [detail](#m8---getbulk-table-reads) |
 | D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag: the next free number at its closing; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Complete | No | D3, D29, D31 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.5`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
-| Records | M18 | Module state as records | Milestone | Not started | Yes | D30 | The runtime state and the state of each address are readable as records of a database the module installs, and an application needs no header of the module; [detail](#m18---module-state-as-records) |
+| Records | M18 | Module state as records | Milestone | In progress | No | D30, D32, D33 | The runtime state and, per endpoint, the engine ID state and the request size are readable as records of databases the module installs, and the runtime report names each endpoint; [detail](#m18---module-state-as-records) |
 | Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M18 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 6 Complete, 1 In progress, 5 Not started, 0 Blocked; G1 Complete. Ready rows: M7, M8, M9, M18. Backlog contains 1 Open and 4 Deferred rows and is excluded from this tally.
+Current work tally: 6 Complete, 2 In progress, 4 Not started, 0 Blocked; G1 Complete. Ready rows: M7, M8, M9. Backlog contains 1 Open and 4 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -76,6 +76,8 @@ Current work tally: 6 Complete, 1 In progress, 5 Not started, 0 Blocked; G1 Comp
 | D29 | M10: the shared libraries are versioned the way EPICS Base does it, with `SHRLIB_VERSION` in the Makefiles: the real file is `lib<name>.so.<ABI>`, its SONAME is the same name, and `lib<name>.so` is a link to it, two levels and not the three of the earlier wording. One ABI number serves the three libraries and starts at 1. It is independent of the release number and is raised only for an incompatible change of an interface that a release has promised; until `1.0.0` no interface is promised, so it stays 1 through the units that still change the worker protocol. | 2026-11-16 |
 | D30 | An IOC application uses snmp3 the way it uses the other support modules: it adds the database definition file and the library, runs the registered shell commands, and reads the state of the module from records. It includes no header of the module and reads no C++ object of it. The module therefore offers its state as records (M18), and what `1.0.0` promises to an application is the database definition file, the shell commands and those records. The application `apcpdu`, whose main reads `snmp3::Runtime` through a header taken from the module's source directory, is written again in its own repository with the IOC template generator. | 2026-11-16 |
 | D31 | Tags follow the order of closing (D27, D28): M10 closes before M16 and takes `0.0.5`. Only the next number is fixed: every other open unit, M16, M7, M8, M9 and M18, takes the next free number when it closes, and the numbers that D22 and D28 planned for them no longer hold. | 2026-11-16 |
+| D32 | M18: the module offers four values as records, the runtime state, and per endpoint the state after a change of engine ID and the two values of the request size of its address. A record names an endpoint by its `id` in the configuration. The records are scanned periodically with `PINI=YES` and read the state the IOC process holds; `SCAN=I/O Intr` comes with M7. The states are `mbbi` records whose severities the database sets, the numbers are `longin` records, and the databases are installed into `db/` and loaded with `dbLoadRecords`. Records for the worker, an archive tag and a PVA group are left to the application. `snmp3RuntimeReport` gains one line per endpoint with its `id`, its address number, its state and the time of a change, chosen by the implementer on the owner's word; the lines that exist keep their text. | 2026-11-16 |
+| D33 | M18: differences 1 to 5 between its accepted plan and the work as run are accepted as listed in its detail. | 2026-11-16 |
 
 ### ID Migration
 
@@ -1137,56 +1139,109 @@ Last Compared: 2026-11-16T20:57Z; issue updatedAt 2026-11-16T20:56:56Z; title, l
 Origin: 1.0.0 / M18
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: In progress
 
 ##### Summary
 
-An IOC application uses a support module through its database definition file, its library, its shell commands and its records (D30). The site modules do the same: autosave reports its state to the records of `save_restoreStatus.db`, and iocStats offers its values as records. The state of snmp3 is visible today only in the output of `snmp3Report` and `snmp3RuntimeReport`, which a person types at the IOC shell. The application `apcpdu` therefore reads it another way: its main includes `Runtime.h` from the module's source directory, calls `snmp3::Runtime::instance().snapshot()` and ends the process with status 1 when the state is Failed, as the module's own `snmp3Ioc` does, and for that it also links `libsnmp3Wire.so` (observed 2026-11-16 on the application repository commit `3314b1e`). The state of an address after a responder showed another engine ID (M16) is likewise only on the alarm message of the records of that address and in the shell report.
+An IOC application uses a support module through its database definition file, its library, its shell commands and its records (D30). The site modules do the same: autosave reports its state to the records of `save_restoreStatus.db`, and iocStats offers its values as records. The state of snmp3 is visible today only where a person looks at the IOC: the state of an endpoint after a responder showed another engine ID (M16) is on the alarm message of the records of that endpoint, in one line of the IOC log and in the shell report, and a request size that the module lowered for an address (M4) is only in the shell report. An operator screen or an alarm system has no PV for either.
+
+Observed on 2026-11-16 with the product of commit `14bcb99` and the production `snmp3Ioc`: at 19:01Z with two fixture agents (the scenario `two` of the cell `recovery`, `work/matrix-m10-1/o-recovery/two/v3d/ioc.stdout`), and for `snmp3Report` at 18:58Z (the cell `r5-operator`, `work/matrix-m10-1/o-operator/operator.stdout`):
+
+- `snmp3Report` prints one line, `snmp3: Base 7.0.10; capability=owned-worker-transport; recordSupport=available`.
+- `snmp3RuntimeReport` prints `snmp3 runtime: state=Running ...` once and, per address, the lines `snmp3 queue:`, `snmp3 batch: address=N limit=0 splits=0`, `snmp3 peer: address=N state=normal`, `snmp3 admit:` and `snmp3 worker:`. A `limit` of 0 means that no rejection has lowered it, or that the worker of the address has ended or was restarted since and the limit is forgotten while `splits` stays; `docs/snmp-worker-reference.md` and `docs/snmp-record-behavior.md` state both, and the report of a stopped module in the grouped run of M4 shows `limit=0 splits=1`.
+- Every line names an address by its number. No line says which endpoint of the configuration has that number, so with two units a reader cannot tell from the report which unit `address=2` is.
+- When an endpoint changes its state, the time, the previous and the current engine ID are written once, in the `snmp3 engine:` line of the IOC log. The report shows the state and not since when.
+- The module has no `Db` directory and installs nothing into `db/`. The code has no support for `SCAN=I/O Intr`.
 
 ##### Scope
 
-- A database that the module installs, with records for the runtime state and, per address, the state that `snmp3RuntimeReport` prints in its `snmp3 peer:` and `snmp3 batch:` lines.
-- The device support or the mechanism that keeps those records current.
-- Documentation of the records and of how an application loads them.
+- Two databases that the module installs into `db/` (D32):
+  - `snmp3Runtime.db`, macro `P`: `$(P)RuntimeState`, an `mbbi` with the seven states that the report prints (`Cold`, `Starting`, `Running`, `Stopping`, `Stopped`, `IncompleteStopped`, `Failed`); `IncompleteStopped` and `Failed` carry MAJOR.
+  - `snmp3Endpoint.db`, macros `P` and `ENDPOINT` (the `id` of an endpoint in the configuration): `$(P)PeerState`, an `mbbi` with `normal`, `changed` and `unverified`, the last two with MAJOR; an endpoint whose responder is still being asked to authenticate (the state `Pending` of the code) reads `unverified`, as the `snmp3 peer:` line shows it; `$(P)BatchLimit` and `$(P)BatchSplits`, `longin` records with the values of the `snmp3 batch:` line of the address of that endpoint.
+  - Every record has `PINI=YES` and a periodic `SCAN` (macro `SCAN`, default `1 second`) and reads the state the IOC process holds; no request goes to a unit. The severities are set in the database by the state severity fields of `mbbi`.
+- Device support with its own `DTYP`, `snmp3 state`, for `mbbi` and `longin`, in `dbd/snmp3.dbd`. Its link names what is read: the runtime state, or one of the three values of an endpoint by the endpoint `id`. A link that names an unknown endpoint fails the record at initialization.
+- In `snmp3RuntimeReport`, one added line per endpoint: `snmp3 endpoint: id=<id> address=N state=<normal|changed|unverified>`, with ` since=<UTC time>` when the state is not `normal`: the time in the form and with the value of `time=` in the `snmp3 engine:` line that the IOC log holds for that change (for example `2026-11-16T19:01:00Z`). While the responder is still being asked to authenticate, the line shows `unverified` without `since`, because the log line and its time exist only from the moment the state is settled. The state is the one the record of that endpoint reads. The lines that exist keep their text.
+- Documentation of the records, with the two meanings of 0 on `$(P)BatchLimit` (not lowered, or forgotten with the worker) and the delay of at most one scan period, of how an application loads them with `dbLoadRecords`, and of the added report line.
 
-Out of scope: the rewrite of the application `apcpdu`, which belongs to its own repository (D30); a process exit status that follows the module state; and records for the queue and admission counters of the report.
+Out of scope: records for the worker, queue and admission lines of the report, an `info(archive, ...)` tag and a PVA group, which an application can add by itself; `SCAN=I/O Intr`, which belongs to M7; a process exit status that follows the module state; and any change of an application repository.
 
 ##### Completion Criteria
 
-- With the database loaded, the records show the runtime state and the state of each address, and they change when the state changes: an address whose unit returns with another engine ID shows `changed` or `unverified` on its record.
-- An application reads the state with no header of the module and with only `snmp3` in its libraries.
-- The cells of the ordinary matrix stage keep their name and status, and the added checks pass.
+- With the two databases loaded by `dbLoadRecords` from `db/`, `$(P)RuntimeState` shows `Running` while the module runs and `Stopped` after `snmp3Stop`, and for each endpoint `$(P)PeerState` shows `normal`, then `changed` with MAJOR when the responder returns with another engine ID and answers an authenticated request, and `unverified` with MAJOR when it does not.
+- `$(P)BatchLimit` and `$(P)BatchSplits` show 0 and 0 before a rejection and the lowered limit and the number of reductions after a unit rejected a request as too large, equal to the `snmp3 batch:` line of that address.
+- `snmp3RuntimeReport` prints one `snmp3 endpoint:` line per endpoint with its `id`, its address number and its state, and, for an endpoint settled as `changed` or `unverified`, the time since when, equal to the time of the `snmp3 engine:` line of that change; the lines that existed keep their text.
+- A record whose link names an unknown endpoint does not initialize, and the IOC says which record.
+- The documentation states the records, their states and severities, the two meanings of 0 on `$(P)BatchLimit`, the delay of at most one scan period, the load lines and the added report line.
+- On the two laboratory units, read only and with records that read each unit, the state records show `Running` and `normal` and the report names both endpoints; with a group of 61 values on each unit, which both reject, the two request size records of each endpoint show the lowered limit and the reduction.
+- The cells of the ordinary matrix stage keep their name and status, and the added cell is PASS.
 
 ##### Dependencies And Decisions
 
 - D30 sets the rule this unit serves.
-- The code of M16 is on `origin/master`; this unit reads the state it keeps and does not wait for its runs on the units.
+- D32 fixes which values become records, how a record names an endpoint, how the records are kept current, and what the report gains.
+- D33 accepts the differences between the plan and the work as run.
+- The code of M16 is on `origin/master`; this unit reads the state it keeps and does not wait for its runs on the units. The state records are read on the two units in two read-only runs of this unit (T5), which need no cut of a link or of power.
+- The tag of this unit is the next free number at its closing (D31).
+- New tests are written in bash and Perl as a matrix cell (D19), and are limited to what the purpose needs.
+- Differences between the accepted plan and the work as run (2026-11-16), accepted by D33:
+  1. One more document was changed than item 6 names: `docs/snmp-rewrite-contract.md` gained one sentence under "Supported record types" that points at the state records, because its table reads as the whole record support of the module.
+  2. Item 1 found that one IOC holds the three endpoints of T1 on one address with three ports, so T1, T2 and the three cases ran in one IOC and T3 in a second.
+  3. The first run of the cell on the unchanged tree showed a fault of the cell, not of the product: its configuration did not mark the `Sys` bindings of B and C as system information, so the responder of B could not be asked to authenticate and B ended `unverified`. The check `applied-log-B` failed for it. The configuration was corrected and the unchanged tree run again; both logs are kept (`work/m18-evidence/unchanged-1.log`, `unchanged-2.log`).
+  4. In the second run of T5 the state records were read after each of the three rounds, not only after the third.
+  5. The link text of the device support is `runtime`, `peer=<id>`, `batchLimit=<id>` and `batchSplits=<id>`; it is stated in the source of the support and used only by the two installed databases.
+- After the third-person passes of the change the owner had three items applied (2026-11-16): two include lines in `StateSupport.cpp`, after which the three product binaries have the hashes they had before, so the runs of T5 stand; the check `batch-shared-B` in the cell, for which the cell, the committed tree, the mutations and the matrix were run again; and the first paragraph and the Scope of `docs/snmp-record-behavior.md`, which now name every section of the page.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
-Superseded Plan Artifacts: none
+Plan Status: accepted
+Plan Acceptance: 2026-11-16, accepted by the owner after eight third-person and three second-person passes of this detail
+Implementation Authorization: 2026-11-16, by the owner: items 1 to 8 of the accepted plan, that is edits and test runs in this repository and the two read-only runs on the units; every commit, push, tag and issue action needs its own authority
+Superseded Plan Artifacts: the draft of 2026-11-16 whose first item left open which values become records; D32 holds that decision
 
-1. Decide which values become records and how they are kept current, after reading how the state is held today (`Runtime`, `Peers`, the scheduler snapshot).
-2. Write the checks first, as a matrix cell in bash and Perl (D19).
-3. Add the database, the support and the documentation.
-4. Run the cell, the mutations and the ordinary matrix.
+1. Write the check first: a matrix cell `module-state` in bash (`tests/rewrite/test_module_state.bash`, starts and stops the agents and the IOC) and Perl (`module_state.pl`, reads and judges), with a check design table in the header of the Perl file. It loads the two databases from `db/` of the tree it runs in and reads the records through the IOC shell. The cell `recovery` ran the two changed cases in separate IOCs and its two agents on `127.0.0.1` and `::1`; this cell first shows whether one IOC holds the three endpoints of T1 on one address with three ports, and runs the three cases in separate IOCs when it does not. Run it on the unchanged code and record the failing output.
+2. Keep the time of the state change, the one the `snmp3 engine:` line prints, with the state of an endpoint (`snmp3App/src/Peer.h`, `Peer.cpp`) and offer the state of one endpoint, the batch values of its address and the runtime state to the device support.
+3. Add the device support `snmp3 state` for `mbbi` and `longin` (a new source file in `snmp3App/src/`, its entries in the database definition file, `snmp3App/src/Makefile`, and the object list of `tests/rewrite/run_independence.py`).
+4. Add `snmp3App/Db/` with its Makefile (`DB += snmp3Runtime.db snmp3Endpoint.db`), name it in `DIRS` of `snmp3App/Makefile`, and add the two databases, written to the database conventions of the site (no separator after a macro, a DESC of at most 40 characters on every record).
+5. Add the `snmp3 endpoint:` line to `snmp3RuntimeReport` (`snmp3App/src/Runtime.cpp`).
+6. Document the records, with the two meanings of 0 on `$(P)BatchLimit` and the delay of at most one scan period, and the load lines in `docs/snmp-record-behavior.md`, and the report line in `docs/snmp-worker-reference.md`.
+7. Run the cell, the mutations and the ordinary matrix.
+8. Run the two runs of T5 on the two units, GET only, with the addresses, names and secrets kept in the private directories under `work/` that T5 names and out of every recorded text.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Fixture | The real IOC with the state database loaded, against the fixture agent: a normal run, and an agent that returns with another engine ID | Linux host, ordinary product | The state records show the runtime state and `normal`, then `changed` for the address |
-| T2 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` on the unchanged and the changed tree | Linux host | The cells of the unchanged tree keep their name and status, and the added cell is PASS |
+| T1 | Fixture, endpoint state | The real IOC with both databases loaded from `db/`, against fixture agents under SNMPv3: one agent that keeps its engine ID, one that returns with another engine ID and the same secrets, one that returns with another engine ID and other secrets, in one IOC or in three as item 1 of the plan finds; the records and `snmp3RuntimeReport` are read before and after the return | Linux host, ordinary product | `$(P)PeerState` is `normal` with NO_ALARM before; after the return `normal`, `changed` with MAJOR and `unverified` with MAJOR for the three endpoints; the `snmp3 endpoint:` lines carry the same states, the `id` and address number of each endpoint, and a `since` time only on the two that changed, equal to the `time` of the `snmp3 engine:` line of that endpoint in the IOC log; the `snmp3 peer:` lines keep their text |
+| T2 | Fixture, request size and runtime state | The same IOC with, on the endpoint of the agent that keeps its engine ID, a group of eight values whose eighth is the object that the agent answers with tooBig (`.53864.4.11.0`), the group of the case `toobig-v3` of the cell `request-sizing`: `$(P)BatchLimit` and `$(P)BatchSplits` are read before and after the rejection and compared with the `snmp3 batch:` line; `$(P)RuntimeState` is read while the module runs and after `snmp3Stop` | Linux host, ordinary product | 0 and 0 before; after the rejections 1 and 3, the values the halving rule gives for eight values (8 to 4 to 2 to 1), and the report line carries the same; these are read before `snmp3Stop`; `Running`, then `Stopped` |
+| T3 | Initialization | An IOC whose database names an endpoint `id` that the configuration does not hold | Linux host, ordinary product | The record does not initialize and the IOC output names it |
+| T4 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` on the unchanged and the changed tree | Linux host | The cells of the unchanged tree keep their name and status, and the added cell is PASS |
+| T5 | Units, read only | The production `snmp3Ioc` with both databases, the private configuration of the two laboratory units and records that read each unit, GET only. First run, 60 s, bindings without a group (the configuration `work/ioc-new/private/config.json` with the records of `work/ioc-new/apcpdu_snmp3/apcpduApp/Db/ap8932_min.template`): the read records, the state records and `snmp3RuntimeReport` are read at the end. Second run, 3 rounds, with 61 integer bindings of each unit in one group per unit, the grouped run of M4 that both units reject (configuration and `group.db` made by `work/m4-t3/t3_group.pl config`, as `work/m4-t3/run_group.sh` does, without its relays): the same is read after the third round and before the IOC is stopped | Both laboratory units | First run: the read records of both units carry values with NO_ALARM; `$(P)RuntimeState` is `Running`; for each of the two endpoints `$(P)PeerState` is `normal` with NO_ALARM and `$(P)BatchLimit` and `$(P)BatchSplits` are 0; the two `snmp3 endpoint:` lines carry the two `id`s, `normal` and no `since` time. Second run: for each of the two endpoints `$(P)BatchLimit` is 30 and `$(P)BatchSplits` is 1, the values M4 recorded for both addresses with that group on 2026-11-14, before the change of M16 was in the product; the `snmp3 batch:` lines carry the same; the 61 records fill without alarm in the third round |
+
+The mutations are applied one at a time to scratch copies of the changed tree; the exact old and new text of each is written when the code exists:
+
+- V1: the endpoint state support always reads `normal`; expected failing assertion: T1, `changed` and `unverified`.
+- V2: the severity of `changed` is removed from `snmp3Endpoint.db`; expected failing assertion: T1, MAJOR on `changed`.
+- V3: the batch support reads 0; expected failing assertion: T2, the limit and the reductions after the rejection.
+- V4: the runtime state support reads a constant; expected failing assertion: T2, `Stopped`.
+- V5: the `since` time is left out of the report line; expected failing assertion: T1, the `since` time.
+- V6: an unknown endpoint is accepted at initialization; expected failing assertion: T3.
+
+Left out, with the reason:
+
+- A change of engine ID on the laboratory units: a unit cannot be made to change its engine ID on request, and the fixture shows it (T1). A rejected request can be provoked on a unit, as M4 did, and T5 does it.
+- The states `Cold`, `Starting`, `Stopping`, `IncompleteStopped` and `Failed` of the runtime: the record reads the same value as the report, and T2 shows that it follows a change.
+- The delay of a periodic scan: a state is visible at most one scan period late, which the documentation states; `SCAN=I/O Intr` is M7.
+- SNMPv1 and SNMPv2c: they carry no engine ID, so the endpoint state stays `normal` (M16).
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Linux host, ordinary product | Pending | none |
-| T2 | Not run | Linux host | Pending | none |
+| T1 | 2026-11-17T00:03Z | Debian 13 host, ordinary product built against Base 7.0.10 of the public 1.5.0 tree | Pass | The cell `module-state` (`tests/rewrite/test_module_state.bash` with `module_state.pl`), one IOC with the endpoints A, B and C on one address and three ports: `$(P)PeerState` is `normal` with NO_ALARM for the three before; after the agents of B and C returned with another engine ID, A is `normal` with NO_ALARM, B is `changed` with MAJOR and C, whose agent has other secrets, is `unverified` with MAJOR. The three `snmp3 endpoint:` lines read `id=<id> address=1 state=normal` before; after the return the line of A is unchanged and the lines of B and C carry their state and `since=2026-11-17T00:03:45Z`, the `time` of the `snmp3 engine:` line of each in the IOC log. The `snmp3 peer:` line reads `address=1 state=normal` before and `state=unverified` after. The returned agents report the engine IDs they were given, and the log holds one line per endpoint, `changed` authenticated 1 for B and `unverified` authenticated 0 for C. The cell passes its 28 checks. On a copy of the committed tree with the cell added, the 18 checks of the new behavior fail and the 10 checks of the fixture and of the lines that existed pass. Mutation V1 fails `peer-after-B` and `peer-after-C`, V2 fails `peer-after-B` with `changed NO_ALARM`, V5 fails `endpoint-after-B` and `endpoint-after-C`; each mutation fails no other check. Evidence: `work/m18-evidence/unchanged-3.log`, `changed-2.log`, `mutation-table.json`, `mutation-2/`, `sources.sha256`. An earlier series of the cell with 27 checks, before the check `batch-shared-B` was added, is kept beside it (`unchanged-2.log`, `changed-1.log`, `mutation/`, `sources-first-series.sha256`) |
+| T2 | 2026-11-17T00:03Z | Same as T1 | Pass | The same run, with the group of eight on endpoint A: `$(P)BatchLimit` and `$(P)BatchSplits` read 0 and 0 before and 1 and 3 after four passes of the group, and the two records of endpoint B, which shares the address, read 1 and 3 as well; the eighth record carries `tooBig`, and the report prints `snmp3 batch: address=1 limit=1 splits=3`. `$(P)RuntimeState` reads `Running` before and `Stopped` after `snmp3Stop`, where the report prints `state=Stopped`. Mutation V3 fails `batch-after` and `batch-shared-B` with `0 0`, and V4 fails `runtime-stopped` with `Running`. Evidence: as T1 |
+| T3 | 2026-11-17T00:03Z | Same as T1 | Pass | The same run, second IOC, with `snmp3Endpoint.db` loaded for an endpoint the configuration does not hold: the IOC completes its initialization and prints `snmp3: record initialization rejected:` for `X_PeerState`, `X_BatchLimit` and `X_BatchSplits`. Mutation V6 fails the three checks. Evidence: as T1 |
+| T4 | 2026-11-17T00:07Z to 2026-11-17T00:20Z | Same as T1 | Pass | `run_matrix.py --stages environment,ordinary` on the changed tree: 45 PASS and `tsan` NOT APPLICABLE; the 45 cells of the M10 run on the same Base (`work/matrix-m10-1/cells.tsv`) keep name and status, and the added cell `module-state` is PASS with 28 checks. Evidence: `work/matrix-m18-2/cells.tsv`; the run before the check was added is `work/matrix-m18-1/` |
+| T5 | 2026-11-16T23:04Z to 2026-11-16T23:06Z | Both laboratory units, read only (GET requests; no write); production `snmp3Ioc`, worker and `libsnmp3.so.1` of the changed tree, whose hashes in `sources-first-series.sha256` and `sources.sha256` are equal | Pass | First run, 60 s, bindings without a group: the 12 read records of the two units hold a value with NO_ALARM; `$(P)RuntimeState` is `Running`; both endpoints read `normal` with NO_ALARM and 0 and 0; the report prints `snmp3 endpoint: id=<id> address=N state=normal` for the two endpoints, with the address numbers 1 and 2 and no `since`. Second run, 3 rounds, 61 integer bindings of each unit in one group per unit, no relay: both units answer the first request with `tooBig` (61 records each INVALID with that message); after each of the three rounds both endpoints read `$(P)BatchLimit` 30 and `$(P)BatchSplits` 1 and the report prints `limit=30 splits=1` for both addresses; in rounds 2 and 3 the 61 records of each unit hold a value with NO_ALARM. The values are those M4 recorded before the change of M16. Evidence: `work/m18-units/private/first-1/`, `group-1/`, with the scripts `work/m18-units/run_first.sh` and `run_group.sh` |
 
 ##### Closure Evidence
 
