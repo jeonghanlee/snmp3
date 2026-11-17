@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: Two units are in progress in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. M18 is In progress: items 1 to 8 of its accepted plan are done and T1 to T5 are recorded (2026-11-16); nothing of it is committed, and D33 accepts its five differences from the plan. Next for M18: commit, the `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. M7, M8 and M9 are the Ready rows. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`) and G1 are complete. M18, the state of the module as records, was added on 2026-11-16 by D30. Commits, pushes, tags and issue actions each need their own authority.
+Next session entry point: One unit is in progress in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. Until then the Ready rows are M7, M8 and M9; the owner chooses the next. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`), M18 (tag `0.0.6`) and G1 are complete. Commits, pushes, tags and issue actions each need their own authority.
 
 ## Scope
 
@@ -36,10 +36,10 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4 | A table read uses one GETBULK request where the profile allows it; tag: the next free number at its closing; [detail](#m8---getbulk-table-reads) |
 | D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag: the next free number at its closing; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Complete | No | D3, D29, D31 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.5`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
-| Records | M18 | Module state as records | Milestone | In progress | No | D30, D32, D33 | The runtime state and, per endpoint, the engine ID state and the request size are readable as records of databases the module installs, and the runtime report names each endpoint; [detail](#m18---module-state-as-records) |
+| Records | M18 | Module state as records | Milestone | Complete | No | D30, D32, D33 | The runtime state and, per endpoint, the engine ID state and the request size are readable as records of databases the module installs, and the runtime report names each endpoint; [detail](#m18---module-state-as-records) |
 | Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M18 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 6 Complete, 2 In progress, 4 Not started, 0 Blocked; G1 Complete. Ready rows: M7, M8, M9. Backlog contains 1 Open and 4 Deferred rows and is excluded from this tally.
+Current work tally: 7 Complete, 1 In progress, 4 Not started, 0 Blocked; G1 Complete. Ready rows: M7, M8, M9. Backlog contains 1 Open and 4 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -1139,7 +1139,7 @@ Last Compared: 2026-11-16T20:57Z; issue updatedAt 2026-11-16T20:56:56Z; title, l
 Origin: 1.0.0 / M18
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -1245,7 +1245,13 @@ Left out, with the reason:
 
 ##### Closure Evidence
 
-- none
+- Completion Criteria checked on 2026-11-16 against the Verification Results: the runtime state `Running` and `Stopped` and the three endpoint states with their severities (T1, T2); the request size records before and after the rejections, on the endpoint of the group and on one that shares its address (T2); the `snmp3 endpoint:` lines with `id`, address number, state and the time of the change, and the unchanged text of the lines that existed (T1, T4); the rejection of a record that names an unknown endpoint (T3); the two read-only runs on the laboratory units (T5); the ordinary stage with the same 45 cells and the added cell (T4); the records, their states and severities, the two meanings of 0, the delay of one scan period, the load lines and the report line in `docs/snmp-record-behavior.md` and `docs/snmp-worker-reference.md`. The differences from the plan are decided by D33.
+- Review: the change had four third-person passes and two second-person passes before its commit; the items they raised were applied, and the last pass of each kind returned no finding.
+- Landing: the change is commit `bbe30e2`, the register record of the plan, decisions and results is commit `6db2a13`, and the `CHANGELOG.md` entry `0.0.6` is commit `bbe462269f7f7d2ac75b9ceee4478ad86c5c104f`; all three were pushed to `origin/master`. After `git fetch`, `git rev-parse HEAD origin/master` printed `bbe4622` twice and `git diff --name-only cdae1e3 origin/master` listed the 19 paths of the three commits (observed 2026-11-17T02:18Z).
+- Tag: the annotated tag `0.0.6` (object `1e0088d288879cb7b96809b4eeeb872352e3f817`) names `bbe4622`, the commit that holds the `CHANGELOG.md` entry, created and pushed under the owner's tag authority of 2026-11-16. Recheck with `git ls-remote --tags origin refs/tags/0.0.6 'refs/tags/0.0.6^{}'`, which printed that object and the peeled commit at 2026-11-17T02:18Z. The tagged tree also holds the code of M16, which is not closed; the `CHANGELOG.md` entry `0.0.4` names it as included and not yet verified on a unit.
+- This unit has no linked issue.
+- The `CHANGELOG.md` entry was committed without a second-person pass, by the owner's decision of 2026-11-16.
+- Unproven and left listed: the runtime states other than `Running` and `Stopped` on the record; what the record and the report line show while a responder is still being asked to authenticate; a change of engine ID on a laboratory unit; and the measured delay of the periodic scan.
 
 #### M16 - Recovery when a unit returns after a power or network loss
 
