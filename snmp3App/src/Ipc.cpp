@@ -339,6 +339,22 @@ std::vector<Result> decodeResults(const std::vector<uint8_t>& b,
 }
 std::vector<Identity> decodeRetired(const std::vector<uint8_t>& b)
 { require(b.size()<=RetiredBytes); Reader r(b); auto n=members(r); require(n<=r.left()/24); std::vector<Identity> v; v.reserve(n); while(n--)v.push_back(identity(r)); r.end(); return v; }
+// The number of a binding in the worker protocol: its own number, or for a configuration whose bindings carry
+// none, its place in the order of the binding IDs.
+uint64_t definitionNumber(const Configuration& c,const std::string& id)
+{
+    const auto found=c.bindings.find(id); require(found!=c.bindings.end());
+    if(found->second.number)return found->second.number;
+    return uint64_t(std::distance(c.bindings.begin(),found))+1;
+}
+// The binding that carries a number of the worker protocol; null when the configuration holds none.
+const BindingDefinition* definitionOf(const Configuration& c,uint64_t number)
+{
+    for(const auto& entry:c.bindings)if(entry.second.number==number && number)return &entry.second;
+    if(number<1 || number>c.bindings.size())return nullptr;
+    auto found=c.bindings.begin(); std::advance(found,number-1);
+    return found->second.number ? nullptr:&found->second;
+}
 namespace {
 void bootstrap(Writer& w,const Configuration& c,const std::string& address)
 {
@@ -364,8 +380,12 @@ void bootstrap(Writer& w,const Configuration& c,const std::string& address)
     for(const auto& e:c.endpoints) { if(!selectedEndpoints.count(e.first))continue; w.u64(endpoints.at(e.first)); w.text(e.first); w.text(e.second.address); w.u32(e.second.port); w.u64(profiles.at(e.second.profile)); }
     uint32_t selectedBindings=0;
     for(const auto& b:c.bindings)if(selectedEndpoints.count(b.second.endpoint))++selectedBindings;
-    id=0; w.u32(selectedBindings);
-    for(const auto& e:c.bindings) { ++id; const auto& b=e.second; if(!selectedEndpoints.count(b.endpoint))continue; w.u64(id); w.text(e.first); w.u64(endpoints.at(b.endpoint)); w.oid(b.oid); w.u16(b.operation==Operation::Get ? 1:2); w.u16(tag(b.valueType)); require(b.capacity<=UINT32_MAX); w.u32(b.capacity); w.u32(b.systemInfo ? 1:0); }
+    w.u32(selectedBindings);
+    // The worker takes the bindings in rising order of their numbers.
+    std::map<uint64_t,const std::pair<const std::string,BindingDefinition>*> ordered;
+    for(const auto& entry:c.bindings)
+        if(selectedEndpoints.count(entry.second.endpoint))require(ordered.emplace(definitionNumber(c,entry.first),&entry).second);
+    for(const auto& item:ordered) { const auto* e=item.second; const auto& b=e->second; w.u64(item.first); w.text(e->first); w.u64(endpoints.at(b.endpoint)); w.oid(b.oid); w.u16(b.operation==Operation::Get ? 1:2); w.u16(tag(b.valueType)); require(b.capacity<=UINT32_MAX); w.u32(b.capacity); w.u32(b.systemInfo ? 1:0); }
 }
 }
 size_t bootstrapBytes(const Configuration& c,const std::string& address)

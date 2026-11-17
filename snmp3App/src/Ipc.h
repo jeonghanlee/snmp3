@@ -65,6 +65,8 @@ bool sameCapabilities(const Capabilities& a, const Capabilities& b);
 uint64_t responseBytes(const BindingDefinition& binding);
 uint64_t charge(const BindingDefinition& binding);
 std::string addressKey(const std::string& address);
+uint64_t definitionNumber(const Configuration& c,const std::string& id);
+const BindingDefinition* definitionOf(const Configuration& c,uint64_t number);
 
 class Writer {
 public:

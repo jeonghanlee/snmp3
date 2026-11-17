@@ -13,9 +13,15 @@ struct typed_rset;
 namespace snmp3 {
 enum class RecordKind { Ai, Longin, Int64in, Stringin, Lsi, Waveform,
                         Ao, Longout, Int64out, Stringout, Lso };
+// A record link in one of two forms: "@binding=<id> [deadline_ms=<n>]" names a binding of the file, and
+// "@<session> <object> type=<type> [deadline_ms=<n>] [group=<label>] [systemInfo]" names the object itself.
+// budgetMs is zero when the link gives no deadline.
 struct RecordLink {
     std::string definition;
     unsigned budgetMs = 0;
+    bool named = false;
+    std::string session, object, type, group;
+    bool systemInfo = false;
 };
 RecordLink parseRecordLink(const std::string& text);
 

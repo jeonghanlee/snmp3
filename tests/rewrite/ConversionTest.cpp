@@ -119,7 +119,8 @@ void stringsAndGrammar()
     rejects([&] { captureText(maximum.c_str(), 32766, 32766); });
     check(parseRecordLink("@binding=Read.1 deadline_ms=1").definition == "Read.1");
     check(parseRecordLink("@deadline_ms=600000 binding=Read.1").budgetMs == 600000);
-    for (const std::string text : {"binding=x deadline_ms=1", "@binding=x", "@binding=x deadline_ms=0",
+    check(parseRecordLink("@binding=x").definition == "x" && parseRecordLink("@binding=x").budgetMs == 0);
+    for (const std::string text : {"binding=x deadline_ms=1", "@deadline_ms=1", "@binding=x deadline_ms=0",
          "@binding=x deadline_ms=600001", "@binding=x deadline_ms=-1", "@binding=x deadline_ms=1.0",
          "@binding=x deadline_ms=1 trailing", "@binding=x binding=y deadline_ms=1",
          "@binding=x deadline_ms=1 deadline_ms=2", "@binding=x deadline_ms=1 unknown=2"})

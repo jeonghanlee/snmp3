@@ -117,9 +117,9 @@ record(ai, "$(P)UnknownBinding") {
 }
 
 record(ai, "$(P)BadGrammar") {
-    field(DESC, "Reject missing explicit deadline")
+    field(DESC, "Reject a deadline without a value")
     field(DTYP, "snmp3")
-    field(INP, "@binding=IntegerRead")
+    field(INP, "@binding=IntegerRead deadline_ms=")
 }
 
 record(longout, "$(P)BadOopt") {

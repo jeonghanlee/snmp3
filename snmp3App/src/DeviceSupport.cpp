@@ -219,14 +219,40 @@ Value capture(RecordContext& context)
     default: throw std::runtime_error("record capture rejected");
     }
 }
+// The deadline of a record whose link gives none: twice the longest time one request of its session can take,
+// for a request that waits behind another one, and one second for the way through the IOC.
+unsigned defaultBudgetMs(const Profile& profile)
+{
+    const uint64_t budget=2ull*profile.timeoutMs*(profile.retries+1ull)+1000ull;
+    return unsigned(std::min<uint64_t>(budget,600000));
+}
 template<RecordKind Kind> long initialize(dbCommon* record)
 {
+    std::string defined;
     try {
         require(Requests::instance().attachmentAllowed() && record->scan!=2);
         auto* link=dbGetDevLink(record);
         require(link && link->type==INST_IO && link->value.instio.string);
         const auto parsed=parseRecordLink(std::string("@")+link->value.instio.string);
-        const auto binding=Config::instance().bind(parsed.definition);
+        // A link that names its object defines the binding here: the direction comes from the record type and
+        // the size of the value from the record.
+        size_t linkCapacity=1;
+        if(parsed.named) {
+            switch(Kind) {
+            case RecordKind::Stringin: case RecordKind::Stringout: linkCapacity=40; break;
+            case RecordKind::Lsi: linkCapacity=as<lsiRecord>(record).sizv; break;
+            case RecordKind::Lso: linkCapacity=as<lsoRecord>(record).sizv; break;
+            case RecordKind::Waveform: linkCapacity=as<waveformRecord>(record).nelm; break;
+            default: break;
+            }
+            require(!parsed.type.empty());
+        }
+        const auto binding=parsed.named ?
+            Config::instance().define(parsed.session,parsed.object,parsed.type,input(Kind)?Operation::Get:Operation::Set,
+                                      linkCapacity,parsed.group,parsed.systemInfo) :
+            Config::instance().bind(parsed.definition);
+        if(parsed.named)defined=binding->definition().id;
+        const unsigned budgetMs=parsed.budgetMs ? parsed.budgetMs:defaultBudgetMs(binding->profile());
         const auto& spec=binding->definition();
         require(spec.operation==(input(Kind)?Operation::Get:Operation::Set));
         size_t capacity=1;
@@ -258,11 +284,13 @@ template<RecordKind Kind> long initialize(dbCommon* record)
             value.busy=FALSE; break;
         }
         }
-        auto& context=Requests::instance().attach(RecordBinding(binding,Kind,parsed.budgetMs,capacity,type),
+        auto& context=Requests::instance().attach(RecordBinding(binding,Kind,budgetMs,capacity,type),
                                                  record,link->value.instio.string,&validate,&prepare);
         context.storage=storage; context.storageType=storageType;
         return Kind==RecordKind::Ao?2:0;
     } catch(const std::exception&) {
+        // A record that is rejected after its link defined a binding leaves none behind.
+        if(!defined.empty())Config::instance().discard(defined);
         recGblSetSevr(record,LINK_ALARM,INVALID_ALARM);
         std::fprintf(stderr,"snmp3: record initialization rejected: %s\n",record->name);
         return S_dev_badInpType;

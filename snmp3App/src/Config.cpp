@@ -22,6 +22,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <epicsGuard.h>
+#include <epicsString.h>
 #include <epicsThread.h>
 
 namespace snmp3 {
@@ -123,11 +124,16 @@ const std::vector<Json>& array(const Json& node, const char* key)
     if (value.kind != Json::Kind::Array) reject("array required");
     return value.array;
 }
+std::vector<uint8_t> secretFile(const std::string& path, bool community);
 std::vector<uint8_t> secret(const Json& node, const char* key, const std::string& directory, bool community)
 {
     std::string path = string(node, key);
     if (path.empty()) reject("secret path rejected");
     if (path[0] != '/') path = directory + '/' + path;
+    return secretFile(path, community);
+}
+std::vector<uint8_t> secretFile(const std::string& path, bool community)
+{
     std::string bytes = readFile(path, true);
     if (!bytes.empty() && bytes.back() == '\n') {
         bytes.pop_back();
@@ -138,10 +144,14 @@ std::vector<uint8_t> secret(const Json& node, const char* key, const std::string
         reject("secret content rejected");
     return std::vector<uint8_t>(bytes.begin(), bytes.end());
 }
+std::vector<uint8_t> engineText(std::string hex);
 std::vector<uint8_t> engine(const Json& node, const char* key)
 {
     if (!present(node, key)) return {};
-    std::string hex = string(node, key);
+    return engineText(string(node, key));
+}
+std::vector<uint8_t> engineText(std::string hex)
+{
     if (hex.compare(0, 2, "0x") == 0 || hex.compare(0, 2, "0X") == 0) hex.erase(0, 2);
     if (hex.size() % 2 || hex.size() < MinEngineBytes * 2 || hex.size() > MaxEngineBytes * 2)
         reject("engine ID length rejected");
@@ -404,7 +414,158 @@ std::shared_ptr<Configuration> candidate(const std::string& file, const std::str
         if (!result->bindings.emplace(name, std::move(binding)).second) reject("duplicate binding");
     }
     validateGroups(*result);
+    uint64_t number = 0;
+    for (auto& entry : result->bindings) entry.second.number = ++number;
     return result;
+}
+
+// Definitions by shell command. An option is one word name=value with the name of a profile field of the file.
+bool validName(const std::string& value)
+{
+    return !value.empty() && value.size() <= MaxIdBytes &&
+        std::all_of(value.begin(), value.end(), [](char c) {
+            return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                   c == '_' || c == '-' || c == '.';
+        });
+}
+unsigned numberText(const std::string& text, unsigned low, unsigned high)
+{
+    Json node; node.kind = Json::Kind::Number; node.text = text;
+    return number(node, low, high);
+}
+std::string plainText(const std::string& text)
+{
+    Json node; node.kind = Json::Kind::String; node.text = text;
+    return string(node);
+}
+const Algorithm& algorithmNamed(const std::string& name, const std::map<std::string, Algorithm>& algorithms)
+{
+    auto found = algorithms.find(name);
+    if (found == algorithms.end()) reject("native algorithm unavailable");
+    return found->second;
+}
+// Sets one value of a profile from an option. The values are checked one by one here; what a version needs as a
+// whole is checked when the sessions are completed.
+void applyOption(Profile& profile, std::set<std::string>& given, const Capabilities& capabilities,
+                 const std::string& word)
+{
+    const size_t equal = word.find('=');
+    if (equal == std::string::npos || equal == 0) reject("option must be name=value");
+    const std::string name = word.substr(0, equal), value = plainText(word.substr(equal + 1));
+    if (name == "version") {
+        if (value == "1") profile.version = Version::V1;
+        else if (value == "2c") profile.version = Version::V2c;
+        else if (value == "3") profile.version = Version::V3;
+        else reject("protocol version rejected");
+    } else if (name == "timeoutMs") profile.timeoutMs = numberText(value, 1, 60000);
+    else if (name == "retries") profile.retries = numberText(value, 0, 10);
+    else if (name == "maxVarbinds") profile.maxVarbinds = numberText(value, 1, 1024);
+    else if (name == "maxMessageSize") profile.maxMessageSize = numberText(value, 484, 65507);
+    else if (name == "checkRanges") {
+        if (value != "true" && value != "false") reject("boolean option required");
+        profile.checkRanges = value == "true";
+    } else if (name == "communityFile") profile.community = secretFile(value, true);
+    else if (name == "user") {
+        if (value.empty() || value.size() > 32) reject("USM user rejected");
+        profile.user = value;
+    } else if (name == "securityLevel") {
+        if (value == "noAuthNoPriv") profile.securityLevel = SecurityLevel::NoAuthNoPriv;
+        else if (value == "authNoPriv") profile.securityLevel = SecurityLevel::AuthNoPriv;
+        else if (value == "authPriv") profile.securityLevel = SecurityLevel::AuthPriv;
+        else reject("security level rejected");
+    } else if (name == "authAlgorithm") profile.authentication = algorithmNamed(value, capabilities.authentication);
+    else if (name == "authSecretFile") profile.authSecret = secretFile(value, false);
+    else if (name == "privAlgorithm") profile.privacy = algorithmNamed(value, capabilities.privacy);
+    else if (name == "privSecretFile") profile.privSecret = secretFile(value, false);
+    else if (name == "contextName") {
+        if (value.size() > 255) reject("context name rejected");
+        profile.contextName = value;
+    } else if (name == "securityEngineId") profile.securityEngineId = engineText(value);
+    else if (name == "contextEngineId") profile.contextEngineId = engineText(value);
+    else reject("unknown option");
+    given.insert(name);
+}
+// What a session must hold as a whole, by the rules a profile of the file follows.
+void checkSession(const Profile& profile, const std::set<std::string>& given)
+{
+    auto has = [&](const char* name) { return given.count(name) != 0; };
+    if (!has("version")) reject("session version absent");
+    if (profile.version != Version::V3) {
+        for (const char* name : {"user", "securityLevel", "authAlgorithm", "authSecretFile", "privAlgorithm",
+                                 "privSecretFile", "contextName", "securityEngineId", "contextEngineId"})
+            if (has(name)) reject("profile security fields rejected");
+        if (!has("communityFile")) reject("required field absent");
+        return;
+    }
+    if (has("communityFile")) reject("profile security fields rejected");
+    if (!has("user") || !has("securityLevel")) reject("required field absent");
+    if (profile.securityLevel != SecurityLevel::NoAuthNoPriv) {
+        if (!has("authAlgorithm") || !has("authSecretFile")) reject("required field absent");
+    } else if (has("authAlgorithm") || has("authSecretFile")) reject("unused authentication rejected");
+    if (profile.securityLevel == SecurityLevel::AuthPriv) {
+        if (!has("privAlgorithm") || !has("privSecretFile")) reject("required field absent");
+    } else if (has("privAlgorithm") || has("privSecretFile")) reject("unused privacy rejected");
+}
+// The names of the values a profile of a file holds, for a file endpoint that takes options afterwards.
+std::set<std::string> givenOf(const Profile& profile)
+{
+    std::set<std::string> given = {"version"};
+    if (profile.version != Version::V3) { given.insert("communityFile"); return given; }
+    given.insert("user"); given.insert("securityLevel");
+    if (profile.securityLevel != SecurityLevel::NoAuthNoPriv) { given.insert("authAlgorithm"); given.insert("authSecretFile"); }
+    if (profile.securityLevel == SecurityLevel::AuthPriv) { given.insert("privAlgorithm"); given.insert("privSecretFile"); }
+    if (!profile.contextName.empty()) given.insert("contextName");
+    if (!profile.securityEngineId.empty()) given.insert("securityEngineId");
+    if (!profile.contextEngineId.empty()) given.insert("contextEngineId");
+    return given;
+}
+// A numeric address alone or with a port: 192.0.2.1, 192.0.2.1:161, 2001:db8::1, [2001:db8::1]:161.
+void parseAddress(const std::string& text, Endpoint& endpoint)
+{
+    std::string host = text, port;
+    bool portGiven = false;
+    unsigned char bytes[16];
+    if (!text.empty() && text[0] == '[') {
+        const size_t close = text.find(']');
+        if (close == std::string::npos) reject("numeric device address rejected");
+        host = text.substr(1, close - 1);
+        if (close + 1 < text.size()) {
+            if (text[close + 1] != ':') reject("numeric device address rejected");
+            port = text.substr(close + 2); portGiven = true;
+        }
+    } else if (inet_pton(AF_INET6, text.c_str(), bytes) != 1) {
+        const size_t colon = text.rfind(':');
+        if (colon != std::string::npos) { host = text.substr(0, colon); port = text.substr(colon + 1); portGiven = true; }
+    }
+    char normalized[INET6_ADDRSTRLEN];
+    const int family = inet_pton(AF_INET, host.c_str(), bytes) == 1 ? AF_INET : AF_INET6;
+    if (inet_pton(family, host.c_str(), bytes) != 1 || !inet_ntop(family, bytes, normalized, sizeof(normalized)))
+        reject("numeric device address rejected");
+    endpoint.address = normalized;
+    endpoint.port = portGiven ? numberText(port, 1, 65535) : 161u;
+}
+const char* versionName(Version version)
+{ return version == Version::V1 ? "1" : version == Version::V2c ? "2c" : "3"; }
+const char* levelName(SecurityLevel level)
+{
+    return level == SecurityLevel::NoAuthNoPriv ? "noAuthNoPriv" :
+           level == SecurityLevel::AuthNoPriv ? "authNoPriv" : "authPriv";
+}
+const char* typeName(ValueType type)
+{
+    switch (type) {
+    case ValueType::Integer: return "integer";
+    case ValueType::Unsigned32: return "unsigned32";
+    case ValueType::Counter32: return "counter32";
+    case ValueType::Gauge32: return "gauge32";
+    case ValueType::TimeTicks: return "timeticks";
+    case ValueType::Counter64: return "counter64";
+    case ValueType::Octets: return "octets";
+    case ValueType::ObjectId: return "oid";
+    case ValueType::IpAddress: return "ipAddress";
+    case ValueType::OpaqueFloat: return "opaqueFloat";
+    default: return "opaqueDouble";
+    }
 }
 epicsThreadOnceId once = EPICS_THREAD_ONCE_INIT;
 Config* owner = NULL;
@@ -416,26 +577,216 @@ Config& Config::instance() { epicsThreadOnce(&once, initialize, NULL); return *o
 void Config::load(const std::string& file, const std::string& nativeProbe)
 {
     std::string worker;
-    { epicsGuard<epicsMutex> guard(mutex); if (frozen) reject("configuration frozen"); worker = workerPath; }
+    { epicsGuard<epicsMutex> guard(mutex); requireOpen(); worker = workerPath; }
     if (worker.empty()) reject("worker path required before load");
     std::string libraryPath;
     try { libraryPath = libraryPathOf(worker); } catch (const std::exception&) { reject("worker library listing failed"); }
     auto next = candidate(file, nativeProbe, environmentList(libraryPath, false));
     epicsGuard<epicsMutex> guard(mutex);
-    if (frozen) reject("configuration frozen");
+    requireOpen();
     if (workerPath != worker) reject("worker path changed during load");
     if (revision == std::numeric_limits<uint64_t>::max()) reject("configuration revision exhausted");
-    current = std::move(next);
+    if (!probePath.empty() && probePath != nativeProbe) reject("probe path changed");
+    for (const auto& entry : sessions)
+        if (next->endpoints.count(entry.first)) reject("name defined twice");
+    probePath = nativeProbe;
+    loaded = std::move(next);
+    nextNumber = loaded->bindings.size();
+    rebuild(false, nullptr);
     ++revision;
 }
+void Config::requireOpen() const
+{
+    if (frozen || bound) reject("configuration frozen");
+}
+// The capabilities the probe reports, observed once: the ones of the loaded file when there is one.
+const Capabilities& Config::probedCapabilities()
+{
+    if (loaded) return loaded->capabilities;
+    if (haveProbed) return probed;
+    if (probePath.empty()) reject("probe path required before a session");
+    if (workerPath.empty()) reject("worker path required before a session");
+    std::string libraryPath;
+    try { libraryPath = libraryPathOf(workerPath); } catch (const std::exception&) { reject("worker library listing failed"); }
+    probed = capabilities(probePath, environmentList(libraryPath, false));
+    haveProbed = true;
+    return probed;
+}
+// Builds the configuration in force from the file and the sessions. With complete set, a session that does not
+// hold what its version needs is left out and the first such reason is given.
+void Config::rebuild(bool complete, std::string* reason)
+{
+    // Without a session the configuration in force is the one of the file itself, or the one in force when
+    // there is no file either: no copy is made, so the object stays the same across a restart of the database.
+    if (sessions.empty()) {
+        if (loaded) current = loaded;
+        return;
+    }
+    auto next = loaded ? std::make_shared<Configuration>(*loaded) : std::make_shared<Configuration>();
+    if (!loaded && haveProbed) next->capabilities = probed;
+    for (const auto& entry : sessions) {
+        const Session& session = entry.second;
+        if (complete) {
+            try { checkSession(session.profile, session.given); }
+            catch (const std::exception& error) {
+                if (reason && reason->empty()) *reason = "session " + entry.first + ": " + error.what();
+                next->endpoints.erase(entry.first);
+                continue;
+            }
+        }
+        // The profile of a session lives under a name of its own beside the profiles of the file.
+        std::string name = entry.first;
+        while (loaded && loaded->profiles.count(name)) name += ".session";
+        Profile profile = session.profile; profile.id = name;
+        Endpoint endpoint = session.endpoint; endpoint.profile = name;
+        next->profiles[name] = std::move(profile);
+        next->endpoints[entry.first] = std::move(endpoint);
+    }
+    current = std::move(next);
+}
+void Config::setProbePath(const std::string& path)
+{
+    if (path.empty() || path.front() != '/' || path.size() > 4096 || path.find('\0') != std::string::npos)
+        reject("absolute probe path required");
+    epicsGuard<epicsMutex> guard(mutex);
+    if (path == probePath) return;
+    requireOpen();
+    if (!probePath.empty()) reject("probe path changed");
+    probePath = path;
+}
+void Config::session(const std::string& name, const std::string& address, const std::vector<std::string>& words)
+{
+    epicsGuard<epicsMutex> guard(mutex);
+    requireOpen();
+    if (!validName(name)) reject("configuration identifier rejected");
+    if (sessions.count(name) || current->endpoints.count(name)) reject("name defined twice");
+    Session next;
+    next.endpoint.id = name;
+    parseAddress(address, next.endpoint);
+    const Capabilities& capabilities = probedCapabilities();
+    for (const auto& word : words) applyOption(next.profile, next.given, capabilities, word);
+    if (sessions.size() >= 4096) reject("session count rejected");
+    sessions.emplace(name, std::move(next));
+    rebuild(false, nullptr);
+    if (!revision) revision = 1;
+}
+void Config::options(const std::string& pattern, const std::vector<std::string>& words)
+{
+    epicsGuard<epicsMutex> guard(mutex);
+    requireOpen();
+    const Capabilities& capabilities = probedCapabilities();
+    // The command acts on every session whose name matches: the ones a command defined and the endpoints of
+    // the file, which become sessions of their own with the values of their profile.
+    std::map<std::string, Session> changed;
+    for (const auto& entry : current->endpoints) {
+        if (!epicsStrGlobMatch(entry.first.c_str(), pattern.c_str())) continue;
+        auto found = sessions.find(entry.first);
+        Session next;
+        if (found != sessions.end()) next = found->second;
+        else {
+            next.endpoint = entry.second;
+            next.profile = current->profiles.at(entry.second.profile);
+            next.given = givenOf(next.profile);
+            next.fromFile = true;
+        }
+        for (const auto& word : words) applyOption(next.profile, next.given, capabilities, word);
+        // An endpoint of the file is complete and its bindings name it, so it must stay complete: an option
+        // that its profile cannot take fails the command and leaves the file's values.
+        if (next.fromFile) checkSession(next.profile, next.given);
+        changed.emplace(entry.first, std::move(next));
+    }
+    if (changed.empty()) reject("session absent");
+    for (auto& entry : changed) sessions[entry.first] = std::move(entry.second);
+    rebuild(false, nullptr);
+}
+void Config::finalizeLocked()
+{
+    if (bound) return;
+    std::string reason;
+    rebuild(true, &reason);
+    bound = true;
+    if (!reason.empty()) throw std::runtime_error(reason);
+}
+void Config::finalize() { epicsGuard<epicsMutex> guard(mutex); finalizeLocked(); }
 std::shared_ptr<const Binding> Config::bind(const std::string& id)
 {
     epicsGuard<epicsMutex> guard(mutex);
+    // The sessions are completed for the lookup; only a binding that is found fixes the definitions.
+    if (!bound) rebuild(true, nullptr);
     auto found = current->bindings.find(id);
     if (found == current->bindings.end()) reject("binding absent");
-    auto result = std::make_shared<const Binding>(current, found->second);
-    frozen = true;
-    return result;
+    bound = true;
+    return std::make_shared<const Binding>(current, found->second);
+}
+std::shared_ptr<const Binding> Config::define(const std::string& session, const std::string& object,
+                                              const std::string& type, Operation operation, size_t capacity,
+                                              const std::string& group, bool systemInfo)
+{
+    epicsGuard<epicsMutex> guard(mutex);
+    if (frozen) reject("configuration frozen");
+    if (!bound) rebuild(true, nullptr);
+    if (!current->endpoints.count(session)) reject("session absent");
+    BindingDefinition binding;
+    binding.endpoint = session;
+    binding.oid = oid(object);
+    binding.operation = operation;
+    binding.valueType = valueType(type);
+    const size_t maximum = binding.valueType == ValueType::Octets ? MaxConfigBytes :
+        binding.valueType == ValueType::ObjectId ? MaxOidArcs : 1;
+    binding.capacity = maximum == 1 ? 1 : capacity;
+    if (binding.capacity < 1 || binding.capacity > maximum) reject("integer option out of range");
+    if (!group.empty()) {
+        if (!validName(group)) reject("configuration identifier rejected");
+        binding.group = group;
+    }
+    binding.systemInfo = systemInfo;
+    if (systemInfo && operation != Operation::Get) reject("binding systemInfo requires get");
+    do { binding.id = "link." + std::to_string(++nextLink); } while (current->bindings.count(binding.id));
+    if (current->bindings.size() >= 4096) reject("binding count rejected");
+    binding.number = ++nextNumber;
+    const std::string name = binding.id;
+    auto placed = current->bindings.emplace(name, binding).first;
+    try { validateGroups(*current); }
+    catch (const std::exception&) { current->bindings.erase(placed); --nextNumber; throw; }
+    bound = true;
+    return std::make_shared<const Binding>(current, placed->second);
+}
+void Config::discard(const std::string& id)
+{
+    epicsGuard<epicsMutex> guard(mutex);
+    if (frozen || id.compare(0, 5, "link.") != 0) return;
+    current->bindings.erase(id);
+}
+void Config::show(const std::string& pattern, int verbosity)
+{
+    epicsGuard<epicsMutex> guard(mutex);
+    for (const auto& entry : current->endpoints) {
+        if (!epicsStrGlobMatch(entry.first.c_str(), pattern.c_str())) continue;
+        if (verbosity < 1) { std::printf("snmp3 session: name=%s\n", entry.first.c_str()); continue; }
+        const Endpoint& endpoint = entry.second;
+        const Profile& profile = current->profiles.at(endpoint.profile);
+        std::printf("snmp3 session: name=%s address=%s port=%u version=%s timeoutMs=%u retries=%u maxVarbinds=%u "
+                    "maxMessageSize=%u checkRanges=%u", entry.first.c_str(), endpoint.address.c_str(), endpoint.port,
+                    versionName(profile.version), profile.timeoutMs, profile.retries, profile.maxVarbinds,
+                    profile.maxMessageSize, profile.checkRanges ? 1u : 0u);
+        if (profile.version == Version::V3)
+            std::printf(" user=%s securityLevel=%s authAlgorithm=%s privAlgorithm=%s contextName=%s",
+                        profile.user.c_str(), levelName(profile.securityLevel),
+                        profile.authentication.name.empty() ? "none" : profile.authentication.name.c_str(),
+                        profile.privacy.name.empty() ? "none" : profile.privacy.name.c_str(),
+                        profile.contextName.empty() ? "none" : profile.contextName.c_str());
+        std::printf("\n");
+        for (const auto& item : current->bindings) {
+            const BindingDefinition& binding = item.second;
+            if (binding.endpoint != entry.first || item.first.compare(0, 5, "link.") != 0) continue;
+            std::string arcs;
+            for (const auto arc : binding.oid) arcs += (arcs.empty() ? "" : ".") + std::to_string(arc);
+            std::printf("snmp3 object: session=%s id=%s oid=%s type=%s operation=%s group=%s systemInfo=%u\n",
+                        entry.first.c_str(), item.first.c_str(), arcs.c_str(), typeName(binding.valueType),
+                        binding.operation == Operation::Get ? "get" : "set",
+                        binding.group.empty() ? "none" : binding.group.c_str(), binding.systemInfo ? 1u : 0u);
+        }
+    }
 }
 void Config::freeze() { epicsGuard<epicsMutex> guard(mutex); frozen = true; }
 void Config::setWorkerPath(const std::string& path)
@@ -444,14 +795,14 @@ void Config::setWorkerPath(const std::string& path)
         reject("absolute worker path required");
     epicsGuard<epicsMutex> guard(mutex);
     if(path==workerPath)return;
-    if(frozen)reject("worker path frozen");
+    if(frozen || bound)reject("worker path frozen");
     if(revision>0)reject("worker path fixed by a loaded configuration");
     workerPath=path;
 }
 ConfigState Config::snapshot()
 {
     epicsGuard<epicsMutex> guard(mutex);
-    return {current, revision, frozen, workerPath};
+    return {current, revision, frozen || bound, workerPath};
 }
 void Config::report()
 {

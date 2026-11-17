@@ -48,6 +48,9 @@ struct BindingDefinition {
     // A read binding of system information (firmware, name, MAC address, status): the only kind that is still
     // read and shown, with an alarm, after the unit at the address shows another engine ID.
     bool systemInfo = false;
+    // Number of the binding in the worker protocol, given when the binding is defined: the bindings of a file
+    // take 1 to N in the order of their IDs, a binding that a record defines takes the next number.
+    uint64_t number = 0;
 };
 struct Configuration {
     Capabilities capabilities;

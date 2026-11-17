@@ -185,11 +185,31 @@ RecordLink parseRecordLink(const std::string& text)
     RecordLink link;
     bool haveDefinition = false, haveBudget = false;
     std::string token;
+    const auto label = [](const std::string& value) {
+        require(!value.empty() && value.size() <= 64);
+        for (const unsigned char byte : value)
+            require((byte >= 'A' && byte <= 'Z') || (byte >= 'a' && byte <= 'z') ||
+                    (byte >= '0' && byte <= '9') || byte == '_' || byte == '-' || byte == '.');
+    };
+    bool first = true;
     while (input >> token) {
         const auto equal = token.find('=');
+        if (first && equal == std::string::npos) {
+            // The link names a session and an object: the first two words carry no '='.
+            label(token);
+            link.named = true; link.session = token;
+            require(bool(input >> link.object) && link.object.find('=') == std::string::npos && link.object.size() <= 256);
+            first = false;
+            continue;
+        }
+        first = false;
+        if (link.named && token == "systemInfo") { require(!link.systemInfo); link.systemInfo = true; continue; }
         require(equal != std::string::npos && equal + 1 < token.size());
         const auto key = token.substr(0, equal), value = token.substr(equal + 1);
-        if (key == "binding") {
+        if (link.named && key == "type") { require(link.type.empty()); label(value); link.type = value; }
+        else if (link.named && key == "group") { require(link.group.empty()); label(value); link.group = value; }
+        else if (key == "binding") {
+            require(!link.named);
             require(!haveDefinition && value.size() <= 64);
             for (const unsigned char byte : value)
                 require((byte >= 'A' && byte <= 'Z') || (byte >= 'a' && byte <= 'z') ||
@@ -209,7 +229,8 @@ RecordLink parseRecordLink(const std::string& text)
             haveBudget = true;
         } else require(false);
     }
-    require(haveDefinition && haveBudget);
+    // Without deadline_ms the budget stays zero, and the device support computes it from the session.
+    require(haveDefinition || link.named);
     return link;
 }
 }

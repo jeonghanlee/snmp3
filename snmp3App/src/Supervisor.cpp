@@ -266,11 +266,10 @@ void Supervisor::output(Address& a,uint64_t now)
                 a.status.batch=dispatch.batch; a.resultMaximum=8; a.reservations.clear(); a.members.clear(); a.batchSent=false;
                 a.reservations.reserve(dispatch.commands.size()); a.members.reserve(dispatch.commands.size());
                 for(const auto& command:dispatch.commands) {
-                    require(command.definition>=1 && command.definition<=scheduler->configuration()->bindings.size());
-                    auto definition=scheduler->configuration()->bindings.begin(); std::advance(definition,command.definition-1);
-                    require(definition!=scheduler->configuration()->bindings.end());
-                    a.reservations.push_back({command.id,&definition->second}); a.members.push_back(command.id);
-                    a.resultMaximum=ipc::add(a.resultMaximum,ipc::add(48,ipc::responseBytes(definition->second)));
+                    const auto* definition=ipc::definitionOf(*scheduler->configuration(),command.definition);
+                    require(definition!=nullptr);
+                    a.reservations.push_back({command.id,definition}); a.members.push_back(command.id);
+                    a.resultMaximum=ipc::add(a.resultMaximum,ipc::add(48,ipc::responseBytes(*definition)));
                 }
                 queue(a,ipc::Kind::Batch,dispatch.batch,ipc::encodeCommands(dispatch.commands)); event(a,now,13);
             }

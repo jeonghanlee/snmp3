@@ -4,7 +4,7 @@ The module loads complete JSON definitions before any binding or IOC initializat
 
 ## Scope
 
-This page covers the startup configuration of the module: the JSON schema, the secret files, the native capability helper, the publication and freeze conditions, and the IOC commands that load and report the configuration.
+This page covers the startup configuration of the module: the JSON schema, the secret files, the native capability helper, the publication and freeze conditions, the IOC commands that load and report the configuration, and the shell commands and record links that give the same definitions without a file.
 
 **Out of scope:** the behavior of a record request over time (see [Record request behavior](snmp-record-behavior.md)); the record types and alarms (see [Module contract and record support](snmp-rewrite-contract.md)); the queue limits and timers (see [Worker commands, limits and timers](snmp-worker-reference.md)).
 
@@ -16,7 +16,7 @@ The module implements configuration, immutable bindings, owned values, native ca
 
 Loading the configuration and initializing a device perform no request. The `iocInit` command starts the configured workers. Record and component admission send the application GET and SET requests.
 
-A record selects an existing JSON definition with `DTYP="snmp3"` and `@binding=<id> deadline_ms=<1..600000>` on INP or OUT. Both keys are mandatory and frozen at initialization.
+A record selects an existing JSON definition with `DTYP="snmp3"` and `@binding=<id> [deadline_ms=<1..600000>]` on INP or OUT. The key `binding` is mandatory and `deadline_ms` is optional (see [Module contract and record support](snmp-rewrite-contract.md) for the budget without it); both are frozen at initialization.
 
 The `deadline_ms` budget covers queueing, worker relaunch, IPC, and native service from the admission of each request. A request queued behind another keeps the deadline of its own admission. The profile fields `timeoutMs` and `retries` set the native service time of a lost response.
 
@@ -262,6 +262,52 @@ Load failure calls `iocshSetError(1)`. A startup script beginning with `on error
 break` stops at that failed command and makes the IOC exit with status 1.
 Base's default Continue policy can execute later commands and return success;
 that exit status does not make the rejected load successful.
+
+## Configuration by shell commands
+
+The definitions of a file can be given by shell commands instead, or beside a file. A unit is a session under a name; the values a profile holds in a file are options of the session; and a record names its object in its link, so no binding is written anywhere else.
+
+```text
+snmp3WorkerPath("<worker_path>")
+snmp3ProbePath("<native_probe>")
+snmp3Session PDU1 192.0.2.1 version=2c communityFile=<file>
+snmp3Session PDU2 [2001:db8::1]:1161 version=3 user=<user> securityLevel=authPriv authAlgorithm=SHA authSecretFile=<file> privAlgorithm=AES privSecretFile=<file>
+snmp3Options PDU* timeoutMs=2000 retries=1
+snmp3Show PDU* 1
+```
+
+| Command | Contract |
+| --- | --- |
+| `snmp3ProbePath(absolutePath)` | The native probe, named before the first session. A second call with another path, and a `snmp3Load` with another probe, are rejected |
+| `snmp3Session name address [options]` | Defines a session. `name` follows the rules of a definition ID. `address` is numeric, alone or with a port: `192.0.2.1`, `192.0.2.1:161`, `2001:db8::1`, `[2001:db8::1]:161`; without a port it is 161. The options are those of `snmp3Options` |
+| `snmp3Options pattern [options]` | Sets options of every session whose name matches the pattern (`*` and `?`) and exists when the command runs; a session defined later is not touched. A pattern that matches no session is rejected |
+| `snmp3Show pattern verbosity` | Prints one `snmp3 session:` line per matching session; with verbosity 1 the line holds the values of the session, and one `snmp3 object:` line follows for each object a record defined on it. No secret content is printed |
+
+An option is one word `name=value`. The names, defaults, ranges and rules are those of the profile fields above: `version`, `timeoutMs`, `retries`, `maxVarbinds`, `maxMessageSize`, `checkRanges` (`true` or `false`), `communityFile`, `user`, `securityLevel`, `authAlgorithm`, `authSecretFile`, `privAlgorithm`, `privSecretFile`, `contextName`, `securityEngineId`, `contextEngineId`. A secret file is named by its path and must meet the rules of [Secret files and permissions](#secret-files-and-permissions). Every value belongs to one session; none applies to the whole IOC.
+
+Each option is checked when its command runs: an unknown name, a value outside its range, an algorithm the probe does not report, or a secret file that is rejected fails the command. What a version needs as a whole is checked when `iocInit` begins: a session without `version`, a community session with a field of SNMPv3, or an SNMPv3 session without the fields of its security level is left out and the IOC prints `snmp3: session <name>: <reason>`. `iocInit` completes without that session and counts as a failed command: in a startup file that begins with `on error break` no later line runs and the IOC exits with status 1. A failed command prints `snmp3: <reason>`; in a startup file that begins with `on error break` no later line runs.
+
+A file and commands can be used together. `snmp3Load` gives the endpoints of the file as sessions under their `id`, so `snmp3Options` acts on them as well: an endpoint that takes an option gets a profile of its own, and another endpoint that shared its profile keeps the values of the file. An option that the profile of a file endpoint cannot take is rejected at the command and leaves the values of the file. A name is defined once: a session under the name of an endpoint of the file, or a file with an endpoint under the name of a session, is rejected with `name defined twice`. Every definition by command or file is closed when `iocInit` begins; a command after that is rejected with `configuration frozen`.
+
+A record names a session and a numeric object identifier:
+
+```text
+record(longin, "<record_name>") {
+    field(DTYP, "snmp3")
+    field(INP, "@PDU1 1.3.6.1.2.1.1.3.0 type=timeticks")
+}
+```
+
+| Word of the link | Meaning |
+| --- | --- |
+| first word | Name of a session |
+| second word | Numeric dotted object identifier |
+| `type=<type>` | Required. A value type of the table in [Binding fields and value types](#binding-fields-and-value-types) |
+| `deadline_ms=<ms>` | Optional deadline budget, 1 to 600000 ms. Without it the budget is `2 x timeoutMs x (retries + 1) + 1000` ms of the session, at most 600000 ms |
+| `group=<label>` | Optional group label of an input record; the rules of a declared group apply |
+| `systemInfo` | Optional mark of an input record as system information of the unit |
+
+An input record reads the object and an output record writes it; the size of a value comes from the record, the 40 characters of a `stringin` or `stringout`, the `SIZV` of an `lsi` or `lso`, and the `NELM` of a `waveform`. A record that is rejected at initialization, for a link the rules above do not allow, a session that does not exist, or a value type its record type cannot hold, defines no object.
 
 ## Configuration and startup examples
 

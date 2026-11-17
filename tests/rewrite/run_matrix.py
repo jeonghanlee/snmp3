@@ -204,6 +204,7 @@ def ordinary(matrix, base):
     matrix.run("set-contract", ["bash", "tests/rewrite/test_set_contract.bash", "--output", str(out / "o-set-contract")])
     matrix.run("library-names", ["bash", "tests/rewrite/test_library_names.bash", "--output", str(out / "o-library-names")])
     matrix.run("module-state", ["bash", "tests/rewrite/test_module_state.bash", "--output", str(out / "o-module-state")])
+    matrix.run("shell-config", ["bash", "tests/rewrite/test_shell_config.bash", "--output", str(out / "o-shell-config")])
 
 
 def instrumented(matrix):
@@ -278,7 +279,7 @@ def main():
     if args.list:
         print("ordinary:", ", ".join(["rec-" + c for c in RECORD_CASES]) + ", record-shutdown, record-startup, record-ca, "
               "supervisor-ioc, qualification, r5-components, spawn-descriptors, r5-operator, native-adapter, config, lifecycle, "
-              "request-sizing, recovery, set-contract, library-names, module-state")
+              "request-sizing, recovery, set-contract, library-names, module-state, shell-config")
         print("controls:", ", ".join(json.loads((HERE / "control-groups.json").read_text())))
         return 0
     if not os.environ.get("EPICS_BASE"):

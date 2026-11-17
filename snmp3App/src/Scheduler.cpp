@@ -48,8 +48,8 @@ Scheduler::Scheduler(std::shared_ptr<const Configuration> value, uint64_t rev, u
     require(unique.size()<=64);
     uint64_t id=0;
     for(const auto& k:unique) { keys[k]=++id; queues[id].key=k; }
-    id=0; for(const auto& b:config->bindings) {
-        definitions[b.first]=++id;
+    for(const auto& b:config->bindings) {
+        counted.insert(b.first);
         if(!b.second.group.empty())++declared[b.second.group];
     }
 }
@@ -64,8 +64,16 @@ uint64_t Scheduler::registerBinding(std::shared_ptr<const Binding> b,
     uint64_t address=keys.at(ipc::addressKey(b->endpoint().address)),count=0;
     for(const auto& h:handles)if(h.second.address==address)++count;
     const auto retained=ipc::add(retainedBytes,ipc::add(256,ipc::add(ipc::multiply(spec.oid.capacity(),4),ipc::add(spec.id.capacity()+1,spec.endpoint.capacity()+1))));
-    require(count<ipc::MaxCount && ipc::add(configurationBytes,ipc::add(registrationBytes,retained))<=268435456);
-    auto id=next(nextHandle); Handle h; h.binding=std::move(b); h.address=address; h.definition=definitions.at(spec.id);
+    // A binding defined after construction carries the same fixed inventory as one counted there.
+    const bool late=!counted.count(spec.id);
+    const uint64_t fixed=late?256:0;
+    require(count<ipc::MaxCount &&
+            ipc::add(ipc::add(configurationBytes,fixed),ipc::add(registrationBytes,retained))<=268435456);
+    if(late) {
+        counted.insert(spec.id); configurationBase+=fixed; configurationBytes+=fixed;
+        if(!spec.group.empty())++declared[spec.group];
+    }
+    auto id=next(nextHandle); Handle h; h.binding=std::move(b); h.address=address; h.definition=ipc::definitionNumber(*config,spec.id);
     h.generationBytes=generationBytes;
     handles.emplace(id,std::move(h)); registrationBytes+=retained; return id;
 }

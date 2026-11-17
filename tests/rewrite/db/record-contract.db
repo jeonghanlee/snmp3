@@ -7,7 +7,7 @@ record(ai, "$(P)RejectGrammar0") {
 record(ai, "$(P)RejectGrammar1") {
     field(DESC, "Rejected startup contract")
     field(DTYP, "snmp3")
-    field(INP, "@binding=IntegerRead")
+    field(INP, "@binding=IntegerRead deadline_ms=")
 }
 
 record(ai, "$(P)RejectGrammar2") {

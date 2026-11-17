@@ -5,6 +5,7 @@
 #include <deque>
 #include <map>
 #include <mutex>
+#include <set>
 #include <utility>
 
 namespace snmp3 {
@@ -114,8 +115,11 @@ private:
     const uint64_t revision, activation;
     mutable std::mutex mutex;
     std::map<uint64_t,Address> queues;
-    std::map<std::string,uint64_t> keys,definitions;
+    std::map<std::string,uint64_t> keys;
+    // Members of each group, counted once per binding: the bindings the configuration held when the scheduler
+    // was built, and each binding that a record defined later, when it is registered.
     std::map<std::string,size_t> declared;
+    std::set<std::string> counted;
     std::map<uint64_t,Handle> handles;
     uint64_t nextHandle=1;
     uint64_t configurationBase=0,configurationBytes=0,registrationBytes=0;
