@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: One unit is in progress in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. Until then the Ready rows are M7, M8 and M9; the owner chooses the next. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`), M18 (tag `0.0.6`) and G1 are complete. Commits, pushes, tags and issue actions each need their own authority.
+Next session entry point: Two units are in progress in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. M7 is In progress: D34 widened it to the whole configuration by shell command, D36 decided its open points, and its plan was accepted and its implementation authorized on 2026-11-17; part A of its Implementation Plan is done and recorded with seven differences from the accepted plan, of which the first waits for the owner's decision, and the work continues at part B (the cell `mib-names` first). The Ready rows are M8 and M9. M19, two standalone MIB tools, was added on 2026-11-17 by D35 and starts after M7. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`), M18 (tag `0.0.6`) and G1 are complete. Commits, pushes, tags and issue actions each need their own authority.
 
 ## Scope
 
@@ -32,14 +32,15 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Complete | No | G1, D16 | At `maxVarbinds=61` the records of both units fill without manual tuning; a rejection, read or unreadable, halves the batch and shows on the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
 | Recovery | M16 | Recovery when a unit returns after a power or network loss | Milestone | In progress | No | G1, D18, D22, D23, D24, D25, D31 | With the IOC left running, the records of a unit return to normal by themselves when the unit comes back with its engine ID unchanged; a changed engine ID is shown and recorded, and until the IOC is restarted no SET is sent and no value is taken except system information; tag: the next free number at its closing; [detail](#m16---recovery-when-a-unit-returns-after-a-power-or-network-loss) |
 | B | M5 | SET outcome contract | Milestone | Complete | No | M4, D26, D27 | Output records complete only on the SET result; a refused SET and a SET without a reply are alarms with a message; consecutive writes follow Base; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
-| C | M7 | Reply-driven processing and driver-owned periodic acquisition | Milestone | Not started | Yes | M4, D28 | `SCAN=I/O Intr` records process on reply arrival at the configured period; tag: the next free number at its closing; [detail](#m7---reply-driven-processing-and-driver-owned-periodic-acquisition) |
+| C | M7 | Shell-command configuration, MIB names and reply-driven processing | Milestone | In progress | No | M4, D28, D30, D32, D34, D36 | An IOC is configured by shell commands and record links without a file, objects are given by MIB name, and `SCAN=I/O Intr` records process on the reply of a subscription; tag: the next free number at its closing; [detail](#m7---shell-command-configuration-mib-names-and-reply-driven-processing) |
 | Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4 | A table read uses one GETBULK request where the profile allows it; tag: the next free number at its closing; [detail](#m8---getbulk-table-reads) |
 | D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag: the next free number at its closing; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Complete | No | D3, D29, D31 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.5`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Records | M18 | Module state as records | Milestone | Complete | No | D30, D32, D33 | The runtime state and, per endpoint, the engine ID state and the request size are readable as records of databases the module installs, and the runtime report names each endpoint; [detail](#m18---module-state-as-records) |
+| Tools | M19 | MIB tools: database check and database draft | Milestone | Not started | No | M7, D35 | A standalone program checks a database against MIB files for names, types and access before an IOC starts, and one writes a draft of records from MIB files for the author to finish; [detail](#m19---mib-tools-database-check-and-database-draft) |
 | Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M18 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 7 Complete, 1 In progress, 4 Not started, 0 Blocked; G1 Complete. Ready rows: M7, M8, M9. Backlog contains 1 Open and 4 Deferred rows and is excluded from this tally.
+Current work tally: 7 Complete, 2 In progress, 4 Not started, 0 Blocked; G1 Complete. Ready rows: M8, M9. Backlog contains 1 Open and 4 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -78,6 +79,9 @@ Current work tally: 7 Complete, 1 In progress, 4 Not started, 0 Blocked; G1 Comp
 | D31 | Tags follow the order of closing (D27, D28): M10 closes before M16 and takes `0.0.5`. Only the next number is fixed: every other open unit, M16, M7, M8, M9 and M18, takes the next free number when it closes, and the numbers that D22 and D28 planned for them no longer hold. | 2026-11-16 |
 | D32 | M18: the module offers four values as records, the runtime state, and per endpoint the state after a change of engine ID and the two values of the request size of its address. A record names an endpoint by its `id` in the configuration. The records are scanned periodically with `PINI=YES` and read the state the IOC process holds; `SCAN=I/O Intr` comes with M7. The states are `mbbi` records whose severities the database sets, the numbers are `longin` records, and the databases are installed into `db/` and loaded with `dbLoadRecords`. Records for the worker, an archive tag and a PVA group are left to the application. `snmp3RuntimeReport` gains one line per endpoint with its `id`, its address number, its state and the time of a change, chosen by the implementer on the owner's word; the lines that exist keep their text. | 2026-11-16 |
 | D33 | M18: differences 1 to 5 between its accepted plan and the work as run are accepted as listed in its detail. | 2026-11-16 |
+| D34 | M7 is widened to the whole configuration of the module by shell command and is finished as one unit: sessions, options and subscriptions by command in the form of the `opcua` module of the site distribution (not of the earlier `snmp` module), the object in the record link, object names resolved through MIB files by a function of the module, and processing on the arrival of a reply. The JSON file stays as the form that gives the same definitions at once. A MIB is looked for in the place of the IOC, then of the module, then of the system, and the report names where each came from. The period of acquisition belongs to a subscription, not to a binding of the file and not to the record link. | 2026-11-17 |
+| D35 | A unit of its own, M19, makes two standalone programs out of the owner's experience with SNMP IOC databases, where the type, the access and the name of every object were copied from the MIB by hand: one checks a database against MIB files for names, types and read or write access, before an IOC is started, and one writes a draft of database records from MIB files. The draft is a starting text that the author of the database finishes, not a finished database; the check is the main program of the two. It is independent of M7 in purpose and uses the link form and the MIB resolution that M7 makes. Inside the IOC the type of an object given by name comes from the MIB with no entry by hand, and the record is checked against the MIB at initialization (M7). | 2026-11-17 |
+| D36 | M7, six points of its plan: (1) the repository of the module carries no standard MIB file at first; its `mibs` directory is installed empty with a note, and a MIB the IOC and the module do not hold is looked for in the system; files can be added by a later decision. (2) The period of a subscription is 100 to 3600000 ms; the lower end is the fastest periodic scan of Base. (3) The first request of a subscription leaves at once when its first record joins the `I/O Intr` list. (4) An object given by number is shown with its number and the type of its link, with no MIB name, so that an IOC that uses numbers reads no MIB. (5) An IOC without a file names the probe with the command `snmp3ProbePath`, in the form of `snmp3WorkerPath`. (6) A name may carry `type=`, which then decides the type in place of the MIB, for a unit that does not follow its MIB; `snmp3Show` marks the object as overridden. | 2026-11-17 |
 
 ### ID Migration
 
@@ -801,65 +805,181 @@ Observed Labels: enhancement
 Observed Milestone: 1.0.0
 Last Compared: 2026-11-16T08:38Z; issue updatedAt 2026-11-16T08:37:54Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the final behavior, the checked acceptance criteria and the known limits.
 
-#### M7 - Reply-driven processing and driver-owned periodic acquisition
+#### M7 - Shell-command configuration, MIB names and reply-driven processing
 
 Origin: 1.0.0 / M6
-Identity History: M6 -> M7 (baseline row inserted before it, 2026-11-10)
+Identity History: M6 -> M7 (baseline row inserted before it, 2026-11-10); title changed from "Reply-driven processing and driver-owned periodic acquisition" when D34 widened the scope (2026-11-17)
 GitHub Issue: #7 - https://github.com/jeonghanlee/snmp3/issues/7
-Status: Not started
+Status: In progress
 
 ##### Summary
 
-Problems 4 and 5, cause C. In `0.0.1` a record acquires only when it processes, so SCAN sets the acquisition period and processing precedes the value. Base 7.0.10 offers `SCAN=I/O Intr` with `scanIoRequest` and `scanIoSetComplete`. This unit lets a binding declare a period; the module issues the periodic request itself and processes the record when the reply arrives, so the record carries the reply value and time (M6) and SCAN no longer drives acquisition for those records.
+An IOC application uses a support module through its database definition file, its library, its shell commands and its records (D30). snmp3 takes its whole configuration from one JSON file that `snmp3Load` reads: profiles, endpoints and, for every value, a binding with its numeric object identifier and type. A record names a binding of that file and nothing else, so one more value means an edit of the file and of the database, a period of acquisition cannot be set at all, and an object is written as a number. The `opcua` module of the site distribution (0.11.2) shows the form this unit follows: `opcuaSession name URL [options]`, `opcuaSubscription name session interval [options]`, `opcuaOptions pattern [options]`, `opcuaShow pattern verbosity`, and a record link `@<subscription or session> <object> [options]` with `SCAN=I/O Intr`. D34 puts the whole of that into this unit: sessions, options and subscriptions by shell command, the object in the record link, object names resolved through MIB files, and processing on the arrival of a reply. The JSON file stays as the form that gives the same definitions at once.
+
+Observed on 2026-11-17 with the product of commit `e65b032`:
+
+Acquisition, production `snmp3Ioc` and worker with the fixture agent, 20 samples at 1 s each (`work/m7-evidence/observe/`, runs `run-2` and `run-4`; `RUNS.txt` names the two discarded runs and why):
+
+| Record | Reply | Processed in about 22 s | Requests at the agent | Largest LCNT | Alarm |
+| --- | --- | --- | --- | --- | --- |
+| `SCAN=1 second` | prompt | 22 | 22 | not read | none |
+| `SCAN=.5 second` | delayed 750 ms | 21 | 22 | 1 | none |
+| `SCAN=.1 second` | delayed 1000 ms | 19 | 20 | 9 | none |
+| `SCAN=I/O Intr` | - | 0 | 0 | - | rejected at initialization (`snmp3: record initialization rejected:`), SCAN falls to `Passive`, the record stays UDF |
+
+- A reply that takes longer than the scan period lowers the rate to the next multiple of the scan period, with no sign on the record. Base raises SCAN/INVALID (`Async in progress`) once a record was scanned more than 10 times while active (`MAX_LOCK` in `dbAccess.c` of Base 7.0.10); the fixture proxy delays at most 1000 ms, which reached 9, so that alarm is read from the source and was not seen.
+- On the laboratory units (M4, T3) a record of the NMC2 unit took a new value every 5.8 s at the median while the NMC3 unit gave one every 2.0 s.
+
+Configuration, read from the source:
+
+- `snmp3Load` builds one configuration from the file, and the first record that takes a binding fixes it (`Config::bind` sets `frozen`); the runtime and the workers start at the hook `AfterFinishDevSup`, after every record was initialized. A value defined by a record can therefore reach the worker, once the configuration stays open until that hook.
+- The module has one command of the form this unit adds, `snmp3QueueLimit(address, count, bytes)`. A command that fails calls `iocshSetError`, so a startup script with `on error break` stops.
+- The object identifier parser takes digits and dots only (`Config.cpp`); the module reads no MIB file. The IOC process links no Net-SNMP; the worker and the probe do.
+
+MIB names, a scratch program on the Net-SNMP library with the PowerNet MIB of the application (`work/m7-evidence/mib/`):
+
+- With the standard MIB files of the host in reach, `PowerNet-MIB::rPDULoadStatusLoad.1` resolves to `.1.3.6.1.4.1.318.1.1.12.2.3.1.1.2.1` with the declared type Gauge and read-only access, a serial number object to an octet string, an outlet command object to an integer with read-write access; a name the MIB does not hold, and a name without its module, do not resolve. Six names take 0.02 s.
+- Without the standard MIB files no name of the PowerNet MIB resolves: it imports `RFC1155-SMI`, `RFC1213-MIB` and `SNMP-FRAMEWORK-MIB`. On this Debian 13 host those files come from `snmp-mibs-downloader`, not from the base package, which holds 13 MIB files of Net-SNMP itself.
+- In the probe of a scratch copy of the tree, run with the environment the module gives the probe (`PATH`, `LANG`, `LC_ALL`, `LD_LIBRARY_PATH` and nothing else), the same names resolve and the file each MIB was read from is known (`work/m7-evidence/verify/`). A MIB without imports parses. When several directories hold one module, the library takes the file of the directory listed last: listed as IOC, module, system it took the system's, listed in reverse it took the IOC's. Its read call returns the same for a module that no directory holds; `which_module` returns -1 for it.
+- The license text of that package says that an RFC published before 2008-11-10 may be copied with its notice and its MIB extracted as it is for separate use, and may not be modified; MIB modules of later RFCs are under a BSD license (`debian-snmp-mibs-downloader-copyright.txt`).
+
+Order of processing, a scratch IOC with five records on one `I/O Intr` list, three runs of three passes each (`work/m7-evidence/verify/order/`): the records of one PRIO process in the order of PHAS, and two of equal PHAS in the order they were loaded, in every pass; a record of another PRIO processes before, between or after them. `dbScan.c` of Base 7.0.10 keeps one list per priority and inserts by PHAS.
+
+Record link, Base 7.0.10: the string after `@` is stored at its full length (`dbStaticLib.c`, `malloc(len + 1)`); a database file line of 3000 characters loads and one of 20000 ends the IOC with `scanner input buffer overflow`; `dbgf` and `dbDumpRecord` show at most 275 characters of it. A link stays well below 275 characters when the values that can be long sit in the options of a command.
+
+The review of the earlier module (`docs/legacy-review.md`) names three faults that this unit must not bring back: a value kept by the module and read at any age, with a record processed twice for one reply; a value that depends on MIB files being present, because it was kept as text; and a timeout and a retry count shared by the whole IOC.
 
 ##### Scope
 
-- Binding field `period_ms` for input bindings used by `SCAN=I/O Intr` records; `get_ioint_info` in the input DSETs.
-- A per-address periodic requester in the scheduler honoring the existing deadline, queue and batch rules (M4).
-- `scanIoRequest` on completion and `scanIoSetComplete` to learn when processing finished before the next request.
-- Documentation in `snmp-record-behavior.md` and `snmp-rewrite-config.md`.
+- Shell commands in the form of the `opcua` module, each with a usage text for `help`:
+  - `snmp3ProbePath path`: the probe executable, as `snmp3WorkerPath` names the worker. Today the probe path is the second argument of `snmp3Load` and nothing else gives it, so an IOC without a file could not run the probe; `snmp3Load` keeps its argument. A probe path given a second time with another value, by either command, is rejected, as a changed worker path is today.
+  - `snmp3Session name address [options]`: a unit under a name. `address` is a numeric address, alone or with a port: `192.0.2.1`, `192.0.2.1:161`, `2001:db8::1`, `[2001:db8::1]:161`; without a port it is 161. The options are those of `snmp3Options`, given at once.
+  - `snmp3Options pattern [options]`: values of the sessions whose names match, as `name=value`: the sixteen fields a profile has in the file beside its `id` (`version`, `timeoutMs`, `retries`, `maxVarbinds`, `maxMessageSize`, `checkRanges`, `communityFile`, `user`, `securityLevel`, `authAlgorithm`, `authSecretFile`, `privAlgorithm`, `privSecretFile`, `contextName`, `securityEngineId`, `contextEngineId`) with the same names, defaults, ranges and rules. The command acts on the sessions that exist when it runs; a session defined later is not touched by it. A value is per session; none is IOC-wide.
+  - `snmp3Subscription name session period`: a set of read objects of one session that the module reads by itself every `period` milliseconds, 100 to 3600000; it has no option; the first request leaves at once when the first record of the subscription joins the `I/O Intr` list.
+  - `snmp3Mib path [system]`: a MIB file or directory of the IOC; with the word `system` as second argument, the path replaces the directories of the system for this IOC. Without such a line the directories of the system are the ones the Net-SNMP library has built in; its list begins with a directory under the home of the user, which the probe does not see because its environment holds no `HOME`. No environment variable is read.
+  - `snmp3Show pattern verbosity`: for the sessions and subscriptions whose names match, at verbosity 0 one line per name, and at verbosity 1 also the values of each session, without the content of a secret file, the objects of the records with their links, the MIB places in their order and the path of the `mibs` directory of the module. At verbosity 1 it shows what was defined and, per object given by name, the numeric identifier, the type and the file its MIB came from; an object given by number is shown with its number and the type of its link, and no MIB is read for it. It also shows how many times the probe was started for names since the IOC started.
+  - The commands that exist (`snmp3WorkerPath`, `snmp3Load`, `snmp3QueueLimit`, `snmp3Stop`, `snmp3Report`, `snmp3ConfigReport`, `snmp3RuntimeReport`) stay as they are.
+- A record link that names its object: `@<session or subscription> <object> [options]`, where the object is a numeric identifier or `MODULE::name.index`, for input and output records. With a name, the type comes from the MIB, and an output record on a read-only object is rejected; with a number, the option `type=` gives it. A name may carry `type=` as well, for a unit that answers with another type than its MIB declares: the option then decides, and `snmp3Show` marks the object as overridden. Further options: `deadline_ms`, `group`, `systemInfo`. The size of a value is not an option: it comes from the record, the length of a text record and the number of elements of a waveform, as the device support takes it today. The link `@binding=<id> ...` of a binding of the file keeps working.
+- MIB loading as a function of the module, run by the probe so that the IOC process reads no MIB: a module name is looked for in the places the IOC named with `snmp3Mib`, then in the `mibs` directory the module installs, which is empty at first and holds a note, then in the directories of the system. The path of that directory is fixed when the module is built, from its install location, and `snmp3Show` prints it. The first place that holds it is used, and the report names the place and the file; the library takes the directory listed last, so the function gives it the places in reverse, and it tells a missing module by `which_module`, not by the result of the read call. A MIB is used only to turn a name into an identifier, a type and an access at initialization; a value is never kept or read as text. The probe runs for names once for an IOC start, not once per record.
+- Reply-driven processing: a record with `SCAN=I/O Intr` whose link names a subscription processes when the result of a request of that subscription has arrived, once per result and with the value, alarm and message a record-driven request gives. The module sends the next request of a subscription when the period has passed and the earlier request has ended and its records have been given to processing (`scanIoSetComplete`); it keeps no value of its own. The objects of a subscription leave in as few requests as the request size rules allow (M4), and the rules of M16 hold for them: the restart after requests without a reply, and no request to an endpoint whose unit shows another engine ID except system information in the state `changed`.
+- The rules that keep the two ways apart: a record with `SCAN=I/O Intr` whose link names a session, and a record with another SCAN whose link names a subscription, are rejected at initialization. A subscription holds read objects only: the link of an output record names a session, and an output record whose link names a subscription is rejected.
+- The order in which the records of one reply process, stated so that an application can put a group trigger on the last one: by PHAS, then by the order of loading, among records of one PRIO. Records of one reply with different PRIO have no order between them, and the documentation says so.
+- `SCAN=I/O Intr` for the state records of M18: they process when the state they read has changed.
+- Names: sessions and subscriptions share one set of names, so that the first word of a link means one thing; a command that defines a name that exists, of either kind and from a command or from the file, is rejected.
+- The file and the commands together: `snmp3Load` gives the definitions of the file as the commands would, an endpoint of the file being a session under its `id`.
+- Documentation: the commands, the link, the MIB search and its report, the table of who schedules a record processing, a request, a value and the completion of a SET, the scope of every setting, and the rule that one processing of an `I/O Intr` record is one result.
 
-Out of scope: output records, event-driven SNMP traps, and changing the behavior of `SCAN` periodic records.
+Out of scope: SNMP traps; GETBULK (M8); localized keys (M9); a PVA group made by the module; any change to a record with a periodic or passive SCAN on a binding of the file; the application repository.
 
 ##### Completion Criteria
 
-- An `I/O Intr` record processes once per reply at the configured period within one deadline of jitter on the fixture agent, with TIME equal to the receive time.
-- A disconnected address stops processing its `I/O Intr` records and the records show the alarm; reconnection resumes without restart.
-- `SCAN` periodic records behave as in `0.0.1`.
+- An IOC whose startup script holds only shell commands and whose records name their objects, with no JSON file, reads and writes the fixture agent: the twelve checks of T1, taken from the rules of the cells `set-contract`, `request-sizing` and `recovery`, hold as they do for bindings of the file.
+- A session takes its values from `snmp3Options`: two sessions with different `timeoutMs` keep their own, and a pattern sets several sessions at once. A wrong command (an unknown option, a value outside its range, a name defined twice, an unknown session) fails, and a startup script with `on error break` ends there with the message of a failed startup: neither a line after it nor `iocInit` runs, whether the wrong line is the first definition or follows a valid one, and no secret reaches the output.
+- A record whose link gives a name through a MIB reads the same value as one whose link gives the number, takes its type from the MIB, and is rejected at initialization with its name when the name does not resolve, when its record type cannot hold the declared type, or when it is an output record on a read-only object.
+- A MIB is found in the three places in their order, the nearer place wins when two hold the same module, and `snmp3Show` names the place and file of each; with a MIB missing in all three, the records that need it are rejected and the IOC says which module is missing.
+- The start of an IOC with 500 objects by name is measured beside the same IOC with objects by number, and the probe runs once for the names.
+- With a prompt agent a record with `SCAN=I/O Intr` on a subscription of 500 ms processes once per reply, and the agent receives one request per period: 40 in 20 s, give or take 1. With a reply delayed 750 ms the next request leaves when the reply has been processed: about 26 in 20 s, where the same record with `SCAN=.5 second` gives about 20; the record never shows SCAN/INVALID.
+- When the agent stops, the record carries COMM/INVALID with `no reply` at each attempt; when it returns with the same value, the record is without alarm within 30 s, with no restart of the IOC. While one agent is away, a subscription of another address keeps its period. When it returns with another engine ID, the record carries COMM/INVALID with the message of the state and takes no value, no further request for it reaches the responder, and a system information record of the subscription is still read in the state `changed`.
+- The objects of one subscription leave as one request while the request size rules allow, and their records, given one PRIO, process in the order of PHAS.
+- The three record cases the rules reject are rejected, and so is a period outside its range.
+- A state record with `SCAN=I/O Intr` shows a change of the endpoint state and of the runtime state without a periodic scan.
+- A configuration from a file behaves as before: the cells of the ordinary matrix stage keep their name and status. A file and commands in one startup script give one configuration.
+- On the two laboratory units, read only, an IOC configured by commands, with objects given by name through the PowerNet MIB, reads the values that the IOC configured by the file reads, and one record per unit with `SCAN=I/O Intr` processes once per reply for 300 s without alarm.
+- The documentation states what the Scope lists.
 
 ##### Dependencies And Decisions
 
-- M4 (batch rules) must be Complete, and is. D28 removes the dependency on M6 (receive time): a record that processes on the arrival of a reply takes its TIME there, which was measured to lie within 1 ms of the arrival.
+- M4 (request size rules) is Complete. D28 removes the dependency on M6.
+- The code of M16 is on `origin/master`; this unit keeps its rules for a request the module sends by itself and does not wait for its runs on the units.
+- D30 sets the rule this unit serves, and D32 leaves `SCAN=I/O Intr` of the state records to it.
+- D34 widens the scope to the whole configuration by shell command, with the `opcua` module as the model, the JSON file kept, MIB loading inside the module and the search order IOC, module, system.
+- The tag of this unit is the next free number at its closing (D31).
+- New tests are written in bash and Perl as matrix cells (D19), and are limited to what the purpose needs.
+- D36 decides the six points that were open: no standard MIB file in the repository at first, a period of 100 to 3600000 ms, the first request at once, no MIB name for an object given by number, the command `snmp3ProbePath`, and `type=` beside a name as an override.
+- Part A is done (2026-11-17): the cell `shell-config` with 23 checks (T1, the lines of T2 that need no subscription, and the IOC of T9 with both forms), seen failing on the unchanged tree and passing on the changed one, and the ordinary matrix with 46 PASS and `tsan` NOT APPLICABLE, the 46 cells of the M18 run unchanged and `shell-config` added (`work/matrix-m7-a5/cells.tsv`). The pages `docs/snmp-rewrite-config.md`, `docs/snmp-rewrite-contract.md` and `docs/snmp-worker-reference.md` describe the four commands and the second link form. T2 and T9 are recorded when their other parts have run.
+- Differences between the accepted plan and the work as run. Item 1 waits for the owner's decision, item 2 is decided, and items 3 to 7 report what was done:
+  1. T2 asked that no output of a wrong IOC holds the address of a session. The IOC shell prints every line of the startup script, so the address is in the standard output by the script itself. The cell checks that no line of the module (`snmp3...` on the standard error) holds the address and that no output holds the content of a secret file.
+  2. Decided by the owner on 2026-11-17: `deadline_ms` is optional on both link forms. Without it the budget is `2 x timeoutMs x (retries + 1) + 1000` ms, at most 600000, with the values of the session, or of the profile of the endpoint for a binding of the file. A link `@binding=<id>` without `deadline_ms` was rejected before and is accepted now, so `ConversionTest` and the reject cases of `tests/rewrite/db/record-contract.db` and `record-edges.db` changed: the two database cases now carry `deadline_ms=` without a value, which is still rejected.
+  3. A binding now carries its own number of the worker protocol. The scheduler and the worker list each numbered the bindings by the order of their IDs, which holds only while the set of bindings does not grow; a binding that a record defines takes the next number, and the bindings of a file keep the numbers they had (`Binding.h`, `Scheduler.cpp`, `Ipc.cpp`, `Supervisor.cpp`).
+  4. The ordinary matrix was run twice during part A, beyond the one run at the end that the size names. The first run found four existing cells failing (`config`, `lifecycle`, `qualification`, `supervisor-ioc`) on two faults of the change: the configuration object was copied at `iocInit` although no session existed, and a binding that was not found fixed the definitions. Both were corrected and the second run passed (`work/matrix-m7-a1/`, `work/matrix-m7-a2/`); item 7 names the run that is recorded.
+  5. The first run of the cell on the changed code found a fault of the change: the IOC took a binding by its place, not by its number, where it reserves the size of a result, and the worker was contained on the writes of `int64out` and `lso` (`changed-1.log`).
+  6. A third-person review of part A found two faults of the change, each with a check added to the cell that failed before the correction (`before-review-fix-1.log`) and passes after it: `snmp3Options` on an endpoint of the file that left it incomplete ended the IOC with a segmentation fault at `iocInit`, and is now rejected at the command (`wrong-file-option`); a record that was rejected after its link defined a binding left that binding behind, and the binding is now removed (`orphan-object`). The third added check is `default-deadline`. The review also noted that the scheduler did not count the 256 bytes of fixed storage for a binding defined after its construction; `Scheduler::registerBinding` now adds them, and no check observes that sum.
+  7. Three more matrix runs followed the review: `work/matrix-m7-a3/` (44 PASS, `rec-contract` and `rec-edges` FAIL on the reject cases of item 2), `work/matrix-m7-a4/` (45 PASS, `rec-edges` FAIL on the second of them) and `work/matrix-m7-a5/`, the one recorded.
+- Issue #7 still carries the title and body of the scope before D34 (see GitHub Projection). Its body is rewritten after the acceptance of this plan, under Issue authority.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
-Superseded Plan Artifacts: none
+Plan Status: accepted
+Plan Acceptance: 2026-11-17, accepted by the owner after five third-person and three second-person passes of this detail
+Implementation Authorization: 2026-11-17, by the owner: parts A to E of the accepted plan, that is edits and test runs in this repository and the read-only runs on the units; every commit, push, tag and issue action needs its own authority
+Superseded Plan Artifacts: the draft of 2026-11-10, written before M4, M16 and M18; the draft of 2026-11-17 that put a field `periodMs` on a binding of the file, before D34
 
-1. Add `period_ms` to the binding schema and `get_ioint_info` to the input DSETs.
-2. Add the periodic requester and its completion-gated re-request in the scheduler.
-3. Add `RecordTest` and `SchedulerTest` cases, including disconnection and reconnection on the fixture agent.
-4. Run the laboratory IOC with one `I/O Intr` record per unit.
+The work is done in five parts, each closed by its cell before the next begins, so that a fault is found in the part that made it. Every new cell has a check design table in the header of its Perl file, written before its code. A case that changes the state of an IOC or of an agent has its own IOC and its own agents and sets its own first state, and a cell runs one case alone on request, so that no case leans on what an earlier one left.
+
+1. Part A, definitions by command and by record. Check first: a matrix cell `shell-config` in bash and Perl that starts an IOC from commands only and holds the twelve checks of T1, the checks of T2 that need no subscription and the IOC of T9 with both forms, no more; run on the unchanged code and the failing output recorded. Then: the configuration stays open until `AfterFinishDevSup` and takes sessions, options and record-defined objects (`snmp3App/src/Binding.h`, `Config.h`, `Config.cpp`); the commands `snmp3ProbePath`, `snmp3Session`, `snmp3Options`, `snmp3Show` with usage texts (`Register.cpp`); the link grammar and the definition of an object at record initialization (`Request.h`, `DeviceSupport.cpp`); `snmp3Load` through the same path.
+2. Part B, MIB names. Check first: a cell `mib-names` with the checks of T3 and T11: a small MIB of the fixture objects written without imports, which the observation showed to parse, the three places, a missing module, the three rejections and the two start times. Then: the resolution in the probe (`snmp3App/native/NativeProbe.cpp`, `Capabilities.cpp` or a new source), the command `snmp3Mib`, the search order and its report, the `mibs` directory of the module (`snmp3App/Makefile`, a new directory), the type and access checks at record initialization.
+3. Part C, subscriptions and processing on a reply. Check first: a cell `reply-driven` with the checks of T4, T5, T6 and T7 and the four lines of T2 that name a subscription. Then: `snmp3Subscription`; the periodic requester through the admission path a record uses, with the rules of M4 and M16 (`Request.cpp`, `Scheduler.cpp`, the servicing loop in `Runtime.cpp`); `get_ioint_info`, `scanIoRequest` and `scanIoSetComplete` in the input device supports, the three rejected record cases, and the order of processing of one reply (`DeviceSupport.cpp`).
+4. Part D, `SCAN=I/O Intr` of the state records (`StateSupport.cpp`, `Peer.cpp`, `Runtime.cpp`, `Scheduler.cpp`), checked in the cell `module-state`.
+5. Part E, documentation (`docs/snmp-rewrite-config.md`, `docs/snmp-record-behavior.md`, `docs/snmp-worker-reference.md`, `docs/configure-procedure.md`), the mutations of every part, the ordinary matrix, and the run on the two units, GET only, with the addresses, names and secrets kept in a private directory under `work/` and out of every recorded text.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Record | `RecordTest` `I/O Intr` cases with the fixture agent, including stop and resume of the agent | Linux host, ordinary product | Processing per reply; alarm on loss; resume |
-| T2 | Scheduler | `SchedulerTest` for the periodic requester under the deadline, queue and batch rules | Linux host | Rules preserved |
-| T3 | Device | One `I/O Intr` record per unit on the laboratory IOC for 300 s | Laboratory IOC, both units | Period held within one deadline |
-| T4 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` | Linux host | All cells PASS |
+| T1 | Fixture, commands and record links | Cell `shell-config`: an IOC started from `snmp3ProbePath`, `snmp3Session`, `snmp3Options` and records that name their objects by number, with no file, against the fixture agent; twelve checks taken from the rules of three cells | Linux host, ordinary product | From `set-contract`: for `ao`, `longout`, `int64out`, `stringout` and `lso` the written value reaches the agent and the next GET returns it (5); a record behind a reply delayed 750 ms is active right after the put and without alarm after the reply (1); a refused SET is WRITE/INVALID with `wrongType index 1` (1); a SET after the agent stopped is COMM/INVALID with `no reply` (1). From `request-sizing`, under SNMPv2c and under SNMPv3: a group of eight whose eighth object answers tooBig ends at the limit 1 with 3 reductions, the eighth record with `tooBig` (2). From `recovery`, under SNMPv3: the input records carry COMM/INVALID with `no reply` while the agent is stopped, and are without alarm within 30 s of its return with the same engine ID (2) |
+| T2 | Fixture, wrong commands | Separate IOCs, each with one wrong line under `on error break`, followed by a line that writes a marker file and by `iocInit`: an unknown option, `timeoutMs` 0, a session defined twice, a subscription under the name of a session, options for an unknown session, a subscription on an unknown session, a period of 99 and one of 3600001; the unknown option once as the first definition of the script and once after a valid session with its options; one wrong IOC names a secret file whose content is a known random text. And one IOC with two sessions whose `timeoutMs` differ, one of them set through a pattern | Linux host, ordinary product | Each wrong IOC ends with `snmp3Ioc: startup script failed` and exit status 1; the marker file is absent and the line of complete initialization is absent, in the first position and after a valid session alike; the output names the fault of the line, and neither the standard output nor the standard error holds the random text of the secret file or the address of a session; in the last IOC `snmp3Show` prints the two values |
+| T3 | Fixture, MIB names | Cell `mib-names`: a fixture MIB placed in turn in the place of the IOC, of the module and of a stand-in for the system (a directory given with `snmp3Mib path system`), then in two places with different content, then in none; records by name beside records by number; an input record whose type cannot hold the declared type; an output record on a read-only object; a name the MIB does not hold | Linux host, ordinary product | By name and by number read the same value; `snmp3Show` names the place and file, the nearer place when two hold the module; the three wrong records and, with no MIB, every record by name are rejected at initialization and named, and the missing module is named |
+| T4 | Fixture, period | Cell `reply-driven`: a record with `SCAN=I/O Intr` on a subscription of 500 ms with a prompt agent, and one on a second address behind the proxy that delays each reply 750 ms; a counter record on the forward link of each; 20 s between two readings | Linux host, ordinary product | Prompt: the agent logs 40 requests, give or take 1, and the counter rises by the same number. Delayed: both numbers lie between 24 and 28 and equal each other give or take 1; SEVR is NO_ALARM in every reading and LCNT is 0. The configured period, timeout and retry count with their scope, and the agent's log of every request, are kept as evidence beside the counts |
+| T5 | Fixture, loss and return on a subscription | The same cell: the prompt agent is stopped and started again with its engine ID and the same value, while a subscription of 500 ms on a second address keeps running against its own agent; an agent under SNMPv3 returns with another engine ID, with one value record and one system information record of a subscription on it | Linux host, ordinary product | While away: COMM/INVALID with `no reply`, with the value, PACT, UDF, STAT and SEVR of the record kept in each reading. After the return with the same engine and the same value: NO_ALARM within 30 s, although the value did not change. During the 20 s in which the first agent is away, the agent of the second address logs 40 requests, give or take 1, and its record's counter rises by the same number. After the return with another engine: the value record is COMM/INVALID with `engine ID changed: restart IOC` and keeps its value, the system information record carries the responder's value with that alarm, and the agent logs no request for the value object after the state was settled |
+| T6 | Fixture, one request and the order | The same cell: three objects of one subscription through the proxy in mode `pass`, which logs every datagram; their records have one PRIO and PHAS 2, 0 and 1, and a record on the forward link of each takes the next number of a shared counter | Linux host, ordinary product | The number of request datagrams equals the number of processing passes of one record; in every pass the numbers rise in the order PHAS 0, 1, 2 |
+| T7 | Initialization | A record with `SCAN=I/O Intr` whose link names a session, a record with `SCAN=1 second` whose link names a subscription, and an output record whose link names a subscription | Linux host, ordinary product | The three are rejected at initialization and named |
+| T8 | Fixture, state records | The cell `module-state` with the state databases loaded with `SCAN=I/O Intr`: the endpoint that returns with another engine ID, then `snmp3Stop` | Linux host, ordinary product | `$(P)PeerState` reads `changed` and `$(P)RuntimeState` reads `Stopped` when read at once after the log line and after the command, with no periodic scan on the records |
+| T9 | Regression and both forms | `tests/rewrite/run_matrix.py --stages environment,ordinary` on the unchanged and the changed tree; in `shell-config` one IOC with a file and commands in one script | Linux host | The cells of the unchanged tree keep their name and status, and the added cells are PASS; the IOC with both forms reads the objects of both |
+| T10 | Units, read only | Two IOCs on the two laboratory units, GET only: one configured by the private file `work/ioc-new/private/config.json` with the records of `work/ioc-new/apcpdu_snmp3/apcpduApp/Db/ap8932_min.template`, one by commands with the same objects given by name through the PowerNet MIB of the application repository (`mibs/PowerNet-MIB` there, read and not changed), the secrets given as the same private files; then, by commands, one record per unit with `SCAN=I/O Intr` on a subscription of 2000 ms with a counter on its forward link, 300 s | Both laboratory units | The two IOCs read the same values for the identity objects and values without alarm for the others; `snmp3Show` names the place and file of the PowerNet MIB and of each MIB it imports; each `I/O Intr` record is NO_ALARM in every reading and its counter rises by the number of replies, recorded with the interval between values beside the 2.0 s and 5.8 s that M4 recorded |
+| T11 | Startup time | Two IOCs with 500 input records on 500 objects that the fixture agent serves from a list given to it as its fifth argument (`OBJECTS`, whose row form the source of the agent states), one IOC with the objects by number and one by name through a MIB written for the test with those 500 objects, which lie below `1.3.6.1.4.1.318` because the agent takes listed objects only there; the time from the start of the process to the line of complete initialization, three starts each | Linux host, ordinary product | The two times are recorded beside each other; by name `snmp3Show` reports one start of the probe for names, and by number none |
+
+The mutations are applied one at a time to scratch copies of the changed tree; the exact old and new text of each is written when the code of its part exists:
+
+- V1: a session ignores its own `timeoutMs` and uses the default; expected failing assertion: T2, the two values.
+- V2: a failed command does not set the shell error; expected failing assertion: T2, the wrong IOCs.
+- V3: an output record takes a read-only object; expected failing assertion: T3.
+- V4: the type of a record by name is not checked against the MIB; expected failing assertion: T3, the wrong input record.
+- V5: the search takes the system before the IOC; expected failing assertion: T3, two places.
+- V6: the next request leaves on the period without waiting for the earlier one; expected failing assertion: T4, the delayed counts.
+- V7: no scan request when a result is staged; expected failing assertion: T4, the counters.
+- V8: the refusal rule of the endpoint state is not applied to a request of a subscription; expected failing assertion: T5, no request after the state was settled.
+- V9: each object of a subscription is sent alone; expected failing assertion: T6, the datagram count.
+- V10: a record with `SCAN=I/O Intr` on a session is accepted; expected failing assertion: T7, that record.
+- V11: the range of the period is not checked; expected failing assertion: T2, the two periods.
+- V12: no scan request when the state of an endpoint changes; expected failing assertion: T8, `changed`.
+- V13: the requester of one address waits while a request of another address is unanswered; expected failing assertion: T5, the count of the second address.
+
+Size of the test, stated before it is built and accepted by the owner on 2026-11-17: three new cells (`shell-config`, `mib-names`, `reply-driven`) and an extension of `module-state`; about 75 checks (T1 12, T2 16, T3 10, T4 6, T5 14, T6 2, T7 3, T8 2, T9 1, T10 7, T11 2); 13 mutation rows; for each part one run on the unchanged code and one on the changed code; the mutation series with one build per row; one run of the ordinary matrix at the end; on the units two read-only IOCs and one run of 300 s. A check, a series or a tool beyond this is not built; a finding outside it is reported.
+
+Left out, with the reason:
+
+- A checker script for a PVA group: this unit makes no group.
+- The SCAN alarm of Base after more than 10 scans of an active record: a rule of Base, read from its source; the proxy cannot delay long enough, and the new way does not scan an active record.
+- An exact interval between two requests: the criterion is the count over 20 s, which the agent's log gives without a clock of the test.
+- Every option of `snmp3Options` in T2: the options are the fields of a profile, whose defaults and ranges the cell `config` asserts for the file; T2 shows that the command reaches the same check.
+- A MIB of another vendor: the fixture MIB and the PowerNet MIB on the units cover a MIB without and with imports.
+- A link cut or a power cut on the laboratory units: that is M16.
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Linux host, ordinary product | Pending | none |
-| T2 | Not run | Linux host | Pending | none |
-| T3 | Not run | Laboratory IOC, both units | Pending | none |
-| T4 | Not run | Linux host | Pending | none |
+| T1 | 2026-11-17T06:04Z | Debian 13 host, ordinary product built against Base 7.0.10 of the public 1.5.0 tree | Pass | The cell `shell-config` (`tests/rewrite/test_shell_config.bash` with `shell_config.pl`), IOCs started from `snmp3ProbePath`, `snmp3Session` and records that name their objects by number, with no file: the five output record types reach the agent and read back (2.5, 41, 123456789012, `abc`, `longer text`); the record behind the reply delayed 750 ms is active right after the put and without alarm after it; the refused SET is WRITE/INVALID with `wrongType index 1`; the SET after the agent stopped is COMM/INVALID with `no reply`; the group of eight ends at `limit=1 splits=3` with `tooBig` on its eighth record under SNMPv2c and under SNMPv3; the inputs carry COMM/INVALID with `no reply` while the agent is away and are without alarm within 30 s of its return. These are the twelve checks; the cell passes its 23 checks (2026-11-17T07:41Z, after the review corrections). On the unchanged tree the 20 checks of the first form of the cell fail, the IOCs ending at `Command 'snmp3ProbePath' not registered`. Evidence: `work/m7-evidence/part-a/unchanged-3.log`, `changed-3.log`, `before-review-fix-1.log`, `changed-5.log`, `RUNS.txt`, `sources.sha256` (the hashes of the run of 07:41Z; `sources-changed-3.sha256` holds those of the run of 06:04Z) |
+| T2 | Not run | Linux host, ordinary product | Pending | none |
+| T3 | Not run | Linux host, ordinary product | Pending | none |
+| T4 | Not run | Linux host, ordinary product | Pending | none |
+| T5 | Not run | Linux host, ordinary product | Pending | none |
+| T6 | Not run | Linux host, ordinary product | Pending | none |
+| T7 | Not run | Linux host, ordinary product | Pending | none |
+| T8 | Not run | Linux host, ordinary product | Pending | none |
+| T9 | Not run | Linux host | Pending | none |
+| T10 | Not run | Both laboratory units | Pending | none |
+| T11 | Not run | Linux host, ordinary product | Pending | none |
 
 ##### Closure Evidence
 
@@ -1382,6 +1502,73 @@ Not covered and listed as unproven until its condition holds: a profile with loc
 | T4 | Not run | Measurement IOC, both units | Pending | none |
 | T5 | Not run | Measurement IOC, both units | Pending | none |
 | T6 | 2026-11-15T10:01Z to 2026-11-15T10:14Z | Same as T1 | Pass | `run_matrix.py --stages environment,ordinary` on the changed tree: 42 PASS and `tsan` NOT APPLICABLE; the 42 cells of the M4 run on the same Base (`work/matrix-m4-changed-2/cells.tsv`) keep name and status, and the added cell `recovery` is PASS with 75 checks. A first run had `config` and `lifecycle` FAIL on the object list of difference 6 (`work/matrix-m16-1/`). Evidence: `work/matrix-m16-2/cells.tsv` |
+
+##### Closure Evidence
+
+- none
+
+#### M19 - MIB tools: database check and database draft
+
+Origin: 1.0.0 / M19
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+A MIB file states, for every object, its name, its type, whether it can be read or written, its description, and for an enumerated integer the meaning of each value. An EPICS database for an SNMP unit repeats all of that by hand: the record type, the direction, the link, the description, the states. The owner's experience with SNMP IOC databases is that this copying is where the time and the mistakes are, and that a mistake shows only when the IOC runs against the unit. D35 makes two standalone programs: one that checks a database against MIB files before an IOC is started, and one that writes a draft of records from MIB files, which the author then finishes. M7 already takes the type of an object given by name from the MIB and checks the record at initialization; this unit moves the same knowledge to the time the database is written.
+
+##### Scope
+
+- A checker, the main program: from a database file and MIB files, it reports for every record of the module whether the name resolves, whether the record type can hold the declared type, and whether the direction agrees with the access; it ends with a status that tells a clean database from one with findings, so that it can run before an IOC starts and in a pipeline.
+- A draft program: from MIB files and a choice of objects or tables, it writes a draft of database records with the link form of M7 by name, the record type and direction from the declared type and access, the description from the MIB cut to the DESC length, the units where the MIB gives them, and the states of an enumerated integer. The draft is for the author to finish: PV names, the choice of what to keep and everything the MIB does not state stay with the author, and the finished database goes through the checker.
+- Both resolve names the way the IOC does, through the MIB function and the search order of M7, so that a database the checker passes is one the IOC accepts.
+- Documentation of both programs.
+
+Out of scope: the IOC runtime; any change to the device support; a graphical tool; the naming of PVs beyond what the caller gives.
+
+##### Completion Criteria
+
+- For a database with seeded faults (a name the MIB does not hold, a record type that cannot hold the declared type, an output record on a read-only object, a missing MIB), the checker names each fault and its record and ends with the status of a database with findings; for a clean database it reports none.
+- For the fixture MIB and for the PowerNet MIB, the draft program writes records for chosen objects with the record type, direction, description and states the MIB declares; the draft passes the checker, and an IOC of M7 loads it and reads the fixture agent.
+- A database the checker passes initializes in the IOC without a rejected record, and a record the checker names is one the IOC rejects.
+- The documentation states how each program is run and what its findings mean.
+
+##### Dependencies And Decisions
+
+- D35 creates this unit.
+- M7 gives the link form and the MIB resolution these programs use; the unit starts after M7 is Complete.
+- Open for the owner's decision: whether release `1.0.0` waits for this unit (it is not among the dependencies of M11 until the owner says so); the language of the two programs (Perl, as the owner named, with the helper of the module for the MIB reading, is proposed); and what the draft holds for a read-write object (an input and an output record, proposed).
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Observe first, after M7: what the MIB function of the module returns for an object (type, access, description, units, enumeration) on the fixture MIB and the PowerNet MIB, and which of it a record needs.
+2. Write the checks first, as a matrix cell in bash and Perl (D19).
+3. Write the checker, then the draft program, and the documentation.
+4. Run the cell, the mutations and the ordinary matrix.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Checker | The checker on a database with the seeded faults and on a clean one, with the fixture MIB | Linux host | Each fault named with its record; the status of findings for the first and of a clean database for the second |
+| T2 | Draft | The draft program on the fixture MIB and on the PowerNet MIB for chosen objects; the draft given to the checker and loaded in the production IOC against the fixture agent | Linux host, ordinary product | Records with the declared type, direction, description and states; the checker reports none; no record rejected; the fixture values read |
+| T3 | Agreement | The seeded database loaded in the production IOC | Linux host, ordinary product | The IOC rejects exactly the records the checker named |
+| T4 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` on the unchanged and the changed tree | Linux host | The cells of the unchanged tree keep their name and status, and the added cell is PASS |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Linux host | Pending | none |
+| T2 | Not run | Linux host, ordinary product | Pending | none |
+| T3 | Not run | Linux host, ordinary product | Pending | none |
+| T4 | Not run | Linux host | Pending | none |
 
 ##### Closure Evidence
 
