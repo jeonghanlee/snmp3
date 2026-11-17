@@ -78,7 +78,7 @@ The binding `IntegerRead` must exist in the loaded configuration, and its value 
 - The key `binding` is required and `deadline_ms` is optional; no other key is accepted.
 - The explicit deadline budget ranges from 1 to 600000 ms. Without it the budget is twice the longest time one request can take, plus one second: `2 x timeoutMs x (retries + 1) + 1000` ms, at most 600000 ms, with `timeoutMs` and `retries` of the profile that the endpoint of the binding uses.
 - Device initialization resolves one immutable JSON binding and registers a separate handle for each record. It performs no network I/O.
-- A link whose first word carries no `=` names a session and its object instead of a binding of the file: `@<session> <object> type=<type> [deadline_ms=<ms>] [group=<label>] [systemInfo]`; see [Configuration by shell commands](snmp-rewrite-config.md#configuration-by-shell-commands).
+- A link whose first word carries no `=` names a session and its object instead of a binding of the file: `@<session> <object> [type=<type>] [deadline_ms=<ms>] [group=<label>] [systemInfo]`, where the object is a numeric identifier with `type=` or a name `MODULE::name.index` whose type its MIB declares; see [Configuration by shell commands](snmp-rewrite-config.md#configuration-by-shell-commands).
 - The module refuses a live INP or OUT replacement. Admission and completion check the original DTYP, link, DSET, and effective storage identity.
 - A direct Base DTYP write can succeed, but a mismatch produces LINK/INVALID and admits no snmp3 request.
 

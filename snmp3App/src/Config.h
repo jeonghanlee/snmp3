@@ -31,6 +31,13 @@ public:
     std::shared_ptr<const Binding> define(const std::string& session, const std::string& object,
                                           const std::string& type, Operation operation, size_t capacity,
                                           const std::string& group, bool systemInfo);
+    // A place of MIB files of the IOC: a directory or one file. With system set, the path is a directory that
+    // replaces the directories of the system for this IOC.
+    void mib(const std::string& path, bool system);
+    // Resolves the object names of the record links through the MIB places, in one run of the probe. The names
+    // are the object words of the form MODULE::name.index. Returns one line per module that no place holds and
+    // per name that did not resolve, is no object or carries no index.
+    std::vector<std::string> resolve(const std::vector<std::string>& names);
     // Removes the binding a record defined when the record is rejected afterwards.
     void discard(const std::string& id);
     void show(const std::string& pattern, int verbosity);
@@ -42,6 +49,18 @@ public:
 private:
     Config(const Config&) = delete;
     Config& operator=(const Config&) = delete;
+    // What a MIB declares for one name: the identifier with its index, the value type by the name a link uses
+    // (empty when the MIB gives none the module holds), and whether the object can be read and written.
+    struct Resolved {
+        std::vector<uint32_t> oid;
+        std::string type;
+        bool readable = false, writable = false;
+    };
+    // A binding that a record defined by a name: the name, and whether its type came from the link.
+    struct NamedObject {
+        std::string name;
+        bool typeFromLink = false;
+    };
     struct Session {
         Endpoint endpoint;
         Profile profile;
@@ -61,6 +80,14 @@ private:
     Capabilities probed;
     bool haveProbed = false;
     std::string probePath;
+    // MIB places of the IOC in the order given, the directory that replaces the ones of the system (empty: the
+    // ones built into the library), and what the last run of the probe for names reported.
+    std::vector<std::string> mibPlaces;
+    std::string mibSystem, mibSystemUsed;
+    std::map<std::string, Resolved> resolved;
+    std::vector<std::pair<std::string, std::string>> mibModules;
+    std::map<std::string, NamedObject> namedObjects;
+    unsigned probeStarts = 0;
     uint64_t revision = 0, nextNumber = 0, nextLink = 0;
     // bound: a record took a binding, so no definition by file or command may change; frozen: the runtime
     // took the configuration, so no record may define a binding either.

@@ -14,7 +14,8 @@ namespace snmp3 {
 enum class RecordKind { Ai, Longin, Int64in, Stringin, Lsi, Waveform,
                         Ao, Longout, Int64out, Stringout, Lso };
 // A record link in one of two forms: "@binding=<id> [deadline_ms=<n>]" names a binding of the file, and
-// "@<session> <object> type=<type> [deadline_ms=<n>] [group=<label>] [systemInfo]" names the object itself.
+// "@<session> <object> [type=<type>] [deadline_ms=<n>] [group=<label>] [systemInfo]" names the object itself,
+// by a numeric identifier with its type or by MODULE::name.index, whose type its MIB declares.
 // budgetMs is zero when the link gives no deadline.
 struct RecordLink {
     std::string definition;

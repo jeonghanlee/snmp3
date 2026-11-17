@@ -31,6 +31,15 @@ const size_t MaxConfigBytes = 1024 * 1024;
 const size_t MaxSecretBytes = 1024;
 const size_t MaxCapabilityBytes = 64 * 1024;
 const unsigned ProbeTimeoutMs = 5000;
+// Limits of one run of the probe for MIB names: its output holds one entry per name and per MIB module.
+const size_t MaxResolveBytes = 8 * 1024 * 1024;
+const unsigned ResolveTimeoutMs = 30000;
+const size_t MaxMibPlaces = 64;
+const size_t MaxNames = 16384;
+// The mibs directory the module installs, fixed when the module is built.
+#ifndef SNMP3_MIBS_DIR
+#define SNMP3_MIBS_DIR ""
+#endif
 const size_t MaxIdBytes = 64;
 const size_t MaxOidArcs = 128;
 const size_t MaxEngineBytes = 32;
@@ -189,7 +198,11 @@ std::vector<uint32_t> oid(const std::string& value)
     return result;
 }
 
-std::string observeCapabilities(const std::string& executable, const std::vector<std::string>& environment)
+// Runs the probe with the arguments given and returns its standard output. The probe gets the environment of
+// the list, no standard input and no standard error.
+std::string runProbe(const std::string& executable, const std::vector<std::string>& arguments,
+                     const std::vector<std::string>& environment, size_t outputLimit, unsigned timeoutMs,
+                     const char* failure)
 {
     if (executable.empty() || executable[0] != '/' || executable.find('\0') != std::string::npos)
         reject("native executable rejected");
@@ -206,18 +219,22 @@ std::string observeCapabilities(const std::string& executable, const std::vector
     error |= posix_spawn_file_actions_addclose(&actions, reader.get());
     error |= posix_spawn_file_actions_addclose(&actions, writer.get());
     pid_t pid = -1;
-    char* args[] = {const_cast<char*>(executable.c_str()), const_cast<char*>("--capabilities"), NULL};
+    std::vector<std::string> words(arguments);
+    std::vector<char*> args;
+    args.push_back(const_cast<char*>(executable.c_str()));
+    for (auto& word : words) args.push_back(&word[0]);
+    args.push_back(NULL);
     std::vector<std::string> entries(environment);
     std::vector<char*> envp;
     size_t envBytes = 0;
     for (auto& entry : entries) { envBytes += entry.size() + 1; envp.push_back(&entry[0]); }
     envp.push_back(NULL);
     if (envBytes > 8192) reject("native environment rejected");
-    if (!error) error = posix_spawn(&pid, executable.c_str(), &actions, NULL, args, envp.data());
+    if (!error) error = posix_spawn(&pid, executable.c_str(), &actions, NULL, args.data(), envp.data());
     posix_spawn_file_actions_destroy(&actions);
     if (error) reject("native spawn failed");
     writer.reset();
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(ProbeTimeoutMs);
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
     std::string output;
     bool failed = false, eof = false, reaped = false;
     int status = 0;
@@ -227,7 +244,7 @@ std::string observeCapabilities(const std::string& executable, const std::vector
             char buffer[4096];
             const ssize_t count = read(reader.get(), buffer, sizeof(buffer));
             if (count > 0) {
-                if (output.size() + static_cast<size_t>(count) > MaxCapabilityBytes) { failed = true; break; }
+                if (output.size() + static_cast<size_t>(count) > outputLimit) { failed = true; break; }
                 output.append(buffer, static_cast<size_t>(count));
             } else if (count == 0) eof = true;
             else if (errno != EAGAIN && errno != EINTR) { failed = true; break; }
@@ -246,12 +263,13 @@ std::string observeCapabilities(const std::string& executable, const std::vector
         kill(pid, SIGKILL);
         while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
     }
-    if (failed || !WIFEXITED(status) || WEXITSTATUS(status)) reject("native capability process failed");
+    if (failed || !WIFEXITED(status) || WEXITSTATUS(status)) reject(failure);
     return output;
 }
 Capabilities capabilities(const std::string& executable, const std::vector<std::string>& environment)
 {
-    const Json root = Json::parse(observeCapabilities(executable, environment));
+    const Json root = Json::parse(runProbe(executable, {"--capabilities"}, environment, MaxCapabilityBytes, ProbeTimeoutMs,
+                                           "native capability process failed"));
     fields(root, {"schema", "version", "authentication", "privacy"});
     if (number(required(root, "schema"), 1, 1) != 1) reject("native schema rejected");
     Capabilities result; result.executable = executable; result.nativeVersion = string(root, "version");
@@ -728,9 +746,21 @@ std::shared_ptr<const Binding> Config::define(const std::string& session, const 
     if (!current->endpoints.count(session)) reject("session absent");
     BindingDefinition binding;
     binding.endpoint = session;
-    binding.oid = oid(object);
     binding.operation = operation;
-    binding.valueType = valueType(type);
+    const bool named = object.find("::") != std::string::npos;
+    if (named) {
+        // The identifier, the type and the access come from the MIB; a type in the link decides in its place.
+        const auto found = resolved.find(object);
+        if (found == resolved.end()) reject("MIB name not resolved");
+        if (operation == Operation::Set && !found->second.writable) reject("MIB object is read-only");
+        if (operation == Operation::Get && !found->second.readable) reject("MIB object is not readable");
+        if (type.empty() && found->second.type.empty()) reject("MIB type absent");
+        binding.oid = found->second.oid;
+        binding.valueType = valueType(type.empty() ? found->second.type : type);
+    } else {
+        binding.oid = oid(object);
+        binding.valueType = valueType(type);
+    }
     const size_t maximum = binding.valueType == ValueType::Octets ? MaxConfigBytes :
         binding.valueType == ValueType::ObjectId ? MaxOidArcs : 1;
     binding.capacity = maximum == 1 ? 1 : capacity;
@@ -749,6 +779,7 @@ std::shared_ptr<const Binding> Config::define(const std::string& session, const 
     try { validateGroups(*current); }
     catch (const std::exception&) { current->bindings.erase(placed); --nextNumber; throw; }
     bound = true;
+    if (named) namedObjects[name] = {object, !type.empty()};
     return std::make_shared<const Binding>(current, placed->second);
 }
 void Config::discard(const std::string& id)
@@ -756,6 +787,79 @@ void Config::discard(const std::string& id)
     epicsGuard<epicsMutex> guard(mutex);
     if (frozen || id.compare(0, 5, "link.") != 0) return;
     current->bindings.erase(id);
+    namedObjects.erase(id);
+}
+void Config::mib(const std::string& path, bool system)
+{
+    epicsGuard<epicsMutex> guard(mutex);
+    requireOpen();
+    char* real = realpath(path.c_str(), NULL);
+    if (!real) reject("MIB path absent");
+    const std::string absolute(real);
+    free(real);
+    struct stat status;
+    if (stat(absolute.c_str(), &status) || !(S_ISDIR(status.st_mode) || S_ISREG(status.st_mode)) ||
+        absolute.find(':') != std::string::npos || absolute.size() > 4096)
+        reject("MIB path rejected");
+    if (system) {
+        if (!S_ISDIR(status.st_mode)) reject("system MIB path must be a directory");
+        if (!mibSystem.empty() && mibSystem != absolute) reject("system MIB path defined twice");
+        mibSystem = absolute;
+        return;
+    }
+    if (std::find(mibPlaces.begin(), mibPlaces.end(), absolute) != mibPlaces.end()) return;
+    if (mibPlaces.size() >= MaxMibPlaces) reject("MIB place count rejected");
+    mibPlaces.push_back(absolute);
+}
+std::vector<std::string> Config::resolve(const std::vector<std::string>& names)
+{
+    epicsGuard<epicsMutex> guard(mutex);
+    std::vector<std::string> messages;
+    if (names.empty()) return messages;
+    if (names.size() > MaxNames) reject("MIB name count rejected");
+    if (probePath.empty()) reject("probe path required for MIB names");
+    if (workerPath.empty()) reject("worker path required for MIB names");
+    std::string libraryPath;
+    try { libraryPath = libraryPathOf(workerPath); } catch (const std::exception&) { reject("worker library listing failed"); }
+    // The library takes a module from the place registered last, so the places go to the probe from the farthest
+    // to the nearest: the system first, then the module, then the places of the IOC with the first one last.
+    std::string places = SNMP3_MIBS_DIR;
+    for (auto place = mibPlaces.rbegin(); place != mibPlaces.rend(); ++place) places += (places.empty() ? "" : ":") + *place;
+    std::vector<std::string> arguments = {"--resolve", mibSystem.empty() ? "-" : mibSystem, places.empty() ? "-" : places};
+    arguments.insert(arguments.end(), names.begin(), names.end());
+    ++probeStarts;
+    const Json root = Json::parse(runProbe(probePath, arguments, environmentList(libraryPath, false),
+                                           MaxResolveBytes, ResolveTimeoutMs, "native name resolution failed"));
+    fields(root, {"schema", "system", "modules", "missing", "names"});
+    if (number(required(root, "schema"), 1, 1) != 1) reject("native schema rejected");
+    mibSystemUsed = string(root, "system");
+    mibModules.clear();
+    for (const Json& item : array(root, "modules")) {
+        fields(item, {"name", "file"});
+        mibModules.emplace_back(string(item, "name"), string(item, "file"));
+    }
+    for (const Json& item : array(root, "missing")) messages.push_back("MIB module " + string(item) + " not found");
+    resolved.clear();
+    for (const Json& item : array(root, "names")) {
+        const std::string text = string(item, "text");
+        if (present(item, "error")) {
+            fields(item, {"text", "error"});
+            const std::string error = string(item, "error");
+            if (error == "name") messages.push_back("MIB name " + text + " not resolved");
+            if (error == "index") messages.push_back("MIB name " + text + " carries no index of an instance");
+            if (error == "object") messages.push_back("MIB name " + text + " is no object with a value");
+            continue;
+        }
+        fields(item, {"text", "oid", "type", "access"});
+        Resolved entry;
+        entry.oid = oid(string(item, "oid"));
+        entry.type = string(item, "type");
+        const std::string access = string(item, "access");
+        entry.readable = access == "read-only" || access == "read-write" || access == "read-create";
+        entry.writable = access == "read-write" || access == "write-only" || access == "read-create";
+        resolved[text] = std::move(entry);
+    }
+    return messages;
 }
 void Config::show(const std::string& pattern, int verbosity)
 {
@@ -781,12 +885,36 @@ void Config::show(const std::string& pattern, int verbosity)
             if (binding.endpoint != entry.first || item.first.compare(0, 5, "link.") != 0) continue;
             std::string arcs;
             for (const auto arc : binding.oid) arcs += (arcs.empty() ? "" : ".") + std::to_string(arc);
-            std::printf("snmp3 object: session=%s id=%s oid=%s type=%s operation=%s group=%s systemInfo=%u\n",
+            std::printf("snmp3 object: session=%s id=%s oid=%s type=%s operation=%s group=%s systemInfo=%u",
                         entry.first.c_str(), item.first.c_str(), arcs.c_str(), typeName(binding.valueType),
                         binding.operation == Operation::Get ? "get" : "set",
                         binding.group.empty() ? "none" : binding.group.c_str(), binding.systemInfo ? 1u : 0u);
+            // An object given by name shows the name and where its type came from; one given by number has none.
+            const auto named = namedObjects.find(item.first);
+            if (named != namedObjects.end())
+                std::printf(" name=%s typeSource=%s", named->second.name.c_str(), named->second.typeFromLink ? "link" : "mib");
+            std::printf("\n");
         }
     }
+    if (verbosity < 1) return;
+    // The MIB places from the nearest to the farthest, the modules the probe read with the place each came
+    // from, and how many times the probe was started for names.
+    const std::string moduleDirectory = SNMP3_MIBS_DIR;
+    for (const auto& place : mibPlaces) std::printf("snmp3 mib: place=ioc path=%s\n", place.c_str());
+    if (!moduleDirectory.empty()) std::printf("snmp3 mib: place=module path=%s\n", moduleDirectory.c_str());
+    std::printf("snmp3 mib: place=system path=%s\n",
+                !mibSystem.empty() ? mibSystem.c_str() : !mibSystemUsed.empty() ? mibSystemUsed.c_str() : "built-in");
+    for (const auto& module : mibModules) {
+        const std::string& file = module.second;
+        const auto below = [&](const std::string& directory) {
+            return !directory.empty() && file.compare(0, directory.size() + 1, directory + "/") == 0;
+        };
+        const char* place = "system";
+        for (const auto& candidate : mibPlaces) if (file == candidate || below(candidate)) place = "ioc";
+        if (std::strcmp(place, "ioc") && below(moduleDirectory)) place = "module";
+        std::printf("snmp3 mib: module=%s place=%s file=%s\n", module.first.c_str(), place, file.c_str());
+    }
+    std::printf("snmp3 mib: probeStarts=%u\n", probeStarts);
 }
 void Config::freeze() { epicsGuard<epicsMutex> guard(mutex); frozen = true; }
 void Config::setWorkerPath(const std::string& path)

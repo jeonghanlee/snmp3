@@ -10,6 +10,8 @@ snmp3Wire_SRCS += Ipc.cpp Identity.cpp
 snmp3_SRCS += Register.cpp Runtime.cpp Config.cpp Json.cpp Scheduler.cpp Supervisor.cpp
 snmp3_SRCS += Conversion.cpp Request.cpp DeviceSupport.cpp Peer.cpp StateSupport.cpp
 snmp3_LIBS += snmp3Wire dbCore Com
+# The mibs directory the module installs: the place of MIB files between the ones of an IOC and of the system.
+Config_CPPFLAGS += -DSNMP3_MIBS_DIR=\"$(abspath $(INSTALL_LOCATION))/mibs\"
 
 DBD += snmp3.dbd snmp3Ioc.dbd
 snmp3Ioc_DBD += base.dbd snmp3.dbd

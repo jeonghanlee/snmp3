@@ -281,7 +281,8 @@ snmp3Show PDU* 1
 | `snmp3ProbePath(absolutePath)` | The native probe, named before the first session. A second call with another path, and a `snmp3Load` with another probe, are rejected |
 | `snmp3Session name address [options]` | Defines a session. `name` follows the rules of a definition ID. `address` is numeric, alone or with a port: `192.0.2.1`, `192.0.2.1:161`, `2001:db8::1`, `[2001:db8::1]:161`; without a port it is 161. The options are those of `snmp3Options` |
 | `snmp3Options pattern [options]` | Sets options of every session whose name matches the pattern (`*` and `?`) and exists when the command runs; a session defined later is not touched. A pattern that matches no session is rejected |
-| `snmp3Show pattern verbosity` | Prints one `snmp3 session:` line per matching session; with verbosity 1 the line holds the values of the session, and one `snmp3 object:` line follows for each object a record defined on it. No secret content is printed |
+| `snmp3Mib path [system]` | Names a directory or one file of MIB modules of the IOC. With the word `system` as second argument the path is a directory that replaces the directories of the system for this IOC. See [Objects by MIB name](#objects-by-mib-name) |
+| `snmp3Show pattern verbosity` | Prints one `snmp3 session:` line per matching session; with verbosity 1 the line holds the values of the session, one `snmp3 object:` line follows for each object a record defined on it, and the `snmp3 mib:` lines follow. No secret content is printed |
 
 An option is one word `name=value`. The names, defaults, ranges and rules are those of the profile fields above: `version`, `timeoutMs`, `retries`, `maxVarbinds`, `maxMessageSize`, `checkRanges` (`true` or `false`), `communityFile`, `user`, `securityLevel`, `authAlgorithm`, `authSecretFile`, `privAlgorithm`, `privSecretFile`, `contextName`, `securityEngineId`, `contextEngineId`. A secret file is named by its path and must meet the rules of [Secret files and permissions](#secret-files-and-permissions). Every value belongs to one session; none applies to the whole IOC.
 
@@ -289,7 +290,7 @@ Each option is checked when its command runs: an unknown name, a value outside i
 
 A file and commands can be used together. `snmp3Load` gives the endpoints of the file as sessions under their `id`, so `snmp3Options` acts on them as well: an endpoint that takes an option gets a profile of its own, and another endpoint that shared its profile keeps the values of the file. An option that the profile of a file endpoint cannot take is rejected at the command and leaves the values of the file. A name is defined once: a session under the name of an endpoint of the file, or a file with an endpoint under the name of a session, is rejected with `name defined twice`. Every definition by command or file is closed when `iocInit` begins; a command after that is rejected with `configuration frozen`.
 
-A record names a session and a numeric object identifier:
+A record names a session and its object, by a numeric identifier or by a name of a MIB:
 
 ```text
 record(longin, "<record_name>") {
@@ -301,13 +302,71 @@ record(longin, "<record_name>") {
 | Word of the link | Meaning |
 | --- | --- |
 | first word | Name of a session |
-| second word | Numeric dotted object identifier |
-| `type=<type>` | Required. A value type of the table in [Binding fields and value types](#binding-fields-and-value-types) |
+| second word | Numeric dotted object identifier, or `MODULE::name.index` (see [Objects by MIB name](#objects-by-mib-name)) |
+| `type=<type>` | A value type of the table in [Binding fields and value types](#binding-fields-and-value-types). Required with a numeric identifier. With a name it is optional and then decides the type in place of the MIB |
 | `deadline_ms=<ms>` | Optional deadline budget, 1 to 600000 ms. Without it the budget is `2 x timeoutMs x (retries + 1) + 1000` ms of the session, at most 600000 ms |
 | `group=<label>` | Optional group label of an input record; the rules of a declared group apply |
 | `systemInfo` | Optional mark of an input record as system information of the unit |
 
 An input record reads the object and an output record writes it; the size of a value comes from the record, the 40 characters of a `stringin` or `stringout`, the `SIZV` of an `lsi` or `lso`, and the `NELM` of a `waveform`. A record that is rejected at initialization, for a link the rules above do not allow, a session that does not exist, or a value type its record type cannot hold, defines no object.
+
+### Objects by MIB name
+
+A link can name its object as `MODULE::name.index`. The index is written out: `.0` for a scalar, and the index of the row for a column of a table:
+
+```text
+snmp3Mib /path/to/site/mibs
+```
+
+```text
+record(longin, "<record_name>") {
+    field(DTYP, "snmp3")
+    field(INP, "@PDU1 PowerNet-MIB::rPDULoadStatusLoad.1")
+}
+```
+
+The MIB gives the numeric identifier, the value type and the access of the object when the IOC initializes. It is used for nothing else: a value is never kept or compared as text, and an IOC whose links use numbers reads no MIB.
+
+| Declared in the MIB | Value type |
+| --- | --- |
+| `INTEGER`, `Integer32` | `integer` |
+| `Unsigned32` | `unsigned32` |
+| `Counter32` | `counter32` |
+| `Gauge32` | `gauge32` |
+| `TimeTicks` | `timeticks` |
+| `Counter64` | `counter64` |
+| `OCTET STRING`, `BITS`, and a textual convention on them | `octets` |
+| `OBJECT IDENTIFIER` | `oid` |
+| `IpAddress` | `ipAddress` |
+| anything else | none; the link must carry `type=` |
+
+A module is looked for in three places, and the first place that holds it is used:
+
+1. the places the IOC names with `snmp3Mib`, in the order of the commands;
+2. the `mibs` directory of the module installation, which holds a note and no MIB file as shipped;
+3. the directories of the system: the ones built into the Net-SNMP library, or the one directory given with `snmp3Mib <path> system`.
+
+A MIB that imports other modules finds them in the same places. No environment variable chooses a place. Of the directories built into the library only the absolute ones are used, so a directory under the home of the user is not read.
+
+A record is rejected at initialization, with `snmp3: record initialization rejected: <record>`, when its name does not resolve, names no object with a value (a table, a group, a notification, an identity), or carries no index, when its record type cannot hold the type, when it is an output record on an object the MIB declares read-only, or when it is an input record on an object the MIB declares not readable (`not-accessible`, `accessible-for-notify` or `write-only`). A unit that does not follow its MIB in this is reached with the numeric identifier, which reads no MIB. Before that the IOC prints `snmp3: MIB module <MODULE> not found` once for a module that no place holds, `snmp3: MIB name <text> not resolved` for a name its module does not hold, `snmp3: MIB name <text> is no object with a value` for a name of that kind, and `snmp3: MIB name <text> carries no index of an instance` for a scalar without `.0` or a column without the index of its row. The IOC continues with the other records.
+
+All names of an IOC are resolved in one run of the probe when `iocInit` begins. `snmp3Show <pattern> 1` reports what was used:
+
+```text
+snmp3 object: session=PDU1 id=link.1 oid=1.3.6.1.4.1.318.1.1.12.2.3.1.1.2.1 type=gauge32 operation=get group=none systemInfo=0 name=PowerNet-MIB::rPDULoadStatusLoad.1 typeSource=mib
+snmp3 mib: place=ioc path=/path/to/site/mibs
+snmp3 mib: place=module path=<install>/mibs
+snmp3 mib: place=system path=<directories>
+snmp3 mib: module=PowerNet-MIB place=ioc file=/path/to/site/mibs/PowerNet-MIB
+snmp3 mib: probeStarts=1
+```
+
+| Line or field | Meaning |
+| --- | --- |
+| `name=`, `typeSource=` | On the line of an object given by name: the name, and `mib` when the MIB gave the type or `link` when `type=` of the link decided. An object given by number has neither field |
+| `snmp3 mib: place=<place> path=` | The places in the order they are searched |
+| `snmp3 mib: module=<MODULE> place=<place> file=` | One line per module that was read, a named one or one it imports, with the place and file it came from |
+| `snmp3 mib: probeStarts=<n>` | How many times the probe was started for names since the IOC started: 0 for an IOC without names |
 
 ## Configuration and startup examples
 

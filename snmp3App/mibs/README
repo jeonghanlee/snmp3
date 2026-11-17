@@ -1,0 +1,8 @@
+MIB files of this snmp3 installation.
+
+A record link can name its object as MODULE::name.index. The module looks for the MIB module in the places an IOC
+names with snmp3Mib, then in this directory, then in the directories of the system, and takes the first place that
+holds it. snmp3Show prints the place and the file of every MIB module it read.
+
+The module ships no MIB file. A file placed here is found by every IOC that uses this installation. Keep the
+notice of a MIB file with it and do not change its text.

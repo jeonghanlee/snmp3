@@ -245,7 +245,8 @@ template<RecordKind Kind> long initialize(dbCommon* record)
             case RecordKind::Waveform: linkCapacity=as<waveformRecord>(record).nelm; break;
             default: break;
             }
-            require(!parsed.type.empty());
+            // An object given by number needs its type in the link; one given by name takes it from its MIB.
+            require(!parsed.type.empty() || parsed.object.find("::")!=std::string::npos);
         }
         const auto binding=parsed.named ?
             Config::instance().define(parsed.session,parsed.object,parsed.type,input(Kind)?Operation::Get:Operation::Set,

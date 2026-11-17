@@ -157,5 +157,8 @@ WienerCrate/configure/RULES.Db
 # Python cache directories
 __pycache__/
 
+# The mibs directory installed by the build
+/mibs/
+
 # Local review artifacts
 /work/

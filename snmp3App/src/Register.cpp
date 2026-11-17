@@ -5,6 +5,10 @@
 #include <cstdio>
 #include <string>
 #include <vector>
+#include <cstring>
+#include <set>
+#include <dbAccess.h>
+#include <dbStaticLib.h>
 #include <initHooks.h>
 #include <iocsh.h>
 #include <epicsExport.h>
@@ -90,6 +94,42 @@ void show(const iocshArgBuf* arguments)
         snmp3::Config::instance().show(arguments[0].sval ? arguments[0].sval : "*",arguments[1].ival);
     } catch(const std::exception& error) { std::fprintf(stderr,"snmp3: %s\n",error.what()); iocshSetError(1); }
 }
+void mib(const iocshArgBuf* arguments)
+{
+    try {
+        if(!arguments[0].sval)throw std::runtime_error("MIB path required");
+        const bool system=arguments[1].sval && !std::strcmp(arguments[1].sval,"system");
+        if(arguments[1].sval && *arguments[1].sval && !system)throw std::runtime_error("second argument must be system");
+        snmp3::Config::instance().mib(arguments[0].sval,system);
+    } catch(const std::exception& error) { std::fprintf(stderr,"snmp3: %s\n",error.what()); iocshSetError(1); }
+}
+// The object names of the links of every record of this device type, each once: the words of the form
+// MODULE::name.index. A link that cannot be read is left to the initialization of its record.
+std::vector<std::string> linkNames()
+{
+    std::set<std::string> names;
+    if(!pdbbase)return {};
+    DBENTRY entry;
+    dbInitEntry(pdbbase,&entry);
+    for(long type=dbFirstRecordType(&entry);!type;type=dbNextRecordType(&entry)) {
+        for(long record=dbFirstRecord(&entry);!record;record=dbNextRecord(&entry)) {
+            if(dbFindField(&entry,"DTYP"))continue;
+            const char* device=dbGetString(&entry);
+            if(!device || std::strcmp(device,"snmp3"))continue;
+            for(const char* field:{"INP","OUT"}) {
+                if(dbFindField(&entry,field))continue;
+                const char* text=dbGetString(&entry);
+                if(!text || *text!='@')continue;
+                try {
+                    const auto link=snmp3::parseRecordLink(text);
+                    if(link.named && link.object.find("::")!=std::string::npos)names.insert(link.object);
+                } catch(const std::exception&) {}
+            }
+        }
+    }
+    dbFinishEntry(&entry);
+    return std::vector<std::string>(names.begin(),names.end());
+}
 const iocshArg probeExecutable = {"absolutePath",iocshArgString};
 const iocshArg* const probeArguments[] = {&probeExecutable};
 const iocshArg sessionName = {"name",iocshArgString};
@@ -100,6 +140,12 @@ const iocshArg sessionPattern = {"pattern",iocshArgString};
 const iocshArg* const optionsArguments[] = {&sessionPattern,&optionWords};
 const iocshArg showVerbosity = {"verbosity",iocshArgInt};
 const iocshArg* const showArguments[] = {&sessionPattern,&showVerbosity};
+const iocshArg mibPath = {"path",iocshArgString};
+const iocshArg mibSystem = {"[system]",iocshArgString};
+const iocshArg* const mibArguments[] = {&mibPath,&mibSystem};
+const iocshFuncDef mibDefinition = {"snmp3Mib",2,mibArguments,
+    "Name a directory or a file of MIB modules of the IOC, searched before the mibs directory of the module and "
+    "the directories of the system; with the word system, the directory replaces the ones of the system."};
 const iocshFuncDef probeDefinition = {"snmp3ProbePath",1,probeArguments,
     "Select the absolute probe product before the first session; another path afterwards is rejected."};
 const iocshFuncDef sessionDefinition = {"snmp3Session",3,sessionArguments,
@@ -147,6 +193,12 @@ void hook(initHookState state)
         // needs is left out, named here, and fails the startup script.
         try { snmp3::Config::instance().finalize(); }
         catch (const std::exception& error) { std::fprintf(stderr, "snmp3: %s\n", error.what()); iocshSetError(1); }
+        // The names of all record links are resolved in one run of the probe before a record is initialized;
+        // a record whose name did not resolve is rejected at its initialization.
+        try {
+            for (const auto& message : snmp3::Config::instance().resolve(linkNames()))
+                std::fprintf(stderr, "snmp3: %s\n", message.c_str());
+        } catch (const std::exception& error) { std::fprintf(stderr, "snmp3: MIB names: %s\n", error.what()); }
         return;
     case initHookAfterFinishDevSup: name = "AfterFinishDevSup"; break;
     case initHookAfterInitialProcess: name = "AfterInitialProcess"; break;
@@ -190,6 +242,7 @@ extern "C" void snmp3Registrar()
     iocshRegister(&workerDefinition, workerPath);
     iocshRegister(&queueDefinition, queueLimit);
     iocshRegister(&probeDefinition, probePath);
+    iocshRegister(&mibDefinition, mib);
     iocshRegister(&sessionDefinition, session);
     iocshRegister(&optionsDefinition, options);
     iocshRegister(&showDefinition, show);
