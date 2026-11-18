@@ -2,6 +2,7 @@
 #define SNMP3_SCHEDULER_H
 
 #include "Ipc.h"
+#include <atomic>
 #include <deque>
 #include <map>
 #include <mutex>
@@ -73,6 +74,8 @@ public:
     static uint64_t fixedGenerationBytes();
     void reserveConfiguration(uint64_t supervisorBytes);
     void closeAdmission(uint64_t address);
+    // Number of changes of the batch limit or of the reductions of any address since the scheduler was built.
+    uint64_t sizingChanges() const { return sizing.load(); }
 private:
     // A handle holds at most one consumed, retirement-pending generation plus one unconsumed
     // generation; every structure is keyed by (binding, generation).
@@ -124,6 +127,7 @@ private:
     uint64_t nextHandle=1;
     uint64_t configurationBase=0,configurationBytes=0,registrationBytes=0;
     bool accepting=true;
+    std::atomic<uint64_t> sizing{0};
     void (*notifier)(void*)=nullptr;
     void* notifierContext=nullptr;
 };

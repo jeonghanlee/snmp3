@@ -53,8 +53,10 @@ const char* Runtime::stateName(State state)
 
 void Runtime::trace(const char* event)
 {
-    // Caller holds the state lock; each line describes one observed transition.
+    // Caller holds the state lock; each line describes one observed transition, which the records that show
+    // the runtime state process on.
     std::printf("snmp3 lifecycle: %s activation=%lu\n", event, current.activation);
+    stateChanged();
 }
 
 bool Runtime::start()
@@ -69,7 +71,7 @@ bool Runtime::start()
     }
     if(Requests::instance().snapshot().drainFailed)return false;
     if(supervisor && !thread && !supervisor->reconcile()) {
-        epicsGuard<epicsMutex> state(stateMutex); current.state=State::IncompleteStopped; return false;
+        epicsGuard<epicsMutex> state(stateMutex); current.state=State::IncompleteStopped; stateChanged(); return false;
     }
     try {
         const auto config=Config::instance().snapshot();
@@ -121,10 +123,15 @@ void Runtime::run(void* argument)
         self.ready.trigger();
     }
     if(self.supervisor) {
+        const auto sizingOwner=self.schedulerOwner();
+        uint64_t sizingSeen=sizingOwner->sizingChanges();
         try {
             for(;;) {
                 self.wake.clear(); ++self.passes;
                 const auto now=monotonicUs(); self.supervisor->step(now);
+                // The records that show the request size of an address process when a limit has changed.
+                const auto sizing=sizingOwner->sizingChanges();
+                if(sizing!=sizingSeen) { sizingSeen=sizing; stateChanged(); }
                 ServiceOutcome outcome;
                 do { outcome=Requests::instance().service(); } while(outcome.more);
                 const auto after=monotonicUs();
@@ -209,8 +216,9 @@ void Runtime::stop()
         bool reconciled=true;
         if(supervisor) { supervisor->requestStop(); reconciled=supervisor->reconcile(); }
         epicsGuard<epicsMutex> state(stateMutex);
-        if(reconciled && drained && !recordDrainFailed && current.state==State::IncompleteStopped)
-            current.state=State::Stopped;
+        if(reconciled && drained && !recordDrainFailed && current.state==State::IncompleteStopped) {
+            current.state=State::Stopped; stateChanged();
+        }
         return;
     }
     if(supervisor)supervisor->requestStop();

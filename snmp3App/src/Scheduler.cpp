@@ -285,7 +285,7 @@ bool Scheduler::complete(uint64_t address, uint64_t batch, std::vector<ipc::Resu
     });
     if(rejected) {
         const uint64_t reduced=std::max<uint64_t>(1,results.size()/2);
-        if(!a.batchLimit || reduced<a.batchLimit) { a.batchLimit=reduced; ++a.splits; }
+        if(!a.batchLimit || reduced<a.batchLimit) { a.batchLimit=reduced; ++a.splits; ++sizing; }
     }
     for(auto& r:results) {
         auto& g=*a.generations.at(key(r.id)); if(g.selected)continue;
@@ -340,6 +340,7 @@ void Scheduler::reaped(uint64_t address)
     }
     // Recover only zero-byte commands at their original FIFO positions.
     recovered.insert(recovered.end(),a.queue.begin(),a.queue.end()); a.queue.swap(recovered); a.active.clear(); a.batch=0;
+    if(a.batchLimit)++sizing;
     a.batchLimit=0;
 }
 void Scheduler::stop()

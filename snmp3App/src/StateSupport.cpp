@@ -4,6 +4,7 @@
 #include "Runtime.h"
 #include <alarm.h>
 #include <dbCommon.h>
+#include <dbScan.h>
 #include <devSup.h>
 #include <recGbl.h>
 #include <longinRecord.h>
@@ -23,6 +24,8 @@
 //   batchSplits=<id>    reductions of that limit since the IOC started                  (longin)
 // <id> is the id of an endpoint of the loaded configuration; a record that names another one, or another item
 // than its record type reads, is rejected at initialization.
+// With SCAN "I/O Intr" a record processes when a state the module shows has changed: the records of this device
+// support share one list, and a change of any shown state processes all of them.
 using namespace snmp3;
 namespace {
 enum class Item { RuntimeState, PeerState, BatchLimit, BatchSplits };
@@ -32,6 +35,21 @@ struct Source {
 };
 void require(bool valid)
 { if(!valid)throw std::runtime_error("state record configuration rejected"); }
+// The I/O Intr list of the state records. Base frees its lists with the database, so the list is made anew each
+// time the device support is initialized.
+IOSCANPVT stateScan=nullptr;
+void notify() { if(stateScan)scanIoRequest(stateScan); }
+long deviceInit(int after)
+{
+    if(!after) { scanIoInit(&stateScan); setStateObserver(&notify); }
+    return 0;
+}
+long interrupt(int,dbCommon* record,IOSCANPVT* scan)
+{
+    if(!record->dpvt || !stateScan)return S_dev_badInpType;
+    *scan=stateScan;
+    return 0;
+}
 Source parse(const std::string& text)
 {
     Source source;
@@ -53,7 +71,6 @@ Source parse(const std::string& text)
 long initialize(dbCommon* record,bool state)
 {
     try {
-        require(record->scan!=menuScanI_O_Intr);
         auto* link=dbGetDevLink(record);
         require(link && link->type==INST_IO && link->value.instio.string);
         const auto source=parse(link->value.instio.string);
@@ -94,12 +111,11 @@ long readNumber(longinRecord* record)
     record->val=value>uint64_t(INT_MAX) ? INT_MAX : epicsInt32(value);
     return 0;
 }
-long noInterrupt(int,dbCommon*,IOSCANPVT*) { return S_dev_badInpType; }
 }
 
 extern "C" {
-mbbidset snmp3DevStateMbbi={{5,nullptr,nullptr,&initializeState,&noInterrupt},&readState};
-longindset snmp3DevStateLongin={{5,nullptr,nullptr,&initializeNumber,&noInterrupt},&readNumber};
+mbbidset snmp3DevStateMbbi={{5,nullptr,&deviceInit,&initializeState,&interrupt},&readState};
+longindset snmp3DevStateLongin={{5,nullptr,nullptr,&initializeNumber,&interrupt},&readNumber};
 }
 epicsExportAddress(dset,snmp3DevStateMbbi);
 epicsExportAddress(dset,snmp3DevStateLongin);

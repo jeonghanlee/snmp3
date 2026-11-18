@@ -13,6 +13,11 @@ namespace snmp3 {
 // Pending while the responder has not been asked to authenticate, Changed when it answered an authenticated
 // request under the profile's secrets, and Unverified when it did not or cannot be asked.
 enum class PeerState { Normal, Pending, Changed, Unverified };
+// The records that show a state of the module process when it changes: the device support of those records
+// names the function to call, and the places where a shown state changes call stateChanged. Without a function
+// the call does nothing.
+void setStateObserver(void (*function)());
+void stateChanged();
 class Peers {
 public:
     static Peers& instance();

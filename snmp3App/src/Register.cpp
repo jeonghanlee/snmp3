@@ -1,6 +1,7 @@
 #include "Runtime.h"
 #include "Config.h"
 #include "Request.h"
+#include "Peer.h"
 
 #include <cstdio>
 #include <string>
@@ -216,14 +217,17 @@ void hook(initHookState state)
         } catch (const std::exception& error) { std::fprintf(stderr, "snmp3: MIB names: %s\n", error.what()); }
         return;
     // The requests of the subscriptions run while Base scans: a result is given to records that can process.
-    case initHookAfterIocRunning: snmp3::Requests::instance().scanning(true); return;
+    // A state that changed before Base scans, by a reply to a request of the initial processing, was not given
+    // to the state records with SCAN I/O Intr; they process once now.
+    case initHookAfterIocRunning: snmp3::Requests::instance().scanning(true); snmp3::stateChanged(); return;
     case initHookAtIocPause: snmp3::Requests::instance().scanning(false); return;
     case initHookAfterFinishDevSup: name = "AfterFinishDevSup"; break;
     case initHookAfterInitialProcess: name = "AfterInitialProcess"; break;
     case initHookAtShutdown: name = "AtShutdown"; break;
     case initHookAfterStopScan: name = "AfterStopScan"; break;
     case initHookAfterStopCallback: name = "AfterStopCallback"; break;
-    case initHookBeforeFree: isolatedCleanup=true; return;
+    // Base frees the I/O Intr list of the state records with the database.
+    case initHookBeforeFree: isolatedCleanup=true; snmp3::setStateObserver(nullptr); return;
     case initHookAfterShutdown: name = "AfterShutdown"; break;
     default: return;
     }

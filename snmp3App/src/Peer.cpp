@@ -1,9 +1,11 @@
 #include "Peer.h"
+#include <atomic>
 #include <cstdio>
 #include <ctime>
 
 namespace snmp3 {
 namespace {
+std::atomic<void (*)()> observer{nullptr};
 std::string hex(const std::vector<uint8_t>& bytes)
 {
     static const char digits[] = "0123456789abcdef";
@@ -11,6 +13,12 @@ std::string hex(const std::vector<uint8_t>& bytes)
     for (const auto byte : bytes) { text += digits[byte >> 4]; text += digits[byte & 15]; }
     return text.empty() ? "unknown" : text;
 }
+}
+void setStateObserver(void (*function)()) { observer.store(function); }
+void stateChanged()
+{
+    const auto function = observer.load();
+    if (function) function();
 }
 Peers& Peers::instance() { static Peers peers; return peers; }
 PeerState Peers::state(const std::string& endpoint) const
@@ -41,6 +49,7 @@ void Peers::engineChanged(const std::string& endpoint, const std::string& addres
     entry.address = address; entry.previous = previous; entry.current = current;
     if (verifiable) entry.state = PeerState::Pending;
     else enter(endpoint, entry, PeerState::Unverified, false);
+    stateChanged();
 }
 void Peers::verified(const std::string& endpoint, bool authenticated)
 {
@@ -48,6 +57,7 @@ void Peers::verified(const std::string& endpoint, bool authenticated)
     const auto found = entries.find(endpoint);
     if (found == entries.end() || found->second.state != PeerState::Pending) return;
     enter(endpoint, found->second, authenticated ? PeerState::Changed : PeerState::Unverified, authenticated);
+    stateChanged();
 }
 PeerState Peers::shown(const std::string& address) const
 {

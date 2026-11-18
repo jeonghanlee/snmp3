@@ -163,7 +163,11 @@ dbLoadRecords("$(SNMP3)/db/snmp3Endpoint.db", "P=<prefix of the unit>,ENDPOINT=<
 
 `ENDPOINT` is the `id` of an endpoint in the configuration; a record that names an endpoint the loaded configuration does not hold is rejected at initialization, and the IOC prints `snmp3: record initialization rejected: <record>`. Endpoints that share an address share its request size, so their `$(P)BatchLimit` and `$(P)BatchSplits` records read the same values.
 
-Every record has `PINI=YES` and is scanned periodically; the macro `SCAN` sets the period and defaults to `1 second`. Its value is one of the periodic choices of the Base SCAN menu, written as the menu writes it, for example `5 second` or `.5 second`. A change of state is therefore visible on a record at most one scan period after it happened. The device support, `DTYP` `snmp3 state`, does not offer `SCAN=I/O Intr`.
+Every record has `PINI=YES`, and the macro `SCAN` sets how it is scanned; it defaults to `1 second`. With a periodic choice of the Base SCAN menu, written as the menu writes it, for example `5 second` or `.5 second`, a change of state is visible on a record at most one scan period after it happened. With `SCAN=I/O Intr` the record processes when a state the module shows has changed, without a periodic scan: the records of the device support, `DTYP` `snmp3 state`, share one `I/O Intr` list, and a change of the runtime state, of the state of an endpoint, or of the request size of an address processes all of them. They also process once when Base begins to scan, so that a state that changed during the start of the IOC is shown.
+
+```text
+dbLoadRecords("$(SNMP3)/db/snmp3Runtime.db", "P=<prefix>,SCAN=I/O Intr")
+```
 
 ## Declared groups of bindings
 

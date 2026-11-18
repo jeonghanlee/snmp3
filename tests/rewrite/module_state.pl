@@ -13,6 +13,7 @@
 #   a rejected request of N values sets the limit of its address to N/2 rounded down, never below 1, and counts
 #   one reduction, so eight values end at the limit 1 after 3 reductions (8 to 4 to 2 to 1);
 #   the runtime state is Running while the module runs and Stopped after snmp3Stop;
+#   a state record with SCAN "I/O Intr" processes when the state it reads changes, without a periodic scan;
 #   the runtime report prints one line per endpoint, "snmp3 endpoint: id=<id> address=N state=<state>", with
 #   " since=<time>" for a settled changed or unverified endpoint, the time of its "snmp3 engine:" log line;
 #   a state record whose link names an endpoint the configuration does not hold is rejected at initialization
@@ -39,6 +40,15 @@
 #   batch-line-after      obs sized                               "snmp3 batch:" lines              one line, limit=1 splits=3
 #   runtime-running       obs before                              VAL of RuntimeState               Running
 #   runtime-stopped       obs stopped                             VAL of RuntimeState               Stopped
+#   intr-batch            obs intr-sized, read at once after the  VAL of the records loaded with    1 3 I/O Intr
+#                         group rounds, before any wait           SCAN "I/O Intr"; their SCAN
+#   intr-peer-changed     obs intr-returned, read at once after   VAL and SCAN of that PeerState    changed I/O Intr
+#                         the log line of endpoint B
+#   intr-runtime-stopped  obs intr-stopped, read at once after    VAL and SCAN of that              Stopped I/O Intr
+#                         snmp3Stop                               RuntimeState
+#   intr-start            third IOC: a group of eight with PINI   VAL of BatchLimit, BatchSplits    4 1 tooBig (one rejection of
+#                         whose first request is rejected before  loaded with SCAN "I/O Intr";      eight values, before the records
+#                         Base scans                              AMSG of the eighth record         could be processed)
 #   unknown-ready         second IOC, standard error              initialization complete line      present
 #   unknown-<record>      second IOC, standard error              rejection line of the record      present
 #
@@ -270,7 +280,7 @@ sub command_judge {
     my ($output) = @_;
     my $main = "$output/main";
     my %obs;
-    for my $label (qw(before sized returned stopped)) {
+    for my $label (qw(before sized returned stopped intr-sized intr-returned intr-stopped)) {
         my $path = "$main/observe-$label.json";
         if (!-s $path || !-e "$output/complete") {
             print "INCOMPLETE observation $label\n";
@@ -320,6 +330,12 @@ sub command_judge {
     check('batch-line-after', joined(lines_of($obs{sized}, 'batch')), "snmp3 batch: address=$address limit=1 splits=3");
     check('runtime-running', field_pair($obs{before}, 'S_RuntimeState'), 'Running');
     check('runtime-stopped', field_pair($obs{stopped}, 'S_RuntimeState'), 'Stopped');
+    check('intr-batch', field_pair($obs{'intr-sized'}, 'IA_BatchLimit', 'IA_BatchSplits', 'IA_BatchLimit.SCAN'), '1 3 I/O Intr');
+    check('intr-peer-changed', field_pair($obs{'intr-returned'}, 'IB_PeerState', 'IB_PeerState.SCAN'), 'changed I/O Intr');
+    check('intr-runtime-stopped', field_pair($obs{'intr-stopped'}, 'I_RuntimeState', 'I_RuntimeState.SCAN'), 'Stopped I/O Intr');
+    my $start = "$output/start/observe-intr-start.json";
+    check('intr-start', -s $start ? field_pair(decode_json(read_file($start)), 'IS_BatchLimit', 'IS_BatchSplits', "T_R$MEMBERS.AMSG")
+          : 'no observation intr-start', '4 1 tooBig');
 
     my $unknown = -e "$output/unknown/ioc.stderr" ? read_file("$output/unknown/ioc.stderr") : '';
     check('unknown-ready', $unknown =~ /^iocRun: All initialization complete$/m ? 'present' : 'absent', 'present');

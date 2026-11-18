@@ -1,7 +1,8 @@
 # State of one endpoint of the snmp3 configuration, read from the IOC process; no request goes to a unit.
 # P        : PV prefix
 # ENDPOINT : id of the endpoint in the snmp3 configuration
-# SCAN     : scan period of the records (default "1 second"); a state is visible at most one period late
+# SCAN     : scan of the records (default "1 second"): a period, after which a change of a state is visible at
+#            the latest, or "I/O Intr", with which the records process when a state changes
 record(mbbi, "$(P)PeerState") {
     field(DESC, "Engine ID state of the endpoint")
     field(DTYP, "snmp3 state")

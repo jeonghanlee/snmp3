@@ -29,6 +29,9 @@ readonly STOP_TRIES=500
 readonly GROUP_ROUNDS=4
 readonly RETURN_SECONDS=40
 readonly SCAN_SECONDS=5
+readonly GROUP_MEMBERS=8
+readonly OBJECT_BASE="1.3.6.1.4.1.53864.4"
+readonly TOO_BIG_INDEX=11
 
 declare -a CHILDREN=()
 
@@ -152,6 +155,12 @@ function observe {
         SA_BatchLimit SA_BatchSplits SB_BatchLimit SB_BatchSplits A_R8.AMSG
 }
 
+# The state records that are loaded with SCAN I/O Intr, read without a wait.
+function observe_intr {
+    tool observe "${MAIN}" "${MAIN}/ioc.stdin" "${MAIN}/ioc.stdout" "$1" \
+        I_RuntimeState I_RuntimeState.SCAN IB_PeerState IB_PeerState.SCAN IA_BatchLimit IA_BatchSplits IA_BatchLimit.SCAN
+}
+
 function await_change {
     tool await "${MAIN}" "${MAIN}/ioc.stdin" "$1" "$2" "${SCAN_SECONDS}"
 }
@@ -184,6 +193,9 @@ function scenario {
         "dbLoadRecords(\"${ROOT}/db/snmp3Endpoint.db\",\"P=SA_,ENDPOINT=A\")"
         "dbLoadRecords(\"${ROOT}/db/snmp3Endpoint.db\",\"P=SB_,ENDPOINT=B\")"
         "dbLoadRecords(\"${ROOT}/db/snmp3Endpoint.db\",\"P=SC_,ENDPOINT=C\")"
+        "dbLoadRecords(\"${ROOT}/db/snmp3Runtime.db\",\"P=I_,SCAN=I/O Intr\")"
+        "dbLoadRecords(\"${ROOT}/db/snmp3Endpoint.db\",\"P=IA_,ENDPOINT=A,SCAN=I/O Intr\")"
+        "dbLoadRecords(\"${ROOT}/db/snmp3Endpoint.db\",\"P=IB_,ENDPOINT=B,SCAN=I/O Intr\")"
         "iocInit")
     start_ioc "${MAIN}" "${startup[@]}" || return 2
 
@@ -198,6 +210,8 @@ function scenario {
         round_group || return 2
         count=$((count + 1))
     done
+    # The records with SCAN I/O Intr are read at once, before the wait for the periodic ones.
+    observe_intr intr-sized || return 2
     await_change SA_BatchSplits 0 || return 2
     await_change SA_BatchLimit 0 || return 2
     observe sized || return 2
@@ -218,11 +232,13 @@ function scenario {
         fi
         sleep 1
     done
+    observe_intr intr-returned || return 2
     await_change SB_PeerState normal || return 2
     await_change SC_PeerState normal || return 2
     observe returned || return 2
 
     tool send "${MAIN}" "${MAIN}/ioc.stdin" snmp3Stop || return 2
+    observe_intr intr-stopped || return 2
     await_change S_RuntimeState Running || return 2
     observe stopped || return 2
     finish_ioc
@@ -235,6 +251,30 @@ function scenario {
         "dbLoadRecords(\"${ROOT}/db/snmp3Endpoint.db\",\"P=X_,ENDPOINT=Unknown\")"
         "iocInit")
     start_ioc "${OUTPUT}/unknown" "${startup[@]}" || return 2
+    finish_ioc
+
+    # A third IOC whose first request, sent by PINI before Base scans, is rejected as too large: the state
+    # records with SCAN I/O Intr must show the limit that was lowered before they could be processed. The session
+    # uses a community, so that no engine discovery delays the first reply past the start of the scans.
+    mkdir "${OUTPUT}/start" || return 2
+    count=1
+    while [[ ${count} -le ${GROUP_MEMBERS} ]]; do
+        printf 'record(longin, "T_R%d") {\n    field(DTYP, "snmp3")\n    field(PINI, "YES")\n    field(INP, "@V %s.%d.0 type=integer group=T")\n}\n' \
+            "${count}" "${OBJECT_BASE}" "$((count == GROUP_MEMBERS ? TOO_BIG_INDEX : 1))" >> "${OUTPUT}/start/records.db" || return 2
+        count=$((count + 1))
+    done
+    startup=("on error break" "dbLoadDatabase(\"${ROOT}/dbd/snmp3Ioc.dbd\")"
+        "snmp3Ioc_registerRecordDeviceDriver(pdbbase)" "snmp3WorkerPath(\"${PRODUCTS}/snmp3Worker\")"
+        "snmp3ProbePath(\"${PRODUCTS}/snmp3NativeProbe\")"
+        "snmp3Session V 127.0.0.1:${port_a} version=2c communityFile=${OUTPUT}/secrets/community timeoutMs=300 retries=0 maxVarbinds=${GROUP_MEMBERS}"
+        "dbLoadRecords(\"${OUTPUT}/start/records.db\")"
+        "on error continue"
+        "dbLoadRecords(\"${ROOT}/db/snmp3Endpoint.db\",\"P=IS_,ENDPOINT=V,SCAN=I/O Intr\")"
+        "iocInit")
+    start_ioc "${OUTPUT}/start" "${startup[@]}" || return 2
+    tool await "${OUTPUT}/start" "${OUTPUT}/start/ioc.stdin" "T_R${GROUP_MEMBERS}.AMSG" "" "${SCAN_SECONDS}" || return 2
+    tool observe "${OUTPUT}/start" "${OUTPUT}/start/ioc.stdin" "${OUTPUT}/start/ioc.stdout" intr-start \
+        IS_BatchLimit IS_BatchSplits "T_R${GROUP_MEMBERS}.AMSG" || return 2
     finish_ioc
     : > "${OUTPUT}/complete"
 }
