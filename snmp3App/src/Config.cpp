@@ -607,6 +607,8 @@ void Config::load(const std::string& file, const std::string& nativeProbe)
     if (!probePath.empty() && probePath != nativeProbe) reject("probe path changed");
     for (const auto& entry : sessions)
         if (next->endpoints.count(entry.first)) reject("name defined twice");
+    for (const auto& entry : subscriptions)
+        if (next->endpoints.count(entry.first)) reject("name defined twice");
     probePath = nativeProbe;
     loaded = std::move(next);
     nextNumber = loaded->bindings.size();
@@ -677,7 +679,8 @@ void Config::session(const std::string& name, const std::string& address, const 
     epicsGuard<epicsMutex> guard(mutex);
     requireOpen();
     if (!validName(name)) reject("configuration identifier rejected");
-    if (sessions.count(name) || current->endpoints.count(name)) reject("name defined twice");
+    if (sessions.count(name) || current->endpoints.count(name) || subscriptions.count(name))
+        reject("name defined twice");
     Session next;
     next.endpoint.id = name;
     parseAddress(address, next.endpoint);
@@ -736,9 +739,32 @@ std::shared_ptr<const Binding> Config::bind(const std::string& id)
     bound = true;
     return std::make_shared<const Binding>(current, found->second);
 }
+void Config::subscription(const std::string& name, const std::string& session, const std::string& periodMs)
+{
+    epicsGuard<epicsMutex> guard(mutex);
+    requireOpen();
+    if (!validName(name)) reject("configuration identifier rejected");
+    if (subscriptions.count(name) || sessions.count(name) || current->endpoints.count(name))
+        reject("name defined twice");
+    if (!current->endpoints.count(session)) reject("session absent");
+    // The lower end is the fastest periodic scan of Base, the upper end one hour.
+    const unsigned period = numberText(periodMs, 100, 3600000);
+    if (subscriptions.size() >= 4096) reject("subscription count rejected");
+    subscriptions[name] = {session, period};
+}
+bool Config::subscriptionOf(const std::string& name, std::string& session, unsigned& periodMs)
+{
+    epicsGuard<epicsMutex> guard(mutex);
+    const auto found = subscriptions.find(name);
+    if (found == subscriptions.end()) return false;
+    session = found->second.session;
+    periodMs = found->second.periodMs;
+    return true;
+}
 std::shared_ptr<const Binding> Config::define(const std::string& session, const std::string& object,
                                               const std::string& type, Operation operation, size_t capacity,
-                                              const std::string& group, bool systemInfo)
+                                              const std::string& group, bool systemInfo,
+                                              const std::string& subscription)
 {
     epicsGuard<epicsMutex> guard(mutex);
     if (frozen) reject("configuration frozen");
@@ -780,6 +806,7 @@ std::shared_ptr<const Binding> Config::define(const std::string& session, const 
     catch (const std::exception&) { current->bindings.erase(placed); --nextNumber; throw; }
     bound = true;
     if (named) namedObjects[name] = {object, !type.empty()};
+    if (!subscription.empty()) subscribedObjects[name] = subscription;
     return std::make_shared<const Binding>(current, placed->second);
 }
 void Config::discard(const std::string& id)
@@ -788,6 +815,7 @@ void Config::discard(const std::string& id)
     if (frozen || id.compare(0, 5, "link.") != 0) return;
     current->bindings.erase(id);
     namedObjects.erase(id);
+    subscribedObjects.erase(id);
 }
 void Config::mib(const std::string& path, bool system)
 {
@@ -889,12 +917,21 @@ void Config::show(const std::string& pattern, int verbosity)
                         entry.first.c_str(), item.first.c_str(), arcs.c_str(), typeName(binding.valueType),
                         binding.operation == Operation::Get ? "get" : "set",
                         binding.group.empty() ? "none" : binding.group.c_str(), binding.systemInfo ? 1u : 0u);
+            // An object that is read through a subscription names it.
+            const auto subscribed = subscribedObjects.find(item.first);
+            if (subscribed != subscribedObjects.end()) std::printf(" subscription=%s", subscribed->second.c_str());
             // An object given by name shows the name and where its type came from; one given by number has none.
             const auto named = namedObjects.find(item.first);
             if (named != namedObjects.end())
                 std::printf(" name=%s typeSource=%s", named->second.name.c_str(), named->second.typeFromLink ? "link" : "mib");
             std::printf("\n");
         }
+    }
+    for (const auto& entry : subscriptions) {
+        if (!epicsStrGlobMatch(entry.first.c_str(), pattern.c_str())) continue;
+        if (verbosity < 1) std::printf("snmp3 subscription: name=%s\n", entry.first.c_str());
+        else std::printf("snmp3 subscription: name=%s session=%s periodMs=%u\n", entry.first.c_str(),
+                         entry.second.session.c_str(), entry.second.periodMs);
     }
     if (verbosity < 1) return;
     // The MIB places from the nearest to the farthest, the modules the probe read with the place each came

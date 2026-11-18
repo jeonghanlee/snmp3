@@ -94,6 +94,14 @@ void show(const iocshArgBuf* arguments)
         snmp3::Config::instance().show(arguments[0].sval ? arguments[0].sval : "*",arguments[1].ival);
     } catch(const std::exception& error) { std::fprintf(stderr,"snmp3: %s\n",error.what()); iocshSetError(1); }
 }
+void subscription(const iocshArgBuf* arguments)
+{
+    try {
+        if(!arguments[0].sval || !arguments[1].sval || !arguments[2].sval)
+            throw std::runtime_error("subscription name, session and period required");
+        snmp3::Config::instance().subscription(arguments[0].sval,arguments[1].sval,arguments[2].sval);
+    } catch(const std::exception& error) { std::fprintf(stderr,"snmp3: %s\n",error.what()); iocshSetError(1); }
+}
 void mib(const iocshArgBuf* arguments)
 {
     try {
@@ -140,6 +148,13 @@ const iocshArg sessionPattern = {"pattern",iocshArgString};
 const iocshArg* const optionsArguments[] = {&sessionPattern,&optionWords};
 const iocshArg showVerbosity = {"verbosity",iocshArgInt};
 const iocshArg* const showArguments[] = {&sessionPattern,&showVerbosity};
+const iocshArg subscriptionName = {"name",iocshArgString};
+const iocshArg subscriptionSession = {"session",iocshArgString};
+const iocshArg subscriptionPeriod = {"periodMs",iocshArgString};
+const iocshArg* const subscriptionArguments[] = {&subscriptionName,&subscriptionSession,&subscriptionPeriod};
+const iocshFuncDef subscriptionDefinition = {"snmp3Subscription",3,subscriptionArguments,
+    "Define a set of read objects of one session that the module reads every period, 100 to 3600000 ms; a record "
+    "with SCAN I/O Intr whose link names it processes on each result."};
 const iocshArg mibPath = {"path",iocshArgString};
 const iocshArg mibSystem = {"[system]",iocshArgString};
 const iocshArg* const mibArguments[] = {&mibPath,&mibSystem};
@@ -200,6 +215,9 @@ void hook(initHookState state)
                 std::fprintf(stderr, "snmp3: %s\n", message.c_str());
         } catch (const std::exception& error) { std::fprintf(stderr, "snmp3: MIB names: %s\n", error.what()); }
         return;
+    // The requests of the subscriptions run while Base scans: a result is given to records that can process.
+    case initHookAfterIocRunning: snmp3::Requests::instance().scanning(true); return;
+    case initHookAtIocPause: snmp3::Requests::instance().scanning(false); return;
     case initHookAfterFinishDevSup: name = "AfterFinishDevSup"; break;
     case initHookAfterInitialProcess: name = "AfterInitialProcess"; break;
     case initHookAtShutdown: name = "AtShutdown"; break;
@@ -243,6 +261,7 @@ extern "C" void snmp3Registrar()
     iocshRegister(&queueDefinition, queueLimit);
     iocshRegister(&probeDefinition, probePath);
     iocshRegister(&mibDefinition, mib);
+    iocshRegister(&subscriptionDefinition, subscription);
     iocshRegister(&sessionDefinition, session);
     iocshRegister(&optionsDefinition, options);
     iocshRegister(&showDefinition, show);

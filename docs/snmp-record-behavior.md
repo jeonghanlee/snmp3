@@ -4,7 +4,7 @@ A record of the Experimental Physics and Industrial Control System (EPICS) can a
 
 ## Scope
 
-This page covers the behavior of one record request and of requests that share a declared group, what the records of an endpoint show when its unit rejects a request, does not answer or is replaced, and the records that show the state of the module. It explains the rules that the record contract states as values.
+This page covers the behavior of one record request and of requests that share a declared group, the records that process on the reply of a request the module sends by itself, what the records of an endpoint show when its unit rejects a request, does not answer or is replaced, and the records that show the state of the module. It explains the rules that the record contract states as values.
 
 **Out of scope:** the record types, the alarm mapping, and the exact limits (see [Module contract and record support](snmp-rewrite-contract.md)); the worker protocol and timers (see [Worker commands, limits and timers](snmp-worker-reference.md)); the migration of an existing IOC database.
 
@@ -113,6 +113,37 @@ snmp3 engine: endpoint=<id> state=<changed|unverified> previous=<hex> current=<h
 `snmp3RuntimeReport` shows the state of each address in its `snmp3 peer:` line and the state of each endpoint, with the time of the change, in its `snmp3 endpoint:` line; the record `$(P)PeerState` shows the state of an endpoint as a PV (see [State of the module as records](#state-of-the-module-as-records)). After the cause is known, restart the IOC; an endpoint whose profile names its engine ID needs the new engine ID in the configuration first.
 
 SNMPv1 and SNMPv2c carry no engine ID, so a replaced unit cannot be told apart there.
+
+## Records that process on a reply
+
+A record with a periodic `SCAN` sends its request when Base processes it and completes when the reply arrives, so its rate is bound to the scan period: a unit that answers later than the period lowers the rate to a multiple of the period. A subscription turns this around: the module sends the request, and the record processes when the reply has arrived.
+
+```text
+snmp3Subscription PDU1Fast PDU1 1000
+```
+
+```text
+record(longin, "<record_name>") {
+    field(DTYP, "snmp3")
+    field(SCAN, "I/O Intr")
+    field(INP, "@PDU1Fast 1.3.6.1.2.1.1.3.0 type=timeticks")
+}
+```
+
+| Rule | Behavior |
+| --- | --- |
+| One request per subscription | The objects of the records of one subscription leave together, in as few requests as the request size rules of the address allow |
+| When a request leaves | While a record of the subscription is on the `I/O Intr` list and Base scans; a subscription whose records have all left the list, by a change of `SCAN`, sends nothing. The first one when a record joins a list that held none. The next one when the period has passed, the request before it has ended, and Base has processed its records. A unit that answers within the period is asked once per period; a slower unit is asked again as soon as its reply was processed |
+| One processing, one result | Each record processes once per request, with the value, the alarm and the message a request of the record itself gives. The module keeps no value of its own |
+| Order of one reply | Base processes the records of one `I/O Intr` list by `PHAS`, then by the order they were loaded, among the records of one `PRIO`. Records of one reply with different `PRIO` have no order between them. A record that must process after the others of a reply takes the highest `PHAS` of that `PRIO` |
+| No reply | Each attempt ends as COMM/INVALID with `no reply`; the value stays. When the unit answers again the records are without alarm, with no restart of the IOC. A subscription of another address keeps its period meanwhile |
+| Another engine ID | The rules of [Another engine ID at the address](#another-engine-id-at-the-address) hold: no request for a value leaves, the records carry the alarm of the state, and a record marked `systemInfo` is still read in the state `changed` |
+| A request that is not admitted | When the queue of the address does not take the request of a subscription, for its count or its bytes, every record of it is READ/INVALID with `request not admitted`. A subscription with more records than the count limit of its address needs a higher limit (`snmp3QueueLimit`) |
+| A processing without a result | A put to `PROC` or a link that processes the record changes nothing: the value stays and the alarm of the last result is raised again |
+
+These records are rejected at initialization: a record with `SCAN` set to `I/O Intr` whose link names a session or a binding of the file, a record with another `SCAN` whose link names a subscription, an output record whose link names a subscription, and a record of a subscription whose link carries `group=`, because the records of a subscription leave in one request by themselves. A subscription holds read objects only; the link of an output record names the session. Setting `SCAN` of a record of a session to `I/O Intr` while the IOC runs is refused by Base, which sets it to `Passive`.
+
+The deadline of a request of a subscription is the shortest deadline of its records.
 
 ## State of the module as records
 

@@ -129,7 +129,7 @@ void Runtime::run(void* argument)
                 do { outcome=Requests::instance().service(); } while(outcome.more);
                 const auto after=monotonicUs();
                 if(self.supervisor->finished(after))break;
-                self.pause(self.supervisor->nextWake(after),outcome.retry,UINT64_MAX);
+                self.pause(std::min(self.supervisor->nextWake(after),outcome.timerUs),outcome.retry,UINT64_MAX);
             }
         } catch(...) {
             {
@@ -151,7 +151,15 @@ void Runtime::run(void* argument)
                 try { self.pause(UINT64_MAX,false,10000); } catch(...) {}
             }
         }
-    } else { try { self.pause(UINT64_MAX,false,UINT64_MAX); } catch(...) {} }
+    } else {
+        // Without an address the loop has nothing to serve and waits for the stop. Another wake, such as the
+        // one that announces that Base scans, does not end it.
+        for(;;) {
+            self.wake.clear();
+            { epicsGuard<epicsMutex> state(self.stateMutex); if(self.current.state!=State::Running)break; }
+            try { self.pause(UINT64_MAX,false,UINT64_MAX); } catch(...) { break; }
+        }
+    }
     {
         epicsGuard<epicsMutex> state(self.stateMutex);
         ++self.current.exited;

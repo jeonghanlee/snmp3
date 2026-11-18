@@ -36,6 +36,8 @@ public:
     std::shared_ptr<Scheduler> schedulerOwner();
     void setQualification(const Qualification& mode);
     std::vector<SupervisionEvent> takeSupervisionEvents();
+    // Wakes the servicing loop from another thread.
+    void poke() { wake.signal(); }
 private:
     Runtime();
     Runtime(const Runtime&) = delete;

@@ -46,7 +46,7 @@ Replace `<config_json>`, `<native_probe>`, and `<worker_path>` with the absolute
 | Command | Contract |
 | --- | --- |
 | `snmp3WorkerPath(absolutePath)` | Startup product selector, called before `snmp3Load`; at most 4096 path bytes |
-| `snmp3ProbePath(absolutePath)`, `snmp3Session`, `snmp3Options`, `snmp3Mib`, `snmp3Show` | Definitions by shell command; see [Configuration by shell commands](snmp-rewrite-config.md#configuration-by-shell-commands) |
+| `snmp3ProbePath(absolutePath)`, `snmp3Session`, `snmp3Options`, `snmp3Subscription`, `snmp3Mib`, `snmp3Show` | Definitions by shell command; see [Configuration by shell commands](snmp-rewrite-config.md#configuration-by-shell-commands) |
 | `snmp3QueueLimit(address,count,bytes)` | Atomic live limits, before or after `iocInit` |
 | `snmp3Stop` | Freezes Config, closes admission, contains workers, and joins once |
 

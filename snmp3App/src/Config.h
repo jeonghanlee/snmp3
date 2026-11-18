@@ -28,9 +28,16 @@ public:
     void finalize();
     // The binding of a record that names its object in its link: object is a numeric identifier, type the
     // name of a value type, capacity the size of the record's value for octets and object identifiers.
+    // subscription names the subscription the record reads through, or is empty.
     std::shared_ptr<const Binding> define(const std::string& session, const std::string& object,
                                           const std::string& type, Operation operation, size_t capacity,
-                                          const std::string& group, bool systemInfo);
+                                          const std::string& group, bool systemInfo,
+                                          const std::string& subscription = std::string());
+    // A subscription: a set of read objects of one session that the module reads by itself every period. Its
+    // name shares the names of the sessions, so that the first word of a record link means one thing.
+    void subscription(const std::string& name, const std::string& session, const std::string& periodMs);
+    // Whether a name is a subscription; gives its session and its period.
+    bool subscriptionOf(const std::string& name, std::string& session, unsigned& periodMs);
     // A place of MIB files of the IOC: a directory or one file. With system set, the path is a directory that
     // replaces the directories of the system for this IOC.
     void mib(const std::string& path, bool system);
@@ -55,6 +62,10 @@ private:
         std::vector<uint32_t> oid;
         std::string type;
         bool readable = false, writable = false;
+    };
+    struct Subscription {
+        std::string session;
+        unsigned periodMs = 0;
     };
     // A binding that a record defined by a name: the name, and whether its type came from the link.
     struct NamedObject {
@@ -87,6 +98,9 @@ private:
     std::map<std::string, Resolved> resolved;
     std::vector<std::pair<std::string, std::string>> mibModules;
     std::map<std::string, NamedObject> namedObjects;
+    std::map<std::string, Subscription> subscriptions;
+    // The subscription of a binding that a record defined on one.
+    std::map<std::string, std::string> subscribedObjects;
     unsigned probeStarts = 0;
     uint64_t revision = 0, nextNumber = 0, nextLink = 0;
     // bound: a record took a binding, so no definition by file or command may change; frozen: the runtime

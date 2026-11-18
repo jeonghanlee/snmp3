@@ -273,6 +273,7 @@ snmp3ProbePath("<native_probe>")
 snmp3Session PDU1 192.0.2.1 version=2c communityFile=<file>
 snmp3Session PDU2 [2001:db8::1]:1161 version=3 user=<user> securityLevel=authPriv authAlgorithm=SHA authSecretFile=<file> privAlgorithm=AES privSecretFile=<file>
 snmp3Options PDU* timeoutMs=2000 retries=1
+snmp3Subscription PDU1Fast PDU1 1000
 snmp3Show PDU* 1
 ```
 
@@ -281,8 +282,9 @@ snmp3Show PDU* 1
 | `snmp3ProbePath(absolutePath)` | The native probe, named before the first session. A second call with another path, and a `snmp3Load` with another probe, are rejected |
 | `snmp3Session name address [options]` | Defines a session. `name` follows the rules of a definition ID. `address` is numeric, alone or with a port: `192.0.2.1`, `192.0.2.1:161`, `2001:db8::1`, `[2001:db8::1]:161`; without a port it is 161. The options are those of `snmp3Options` |
 | `snmp3Options pattern [options]` | Sets options of every session whose name matches the pattern (`*` and `?`) and exists when the command runs; a session defined later is not touched. A pattern that matches no session is rejected |
+| `snmp3Subscription name session period` | Defines a subscription: a set of read objects of one session that the module reads by itself every `period` milliseconds, 100 to 3600000. A name is defined once among sessions and subscriptions. See [Records that process on a reply](snmp-record-behavior.md#records-that-process-on-a-reply) |
 | `snmp3Mib path [system]` | Names a directory or one file of MIB modules of the IOC. With the word `system` as second argument the path is a directory that replaces the directories of the system for this IOC. See [Objects by MIB name](#objects-by-mib-name) |
-| `snmp3Show pattern verbosity` | Prints one `snmp3 session:` line per matching session; with verbosity 1 the line holds the values of the session, one `snmp3 object:` line follows for each object a record defined on it, and the `snmp3 mib:` lines follow. No secret content is printed |
+| `snmp3Show pattern verbosity` | Prints one `snmp3 session:` line per matching session and one `snmp3 subscription:` line per matching subscription; with verbosity 1 the lines hold the values, one `snmp3 object:` line follows a session for each object a record defined on it, with `subscription=<name>` when the record reads through one, and the `snmp3 mib:` lines follow. No secret content is printed |
 
 An option is one word `name=value`. The names, defaults, ranges and rules are those of the profile fields above: `version`, `timeoutMs`, `retries`, `maxVarbinds`, `maxMessageSize`, `checkRanges` (`true` or `false`), `communityFile`, `user`, `securityLevel`, `authAlgorithm`, `authSecretFile`, `privAlgorithm`, `privSecretFile`, `contextName`, `securityEngineId`, `contextEngineId`. A secret file is named by its path and must meet the rules of [Secret files and permissions](#secret-files-and-permissions). Every value belongs to one session; none applies to the whole IOC.
 
@@ -301,11 +303,11 @@ record(longin, "<record_name>") {
 
 | Word of the link | Meaning |
 | --- | --- |
-| first word | Name of a session |
+| first word | Name of a session, or of a subscription for an input record with `SCAN` set to `I/O Intr` |
 | second word | Numeric dotted object identifier, or `MODULE::name.index` (see [Objects by MIB name](#objects-by-mib-name)) |
 | `type=<type>` | A value type of the table in [Binding fields and value types](#binding-fields-and-value-types). Required with a numeric identifier. With a name it is optional and then decides the type in place of the MIB |
 | `deadline_ms=<ms>` | Optional deadline budget, 1 to 600000 ms. Without it the budget is `2 x timeoutMs x (retries + 1) + 1000` ms of the session, at most 600000 ms |
-| `group=<label>` | Optional group label of an input record; the rules of a declared group apply |
+| `group=<label>` | Optional group label of an input record; the rules of a declared group apply. Not accepted on a record of a subscription |
 | `systemInfo` | Optional mark of an input record as system information of the unit |
 
 An input record reads the object and an output record writes it; the size of a value comes from the record, the 40 characters of a `stringin` or `stringout`, the `SIZV` of an `lsi` or `lso`, and the `NELM` of a `waveform`. A record that is rejected at initialization, for a link the rules above do not allow, a session that does not exist, or a value type its record type cannot hold, defines no object.

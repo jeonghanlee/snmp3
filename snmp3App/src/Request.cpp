@@ -9,6 +9,7 @@
 #include <recGbl.h>
 #include <recSup.h>
 #include <epicsThread.h>
+#include "Peer.h"
 
 namespace snmp3 {
 namespace {
@@ -19,6 +20,22 @@ const uint64_t ContextStorageLimit=8192;
 void require(bool condition)
 { if(!condition)throw std::runtime_error("record request rejected"); }
 }
+// The requests of one subscription. A cycle is one request for all its records: it is admitted when the period
+// has passed and the cycle before it has ended, its results are given to the records together by one scan
+// request, and it ends when Base has processed the records of every priority.
+struct Cycle {
+    enum class State { Idle, Admitted, Delivered };
+    std::string name;
+    unsigned periodMs=0;
+    IOSCANPVT scan=nullptr;
+    std::vector<RecordContext*> members;
+    State state=State::Idle;
+    // listed: records on the I/O Intr list; a subscription without one sends no request. pending: priorities
+    // whose records Base still processes.
+    size_t listed=0;
+    unsigned pending=0;
+    uint64_t dueUs=0;
+};
 RecordContext::RecordContext(RecordBinding spec,dbCommon* rec,std::string address,
                             bool (*valid)(RecordContext&),
                             void (*stage)(RecordContext&,const ipc::Result&))
@@ -31,7 +48,8 @@ bool Requests::attachmentAllowed()
 { std::lock_guard<std::mutex> guard(mutex); return initializing && !drainFailed; }
 RecordContext& Requests::attach(RecordBinding binding,dbCommon* record,const std::string& link,
                                bool (*validate)(RecordContext&),
-                               void (*prepare)(RecordContext&,const ipc::Result&))
+                               void (*prepare)(RecordContext&,const ipc::Result&),
+                               const std::string& subscription,unsigned periodMs)
 {
     require(record && !record->dpvt && validate && prepare);
     auto context=std::unique_ptr<RecordContext>(new RecordContext(std::move(binding),record,link,validate,prepare));
@@ -57,9 +75,147 @@ RecordContext& Requests::attach(RecordBinding binding,dbCommon* record,const std
     callbackSetUser(&result,&result.callback);
     std::lock_guard<std::mutex> guard(mutex);
     require(initializing && !drainFailed);
+    if(!subscription.empty()) {
+        auto& cycle=cycles[subscription];
+        if(!cycle) {
+            cycle.reset(new Cycle); cycle->name=subscription;
+            scanIoInit(&cycle->scan); scanIoSetComplete(cycle->scan,&Requests::cycleProcessed,cycle.get());
+        }
+        cycle->periodMs=periodMs; cycle->members.push_back(&result); result.subscription=cycle.get();
+    }
     contexts.splice(contexts.end(),pending);
     record->dpvt=&result;
     return result;
+}
+bool Requests::interrupt(RecordContext& context,bool added,IOSCANPVT* scan)
+{
+    {
+        std::lock_guard<std::mutex> guard(mutex);
+        if(!context.subscription)return false;
+        *scan=context.subscription->scan;
+        // The first request of a subscription leaves at once when a record joins a list that held none; no
+        // request leaves while the list holds none.
+        auto& cycle=*context.subscription;
+        if(added) { if(!cycle.listed++)cycle.dueUs=0; }
+        else if(cycle.listed)--cycle.listed;
+    }
+    Runtime::instance().poke();
+    return true;
+}
+void Requests::scanning(bool open)
+{
+    { std::lock_guard<std::mutex> guard(mutex); scanOpen=open; }
+    Runtime::instance().poke();
+}
+bool Requests::takeOutcome(RecordContext& context)
+{
+    std::lock_guard<std::mutex> guard(mutex);
+    if(!context.ready || !entryOpen || context.callbackState==CallbackState::Running)return false;
+    context.ready=false; context.callbackState=CallbackState::Running; ++entered;
+    return true;
+}
+void Requests::outcomeTaken(RecordContext& context)
+{
+    std::lock_guard<std::mutex> guard(mutex);
+    finish(context); --entered;
+}
+// One request for the records of a subscription. A record of an endpoint whose unit shows another engine ID is
+// not asked for, except system information while the responder may still authenticate or has done so; it gets
+// the alarm of that state as its outcome. A refused admission gives its records a read alarm with a message.
+void Requests::startCycle(Cycle& cycle,uint64_t nowUs)
+{
+    const uint64_t period=ipc::multiply(cycle.periodMs,1000);
+    cycle.dueUs=cycle.dueUs && ipc::add(cycle.dueUs,period)>nowUs ? ipc::add(cycle.dueUs,period):ipc::add(nowUs,period);
+    std::vector<uint64_t> handles; std::vector<RecordContext*> asked; unsigned budgetMs=0;
+    for(auto* member:cycle.members) {
+        if(!member->record || member->active || member->ready || member->callbackState!=CallbackState::Idle ||
+           member->owner!=activation)continue;
+        const auto& binding=*member->definition.binding;
+        const auto state=Peers::instance().state(binding.endpoint().id);
+        if(state!=PeerState::Normal && !(binding.definition().systemInfo && state!=PeerState::Unverified)) {
+            member->syntheticAlarm=COMM_ALARM; member->syntheticMessage=Peers::message(state); member->ready=true;
+            continue;
+        }
+        handles.push_back(member->handle); asked.push_back(member);
+        budgetMs=budgetMs ? std::min(budgetMs,member->definition.budgetMs):member->definition.budgetMs;
+    }
+    if(!handles.empty()) {
+        try {
+            const auto identities=Runtime::instance().admit(handles,std::vector<Value>(),budgetMs);
+            for(size_t index=0;index<asked.size();++index) {
+                asked[index]->identity=identities[index]; asked[index]->active=true; asked[index]->terminal=TerminalView();
+            }
+            cycle.state=Cycle::State::Admitted; return;
+        } catch(const std::exception&) {
+            // The queue of the address did not take the request, for its count or its bytes.
+            for(auto* member:asked) {
+                member->syntheticAlarm=READ_ALARM; member->syntheticMessage="request not admitted"; member->ready=true;
+            }
+        }
+    }
+    deliver(cycle);
+}
+// Gives the outcomes of a cycle to its records: Base processes every record of the I/O Intr list, in the order
+// of PHAS among the records of one priority.
+void Requests::deliver(Cycle& cycle)
+{
+    if(stopping || !scanOpen) { settle(cycle); return; }
+    cycle.state=Cycle::State::Delivered; cycle.pending=0;
+    const unsigned queued=scanIoRequest(cycle.scan);
+    for(unsigned priority=0;priority<NUM_CALLBACK_PRIORITIES;++priority)if(queued & (1u<<priority))++cycle.pending;
+    if(!cycle.pending)settle(cycle);
+}
+// Ends a cycle: an outcome that no processing took is dropped, so the next cycle starts from nothing.
+void Requests::settle(Cycle& cycle)
+{
+    for(auto* member:cycle.members) {
+        if(member->callbackState==CallbackState::Running)continue;
+        if(member->active || member->ready) {
+            if(member->active && !member->terminal.result)continue;
+            member->ready=false; member->syntheticAlarm=0; member->syntheticMessage=nullptr;
+            finish(*member);
+        }
+    }
+    cycle.state=Cycle::State::Idle; cycle.pending=0;
+}
+void Requests::cycleProcessed(void* user,IOSCANPVT,int)
+{
+    auto& self=instance(); auto& cycle=*static_cast<Cycle*>(user);
+    {
+        std::lock_guard<std::mutex> guard(self.mutex);
+        if(cycle.state!=Cycle::State::Delivered || !cycle.pending || --cycle.pending)return;
+        self.settle(cycle);
+        ++self.changes; self.changed.notify_all();
+    }
+    Runtime::instance().poke();
+}
+uint64_t Requests::serviceCycles(uint64_t nowUs)
+{
+    uint64_t timer=UINT64_MAX;
+    for(auto& entry:cycles) {
+        auto& cycle=*entry.second;
+        if(cycle.members.empty())continue;
+        if(cycle.state==Cycle::State::Admitted) {
+            bool complete=true;
+            for(auto* member:cycle.members) {
+                if(!member->active || member->ready)continue;
+                if(!member->terminal.result) {
+                    member->terminal=member->owner->take(member->identity);
+                    if(!member->terminal.result) { complete=false; continue; }
+                    require(member->terminal.id==member->identity);
+                }
+                member->ready=true;
+            }
+            if(complete)deliver(cycle);
+        }
+        // A stop does not wait for records that Base no longer processes.
+        if(cycle.state==Cycle::State::Delivered && stopping)settle(cycle);
+        if(cycle.state==Cycle::State::Idle && cycle.listed && scanOpen && !stopping) {
+            if(nowUs>=cycle.dueUs)startCycle(cycle,nowUs);
+            if(cycle.state==Cycle::State::Idle)timer=std::min(timer,cycle.dueUs);
+        }
+    }
+    return timer;
 }
 bool Requests::detach(RecordContext& context)
 {
@@ -75,7 +231,8 @@ void Requests::start(std::shared_ptr<Scheduler> owner)
     require(!drainFailed && !entered);
     for(const auto& context:contexts)require(!context->active && context->owner==owner && context->record);
     activation=std::move(owner);
-    initializing=false; detachAllowed=false; entryOpen=true; producers=true;
+    initializing=false; detachAllowed=false; entryOpen=true; producers=true; stopping=false;
+    for(auto& cycle:cycles) { cycle.second->state=Cycle::State::Idle; cycle.second->pending=0; cycle.second->dueUs=0; }
     cursor=contexts.begin(); visited=0;
 }
 void Requests::admit(RecordContext& context,const std::vector<Value>& payload)
@@ -107,6 +264,8 @@ ServiceOutcome Requests::service()
     for(size_t visit=0;visit<count;++visit) {
         if(cursor==contexts.end())cursor=contexts.begin();
         auto& context=**cursor++;
+        // The records of a subscription are served by their cycle.
+        if(context.subscription)continue;
         if(!context.active || context.callbackState==CallbackState::Queued ||
            context.callbackState==CallbackState::Running || context.callbackState==CallbackState::Inert)continue;
         if(!context.terminal.result) {
@@ -127,6 +286,7 @@ ServiceOutcome Requests::service()
     if(visited>=contexts.size())visited=0;
     else outcome.more=true;
     outcome.retry=refused;
+    outcome.timerUs=serviceCycles(monotonicUs());
     return outcome;
 }
 void Requests::finish(RecordContext& context)
@@ -189,6 +349,7 @@ bool Requests::drain()
 {
     const auto deadline=ipc::add(monotonicUs(),DrainBudgetUs);
     bool drained=false;
+    { std::lock_guard<std::mutex> guard(mutex); stopping=true; }
     do {
         uint64_t seen=0;
         { std::lock_guard<std::mutex> guard(mutex); seen=changes; }
@@ -219,6 +380,9 @@ void Requests::queuesDestroyed()
         require(!context->record);
         if(context->active)finish(*context);
     }
+    // Base frees its I/O Intr lists with the database, so the cycles go with the contexts and a database that
+    // is built again gets new ones.
+    cycles.clear();
     contexts.clear(); cursor=contexts.end(); visited=0; activation.reset();
     initializing=!drainFailed; detachAllowed=false;
 }

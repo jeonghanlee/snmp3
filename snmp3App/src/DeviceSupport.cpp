@@ -19,6 +19,7 @@
 #include <waveformRecord.h>
 #include <menuConvert.h>
 #include <menuFtype.h>
+#include <menuScan.h>
 #include <epicsExport.h>
 #include <algorithm>
 #include <cstdio>
@@ -230,7 +231,7 @@ template<RecordKind Kind> long initialize(dbCommon* record)
 {
     std::string defined;
     try {
-        require(Requests::instance().attachmentAllowed() && record->scan!=2);
+        require(Requests::instance().attachmentAllowed());
         auto* link=dbGetDevLink(record);
         require(link && link->type==INST_IO && link->value.instio.string);
         const auto parsed=parseRecordLink(std::string("@")+link->value.instio.string);
@@ -248,9 +249,18 @@ template<RecordKind Kind> long initialize(dbCommon* record)
             // An object given by number needs its type in the link; one given by name takes it from its MIB.
             require(!parsed.type.empty() || parsed.object.find("::")!=std::string::npos);
         }
+        // The first word of a link names a session or a subscription of one. A record with SCAN I/O Intr reads
+        // through a subscription and no other record does; a subscription holds read objects only.
+        std::string target=parsed.session,subscription; unsigned periodMs=0;
+        if(parsed.named && Config::instance().subscriptionOf(parsed.session,target,periodMs))subscription=parsed.session;
+        require((record->scan==menuScanI_O_Intr)==!subscription.empty());
+        require(subscription.empty() || input(Kind));
+        // The records of a subscription leave in one request by themselves; a group label would tie them to
+        // records outside it.
+        require(subscription.empty() || parsed.group.empty());
         const auto binding=parsed.named ?
-            Config::instance().define(parsed.session,parsed.object,parsed.type,input(Kind)?Operation::Get:Operation::Set,
-                                      linkCapacity,parsed.group,parsed.systemInfo) :
+            Config::instance().define(target,parsed.object,parsed.type,input(Kind)?Operation::Get:Operation::Set,
+                                      linkCapacity,parsed.group,parsed.systemInfo,subscription) :
             Config::instance().bind(parsed.definition);
         if(parsed.named)defined=binding->definition().id;
         const unsigned budgetMs=parsed.budgetMs ? parsed.budgetMs:defaultBudgetMs(binding->profile());
@@ -286,7 +296,8 @@ template<RecordKind Kind> long initialize(dbCommon* record)
         }
         }
         auto& context=Requests::instance().attach(RecordBinding(binding,Kind,budgetMs,capacity,type),
-                                                 record,link->value.instio.string,&validate,&prepare);
+                                                 record,link->value.instio.string,&validate,&prepare,
+                                                 subscription,periodMs);
         context.storage=storage; context.storageType=storageType;
         return Kind==RecordKind::Ao?2:0;
     } catch(const std::exception&) {
@@ -297,6 +308,39 @@ template<RecordKind Kind> long initialize(dbCommon* record)
         return S_dev_badInpType;
     }
 }
+void raise(dbCommon* record,unsigned alarm,const char* message)
+{
+    if(message && *message)recGblSetSevrMsg(record,alarm,INVALID_ALARM,"%s",message);
+    else recGblSetSevr(record,alarm,INVALID_ALARM);
+}
+// One processing of a record of a subscription takes one outcome of a request the module sent: the value, the
+// alarm and the message are the ones a request of the record itself gives. A processing without an outcome, by
+// a put to PROC or a link, changes nothing: the value stays and the alarm of the last outcome is raised again.
+long processOutcome(dbCommon* record,RecordContext& context,RecordKind kind)
+{
+    if(kind==RecordKind::Waveform)as<waveformRecord>(record).busy=FALSE;
+    if(!Requests::instance().takeOutcome(context)) {
+        if(context.heldAlarm)raise(record,context.heldAlarm,context.heldMessage.c_str());
+        return -1;
+    }
+    context.alarm=0; context.message=nullptr; context.valueWithAlarm=false; context.published=false;
+    if(context.syntheticAlarm) { context.alarm=context.syntheticAlarm; context.message=context.syntheticMessage; }
+    else {
+        try { require(context.terminal.result!=nullptr); prepare(context,*context.terminal.result); }
+        catch(const std::exception&) { context.alarm=READ_ALARM; }
+    }
+    long status=-1;
+    if(!context.alarm || context.valueWithAlarm) {
+        try { require(bool(context.staged)); publish(context); status=kind==RecordKind::Ai?2:0; }
+        catch(const std::exception&) { context.alarm=READ_ALARM; context.message=nullptr; }
+    }
+    if(!context.message)record->namsg[0]='\0';
+    if(context.alarm)raise(record,context.alarm,context.message);
+    context.heldAlarm=context.alarm; context.heldMessage=context.message ? context.message:"";
+    context.syntheticAlarm=0; context.syntheticMessage=nullptr;
+    Requests::instance().outcomeTaken(context);
+    return status;
+}
 long process(dbCommon* record,RecordKind kind)
 {
     auto* context=static_cast<RecordContext*>(record->dpvt);
@@ -304,6 +348,7 @@ long process(dbCommon* record,RecordKind kind)
     if(!context || context->definition.kind!=kind || !validate(*context)) {
         recGblSetSevr(record,LINK_ALARM,INVALID_ALARM); return -1;
     }
+    if(context->subscription)return processOutcome(record,*context,kind);
     try {
         if(record->pact) {
             require(Requests::instance().completing(*context));
@@ -335,22 +380,28 @@ long detach(dbCommon* record)
 dsxt extensions={&add,&detach};
 long deviceInit(int after) { if(!after)devExtend(&extensions); return 0; }
 long noInterrupt(int,dbCommon*,IOSCANPVT*) { return S_dev_badInpType; }
+// The I/O Intr list of an input record is the one of its subscription; a record without one has none.
+long interrupt(int command,dbCommon* record,IOSCANPVT* scan)
+{
+    auto* context=static_cast<RecordContext*>(record->dpvt);
+    return context && Requests::instance().interrupt(*context,command==0,scan) ? 0:S_dev_badInpType;
+}
 template<typename Record,RecordKind Kind> long processTyped(Record* record)
 { return process(reinterpret_cast<dbCommon*>(record),Kind); }
 }
 
 extern "C" {
-aidset snmp3DevAi={{6,nullptr,&deviceInit,&initialize<RecordKind::Ai>,&noInterrupt},&processTyped<aiRecord,RecordKind::Ai>,nullptr};
+aidset snmp3DevAi={{6,nullptr,&deviceInit,&initialize<RecordKind::Ai>,&interrupt},&processTyped<aiRecord,RecordKind::Ai>,nullptr};
 aodset snmp3DevAo={{6,nullptr,&deviceInit,&initialize<RecordKind::Ao>,&noInterrupt},&processTyped<aoRecord,RecordKind::Ao>,nullptr};
-longindset snmp3DevLongin={{5,nullptr,&deviceInit,&initialize<RecordKind::Longin>,&noInterrupt},&processTyped<longinRecord,RecordKind::Longin>};
+longindset snmp3DevLongin={{5,nullptr,&deviceInit,&initialize<RecordKind::Longin>,&interrupt},&processTyped<longinRecord,RecordKind::Longin>};
 longoutdset snmp3DevLongout={{5,nullptr,&deviceInit,&initialize<RecordKind::Longout>,&noInterrupt},&processTyped<longoutRecord,RecordKind::Longout>};
-int64indset snmp3DevInt64in={{5,nullptr,&deviceInit,&initialize<RecordKind::Int64in>,&noInterrupt},&processTyped<int64inRecord,RecordKind::Int64in>};
+int64indset snmp3DevInt64in={{5,nullptr,&deviceInit,&initialize<RecordKind::Int64in>,&interrupt},&processTyped<int64inRecord,RecordKind::Int64in>};
 int64outdset snmp3DevInt64out={{5,nullptr,&deviceInit,&initialize<RecordKind::Int64out>,&noInterrupt},&processTyped<int64outRecord,RecordKind::Int64out>};
-stringindset snmp3DevStringin={{5,nullptr,&deviceInit,&initialize<RecordKind::Stringin>,&noInterrupt},&processTyped<stringinRecord,RecordKind::Stringin>};
+stringindset snmp3DevStringin={{5,nullptr,&deviceInit,&initialize<RecordKind::Stringin>,&interrupt},&processTyped<stringinRecord,RecordKind::Stringin>};
 stringoutdset snmp3DevStringout={{5,nullptr,&deviceInit,&initialize<RecordKind::Stringout>,&noInterrupt},&processTyped<stringoutRecord,RecordKind::Stringout>};
-lsidset snmp3DevLsi={{5,nullptr,&deviceInit,&initialize<RecordKind::Lsi>,&noInterrupt},&processTyped<lsiRecord,RecordKind::Lsi>};
+lsidset snmp3DevLsi={{5,nullptr,&deviceInit,&initialize<RecordKind::Lsi>,&interrupt},&processTyped<lsiRecord,RecordKind::Lsi>};
 lsodset snmp3DevLso={{5,nullptr,&deviceInit,&initialize<RecordKind::Lso>,&noInterrupt},&processTyped<lsoRecord,RecordKind::Lso>};
-wfdset snmp3DevWaveform={{5,nullptr,&deviceInit,&initialize<RecordKind::Waveform>,&noInterrupt},&processTyped<waveformRecord,RecordKind::Waveform>};
+wfdset snmp3DevWaveform={{5,nullptr,&deviceInit,&initialize<RecordKind::Waveform>,&interrupt},&processTyped<waveformRecord,RecordKind::Waveform>};
 }
 epicsExportAddress(dset,snmp3DevAi);
 epicsExportAddress(dset,snmp3DevAo);

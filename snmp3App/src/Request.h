@@ -9,6 +9,7 @@
 
 struct dbCommon;
 struct typed_rset;
+struct ioscan_head;
 
 namespace snmp3 {
 enum class RecordKind { Ai, Longin, Int64in, Stringin, Lsi, Waveform,
@@ -40,6 +41,7 @@ struct RecordBinding {
 };
 
 enum class CallbackState { Idle, Pending, Queued, Running, Inert };
+struct Cycle;
 struct RecordContext {
     const RecordBinding definition;
     const std::string link;
@@ -65,6 +67,16 @@ struct RecordContext {
     void* storage=nullptr;
     std::unique_ptr<Value> staged;
     std::string text;
+    // A record that reads through a subscription: the module sends its requests, and the record processes on
+    // each result. ready: an outcome waits for the next processing of the record. A synthetic outcome is one
+    // that no request produced: the refusal of an endpoint whose unit changed, or a refused admission. The held
+    // alarm is the one of the last outcome, raised again when the record is processed without an outcome.
+    Cycle* subscription=nullptr;
+    bool ready=false;
+    unsigned syntheticAlarm=0;
+    const char* syntheticMessage=nullptr;
+    unsigned heldAlarm=0;
+    std::string heldMessage;
     bool (*validate)(RecordContext&);
     void (*prepare)(RecordContext&, const ipc::Result&);
     RecordContext(RecordBinding spec, dbCommon* rec, std::string address,
@@ -83,14 +95,29 @@ struct RecordSnapshot {
 const uint64_t ServiceRetryUs=10000;
 struct ServiceOutcome {
     bool more=false,retry=false;
+    // Time at which the next request of a subscription is due; UINT64_MAX when none waits for its time.
+    uint64_t timerUs=UINT64_MAX;
 };
 // Context storage outlives Base callback queue references and isolated record teardown.
 class Requests {
 public:
     static Requests& instance();
+    // subscription and periodMs name the subscription a record reads through; empty for a record that sends
+    // its own request when it is processed.
     RecordContext& attach(RecordBinding binding, dbCommon* record, const std::string& link,
                           bool (*validate)(RecordContext&),
-                          void (*prepare)(RecordContext&,const ipc::Result&));
+                          void (*prepare)(RecordContext&,const ipc::Result&),
+                          const std::string& subscription=std::string(), unsigned periodMs=0);
+    // The I/O Intr list of the subscription of a record; added tells whether the record joins or leaves the
+    // list. The requests of a subscription run while its list holds a record. Returns false for a record
+    // without a subscription.
+    bool interrupt(RecordContext& context, bool added, ioscan_head** scan);
+    // A processing of a subscription record takes the outcome that waits for it, and gives it back when the
+    // record has taken value and alarm. take returns false when no outcome waits.
+    bool takeOutcome(RecordContext& context);
+    void outcomeTaken(RecordContext& context);
+    // Whether Base scans: the requests of the subscriptions run only then.
+    void scanning(bool open);
     bool attachmentAllowed();
     bool detach(RecordContext& context);
     void start(std::shared_ptr<Scheduler> owner);
@@ -104,7 +131,12 @@ public:
 private:
     Requests();
     static void callback(epicsCallback* callback);
+    static void cycleProcessed(void* cycle, ioscan_head* scan, int priority);
     void finish(RecordContext& context);
+    uint64_t serviceCycles(uint64_t nowUs);
+    void startCycle(Cycle& cycle, uint64_t nowUs);
+    void deliver(Cycle& cycle);
+    void settle(Cycle& cycle);
     std::mutex mutex;
     std::condition_variable changed;
     // Incremented under the mutex with every notification of `changed`, so a wait that began after a
@@ -113,6 +145,8 @@ private:
     std::list<std::unique_ptr<RecordContext>> contexts;
     std::list<std::unique_ptr<RecordContext>>::iterator cursor;
     std::shared_ptr<Scheduler> activation;
+    std::map<std::string,std::unique_ptr<Cycle>> cycles;
+    bool scanOpen=false, stopping=false;
     uint64_t entered=0,enqueueFailures=0,completions=0;
     size_t visited=0;
     bool refused=false;
