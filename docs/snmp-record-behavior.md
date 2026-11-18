@@ -10,6 +10,33 @@ This page covers the behavior of one record request and of requests that share a
 
 Abbreviations on this page: IPC is inter-process communication, and K is the number of objects in one request.
 
+## Who decides what
+
+A record of this module is one of four kinds. The kind decides who sends a request, who processes the record, and where its value comes from.
+
+| Kind of record | A request leaves when | The record processes when | Its value is | It completes when |
+| --- | --- | --- | --- | --- |
+| Input record with a periodic or `Passive` `SCAN`, on a session or a binding of the file | Base processes the record, by its scan, a put to `PROC` or a link | the same processing begins, and again when the reply arrives | the value of that reply | the reply, the deadline or a failure of the request arrives |
+| Input record with `SCAN=I/O Intr`, on a subscription | the period of the subscription has passed and the request before it has ended | Base processes the `I/O Intr` list of the subscription, once per request | the value of that request | within that processing |
+| Output record | Base processes the record, by a put or a link | the same processing begins, and again when the result of the SET arrives | the value that was written | the result of the SET, the deadline or a failure arrives |
+| State record (`DTYP` `snmp3 state`) | never | its scan period passes, or with `SCAN=I/O Intr` a state the module shows changes | the state the IOC process holds | within that processing |
+
+The module keeps no value of a unit between two requests: every value on a record came with the reply of one request.
+
+Every setting has one scope:
+
+| Setting | Scope | Given by |
+| --- | --- | --- |
+| `timeoutMs`, `retries`, `maxVarbinds`, `maxMessageSize`, `checkRanges`, the version and the security values | one session (one profile of the file) | `snmp3Session`, `snmp3Options`, or the file |
+| Period | one subscription | `snmp3Subscription` |
+| `deadline_ms` | one record | the record link |
+| `type`, `group`, `systemInfo` | one record | the record link that names a session or a subscription; for a record on a binding of the file, the fields `valueType`, `group` and `systemInfo` of that binding |
+| Queue count and bytes | one address | `snmp3QueueLimit` |
+| Places of MIB files | the IOC | `snmp3Mib` |
+| Worker and probe products | the IOC | `snmp3WorkerPath`, `snmp3ProbePath` or `snmp3Load` |
+
+No setting of a unit applies to the whole IOC.
+
 ## Order of record processing
 
 For an admitted asynchronous request, events happen in this order:

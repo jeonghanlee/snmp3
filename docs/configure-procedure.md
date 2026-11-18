@@ -69,6 +69,56 @@ snmp3 config: revision=1 frozen=1 profiles=1 endpoints=1 bindings=1
 
 The startup file sets the worker path before the load, and a load while no worker path is set is rejected. A rejected load leaves the previous snapshot unchanged. The startup file begins with `on error break`, so a failed `snmp3Load` ends the IOC with the message `snmp3Ioc: startup script failed` and exit status 1. The [startup configuration reference](snmp-rewrite-config.md) lists every field and every rejection rule.
 
+## Configure by shell commands
+
+The same IOC can be configured without a JSON file: the startup file names the unit as a session, and each record names its object in its link. The steps reuse `<config_dir>` and the community file of the steps above.
+
+1. To write a database with one input record that reads through a subscription and one that reads when it is processed, create `<config_dir>/records.db` with this content:
+
+    ```text
+    record(longin, "Example_UpTime") {
+        field(DTYP, "snmp3")
+        field(SCAN, "I/O Intr")
+        field(INP, "@UnitFast 1.3.6.1.2.1.1.3.0 type=timeticks")
+    }
+    record(stringin, "Example_Name") {
+        field(DTYP, "snmp3")
+        field(INP, "@Unit 1.3.6.1.2.1.1.5.0 type=octets")
+    }
+    ```
+
+2. To write the startup file, create `<config_dir>/startup.cmd` with this content, with `<checkout>` replaced by the absolute path of the checkout root, `<config_dir>` by its absolute path and `<address>` by the numeric address of your device:
+
+    ```text
+    on error break
+    dbLoadDatabase("<checkout>/dbd/snmp3Ioc.dbd")
+    snmp3Ioc_registerRecordDeviceDriver(pdbbase)
+    snmp3WorkerPath("<checkout>/bin/linux-x86_64/snmp3Worker")
+    snmp3ProbePath("<checkout>/bin/linux-x86_64/snmp3NativeProbe")
+    snmp3Session Unit <address> version=2c communityFile=<config_dir>/community.txt
+    snmp3Subscription UnitFast Unit 1000
+    dbLoadRecords("<config_dir>/records.db")
+    iocInit
+    snmp3Show * 1
+    ```
+
+3. To start the IOC and leave it at once, run:
+
+    ```bash
+    printf 'exit\n' | bin/linux-x86_64/snmp3Ioc <config_dir>/startup.cmd
+    ```
+
+The output of `snmp3Show` holds one line for the session, one for each record's object and one for the subscription:
+
+```text
+snmp3 session: name=Unit address=<address> port=161 version=2c timeoutMs=1000 retries=3 maxVarbinds=32 maxMessageSize=1472 checkRanges=1
+snmp3 object: session=Unit id=link.1 oid=1.3.6.1.2.1.1.3.0 type=timeticks operation=get group=none systemInfo=0 subscription=UnitFast
+snmp3 object: session=Unit id=link.2 oid=1.3.6.1.2.1.1.5.0 type=octets operation=get group=none systemInfo=0
+snmp3 subscription: name=UnitFast session=Unit periodMs=1000
+```
+
+A wrong line of the startup file ends the IOC there with `snmp3: <reason>` and `snmp3Ioc: startup script failed`. [Configuration by shell commands](snmp-rewrite-config.md#configuration-by-shell-commands) lists the commands, the options and the link, and [Records that process on a reply](snmp-record-behavior.md#records-that-process-on-a-reply) explains the subscription.
+
 ## Shared library names
 
 The build installs each shared library of the module under a versioned name, the way EPICS Base does for its own libraries:
