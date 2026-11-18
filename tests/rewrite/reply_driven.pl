@@ -41,7 +41,8 @@
 #   loss-away-alarm           loss         eleven readings while the agent is   SEVR, STAT, AMSG                  INVALID COMM no reply
 #                                          stopped
 #   loss-away-kept            loss         the same readings                    VAL, PACT, UDF                    the value before, 0, 0
-#   loss-away-attempts        loss         first and last of those readings     rise of the counter               at least 20 (one per attempt)
+#   loss-away-attempts        loss         first and last of those readings     rise of the counter               at least 20 (one per attempt
+#                                                                                                                 of 600 ms)
 #   loss-other-requests       loss         the same time, a second address      requests at its agent             within 1 of elapsed / 0.5 s
 #   loss-other-counter        loss         the same readings                    rise of its counter               within 1 of the requests
 #   loss-back                 loss         the agent started again              time to the first reading         within 30 s
@@ -92,6 +93,7 @@ my $USER = 'fixtureUser';
 my $OID = '1.3.6.1.4.1.53864.4.1.0';
 my $PERIOD_MS = 500;
 my $SLOW_PERIOD_MS = 2000;
+my $LONG_TIMEOUT_MS = 600;
 my $STEP_SECONDS = 15;
 my $POLL_SECONDS = 0.02;
 my $RETURN_SECONDS = 30;
@@ -176,7 +178,9 @@ sub command_prepare {
         $db .= counted('C_Prompt', 'SP') . counted('C_Delayed', 'SD');
     } elsif ($case eq 'loss') {
         my ($first, $second) = @ports;
-        push @lines, "snmp3Session A 127.0.0.1:$first " . community_options($secrets),
+        # The timeout of the first address is longer than the period, so that its requests without a reply follow
+        # each other with no gap: a requester that held the second address back meanwhile would never let it ask.
+        push @lines, "snmp3Session A 127.0.0.1:$first version=2c communityFile=$secrets/community timeoutMs=$LONG_TIMEOUT_MS retries=0",
             "snmp3Session B [::1]:$second " . community_options($secrets),
             "snmp3Subscription SA A $PERIOD_MS", "snmp3Subscription SB B $PERIOD_MS";
         $db .= counted('L_In', 'SA') . counted('L_Other', 'SB');
