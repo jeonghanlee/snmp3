@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.0.7 — Shell Commands, MIB Names and Reply-Driven Records
+
+### Product
+
+- An IOC can be configured by shell commands, without a JSON file: `snmp3ProbePath`, `snmp3Session name address [options]`, `snmp3Options pattern [options]`, `snmp3Subscription name session period`, `snmp3Mib path [system]` and `snmp3Show pattern verbosity`. The options are the fields a profile has in the file, with the same names, defaults and ranges, and every value belongs to one session. A file and commands in one startup script give one configuration.
+- A record link can name its object: `@<session or subscription> <object> [type=..] [deadline_ms=..] [group=..] [systemInfo]`. The object is a numeric identifier with `type=`, or `MODULE::name.index`, whose identifier, type and access come from its MIB.
+- MIB names are resolved by the probe in one run when `iocInit` begins; the IOC process reads no MIB. A module is taken from the first place that holds it: the places of `snmp3Mib`, the `mibs` directory the module installs, then the directories of the system. `snmp3Show <pattern> 1` prints the place and file of every module that was read.
+- A subscription is a set of read objects of one session with a period. The module sends one request for them when the period has passed and Base has processed the records of the request before it. A record with `SCAN=I/O Intr` reads through a subscription and takes one result per processing, with the value, alarm and message a request of the record itself gives. A unit that answers later than the period is asked again as soon as its reply was processed.
+- The state records of `DTYP` `snmp3 state` accept `SCAN=I/O Intr`: they process when a state the module shows changes, and once when Base begins to scan.
+- A record is rejected at initialization, and named on the standard error, when its name does not resolve, is no object or carries no index, when its record type cannot hold the type, when it writes an object the MIB declares read-only or reads one declared not readable, and when its `SCAN` does not fit its link: `I/O Intr` needs a subscription, and a subscription takes input records with `I/O Intr` and no `group=` label.
+
+### Compatibility
+
+- A configuration from a JSON file and the link `@binding=<id>` work as before.
+- `deadline_ms` is optional on both link forms. Without it the budget is `2 x timeoutMs x (retries + 1) + 1000` ms, at most 600000. A link `@binding=<id>` without `deadline_ms` was rejected before and is accepted now.
+- The module installs a directory `mibs/` with a note and no MIB file; `make uninstall` removes it.
+- The records of `0.0.6` keep their behavior. The macro `SCAN` of the two state databases keeps `1 second` as its default.
+
+### Known limits
+
+- The module ships no MIB file. A MIB that imports standard modules needs them in a place the IOC names or in the directories of the system.
+- A subscription with more records than the count limit of the queue of its address is not admitted, and its records carry READ/INVALID with `request not admitted`; `snmp3QueueLimit` raises the limit.
+- The reports of the module print to the standard output of the IOC process, which the output redirection of the IOC shell (`command > file`) does not move.
+- On the laboratory units the commands, the names and the subscriptions were run read only. A SET through a link that names its object was run against the fixture agent only.
+
 ## 0.0.6 — Module State Records
 
 ### Product
