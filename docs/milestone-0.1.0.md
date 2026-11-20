@@ -5,11 +5,11 @@ Milestone index: 0.1.0
 Canonical path: `docs/milestone-0.1.0.md`
 Canonical branch or ref: master
 Git upstream: origin/master
-Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
+Remote tracker: jeonghanlee/snmp3, GitHub milestone 0.1.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: One unit is in progress in `docs/milestone-0.1.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. The release line is named `0.1.0` (D37) and holds M8, M9, M16, M17, M19 and M20. The Ready rows are M8, M9, M17 and M19; the owner chooses the next. M20, the comparison with the earlier module on the two units, starts when M8 and M9 are Complete (D38), and M11 releases `0.1.0` when every row above is Complete. The owner still has to rename the GitHub milestone `1.0.0` to `0.1.0`; issues #8, #9 and #10 are updated under Issue authority after that. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`), M18 (tag `0.0.6`), M7 (tag `0.0.7`) and G1 are complete. Commits, pushes, tags and issue actions each need their own authority.
+Next session entry point: Two units are in progress in `docs/milestone-0.1.0.md`. M19 is In progress: its plan is accepted and its implementation is authorized (both recorded at the head of its Implementation Plan), and it starts with the observation of step 1 of its plan. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. The release line is named `0.1.0` (D37) and holds M8, M9, M16, M17, M19 and M20. The Ready rows are M8, M9 and M17; the owner chooses the next. M20, the comparison with the earlier module on the two units, starts when M8 and M9 are Complete (D38), and M11 releases `0.1.0` when every row above is Complete. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`), M18 (tag `0.0.6`), M7 (tag `0.0.7`) and G1 are complete. Commits, pushes, tags and issue actions each need their own authority.
 
 ## Scope
 
@@ -37,12 +37,12 @@ Out of scope: performance criteria and acceptance beyond the comparison of M20 (
 | D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag: the next free number at its closing; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Complete | No | D3, D29, D31 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.5`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Records | M18 | Module state as records | Milestone | Complete | No | D30, D32, D33 | The runtime state and, per endpoint, the engine ID state and the request size are readable as records of databases the module installs, and the runtime report names each endpoint; [detail](#m18---module-state-as-records) |
-| Tools | M19 | MIB tools: database check and database draft | Milestone | Not started | Yes | M7, D35 | A standalone program checks a database against MIB files for names, types and access before an IOC starts, and one writes a draft of records from MIB files for the author to finish; tag: the next free number at its closing; [detail](#m19---mib-tools-database-check-and-database-draft) |
+| Tools | M19 | MIB tools: database check and database draft | Milestone | In progress | No | M7, D35 | A standalone program checks a database against MIB files for names, types and access before an IOC starts, and one writes a draft of records from MIB files for the author to finish; tag: the next free number at its closing; [detail](#m19---mib-tools-database-check-and-database-draft) |
 | Comparison | M20 | Comparison with the earlier module on the two units | Milestone | Not started | No | M2, M7, M8, M9, D37, D38 | On the same signals of both units the errors are not more and the response is not slower than those of the earlier module, every input it fills is filled and the SET of outlet 8 succeeds on both units, and the state records and the recovery are shown by the results of their units; [detail](#m20---comparison-with-the-earlier-module-on-the-two-units) |
 | Tools | M17 | Matrix cells moved from Python to bash and Perl | Milestone | Not started | Yes | D19, D38 | Each moved cell kills the same mutations as the Python cell it replaces, and the matrix gives the same cell names and statuses; [detail](#m17---matrix-cells-moved-from-python-to-bash-and-perl) |
 | Release | M11 | Release 0.1.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M17, M18, M19, M20 | Integrated re-runs and the two-unit acceptance pass; tag `0.1.0` and GitHub release exist; [detail](#m11---release-010) |
 
-Current work tally: 8 Complete, 1 In progress, 6 Not started, 0 Blocked; G1 Complete. Ready rows: M8, M9, M17, M19. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
+Current work tally: 8 Complete, 2 In progress, 5 Not started, 0 Blocked; G1 Complete. Ready rows: M8, M9, M17. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -254,8 +254,8 @@ Labels: bug
 GitHub Milestone: 0.1.0
 Observed State: closed (completed)
 Observed Labels: bug
-Observed Milestone: 1.0.0
-Last Compared: 2026-11-14T05:08Z; issue updatedAt 2026-11-14T05:03:28Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the final behavior and the checked acceptance criteria.
+Observed Milestone: 0.1.0
+Last Compared: 2026-11-14T05:08Z; issue updatedAt 2026-11-14T05:03:28Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the final behavior and the checked acceptance criteria. The milestone, renamed 0.1.0, was read at 2026-11-20T17:24Z.
 
 #### M2 - Baseline measurement on the two laboratory units
 
@@ -504,8 +504,8 @@ Labels: enhancement
 GitHub Milestone: 0.1.0
 Observed State: closed (completed)
 Observed Labels: enhancement
-Observed Milestone: 1.0.0
-Last Compared: 2026-11-13T03:03Z; issue updatedAt 2026-11-13T03:03:28Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the Result section.
+Observed Milestone: 0.1.0
+Last Compared: 2026-11-13T03:03Z; issue updatedAt 2026-11-13T03:03:28Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the Result section. The milestone, renamed 0.1.0, was read at 2026-11-20T17:24Z.
 
 #### M3 - Two-device isolation measurement on the current product
 
@@ -576,8 +576,8 @@ Labels: enhancement
 GitHub Milestone: 0.1.0
 Observed State: closed (completed)
 Observed Labels: enhancement
-Observed Milestone: 1.0.0
-Last Compared: 2026-11-13T18:14Z; issue updatedAt 2026-11-13T18:14:55Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the Result section.
+Observed Milestone: 0.1.0
+Last Compared: 2026-11-13T18:14Z; issue updatedAt 2026-11-13T18:14:55Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the Result section. The milestone, renamed 0.1.0, was read at 2026-11-20T17:24Z.
 
 #### M4 - Request sizing with advertised message size and tooBig split
 
@@ -695,8 +695,8 @@ Labels: enhancement
 GitHub Milestone: 0.1.0
 Observed State: closed (completed)
 Observed Labels: enhancement
-Observed Milestone: 1.0.0
-Last Compared: 2026-11-15T00:46Z; issue updatedAt 2026-11-15T00:46:22Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the final behavior, the checked acceptance criteria and the known limits.
+Observed Milestone: 0.1.0
+Last Compared: 2026-11-15T00:46Z; issue updatedAt 2026-11-15T00:46:22Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the final behavior, the checked acceptance criteria and the known limits. The milestone, renamed 0.1.0, was read at 2026-11-20T17:24Z.
 
 #### M5 - SET outcome contract
 
@@ -808,8 +808,8 @@ Labels: enhancement
 GitHub Milestone: 0.1.0
 Observed State: closed (completed)
 Observed Labels: enhancement
-Observed Milestone: 1.0.0
-Last Compared: 2026-11-16T08:38Z; issue updatedAt 2026-11-16T08:37:54Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the final behavior, the checked acceptance criteria and the known limits.
+Observed Milestone: 0.1.0
+Last Compared: 2026-11-16T08:38Z; issue updatedAt 2026-11-16T08:37:54Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the final behavior, the checked acceptance criteria and the known limits. The milestone, renamed 0.1.0, was read at 2026-11-20T17:24Z.
 
 #### M7 - Shell-command configuration, MIB names and reply-driven processing
 
@@ -1044,8 +1044,8 @@ Labels: enhancement
 GitHub Milestone: 0.1.0
 Observed State: closed (completed)
 Observed Labels: enhancement
-Observed Milestone: 1.0.0
-Last Compared: 2026-11-18T23:17Z; issue updatedAt 2026-11-18T23:17:13Z; label, assignee jeonghanlee and milestone unchanged; title and body carry the widened scope, the checked acceptance criteria and the release tag.
+Observed Milestone: 0.1.0
+Last Compared: 2026-11-18T23:17Z; issue updatedAt 2026-11-18T23:17:13Z; label, assignee jeonghanlee and milestone unchanged; title and body carry the widened scope, the checked acceptance criteria and the release tag. The milestone, renamed 0.1.0, was read at 2026-11-20T17:24Z.
 
 #### M8 - GETBULK table reads
 
@@ -1113,8 +1113,8 @@ Labels: enhancement
 GitHub Milestone: 0.1.0
 Observed State: open
 Observed Labels: enhancement
-Observed Milestone: 1.0.0
-Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:33Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
+Observed Milestone: 0.1.0
+Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:33Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation. The milestone, renamed 0.1.0, was read at 2026-11-20T17:24Z.
 
 #### M9 - SNMPv3 localized keys and secret procedure
 
@@ -1199,8 +1199,8 @@ Labels: enhancement
 GitHub Milestone: 0.1.0
 Observed State: open
 Observed Labels: enhancement
-Observed Milestone: 1.0.0
-Last Compared: 2026-11-11T17:36Z; issue updatedAt 2026-11-11T17:28:55Z; title, label, assignee jeonghanlee and milestone verified with `gh issue view` after the body edit.
+Observed Milestone: 0.1.0
+Last Compared: 2026-11-11T17:36Z; issue updatedAt 2026-11-11T17:28:55Z; title, label, assignee jeonghanlee and milestone verified with `gh issue view` after the body edit. The milestone, renamed 0.1.0, was read at 2026-11-20T17:24Z.
 
 #### M10 - Shared-library SONAME and symbolic-link versioning
 
@@ -1303,8 +1303,8 @@ Labels: enhancement
 GitHub Milestone: 0.1.0
 Observed State: closed (completed)
 Observed Labels: enhancement
-Observed Milestone: 1.0.0
-Last Compared: 2026-11-16T20:57Z; issue updatedAt 2026-11-16T20:56:56Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the final form, the checked acceptance criteria and the known limits.
+Observed Milestone: 0.1.0
+Last Compared: 2026-11-16T20:57Z; issue updatedAt 2026-11-16T20:56:56Z; title, label, assignee jeonghanlee and milestone unchanged; body carries the final form, the checked acceptance criteria and the known limits. The milestone, renamed 0.1.0, was read at 2026-11-20T17:24Z.
 
 #### M18 - Module state as records
 
@@ -1564,7 +1564,7 @@ Not covered and listed as unproven until its condition holds: a profile with loc
 Origin: 0.1.0 / M19
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -1601,9 +1601,9 @@ Out of scope: the IOC runtime; any change to the device support; any change of t
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-11-20, the owner's acceptance of the plan of commit 47112e7 after its second-person passes
+Implementation Authorization: 2026-11-20, the owner's explicit authority to implement the plan of commit 47112e7
 Superseded Plan Artifacts: none
 
 1. Observe first: run `--resolve` on the fixture MIB and the PowerNet MIB with the probe of the unchanged tree to see the output that must not change (no file of it is kept); read the rules of `Conversion.cpp`, `DeviceSupport.cpp` and `Config.cpp` that decide a record type and an access; read the databases of the repository (`snmp3App/Db/*.db` and `tests/rewrite/db/*.db`) and list the forms the checker must read: macros, record headers and link forms; name the PowerNet objects of the draft: two, or three when the MIB states units for an object.
@@ -1883,8 +1883,8 @@ Labels: enhancement
 GitHub Milestone: 0.1.0
 Observed State: open
 Observed Labels: enhancement
-Observed Milestone: 1.0.0
-Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:38Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
+Observed Milestone: 0.1.0
+Last Compared: 2026-11-20T17:24Z; issue updatedAt 2026-11-20T16:18:49Z; title `Release 0.1.0` and body rewritten for the release line under Issue authority, label and assignee jeonghanlee unchanged, milestone read as 0.1.0.
 
 ## Backlog
 
