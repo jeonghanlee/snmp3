@@ -37,7 +37,7 @@ Out of scope: performance criteria and acceptance beyond the comparison of M20 (
 | D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag: the next free number at its closing; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Complete | No | D3, D29, D31 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.5`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Records | M18 | Module state as records | Milestone | Complete | No | D30, D32, D33 | The runtime state and, per endpoint, the engine ID state and the request size are readable as records of databases the module installs, and the runtime report names each endpoint; [detail](#m18---module-state-as-records) |
-| Tools | M19 | MIB tools: database check and database draft | Milestone | Not started | Yes | M7, D35 | A standalone program checks a database against MIB files for names, types and access before an IOC starts, and one writes a draft of records from MIB files for the author to finish; [detail](#m19---mib-tools-database-check-and-database-draft) |
+| Tools | M19 | MIB tools: database check and database draft | Milestone | Not started | Yes | M7, D35 | A standalone program checks a database against MIB files for names, types and access before an IOC starts, and one writes a draft of records from MIB files for the author to finish; tag: the next free number at its closing; [detail](#m19---mib-tools-database-check-and-database-draft) |
 | Comparison | M20 | Comparison with the earlier module on the two units | Milestone | Not started | No | M2, M7, M8, M9, D37, D38 | On the same signals of both units the errors are not more and the response is not slower than those of the earlier module, every input it fills is filled and the SET of outlet 8 succeeds on both units, and the state records and the recovery are shown by the results of their units; [detail](#m20---comparison-with-the-earlier-module-on-the-two-units) |
 | Tools | M17 | Matrix cells moved from Python to bash and Perl | Milestone | Not started | Yes | D19, D38 | Each moved cell kills the same mutations as the Python cell it replaces, and the matrix gives the same cell names and statuses; [detail](#m17---matrix-cells-moved-from-python-to-bash-and-perl) |
 | Release | M11 | Release 0.1.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M17, M18, M19, M20 | Integrated re-runs and the two-unit acceptance pass; tag `0.1.0` and GitHub release exist; [detail](#m11---release-010) |
@@ -86,6 +86,7 @@ Current work tally: 8 Complete, 1 In progress, 6 Not started, 0 Blocked; G1 Comp
 | D36 | M7, six points of its plan: (1) the repository of the module carries no standard MIB file at first; its `mibs` directory is installed empty with a note, and a MIB the IOC and the module do not hold is looked for in the system; files can be added by a later decision. (2) The period of a subscription is 100 to 3600000 ms; the lower end is the fastest periodic scan of Base. (3) The first request of a subscription leaves at once when its first record joins the `I/O Intr` list. (4) An object given by number is shown with its number and the type of its link, with no MIB name, so that an IOC that uses numbers reads no MIB. (5) An IOC without a file names the probe with the command `snmp3ProbePath`, in the form of `snmp3WorkerPath`. (6) A name may carry `type=`, which then decides the type in place of the MIB, for a unit that does not follow its MIB; `snmp3Show` marks the object as overridden. | 2026-11-17 |
 | D37 | The release line is named `0.1.0` in place of `1.0.0`: the number in D1, D3, D18, D29, D30 and in every earlier mention in this table and in the details means this line, and the path of this document, the milestone index and the Origin of every row follow the name. `0.1.0` promises a module that runs as the earlier SNMP module does, with a response that is not slower and no more errors, and that offers errors shown on records, recovery of a unit that returns without a restart of the IOC, the state of the module as records and configuration by shell command and MIB name. It promises no stable interface and no large gain in speed. The tags `0.0.1` to `0.0.7` stay as they are. No run of the threaded runtime under a thread sanitizer is recorded in this register; the release notes state this as a known limit. | 2026-11-20 |
 | D38 | M17 returns from the Backlog to the milestone table and takes part in `0.1.0`; M8, M9, M16 and M19 stay in it; a new unit M20 compares the module with the earlier one on the two units after M8 and M9 and before M11. Its criteria are the owner's: no more errors than the earlier module, a response that is not slower, every input filled and the SET of outlet 8 succeeding on both units, with the state records and the recovery shown by the results of their own units. Backlog M6, M12, M13 and M14 stay in the Backlog. | 2026-11-20 |
+| D39 | M19, six points of its plan: (1) the description, the units and the enumeration of an object come from a new mode `--describe` of the native probe; the output of `--resolve`, which the IOC reads, stays as it is. (2) The draft program takes the index values of a table column as a range given by the caller and writes one record for each. (3) A read-write object becomes an input record and an output record in the draft. (4) The two programs are written in Perl and read the MIB through the probe. (5) The unit changes the product, so it adds a `CHANGELOG.md` entry and takes the next free tag at its closing (D31). (6) The programs are `snmp3MibCheck.pl` and `snmp3MibDraft.pl` in the new directory `snmp3App/tools/`, installed into `bin/<arch>` with `PERL_SCRIPTS` the way Base installs its own Perl scripts, and each finds the probe installed beside it. | 2026-11-20 |
 
 ### ID Migration
 
@@ -1572,24 +1573,31 @@ A MIB file states, for every object, its name, its type, whether it can be read 
 ##### Scope
 
 - A checker, the main program: from a database file and MIB files, it reports for every record of the module whether the name resolves, whether the record type can hold the declared type, and whether the direction agrees with the access; it ends with a status that tells a clean database from one with findings, so that it can run before an IOC starts and in a pipeline.
-- A draft program: from MIB files and a choice of objects or tables, it writes a draft of database records with the link form of M7 by name, the record type and direction from the declared type and access, the description from the MIB cut to the DESC length, the units where the MIB gives them, and the states of an enumerated integer. The draft is for the author to finish: PV names, the choice of what to keep and everything the MIB does not state stay with the author, and the finished database goes through the checker.
+- A draft program: from MIB files and a choice of objects or tables, it writes a draft of database records with the link form of M7 by name, the record type and direction from the declared type and access, the description from the MIB cut to the DESC length, the units where the MIB gives them, and the states of an enumerated integer, taken from the mode `--describe` of the probe; the index values of a table column come from a range the caller gives (for example `--index 1..24`), one record for each index; a read-write object becomes an input record and an output record. The draft is for the author to finish: PV names, the choice of what to keep and everything the MIB does not state stay with the author, and the finished database goes through the checker.
 - Both resolve names the way the IOC does, through the MIB function and the search order of M7, so that a database the checker passes is one the IOC accepts.
-- Documentation of both programs.
+- A new mode `--describe` of the native probe that returns, for the names given, the description, the units and the enumeration of each object; the output of `--resolve`, which the IOC reads, is not changed.
+- Documentation of both programs and of the mode.
 
-Out of scope: the IOC runtime; any change to the device support; a graphical tool; the naming of PVs beyond what the caller gives.
+Out of scope: the IOC runtime; any change to the device support; any change of the output of `--resolve`; a graphical tool; the naming of PVs beyond what the caller gives.
 
 ##### Completion Criteria
 
-- For a database with seeded faults (a name the MIB does not hold, a record type that cannot hold the declared type, an output record on a read-only object, a missing MIB), the checker names each fault and its record and ends with the status of a database with findings; for a clean database it reports none.
-- For the fixture MIB and for the PowerNet MIB, the draft program writes records for chosen objects with the record type, direction, description and states the MIB declares; the draft passes the checker, and an IOC of M7 loads it and reads the fixture agent.
+- For a database with seeded faults (seven: a name the MIB does not hold, a name of a module that is missing, a name that is no object with a value such as a table, a name without the index of an instance, a record type that cannot hold the declared type, an output record on a read-only object, an input record on an object that cannot be read), the checker names each fault and its record and ends with the status of a database with findings; for a clean database it reports none.
+- For the fixture MIB and for the PowerNet MIB, the draft program writes records for the objects named under Dependencies And Decisions with the record type, direction, description and states the MIB declares; both drafts pass the checker and an IOC of M7 loads both without a rejected record, and the draft of the fixture MIB reads the fixture agent.
 - A database the checker passes initializes in the IOC without a rejected record, and a record the checker names is one the IOC rejects.
-- The documentation states how each program is run and what its findings mean.
+- `--describe` returns, for the fixture MIB and the PowerNet MIB, the description, the units and the enumeration that the MIB file states, and `--resolve` returns the same output as before the change.
+- For an indexed column and a range of indexes the draft holds one record for each index, and a read-write object appears as an input record and an output record.
+- The documentation states how each program and the mode are run and what the findings mean.
 
 ##### Dependencies And Decisions
 
 - D35 creates this unit.
 - M7 gives the link form and the MIB resolution these programs use; the unit starts after M7 is Complete.
-- D37 and D38 place this unit in release `0.1.0` and in the dependencies of M11. Open for the owner's decision: the language of the two programs (Perl, as the owner named, with the helper of the module for the MIB reading, is proposed); and what the draft holds for a read-write object (an input and an output record, proposed).
+- D37 and D38 place this unit in release `0.1.0` and in the dependencies of M11. D39 decides the source of the description, the units and the enumeration (a new probe mode), the index range, the read-write object, the language, the tag, and the place and the installation of the programs.
+- The fixture MIB of this plan is `SNMP3-FIXTURE-MIB`, which `tests/rewrite/mib_names.pl` writes for the cell `mib-names` (no file of it is tracked); the cell `mib-tools` uses the same text and the objects the fixture agent serves.
+- The PowerNet MIB of this plan is the file `mibs/PowerNet-MIB` of the application repository (`apcpdu`); it is read and never changed.
+- The draft is tried on these objects: for the fixture MIB `fixtureInteger` (read-write, so an input and an output record) and `fixtureText`; for the PowerNet MIB an enumerated integer, a column of an indexed table such as the outlets with a range of indexes, and an object whose units the MIB states when it has one. The fixture MIB has no enumeration, no units and no table, so only the PowerNet objects show the states, the units and the index range; step 1 names them.
+- The unit changes the product (the probe gains a mode), so it adds a `CHANGELOG.md` entry and takes the next free tag at its closing (D31, D39).
 
 ##### Implementation Plan
 
@@ -1598,19 +1606,21 @@ Plan Acceptance: none
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. Observe first, after M7: what the MIB function of the module returns for an object (type, access, description, units, enumeration) on the fixture MIB and the PowerNet MIB, and which of it a record needs.
-2. Write the checks first, as a matrix cell in bash and Perl (D19).
-3. Write the checker, then the draft program, and the documentation.
-4. Run the cell, the mutations and the ordinary matrix.
+1. Observe first: run `--resolve` on the fixture MIB and the PowerNet MIB with the probe of the unchanged tree to see the output that must not change (no file of it is kept); read the rules of `Conversion.cpp`, `DeviceSupport.cpp` and `Config.cpp` that decide a record type and an access; read the databases of the repository (`snmp3App/Db/*.db` and `tests/rewrite/db/*.db`) and list the forms the checker must read: macros, record headers and link forms; name the PowerNet objects of the draft: two, or three when the MIB states units for an object.
+2. Write the checks first, as the matrix cell `mib-tools` in bash and Perl (D19), about 20 checks (the checker on the seven seeded faults of the first completion criterion and on a clean database, the draft on the objects named under Dependencies And Decisions, seven checks of agreement with the IOC, one for each fault), and see them fail on the unchanged tree.
+3. Add the probe mode `--describe` in `snmp3App/native/NativeProbe.cpp`, tested by running the command in the cell `mib-tools` (T4), and its entry in the documentation of the probe.
+4. Write the checker, then the draft program with the `--index` range, as `snmp3MibCheck.pl` and `snmp3MibDraft.pl` in the new directory `snmp3App/tools/` (added to `DIRS` of `snmp3App/Makefile`), installed into `bin/<arch>` with `PERL_SCRIPTS` as Base installs its own Perl scripts, each with `#!/usr/bin/env perl`, `use strict` and core modules only, and each finding `snmp3NativeProbe` beside itself through `FindBin` or taking `--probe`; then the documentation, which also stands as POD in each script. After the build, read the file mode of the installed scripts.
+5. Run the cell, six mutations (three of the checker rules and three of the draft rules, each on a built copy of the tree) and the ordinary matrix once; at closing the `CHANGELOG.md` entry and the tag under their own authority.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
 | T1 | Checker | The checker on a database with the seeded faults and on a clean one, with the fixture MIB | Linux host | Each fault named with its record; the status of findings for the first and of a clean database for the second |
-| T2 | Draft | The draft program on the fixture MIB and on the PowerNet MIB for chosen objects; the draft given to the checker and loaded in the production IOC against the fixture agent | Linux host, ordinary product | Records with the declared type, direction, description and states; the checker reports none; no record rejected; the fixture values read |
+| T2 | Draft | The draft program on the fixture MIB and on the PowerNet MIB for the objects named under Dependencies And Decisions; the draft given to the checker and loaded in the production IOC against the fixture agent | Linux host, ordinary product | Records with the declared type, direction, description and states; the checker reports none for both drafts; no record rejected in either; the values of the fixture agent read for the draft of the fixture MIB |
 | T3 | Agreement | The seeded database loaded in the production IOC | Linux host, ordinary product | The IOC rejects exactly the records the checker named |
-| T4 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` on the unchanged and the changed tree | Linux host | The cells of the unchanged tree keep their name and status, and the added cell is PASS |
+| T4 | Probe | `--describe` on the fixture MIB and the PowerNet MIB, and `--resolve` of the changed probe against `--resolve` of the probe of the unchanged tree, on the same MIB files in the same run (the products directory of the unchanged tree is given to the cell) | Linux host, ordinary product | The description, units and enumeration the MIB file states; the `--resolve` outputs of the two probes byte-equal |
+| T5 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` on the unchanged and the changed tree | Linux host | The cells of the unchanged tree keep their name and status, and the added cell is PASS |
 
 ##### Verification Results
 
@@ -1619,7 +1629,8 @@ Superseded Plan Artifacts: none
 | T1 | Not run | Linux host | Pending | none |
 | T2 | Not run | Linux host, ordinary product | Pending | none |
 | T3 | Not run | Linux host, ordinary product | Pending | none |
-| T4 | Not run | Linux host | Pending | none |
+| T4 | Not run | Linux host, ordinary product | Pending | none |
+| T5 | Not run | Linux host | Pending | none |
 
 ##### Closure Evidence
 
