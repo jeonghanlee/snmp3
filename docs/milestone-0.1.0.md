@@ -1,23 +1,23 @@
 # Work Register
 
-Release line: 1.0.0
-Milestone index: 1.0.0
-Canonical path: `docs/milestone-1.0.0.md`
+Release line: 0.1.0
+Milestone index: 0.1.0
+Canonical path: `docs/milestone-0.1.0.md`
 Canonical branch or ref: master
 Git upstream: origin/master
 Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: One unit is in progress in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. The Ready rows are M8, M9 and M19; M19, two standalone MIB tools added on 2026-11-17 by D35, was to start after M7, and the owner chooses the next. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`), M18 (tag `0.0.6`), M7 (tag `0.0.7`) and G1 are complete. Commits, pushes, tags and issue actions each need their own authority.
+Next session entry point: One unit is in progress in `docs/milestone-0.1.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. The release line is named `0.1.0` (D37) and holds M8, M9, M16, M17, M19 and M20. The Ready rows are M8, M9, M17 and M19; the owner chooses the next. M20, the comparison with the earlier module on the two units, starts when M8 and M9 are Complete (D38), and M11 releases `0.1.0` when every row above is Complete. The owner still has to rename the GitHub milestone `1.0.0` to `0.1.0`; issues #8, #9 and #10 are updated under Issue authority after that. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`), M18 (tag `0.0.6`), M7 (tag `0.0.7`) and G1 are complete. Commits, pushes, tags and issue actions each need their own authority.
 
 ## Scope
 
-The goal of this release line is that every guarantee in [What snmp3 guarantees against each cause](why-snmp3.md#what-snmp3-guarantees-against-each-cause) reads Implemented, and that the implemented product is verified on one NMC2 unit and one NMC3 unit sharing one IOC. The five causes and the 23 items behind them are recorded in [The operating problems behind snmp3](why-snmp3.md) and the [Review record](legacy-review.md). The release line also includes the table-read request (GETBULK), the SET outcome contract, reply-driven record processing, and shared-library SONAME versioning (D1, D3).
+The release line `0.1.0` (named `1.0.0` until 2026-11-20, D37) delivers a module that runs as the earlier SNMP module does: it reads the same signals with a response that is not slower and with no more errors, reads every input that the earlier module fills and sets an output as it does (shown by the SET of outlet 8 on both units), and offers errors shown on the records, recovery of a unit that returns after a loss without a restart of the IOC, the state of the module as records, and configuration by shell command with objects named by MIB. The guarantees in [What snmp3 guarantees against each cause](why-snmp3.md#what-snmp3-guarantees-against-each-cause) read Implemented, and the product is verified on one NMC2 unit and one NMC3 unit sharing one IOC. The five causes and the 23 items behind them are recorded in [The operating problems behind snmp3](why-snmp3.md) and the [Review record](legacy-review.md). The line includes the table-read request (GETBULK, M8), localized keys (M9), the SET outcome contract, shared-library SONAME versioning, the MIB tools (M19), the matrix cells in bash and Perl (M17) and a comparison with the earlier module on the two units (M20) (D1, D3, D35, D37, D38).
 
-Work is ordered by the code surface each unit shares with the next; the row order is the execution order and the local IDs follow it. Each completed M row adds a `CHANGELOG.md` entry and an annotated tag with the version named in its detail; the final release is `1.0.0`.
+Work is ordered by the code surface each unit shares with the next; the row order is the execution order. Each completed M row that changes the product adds a `CHANGELOG.md` entry and an annotated tag with the version named in its detail; a row that changes no product code (M2, M17 and M20) adds neither; the final release is `0.1.0`. The tags `0.0.1` to `0.0.7` were made while the line was named `1.0.0` and stay as they are.
 
-Out of scope: performance criteria and acceptance (Backlog M13), the deferred record verification cells (Backlog M14), the negative-control harness classification (Backlog M12), a new measurement tool before an existing one is shown insufficient (D4), and any deployment to the operations network before `1.0.0`.
+Out of scope: performance criteria and acceptance beyond the comparison of M20 (Backlog M13), the deferred record verification cells (Backlog M14), the negative-control harness classification (Backlog M12), the time stamp of records (Backlog M6), a new measurement tool before an existing one is shown insufficient (D4), a run of the threaded runtime under a thread sanitizer, which the release notes state as a known limit, and any deployment to the operations network before `0.1.0`.
 
 ## Milestone
 
@@ -38,9 +38,11 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Complete | No | D3, D29, D31 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.5`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Records | M18 | Module state as records | Milestone | Complete | No | D30, D32, D33 | The runtime state and, per endpoint, the engine ID state and the request size are readable as records of databases the module installs, and the runtime report names each endpoint; [detail](#m18---module-state-as-records) |
 | Tools | M19 | MIB tools: database check and database draft | Milestone | Not started | Yes | M7, D35 | A standalone program checks a database against MIB files for names, types and access before an IOC starts, and one writes a draft of records from MIB files for the author to finish; [detail](#m19---mib-tools-database-check-and-database-draft) |
-| Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M18 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
+| Comparison | M20 | Comparison with the earlier module on the two units | Milestone | Not started | No | M2, M7, M8, M9, D37, D38 | On the same signals of both units the errors are not more and the response is not slower than those of the earlier module, every input it fills is filled and the SET of outlet 8 succeeds on both units, and the state records and the recovery are shown by the results of their units; [detail](#m20---comparison-with-the-earlier-module-on-the-two-units) |
+| Tools | M17 | Matrix cells moved from Python to bash and Perl | Milestone | Not started | Yes | D19, D38 | Each moved cell kills the same mutations as the Python cell it replaces, and the matrix gives the same cell names and statuses; [detail](#m17---matrix-cells-moved-from-python-to-bash-and-perl) |
+| Release | M11 | Release 0.1.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M17, M18, M19, M20 | Integrated re-runs and the two-unit acceptance pass; tag `0.1.0` and GitHub release exist; [detail](#m11---release-010) |
 
-Current work tally: 8 Complete, 1 In progress, 4 Not started, 0 Blocked; G1 Complete. Ready rows: M8, M9, M19. Backlog contains 1 Open and 4 Deferred rows and is excluded from this tally.
+Current work tally: 8 Complete, 1 In progress, 6 Not started, 0 Blocked; G1 Complete. Ready rows: M8, M9, M17, M19. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -82,6 +84,8 @@ Current work tally: 8 Complete, 1 In progress, 4 Not started, 0 Blocked; G1 Comp
 | D34 | M7 is widened to the whole configuration of the module by shell command and is finished as one unit: sessions, options and subscriptions by command in the form of the `opcua` module of the site distribution (not of the earlier `snmp` module), the object in the record link, object names resolved through MIB files by a function of the module, and processing on the arrival of a reply. The JSON file stays as the form that gives the same definitions at once. A MIB is looked for in the place of the IOC, then of the module, then of the system, and the report names where each came from. The period of acquisition belongs to a subscription, not to a binding of the file and not to the record link. | 2026-11-17 |
 | D35 | A unit of its own, M19, makes two standalone programs out of the owner's experience with SNMP IOC databases, where the type, the access and the name of every object were copied from the MIB by hand: one checks a database against MIB files for names, types and read or write access, before an IOC is started, and one writes a draft of database records from MIB files. The draft is a starting text that the author of the database finishes, not a finished database; the check is the main program of the two. It is independent of M7 in purpose and uses the link form and the MIB resolution that M7 makes. Inside the IOC the type of an object given by name comes from the MIB with no entry by hand, and the record is checked against the MIB at initialization (M7). | 2026-11-17 |
 | D36 | M7, six points of its plan: (1) the repository of the module carries no standard MIB file at first; its `mibs` directory is installed empty with a note, and a MIB the IOC and the module do not hold is looked for in the system; files can be added by a later decision. (2) The period of a subscription is 100 to 3600000 ms; the lower end is the fastest periodic scan of Base. (3) The first request of a subscription leaves at once when its first record joins the `I/O Intr` list. (4) An object given by number is shown with its number and the type of its link, with no MIB name, so that an IOC that uses numbers reads no MIB. (5) An IOC without a file names the probe with the command `snmp3ProbePath`, in the form of `snmp3WorkerPath`. (6) A name may carry `type=`, which then decides the type in place of the MIB, for a unit that does not follow its MIB; `snmp3Show` marks the object as overridden. | 2026-11-17 |
+| D37 | The release line is named `0.1.0` in place of `1.0.0`: the number in D1, D3, D18, D29, D30 and in every earlier mention in this table and in the details means this line, and the path of this document, the milestone index and the Origin of every row follow the name. `0.1.0` promises a module that runs as the earlier SNMP module does, with a response that is not slower and no more errors, and that offers errors shown on records, recovery of a unit that returns without a restart of the IOC, the state of the module as records and configuration by shell command and MIB name. It promises no stable interface and no large gain in speed. The tags `0.0.1` to `0.0.7` stay as they are. No run of the threaded runtime under a thread sanitizer is recorded in this register; the release notes state this as a known limit. | 2026-11-20 |
+| D38 | M17 returns from the Backlog to the milestone table and takes part in `0.1.0`; M8, M9, M16 and M19 stay in it; a new unit M20 compares the module with the earlier one on the two units after M8 and M9 and before M11. Its criteria are the owner's: no more errors than the earlier module, a response that is not slower, every input filled and the SET of outlet 8 succeeding on both units, with the state records and the recovery shown by the results of their own units. Backlog M6, M12, M13 and M14 stay in the Backlog. | 2026-11-20 |
 
 ### ID Migration
 
@@ -107,12 +111,13 @@ A baseline row, created as M15 and placed as M2 on 2026-11-10 so the row order s
 | Work Identity | From Canonical | To Canonical | Target Commit | Authority Moved At |
 | --- | --- | --- | --- | --- |
 | 1.0.0 / M5, current ID M6 | `docs/milestone-1.0.0.md`, Milestone | `docs/milestone-1.0.0.md`, Backlog | this synchronization commit | this synchronization commit |
+| 0.1.0 / M17 | `docs/milestone-0.1.0.md`, Backlog | `docs/milestone-0.1.0.md`, Milestone | this synchronization commit | this synchronization commit |
 
 ### Milestone Details
 
 #### G1 - Laboratory NMC2 and NMC3 units reachable through snmp3
 
-Origin: 1.0.0 / G1
+Origin: 0.1.0 / G1
 GitHub Issue: none
 Status: Complete
 
@@ -136,7 +141,7 @@ M3, M4 and M9 need one AP8932 unit with an NMC2 card and one with an NMC3 card, 
 
 #### M1 - Probe spawn environment equal to the worker environment
 
-Origin: 1.0.0 / M1
+Origin: 0.1.0 / M1
 Identity History: none
 GitHub Issue: #2 - https://github.com/jeonghanlee/snmp3/issues/2
 Status: Complete
@@ -245,7 +250,7 @@ Mutation series V1 to V9 (rerun on the public 1.5.0 Base, observed 2026-11-14T01
 
 Title: Spawn the native probe with the worker environment
 Labels: bug
-GitHub Milestone: 1.0.0
+GitHub Milestone: 0.1.0
 Observed State: closed (completed)
 Observed Labels: bug
 Observed Milestone: 1.0.0
@@ -253,7 +258,7 @@ Last Compared: 2026-11-14T05:08Z; issue updatedAt 2026-11-14T05:03:28Z; title, l
 
 #### M2 - Baseline measurement on the two laboratory units
 
-Origin: 1.0.0 / M15
+Origin: 0.1.0 / M15
 Identity History: M15 -> M2 (created as the next free ID, then placed second so the row order is the execution order, 2026-11-10)
 GitHub Issue: #11 - https://github.com/jeonghanlee/snmp3/issues/11
 Status: Complete
@@ -495,7 +500,7 @@ Thirteen mutations of scratch copies, each aimed at one check of the tool, each 
 
 Title: Measure the baseline on both laboratory units
 Labels: enhancement
-GitHub Milestone: 1.0.0
+GitHub Milestone: 0.1.0
 Observed State: closed (completed)
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
@@ -503,7 +508,7 @@ Last Compared: 2026-11-13T03:03Z; issue updatedAt 2026-11-13T03:03:28Z; title, l
 
 #### M3 - Two-device isolation measurement on the current product
 
-Origin: 1.0.0 / M2
+Origin: 0.1.0 / M2
 Identity History: M2 -> M3 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #3 - https://github.com/jeonghanlee/snmp3/issues/3
 Status: Complete
@@ -567,7 +572,7 @@ Superseded Plan Artifacts: none
 
 Title: Measure one unit while the other unit is disconnected
 Labels: enhancement
-GitHub Milestone: 1.0.0
+GitHub Milestone: 0.1.0
 Observed State: closed (completed)
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
@@ -575,7 +580,7 @@ Last Compared: 2026-11-13T18:14Z; issue updatedAt 2026-11-13T18:14:55Z; title, l
 
 #### M4 - Request sizing with advertised message size and tooBig split
 
-Origin: 1.0.0 / M3
+Origin: 0.1.0 / M3
 Identity History: M3 -> M4 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #4 - https://github.com/jeonghanlee/snmp3/issues/4
 Status: Complete
@@ -686,7 +691,7 @@ Not covered and listed as unproven: SNMPv1 sessions, the default 1472 and the ra
 
 Title: Advertise a message size and split the batch on tooBig
 Labels: enhancement
-GitHub Milestone: 1.0.0
+GitHub Milestone: 0.1.0
 Observed State: closed (completed)
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
@@ -694,7 +699,7 @@ Last Compared: 2026-11-15T00:46Z; issue updatedAt 2026-11-15T00:46:22Z; title, l
 
 #### M5 - SET outcome contract
 
-Origin: 1.0.0 / M4
+Origin: 0.1.0 / M4
 Identity History: M4 -> M5 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #5 - https://github.com/jeonghanlee/snmp3/issues/5
 Status: Complete
@@ -799,7 +804,7 @@ Left out, with the reason:
 
 Title: Complete output records on the SET result
 Labels: enhancement
-GitHub Milestone: 1.0.0
+GitHub Milestone: 0.1.0
 Observed State: closed (completed)
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
@@ -807,7 +812,7 @@ Last Compared: 2026-11-16T08:38Z; issue updatedAt 2026-11-16T08:37:54Z; title, l
 
 #### M7 - Shell-command configuration, MIB names and reply-driven processing
 
-Origin: 1.0.0 / M6
+Origin: 0.1.0 / M6
 Identity History: M6 -> M7 (baseline row inserted before it, 2026-11-10); title changed from "Reply-driven processing and driver-owned periodic acquisition" when D34 widened the scope (2026-11-17)
 GitHub Issue: #7 - https://github.com/jeonghanlee/snmp3/issues/7
 Status: Complete
@@ -1035,7 +1040,7 @@ Left out, with the reason:
 
 Title: Configure by shell commands, name objects by MIB, and process records on reply arrival
 Labels: enhancement
-GitHub Milestone: 1.0.0
+GitHub Milestone: 0.1.0
 Observed State: closed (completed)
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
@@ -1043,7 +1048,7 @@ Last Compared: 2026-11-18T23:17Z; issue updatedAt 2026-11-18T23:17:13Z; label, a
 
 #### M8 - GETBULK table reads
 
-Origin: 1.0.0 / M7
+Origin: 0.1.0 / M7
 Identity History: M7 -> M8 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #8 - https://github.com/jeonghanlee/snmp3/issues/8
 Status: Not started
@@ -1104,7 +1109,7 @@ Superseded Plan Artifacts: none
 
 Title: Read table columns with GETBULK
 Labels: enhancement
-GitHub Milestone: 1.0.0
+GitHub Milestone: 0.1.0
 Observed State: open
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
@@ -1112,7 +1117,7 @@ Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:33Z; title, l
 
 #### M9 - SNMPv3 localized keys and secret procedure
 
-Origin: 1.0.0 / M8
+Origin: 0.1.0 / M8
 Identity History: M8 -> M9 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #9 - https://github.com/jeonghanlee/snmp3/issues/9
 Status: Not started
@@ -1190,7 +1195,7 @@ Observation of localized-key access on 2026-11-11 (reads only, no unit changed):
 
 Title: Keep only localized SNMPv3 keys and document secret handling
 Labels: enhancement
-GitHub Milestone: 1.0.0
+GitHub Milestone: 0.1.0
 Observed State: open
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
@@ -1198,7 +1203,7 @@ Last Compared: 2026-11-11T17:36Z; issue updatedAt 2026-11-11T17:28:55Z; title, l
 
 #### M10 - Shared-library SONAME and symbolic-link versioning
 
-Origin: 1.0.0 / M9
+Origin: 0.1.0 / M9
 Identity History: M9 -> M10 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #1 - https://github.com/jeonghanlee/snmp3/issues/1
 Status: Complete
@@ -1294,7 +1299,7 @@ Left out, with the reason:
 
 Title: Version SNMP3 shared libraries with ABI SONAMEs
 Labels: enhancement
-GitHub Milestone: 1.0.0
+GitHub Milestone: 0.1.0
 Observed State: closed (completed)
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
@@ -1302,7 +1307,7 @@ Last Compared: 2026-11-16T20:57Z; issue updatedAt 2026-11-16T20:56:56Z; title, l
 
 #### M18 - Module state as records
 
-Origin: 1.0.0 / M18
+Origin: 0.1.0 / M18
 Identity History: none
 GitHub Issue: none
 Status: Complete
@@ -1421,7 +1426,7 @@ Left out, with the reason:
 
 #### M16 - Recovery when a unit returns after a power or network loss
 
-Origin: 1.0.0 / M16
+Origin: 0.1.0 / M16
 Identity History: none
 GitHub Issue: none
 Status: In progress
@@ -1555,7 +1560,7 @@ Not covered and listed as unproven until its condition holds: a profile with loc
 
 #### M19 - MIB tools: database check and database draft
 
-Origin: 1.0.0 / M19
+Origin: 0.1.0 / M19
 Identity History: none
 GitHub Issue: none
 Status: Not started
@@ -1584,7 +1589,7 @@ Out of scope: the IOC runtime; any change to the device support; a graphical too
 
 - D35 creates this unit.
 - M7 gives the link form and the MIB resolution these programs use; the unit starts after M7 is Complete.
-- Open for the owner's decision: whether release `1.0.0` waits for this unit (it is not among the dependencies of M11 until the owner says so); the language of the two programs (Perl, as the owner named, with the helper of the module for the MIB reading, is proposed); and what the draft holds for a read-write object (an input and an output record, proposed).
+- D37 and D38 place this unit in release `0.1.0` and in the dependencies of M11. Open for the owner's decision: the language of the two programs (Perl, as the owner named, with the helper of the module for the MIB reading, is proposed); and what the draft holds for a read-write object (an input and an output record, proposed).
 
 ##### Implementation Plan
 
@@ -1620,34 +1625,162 @@ Superseded Plan Artifacts: none
 
 - none
 
-#### M11 - Release 1.0.0
+#### M20 - Comparison with the earlier module on the two units
 
-Origin: 1.0.0 / M10
+Origin: 0.1.0 / M20
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+`0.1.0` is to run as the earlier SNMP module does (D37). M2 measured the earlier module and Net-SNMP on the two laboratory units with a measurement IOC that holds one input per input of the earlier module (163 per unit, 326 in all) and recorded the response time of a request and the interval of new values. This unit measures the final product on the same signals in the same way and compares the errors, the response and the values with those of the earlier module. The state records and the recovery of a unit that returns are not compared (D38); the results of the units that made them are its evidence.
+
+##### Scope
+
+- The measurement IOC of M2 configured for the final product (shell commands, MIB names, the GETBULK request of M8 where it applies, the localized keys of M9) with the same record names and signals.
+- Matched runs of the earlier module and of the final product on each unit, repeated, and judged on the median of the runs.
+- Errors counted as records in alarm and error messages in the same time; the response time of a request and the interval of new values; the values both modules read; the SET of outlet 8 on the unit without load (D8) and on the unit with load (D9).
+
+Out of scope: the second-client ratio and other criteria of M13, SET timing under load beyond the outlet 8 check, other device models, and a new measurement tool before an existing one is shown insufficient (D4).
+
+##### Completion Criteria
+
+- Errors: in the same time on the same signals the final product shows no more errors than the earlier module.
+- Response: the median response time of a request and the median interval of new values of the final product are not above those of the earlier module.
+- Read and write: every input record that the earlier module fills is filled by the final product with no alarm, and the values that do not change during a run (identity and configuration values) are equal; the SET of outlet 8 succeeds on both units, and each run restores the original state.
+- Beyond the earlier module: the results of M5, of M7 / T5 and M7 / T8, of M16 / T4 and M16 / T5 and of M18 are Pass.
+- The number of repeated runs is fixed with the accepted plan before the first run.
+
+##### Dependencies And Decisions
+
+- M2 recorded the earlier module on the two units; M7, M8 and M9 must be Complete so that the final product is the one measured (D38).
+- D8 and D9 limit the writes; each write run needs the owner's confirmation, restores the original state, and no address, user name, secret or engine ID value is recorded.
+- The earlier module runs only under D11: its credential file is made for the run, and each creation needs the owner's permission.
+- The fourth criterion waits for M16 (M16 / T4 and M16 / T5): the runs T1 to T3 do not wait for it, and this unit is Complete only after M16 is Complete.
+- This unit changes no product code, so it takes no tag and adds no `CHANGELOG.md` entry, as M2 did.
+- The criteria are the owner's (D38); no tolerance beyond them is added, and the repeated runs decide a verdict that one run could turn over.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Read the results and the measurement IOC of M2 and state which signals, runs and times it recorded.
+2. Write the matched-run procedure with the number of runs and repetitions, and obtain the owner's acceptance of that size.
+3. Run on both units, judge by the completion criteria and record the results here.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Device | Errors of the earlier module and of the final product on the same signals in the same time | Laboratory IOC, both units | No more errors in the final product |
+| T2 | Device | Response time of a request and interval of new values, matched runs repeated, medians compared | Laboratory IOC, both units | Medians not above those of the earlier module |
+| T3 | Device | Inputs filled and equal where they do not change; SET of outlet 8 on both units | Laboratory IOC, both units | All inputs filled; the SET succeeds and the state is restored |
+| T4 | Record review | The Verification Results of M5, M7 / T5, M7 / T8, M16 / T4, M16 / T5 and M18 read in the register | Register | All Pass |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Laboratory IOC, both units | Pending | none |
+| T2 | Not run | Laboratory IOC, both units | Pending | none |
+| T3 | Not run | Laboratory IOC, both units | Pending | none |
+| T4 | Not run | Register | Pending | none |
+
+##### Closure Evidence
+
+- none
+
+#### M17 - Matrix cells moved from Python to bash and Perl
+
+Origin: 0.1.0 / M17
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+The cells of `tests/rewrite/run_matrix.py` are driven by Python harnesses (25 harness files of 10,442 lines and 5 helper files of 1,134 lines, counted on 2026-11-14). The owner writes new tests in bash and Perl (D19). This unit moves the existing cells to the same form, one cell at a time, without losing what each cell proves.
+
+##### Scope
+
+- Move each Python cell to bash, which starts and stops the processes, and Perl, which reads the records and judges.
+- For each moved cell, run the old and the new cell on the same inputs and the same mutation table and compare the mutations each kills.
+- Decide whether the matrix runner itself and the fault proxy move as well.
+
+Out of scope: the C++ test bodies, product changes, and new checks.
+
+##### Completion Criteria
+
+- A mutation killed by the Python cell and surviving in the moved cell is resolved before the move of that cell is accepted; a mutation surviving in both is recorded and not fixed inside the move.
+- The matrix gives the same cell names and statuses before and after the move.
+
+##### Dependencies And Decisions
+
+- D19 placed this work in Backlog on 2026-11-14. D38 returns it to the milestone table on 2026-11-20. The order of the cells is named when its plan is accepted.
+- This unit changes no product code, so it takes no tag and adds no `CHANGELOG.md` entry, as M2 did.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. List the cells with their mutation tables, or write the table of a cell that has none, before its move.
+2. Move one cell, compare the killed sets, and repeat.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Conversion | The old and the new cell on the same inputs and the same mutation table | Linux host, ordinary product | The same mutations are killed |
+| T2 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` before and after | Linux host | The same cell names and statuses |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Linux host, ordinary product | Pending | none |
+| T2 | Not run | Linux host | Pending | none |
+
+##### Closure Evidence
+
+- none
+
+#### M11 - Release 0.1.0
+
+Origin: 0.1.0 / M10
 Identity History: M10 -> M11 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #10 - https://github.com/jeonghanlee/snmp3/issues/10
 Status: Not started
 
 ##### Summary
 
-Release `1.0.0` when every guarantee of the five causes reads Implemented and the combined product is verified on both laboratory units. The release carries the changelog of M1 to M10, the annotated tag and the GitHub release. The operations deployment is a separate decision after the release.
+Release `0.1.0` when the product runs as the earlier SNMP module does (D37): every guarantee of the five causes reads Implemented, the comparison of M20 meets its criteria and the combined product is verified on both laboratory units. The release carries the changelog of M1 to M10 and M16 to M20, the annotated tag and the GitHub release. The operations deployment is a separate decision after the release.
 
 ##### Scope
 
 - Integrated re-runs of the checks that later units may have invalidated, on the final combined candidate.
-- Two-unit acceptance on the laboratory IOC with the final candidate: M3's three phases, M4's sizing, M7's `I/O Intr` cadence and M9's credentials together.
+- Two-unit acceptance on the laboratory IOC with the final candidate: M3's three phases, M4's sizing, M7's `I/O Intr` cadence, M8's request count and M9's credentials together.
+- The comparison with the earlier module of M20 repeated on the candidate when the product changed after M20.
+- The release notes state the known limit that the threaded runtime was not run under a thread sanitizer (D37).
 - Installation on a clean Rocky Linux 8.10 host by the documented procedure.
 - Version values, tag, GitHub release, and the next register entry point.
 
-Out of scope: operations deployment, performance acceptance (M13), the deferred cells (M14).
+Out of scope: operations deployment, performance acceptance beyond the comparison of M20 (M13), the deferred cells (M14).
 
 ##### Completion Criteria
 
 - Every Release Verification row below is Pass with evidence.
-- Tag `1.0.0` and the GitHub release exist on the commit whose `CHANGELOG.md` entry is `1.0.0`.
+- Tag `0.1.0` and the GitHub release exist on the commit whose `CHANGELOG.md` entry is `0.1.0`.
 
 ##### Dependencies And Decisions
 
-- M1 to M10 Complete.
+- M1 to M5, M7 to M10 and M16 to M20 Complete.
 
 ##### Implementation Plan
 
@@ -1657,8 +1790,8 @@ Implementation Authorization: none
 Superseded Plan Artifacts: none
 
 1. Freeze the candidate commit; run the integrated re-runs (Release Verification 1 to 5) and the version pre-check (Release Verification 8).
-2. Run the two-unit acceptance on the candidate (Release Verification 6).
-3. Write the `1.0.0` changelog entry and verify it (Release Verification 9); execute Release Execution 1 to 5 under separate `git-workflow` authority.
+2. Run the two-unit acceptance on the candidate (Release Verification 6) and, when the product changed after M20, the comparison of M20 again (Release Verification 11).
+3. Write the `0.1.0` changelog entry and verify it (Release Verification 9); execute Release Execution 1 to 5 under separate `git-workflow` authority.
 4. Verify the released objects and the clean-host installation (Release Verification 10, Release Verification 7); then set the next entry point (Release Execution 6).
 
 ##### Integrated Verification
@@ -1669,30 +1802,32 @@ Superseded Plan Artifacts: none
 | M4 / T1, M4 / T2 | M5, M7, M8 | request outcome and batch rules | Release Verification 2 | Split and message as specified | pending |
 | M5 / T1 | M7, M8 | outcome path | Release Verification 4 | SET completion and alarms as specified | pending |
 | M10 / T2 | any library change after M10 | installed library identity | Release Verification 5 | Intended libraries load | pending |
+| M20 / T1, M20 / T2, M20 / T3 | any change of the product after M20 | request path, outcome path and response time | Release Verification 11 | The criteria of M20 are met | pending |
 
 ##### Production Environment Tests
 
 | Release Verification Label | Timing | System | Version | Architecture | Deployment Path | Method | Expected Result | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Release Verification 6 | pre-change | Laboratory IOC host with both units | candidate | x86_64 | laboratory IOC startup | M3 three phases plus M4, M7 and M9 criteria on the candidate | All criteria met | pending |
-| Release Verification 7 | post-release | Clean Rocky Linux 8.10 host | 1.0.0 | x86_64 | documented installation procedure | Install from the release and run the fixture startup | IOC starts and acquires from the fixture agent | pending |
+| Release Verification 6 | pre-change | Laboratory IOC host with both units | candidate | x86_64 | laboratory IOC startup | M3 three phases plus M4, M7, M8 and M9 criteria on the candidate | All criteria met | pending |
+| Release Verification 11 | pre-change | Laboratory IOC host with both units | candidate | x86_64 | laboratory IOC startup | the comparison of M20 repeated on the candidate | The criteria of M20 are met | pending |
+| Release Verification 7 | post-release | Clean Rocky Linux 8.10 host | 0.1.0 | x86_64 | documented installation procedure | Install from the release and run the fixture startup | IOC starts and acquires from the fixture agent | pending |
 
 ##### Version Changes
 
 | Field | File | Before | Planned After | Pre-check | Pre-check Label | Post-check | Post-check Label |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| latest changelog entry | `CHANGELOG.md` | the number of the last closed unit | `1.0.0` | read the first entry heading | Release Verification 8 | read the first entry heading | Release Verification 9 |
+| latest changelog entry | `CHANGELOG.md` | the number of the last closed unit | `0.1.0` | read the first entry heading | Release Verification 8 | read the first entry heading | Release Verification 9 |
 
 ##### Release Execution
 
 | Step | Action | Authorization | Expected Result | Evidence |
 | --- | --- | --- | --- | --- |
-| 1 | Commit the `1.0.0` changelog entry | Commit/add scope or user-run | Commit on master | pending |
+| 1 | Commit the `0.1.0` changelog entry | Commit/add scope or user-run | Commit on master | pending |
 | 2 | Push master | Push scope or user-run | `origin/master` at the commit | pending |
-| 3 | Annotated tag `1.0.0` on that commit | Tag create scope or user-run | Tag object | pending |
+| 3 | Annotated tag `0.1.0` on that commit | Tag create scope or user-run | Tag object | pending |
 | 4 | Push the tag | Tag push scope or user-run | Tag on origin | pending |
-| 5 | `gh release create 1.0.0 --notes-file` with the changelog entry | user-run | Release page | pending |
-| 6 | Set the next entry point of this register | documentation commit | Register points past `1.0.0` | pending |
+| 5 | `gh release create 0.1.0 --notes-file` with the changelog entry | user-run | Release page | pending |
+| 6 | Set the next entry point of this register | documentation commit | Register points past `0.1.0` | pending |
 
 ##### Release Verification Plan
 
@@ -1700,14 +1835,15 @@ Superseded Plan Artifacts: none
 | --- | --- | --- | --- | --- | --- | --- |
 | Release Verification 1 | Configuration | pre-change | `ConfigTest` | Linux host | Lists identical | test receipt |
 | Release Verification 2 | Native and scheduler | pre-change | `NativeTest`, `SchedulerTest` | Linux host | Split and message as specified | test receipts |
-| Release Verification 3 | Record | pre-change | `RecordTest` `TSE=-2` | Linux host | TIME equals receive time | test receipt |
+| Release Verification 3 | Record | pre-change | `RecordTest` input and output cases | Linux host | Records behave as specified | test receipt |
 | Release Verification 4 | Record | pre-change | `RecordTest` SET cases | Linux host | Completion and alarms as specified | test receipt |
 | Release Verification 5 | Installed libraries | pre-change | consumer identity inspection | Debian 13 and Rocky Linux 8.10 | Intended libraries load | inspection record |
 | Release Verification 6 | Device acceptance | pre-change | laboratory two-unit run | Laboratory IOC | All criteria met | run record under `work/` summarized here |
 | Release Verification 7 | Installation | post-release | documented installation on a clean host | Rocky Linux 8.10 | IOC acquires from the fixture agent | installation record |
 | Release Verification 8 | Version | pre-change | read `CHANGELOG.md` first heading | repository | the number of the last closed unit | command output |
-| Release Verification 9 | Version | post-change | read `CHANGELOG.md` first heading | repository | `1.0.0` | command output |
-| Release Verification 10 | Release objects | post-release | `git rev-parse 1.0.0^{commit}` and `gh release view 1.0.0` | repository and GitHub | Tag and release on the changelog commit | command output |
+| Release Verification 9 | Version | post-change | read `CHANGELOG.md` first heading | repository | `0.1.0` | command output |
+| Release Verification 10 | Release objects | post-release | `git rev-parse 0.1.0^{commit}` and `gh release view 0.1.0` | repository and GitHub | Tag and release on the changelog commit | command output |
+| Release Verification 11 | Device acceptance | pre-change | the comparison of M20 repeated on the candidate | Laboratory IOC | The criteria of M20 are met | run record under `work/` summarized here |
 
 ##### Release Verification Results
 
@@ -1723,6 +1859,7 @@ Superseded Plan Artifacts: none
 | Release Verification 8 | Not run | repository | Pending | none |
 | Release Verification 9 | Not run | repository | Pending | none |
 | Release Verification 10 | Not run | repository and GitHub | Pending | none |
+| Release Verification 11 | Not run | Laboratory IOC | Pending | none |
 
 ##### Closure Evidence
 
@@ -1730,9 +1867,9 @@ Superseded Plan Artifacts: none
 
 ##### GitHub Projection
 
-Title: Release 1.0.0
+Title: Release 0.1.0
 Labels: enhancement
-GitHub Milestone: 1.0.0
+GitHub Milestone: 0.1.0
 Observed State: open
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
@@ -1746,7 +1883,6 @@ Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:38Z; title, l
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Tools | M12 | Negative-control harness outcome classification | Carry-forward | Open | No | D2 | Scope decided and selected outcomes classified by real execution or retained by dated decision; [detail](#m12---negative-control-harness-outcome-classification) |
 | Performance | M13 | Predictable acquisition performance and second-client impact | Carry-forward | Deferred | No | D5 | Existing performance criteria met on their identified scope or changed by an explicit decision; [detail](#m13---predictable-acquisition-performance-and-second-client-impact) |
-| Tools | M17 | Matrix cells moved from Python to bash and Perl | Milestone | Deferred | No | D19 | Each moved cell kills the same mutations as the Python cell it replaces, and the matrix gives the same cell names and statuses; [detail](#m17---matrix-cells-moved-from-python-to-bash-and-perl) |
 | Records | M14 | Deferred record verification cells | Carry-forward | Deferred | No | D6 | Each listed cell has a real-path receipt or a dated retirement; [detail](#m14---deferred-record-verification-cells) |
 | Records | M6 | Reply time stamp on records | Milestone | Deferred | No | D28 | Record TIME equals the worker receive time with `TSE=-2`, when an exactly equal time stamp for the values of one reply is asked for; [detail](#m6---reply-time-stamp-on-records) |
 
@@ -1754,7 +1890,7 @@ Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:38Z; title, l
 
 #### M12 - Negative-control harness outcome classification
 
-Origin: 1.0.0 / M11
+Origin: 0.1.0 / M11
 Identity History: M11 -> M12 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: none
 Status: Open
@@ -1808,7 +1944,7 @@ Superseded Plan Artifacts: none
 
 #### M13 - Predictable acquisition performance and second-client impact
 
-Origin: 1.0.0 / M12
+Origin: 0.1.0 / M12
 Identity History: M12 -> M13 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: none
 Status: Deferred
@@ -1866,7 +2002,7 @@ Superseded Plan Artifacts: none
 
 #### M14 - Deferred record verification cells
 
-Origin: 1.0.0 / M13
+Origin: 0.1.0 / M13
 Identity History: M13 -> M14 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: none
 Status: Deferred
@@ -1918,65 +2054,9 @@ Superseded Plan Artifacts: none
 
 - none
 
-#### M17 - Matrix cells moved from Python to bash and Perl
-
-Origin: 1.0.0 / M17
-Identity History: none
-GitHub Issue: none
-Status: Deferred
-
-##### Summary
-
-The cells of `tests/rewrite/run_matrix.py` are driven by Python harnesses (25 harness files of 10,442 lines and 5 helper files of 1,134 lines, counted on 2026-11-14). The owner writes new tests in bash and Perl (D19). This unit moves the existing cells to the same form, one cell at a time, without losing what each cell proves.
-
-##### Scope
-
-- Move each Python cell to bash, which starts and stops the processes, and Perl, which reads the records and judges.
-- For each moved cell, run the old and the new cell on the same inputs and the same mutation table and compare the mutations each kills.
-- Decide whether the matrix runner itself and the fault proxy move as well.
-
-Out of scope: the C++ test bodies, product changes, and new checks.
-
-##### Completion Criteria
-
-- A mutation killed by the Python cell and surviving in the moved cell is resolved before the move of that cell is accepted; a mutation surviving in both is recorded and not fixed inside the move.
-- The matrix gives the same cell names and statuses before and after the move.
-
-##### Dependencies And Decisions
-
-- D19 places this work in Backlog. Transition date: 2026-11-14. It starts by the owner's decision, which also names the order of the cells.
-
-##### Implementation Plan
-
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
-Superseded Plan Artifacts: none
-
-1. List the cells with their mutation tables, or write the table of a cell that has none, before its move.
-2. Move one cell, compare the killed sets, and repeat.
-
-##### Test Plan
-
-| Label | Layer | Method | Environment | Expected Result |
-| --- | --- | --- | --- | --- |
-| T1 | Conversion | The old and the new cell on the same inputs and the same mutation table | Linux host, ordinary product | The same mutations are killed |
-| T2 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` before and after | Linux host | The same cell names and statuses |
-
-##### Verification Results
-
-| Label | Observed At | Environment | Result | Evidence |
-| --- | --- | --- | --- | --- |
-| T1 | Not run | Linux host, ordinary product | Pending | none |
-| T2 | Not run | Linux host | Pending | none |
-
-##### Closure Evidence
-
-- none
-
 #### M6 - Reply time stamp on records
 
-Origin: 1.0.0 / M5
+Origin: 0.1.0 / M5
 Identity History: M5 -> M6 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #6 - https://github.com/jeonghanlee/snmp3/issues/6
 Status: Deferred

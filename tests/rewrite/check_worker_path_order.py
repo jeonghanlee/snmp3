@@ -17,7 +17,7 @@ from pathlib import Path
 
 CALL = re.compile(r"snmp3Load\(\s*[\"']")
 WORKER = re.compile(r"snmp3WorkerPath\(")
-SKIP = {"docs/milestone-1.0.0.md"}
+SKIP = {"docs/milestone-0.1.0.md"}
 
 
 def calls(path):
