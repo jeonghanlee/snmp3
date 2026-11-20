@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 1.0.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: Two units are in progress in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. M7 is In progress: D34 widened it to the whole configuration by shell command, D36 decided its open points, and its plan was accepted and its implementation authorized on 2026-11-17; parts A, B, C and D of its Implementation Plan are done and recorded, part A with seven differences from the accepted plan, two of them decided by the owner, part B with seven, one of them a rule the owner added, part C with seven and part D with three that report what was done; part E is done and recorded as well, and every test of the unit, T1 to T11, is at Pass; what remains is the closure of the unit with issue #7, `CHANGELOG.md` and the tag, each under its own authority. The Ready rows are M8 and M9. M19, two standalone MIB tools, was added on 2026-11-17 by D35 and starts after M7. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`), M18 (tag `0.0.6`) and G1 are complete. Commits, pushes, tags and issue actions each need their own authority.
+Next session entry point: One unit is in progress in `docs/milestone-1.0.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. The Ready rows are M8, M9 and M19; M19, two standalone MIB tools added on 2026-11-17 by D35, was to start after M7, and the owner chooses the next. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`), M18 (tag `0.0.6`), M7 (tag `0.0.7`) and G1 are complete. Commits, pushes, tags and issue actions each need their own authority.
 
 ## Scope
 
@@ -32,15 +32,15 @@ Out of scope: performance criteria and acceptance (Backlog M13), the deferred re
 | B | M4 | Request sizing with advertised message size and tooBig split | Milestone | Complete | No | G1, D16 | At `maxVarbinds=61` the records of both units fill without manual tuning; a rejection, read or unreadable, halves the batch and shows on the record; tag `0.0.3`; [detail](#m4---request-sizing-with-advertised-message-size-and-toobig-split) |
 | Recovery | M16 | Recovery when a unit returns after a power or network loss | Milestone | In progress | No | G1, D18, D22, D23, D24, D25, D31 | With the IOC left running, the records of a unit return to normal by themselves when the unit comes back with its engine ID unchanged; a changed engine ID is shown and recorded, and until the IOC is restarted no SET is sent and no value is taken except system information; tag: the next free number at its closing; [detail](#m16---recovery-when-a-unit-returns-after-a-power-or-network-loss) |
 | B | M5 | SET outcome contract | Milestone | Complete | No | M4, D26, D27 | Output records complete only on the SET result; a refused SET and a SET without a reply are alarms with a message; consecutive writes follow Base; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
-| C | M7 | Shell-command configuration, MIB names and reply-driven processing | Milestone | In progress | No | M4, D28, D30, D32, D34, D36 | An IOC is configured by shell commands and record links without a file, objects are given by MIB name, and `SCAN=I/O Intr` records process on the reply of a subscription; tag: the next free number at its closing; [detail](#m7---shell-command-configuration-mib-names-and-reply-driven-processing) |
+| C | M7 | Shell-command configuration, MIB names and reply-driven processing | Milestone | Complete | No | M4, D28, D30, D32, D34, D36 | An IOC is configured by shell commands and record links without a file, objects are given by MIB name, and `SCAN=I/O Intr` records process on the reply of a subscription; tag `0.0.7`; [detail](#m7---shell-command-configuration-mib-names-and-reply-driven-processing) |
 | Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4 | A table read uses one GETBULK request where the profile allows it; tag: the next free number at its closing; [detail](#m8---getbulk-table-reads) |
 | D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag: the next free number at its closing; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Complete | No | D3, D29, D31 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.5`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Records | M18 | Module state as records | Milestone | Complete | No | D30, D32, D33 | The runtime state and, per endpoint, the engine ID state and the request size are readable as records of databases the module installs, and the runtime report names each endpoint; [detail](#m18---module-state-as-records) |
-| Tools | M19 | MIB tools: database check and database draft | Milestone | Not started | No | M7, D35 | A standalone program checks a database against MIB files for names, types and access before an IOC starts, and one writes a draft of records from MIB files for the author to finish; [detail](#m19---mib-tools-database-check-and-database-draft) |
+| Tools | M19 | MIB tools: database check and database draft | Milestone | Not started | Yes | M7, D35 | A standalone program checks a database against MIB files for names, types and access before an IOC starts, and one writes a draft of records from MIB files for the author to finish; [detail](#m19---mib-tools-database-check-and-database-draft) |
 | Release | M11 | Release 1.0.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M18 | Integrated re-runs and the two-unit acceptance pass; tag `1.0.0` and GitHub release exist; [detail](#m11---release-100) |
 
-Current work tally: 7 Complete, 2 In progress, 4 Not started, 0 Blocked; G1 Complete. Ready rows: M8, M9. Backlog contains 1 Open and 4 Deferred rows and is excluded from this tally.
+Current work tally: 8 Complete, 1 In progress, 4 Not started, 0 Blocked; G1 Complete. Ready rows: M8, M9, M19. Backlog contains 1 Open and 4 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -810,7 +810,7 @@ Last Compared: 2026-11-16T08:38Z; issue updatedAt 2026-11-16T08:37:54Z; title, l
 Origin: 1.0.0 / M6
 Identity History: M6 -> M7 (baseline row inserted before it, 2026-11-10); title changed from "Reply-driven processing and driver-owned periodic acquisition" when D34 widened the scope (2026-11-17)
 GitHub Issue: #7 - https://github.com/jeonghanlee/snmp3/issues/7
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -939,7 +939,7 @@ Out of scope: SNMP traps; GETBULK (M8); localized keys (M9); a PVA group made by
   4. The ordinary matrix ran once in this part, as the size names, after the change of the cell; the product is the one of the part D run.
   5. T10 ran twice. The first run read its first sample right after `iocInit`, before the first replies, and redirected `snmp3Show` to a file that stayed empty; the runner was corrected and the second run is the one recorded. The two IOCs are the production `snmp3Ioc` of the module with the records of the application template, not the application IOC, which is built against an earlier module.
   6. The reports of the module (`snmp3Show`, `snmp3RuntimeReport` and the others) print to the standard output of the IOC process, which the output redirection of the IOC shell (`command > file`) does not move. Nothing was changed for it in this unit.
-- Issue #7 still carries the title and body of the scope before D34 (see GitHub Projection). Its body is rewritten after the acceptance of this plan, under Issue authority.
+- Issue #7 carried the title and body of the scope before D34 until 2026-11-18, when both were rewritten under Issue authority (see GitHub Projection).
 
 ##### Implementation Plan
 
@@ -1017,17 +1017,29 @@ Left out, with the reason:
 
 ##### Closure Evidence
 
-- none
+- Completion Criteria checked on 2026-11-18 against the Verification Results: an IOC from commands and record links alone, with the twelve checks taken from three cells (T1); the values of `snmp3Options`, the wrong commands and the secret that stays out of the output (T2); a record by MIB name with its type from the MIB, the three places in their order, and the rejections with the missing module named (T3); the start with 500 objects by number and by name, with one start of the probe (T11); one processing per request at the period and, with a delayed reply, one per reply without the scan alarm of Base (T4); the loss and the return of a unit, another address that keeps its period, and a unit that returns with another engine ID (T5); one request for the objects of a subscription and the order by PHAS (T6); the rejected records and the period outside its range (T7, T2); the state records with `SCAN=I/O Intr` (T8); the cells of the ordinary stage with their names and statuses and the IOC with a file and commands (T9); the two laboratory units, read only (T10); and the documentation of the commands, the link, the MIB search, the subscriptions, the two tables and the procedure (`docs/snmp-rewrite-config.md`, `docs/snmp-rewrite-contract.md`, `docs/snmp-record-behavior.md`, `docs/snmp-worker-reference.md`, `docs/configure-procedure.md`). The criterion of T4 names 40 requests in 20 s; the cell compares with the time that passed, as the differences of part C say.
+- Review: each part had third-person and second-person passes before its commit, 25 in all (A 6, B 8, C 4, D 3, E 4); the items they raised were applied, and the last pass of each kind on each part returned no finding above the floor.
+- Landing: the changes are the commits `1a0b861` (commands and record links), `4228458` (MIB names), `4ade9d1` (subscriptions), `5308bf4` (state records), `c02c65c` (the cell of the loss case) and `722d085` (the procedure and the two tables); the register records are `c6917a8`, `a0a5c67`, `a7d9f5f`, `c3dc0e8` and `6804cb9`; the `CHANGELOG.md` entry `0.0.7` is commit `ddbedeb595ea089d7746a8d33a119767b3b828bf`; all were pushed to `origin/master`. After `git fetch`, `git rev-parse HEAD origin/master` printed `ddbedeb` twice and `git diff --name-only e65b032 origin/master` listed the 46 paths of these commits (observed 2026-11-18T23:17Z).
+- Tag: the annotated tag `0.0.7` (object `563b575200a04ff3e34ede741528e7bcbde9183e`) names `ddbedeb`, the commit that holds the `CHANGELOG.md` entry, created and pushed under the owner's tag authority of 2026-11-18. Recheck with `git ls-remote --tags origin refs/tags/0.0.7 'refs/tags/0.0.7^{}'`, which printed that object and the peeled commit at 2026-11-18T22:18Z. The tagged tree also holds the code of M16, which is not closed; the `CHANGELOG.md` entry `0.0.4` names it as included and not yet verified on a unit.
+- Issue #7 was closed as completed on 2026-11-18T23:17Z, after its title and body were rewritten for the widened scope, with the acceptance criteria checked and the release tag named, and a closing comment was posted.
+- The `CHANGELOG.md` entry was committed without a second-person pass, by the owner's decision of 2026-11-18.
+- Shown by execution on the owner's word of 2026-11-18 (`work/m7-evidence/closure/RUNS.txt`):
+  - A SET through a link that names its object by MIB name, on the units (D8, D9): on the unit without load, outlet 8 read off, `immediateOn` completed without alarm and the unit showed on after 0.6 s, and `immediateOff` restored it. On the loaded unit, outlet 8 read off, `immediateOn` completed without alarm in 0.14 s and the unit showed on after 1.5 s.
+  - The SCAN alarm of Base: a record with `SCAN=.1 second` whose reply takes 2 s shows SCAN/INVALID with `Async in progress` and LCNT 11 once it has a value and was scanned more than ten times while active; the record of a subscription beside it has LCNT 0 in every sample.
+  - The reports under the output redirection of the IOC shell: `snmp3Show * 0 > file` leaves an empty file and prints to the standard output, where `dbl > file` of Base fills its file.
+  - `engine-one-object` on requests of two objects: on a subscription whose requests hold two objects the check fails with `20 objects in 10 requests`. No change of the product reaches that state after an engine ID changed: with the refusal removed in the requester and in the worker the endpoint never settles, because the refusal of the worker is what reports the change.
+  - A database built twice in one process: a scratch mode of the lifecycle test program builds a database with one record on a subscription twice. The second build rejects the record, because the configuration is closed after the first run and a record link cannot define its object again, so no cycle of a subscription meets a list that Base freed; the process ends with the runtime `Stopped`. A definition by record link is made once in a process, which only a test program that builds the database again can meet.
+- A fault of the write check, not of the product: the driver of the check was started a second time over the step files of its first start and took their markers for its own, so on the loaded unit it sent `immediateOn` and `immediateOff` to outlet 8 without waiting for the first read. Outlet 8 of that unit, on in normal state by the owner's word, was off from about 2026-11-18T23:36Z until 2026-11-18T23:39Z, when `immediateOn` was written once on the owner's word and read back as on. The driver now makes a new step directory for every start and stops when it exists. The cycle of off and on that the second unit ran was not repeated on the loaded unit.
 
 ##### GitHub Projection
 
-Title: Process records on reply arrival at a declared period
+Title: Configure by shell commands, name objects by MIB, and process records on reply arrival
 Labels: enhancement
 GitHub Milestone: 1.0.0
-Observed State: open
+Observed State: closed (completed)
 Observed Labels: enhancement
 Observed Milestone: 1.0.0
-Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:30Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation.
+Last Compared: 2026-11-18T23:17Z; issue updatedAt 2026-11-18T23:17:13Z; label, assignee jeonghanlee and milestone unchanged; title and body carry the widened scope, the checked acceptance criteria and the release tag.
 
 #### M8 - GETBULK table reads
 
