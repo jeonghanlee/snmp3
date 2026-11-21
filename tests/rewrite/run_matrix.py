@@ -40,7 +40,13 @@ INSTRUMENTED_OS = {("debian", "13"), ("rocky", "8.10")}
 
 REQUIRED = ("bin/linux-x86_64/snmp3Ioc", "bin/linux-x86_64/snmp3Worker", "bin/linux-x86_64/snmp3NativeProbe",
             "bin/linux-x86_64/snmp3IpcTest", "bin/linux-x86_64/snmp3RecordTest", "dbd/snmp3RecordTest.dbd",
-            "lib/linux-x86_64/libsnmp3.so", "lib/linux-x86_64/libsnmp3Wire.so", "lib/linux-x86_64/libsnmp3Native.so")
+            "lib/linux-x86_64/libsnmp3.so", "lib/linux-x86_64/libsnmp3Wire.so", "lib/linux-x86_64/libsnmp3Native.so",
+            "bin/linux-x86_64/snmp3MibCheck.pl", "bin/linux-x86_64/snmp3MibDraft.pl")
+# The MIB files of the cell mib-tools that no repository of this module holds: the PowerNet MIB of the application
+# repository and the TRIPPLITE MIBs; without them the cell is NOT APPLICABLE.
+MIB_TOOLS_FILES = (Path.home() / "gitsrc/apcpdu/mibs/PowerNet-MIB",
+                   Path.home() / "gitsrc/alliocs/tripplitepdu/mibs/TRIPPLITE-PRODUCTS.MIB",
+                   Path.home() / "gitsrc/alliocs/tripplitepdu/mibs/TRIPPLITE.MIB")
 REHEARSAL_CELLS = ["spawn-descriptors", "rec-baseline", "supervisor-ioc", "load-sustained"]
 
 RECORD_CASES = ("baseline scan-proc alarm-flow chain-flow queued-simm boundaries retirement-flow edges alarms active "
@@ -134,6 +140,7 @@ class Matrix:
         self.only = only
         self.timeout = timeout
         self.prune = prune
+        self.baseline = None
         self.cells = []
 
     def selected(self, name):
@@ -207,6 +214,20 @@ def ordinary(matrix, base):
     matrix.run("shell-config", ["bash", "tests/rewrite/test_shell_config.bash", "--output", str(out / "o-shell-config")])
     matrix.run("mib-names", ["bash", "tests/rewrite/test_mib_names.bash", "--output", str(out / "o-mib-names")])
     matrix.run("reply-driven", ["bash", "tests/rewrite/test_reply_driven.bash", "--output", str(out / "o-reply-driven")])
+    mib_tools(matrix)
+
+
+def mib_tools(matrix):
+    """The MIB tools cell; --baseline-products names the products of the unchanged tree for its --resolve check."""
+    missing = [str(path.parent) for path in MIB_TOOLS_FILES if not path.exists()]
+    if missing:
+        if matrix.selected("mib-tools"):
+            matrix.record("mib-tools", "NOT APPLICABLE", detail="MIB files not found in " + ", ".join(sorted(set(missing))))
+        return
+    argv = ["bash", "tests/rewrite/test_mib_tools.bash", "--output", str(matrix.output / "o-mib-tools")]
+    if matrix.baseline:
+        argv += ["--baseline-products", str(matrix.baseline)]
+    matrix.run("mib-tools", argv)
 
 
 def instrumented(matrix):
@@ -270,6 +291,9 @@ def main():
     parser.add_argument("--load-seconds", type=int, default=3600)
     parser.add_argument("--sample-seconds", type=float, default=10.0)
     parser.add_argument("--list", action="store_true", help="print the cells and exit")
+    parser.add_argument("--baseline-products", type=Path, default=None,
+                        help="the products directory of the unchanged tree, whose snmp3NativeProbe --resolve the cell "
+                             "mib-tools compares with the probe under test (default: the products under test)")
     parser.add_argument("--rehearsal", action="store_true",
                         help="run only a short bounded set to check the path before a long run")
     args = parser.parse_args()
@@ -281,7 +305,7 @@ def main():
     if args.list:
         print("ordinary:", ", ".join(["rec-" + c for c in RECORD_CASES]) + ", record-shutdown, record-startup, record-ca, "
               "supervisor-ioc, qualification, r5-components, spawn-descriptors, r5-operator, native-adapter, config, lifecycle, "
-              "request-sizing, recovery, set-contract, library-names, module-state, shell-config, mib-names, reply-driven")
+              "request-sizing, recovery, set-contract, library-names, module-state, shell-config, mib-names, reply-driven, mib-tools")
         print("controls:", ", ".join(json.loads((HERE / "control-groups.json").read_text())))
         return 0
     if not os.environ.get("EPICS_BASE"):
@@ -289,6 +313,7 @@ def main():
     base = base_path()
     args.output.mkdir(mode=0o700)
     matrix = Matrix(args.output.resolve(), args.only, args.timeout, args.prune)
+    matrix.baseline = args.baseline_products.resolve() if args.baseline_products else None
     (args.output / "cells.tsv").write_text("")
     env_record = environment_record(base)
     absent = missing_products()
