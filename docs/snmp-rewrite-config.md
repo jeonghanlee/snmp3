@@ -370,6 +370,44 @@ snmp3 mib: probeStarts=1
 | `snmp3 mib: module=<MODULE> place=<place> file=` | One line per module that was read, a named one or one it imports, with the place and file it came from |
 | `snmp3 mib: probeStarts=<n>` | How many times the probe was started for names since the IOC started: 0 for an IOC without names |
 
+### Checking and drafting a database
+
+Two Perl programs work on a database and MIB files before an IOC starts, and contact no unit. They are installed beside `snmp3NativeProbe`, in `bin/<arch>`, and find it there; `--probe` names another one.
+
+| Program | What it does |
+| --- | --- |
+| `snmp3MibCheck.pl [--probe PATH] [--mib PLACE]... [--system DIR] DATABASE...` | Reads the records with `DTYP` `snmp3` whose link names an object as `MODULE::name.index`, resolves the names in one run of the probe, and prints one line for each record the IOC would reject because of its MIB name, its access or its type |
+| `snmp3MibDraft.pl [--probe PATH] [--mib PLACE]... [--system DIR] [--index FIRST..LAST] MODULE::name...` | Writes the draft of a database for the objects named, without an index, on the standard output |
+
+`--mib` takes a directory or a file as `snmp3Mib` does, and the first place that holds a module is used. The `mibs` directory of the installation comes after the places given and before the system directories. `--system` is the system directory of `snmp3Mib <path> system`.
+
+The checker prints `FILE:LINE: RECORD: CLASS: TEXT` for a record with a fault, and a summary on the standard error. The record name is printed as it stands in the database, with its macros.
+
+| CLASS | Fault |
+| --- | --- |
+| `name` | The MIB does not hold the name |
+| `module` | No place holds the MIB module of the name |
+| `object` | The name is no object with a value: a table, a group, a notification, an identity |
+| `index` | The name carries no index of an instance |
+| `type` | The record type cannot hold the type the MIB declares, or the MIB declares none and the link carries no `type=` |
+| `read-only` | An output record on an object that cannot be written |
+| `not-readable` | An input record on an object that cannot be read |
+
+A record has one line, for the first rule it breaks, in the order the IOC applies them: the name, the access, the type. The exit status is 0 without findings, 1 with findings and 2 for a fault of the call or of the probe. A link that is a binding, a number or holds a macro is not checked, and neither is a record whose `DTYP` is written as a macro. A comment is skipped, and a name or a value written without quotes, as the grammar of a database allows, is read. The rules of the IOC for the fields of a record (`LINR`, `OOPT`, `SIZV`, the waveform), the grammar of the link, `SCAN` and the subscriptions are not part of the checker, so a record it accepts can still be rejected for one of them.
+
+The draft holds, for each object, an input record when the access allows reading and an output record when it allows writing. The value type chooses the record type:
+
+| Declared type | Input record | Output record |
+| --- | --- | --- |
+| `integer` | `longin` | `longout` with `OOPT` set to every time |
+| `unsigned32`, `counter32`, `gauge32`, `timeticks`, `counter64` | `int64in` | `int64out` |
+| `octets`, `ipAddress` | `lsi` with `SIZV` 256 | `lso` with `SIZV` 256 |
+| `oid` | `lsi` with `SIZV` 128 | `lso` with `SIZV` 128 |
+
+An output record is named `<name>_Set`. The names carry the macro `$(P)` and the links the macro `$(SESSION)`, the name of the session. A scalar object is written with the instance `.0`. A column of a table needs `--index`, one number or a range, and is written for each index with `_<index>` after the name and before `_Set`, so that the index 1 of `rPDU2OutletSwitchedControlCommand` gives the records `rPDU2OutletSwitchedControlCommand_1` and `rPDU2OutletSwitchedControlCommand_1_Set`; a column of a table whose rows have more than one index, or an index that is not a number, gets only the one arc given with `--index`, which names no row, and the author completes those links. The description of the MIB becomes `DESC`, on one line and cut to the 40 bytes of the field without splitting a character; the text is written as UTF-8. Units of at most 15 bytes become `EGU`; longer units, and the labels of an enumerated integer, stay in comments above the record: the first, `# <name>: read-only, integer, units 0.1 degrees Celsius`, names the object, its access, its type and its units, and `# states: 1 = off, 2 = on` gives the labels of an enumerated integer in the order of the values. The draft is a starting text: the names of the records, the scan, the choice of what to keep and everything the MIB does not state are for the author, and the finished database goes through the checker.
+
+The draft reads the MIB through a mode of the probe, `snmp3NativeProbe --describe SYSTEM PLACES NAME...`, which takes the places as `--resolve` does, with `-` for the built-in system directories or no places. It prints schema-1 JSON: `system`, `names`, `missing` and `modules`. Each name, given as `MODULE::name` without an index, has either `error` of `module`, `name` or `object`, or `kind` (`scalar` or `column`), `oid` (without an instance), `type` and `access` as `--resolve` gives them, `description` and `units` (empty when the MIB gives none) and `enums`, a list of `value` and `label` in the order the library holds them.
+
 ## Configuration and startup examples
 
 The shipped [v2c example](https://github.com/jeonghanlee/snmp3/blob/master/tests/rewrite/config/v2c.json) uses a disposable

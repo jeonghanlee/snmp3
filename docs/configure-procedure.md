@@ -119,6 +119,38 @@ snmp3 subscription: name=UnitFast session=Unit periodMs=1000
 
 A wrong line of the startup file ends the IOC there with `snmp3: <reason>` and `snmp3Ioc: startup script failed`. [Configuration by shell commands](snmp-rewrite-config.md#configuration-by-shell-commands) lists the commands, the options and the link, and [Records that process on a reply](snmp-record-behavior.md#records-that-process-on-a-reply) explains the subscription.
 
+## Draft and check a database against its MIB
+
+The two programs read MIB files and a database and contact no unit. The steps reuse the checkout root as `<checkout>`, a directory with the MIB files as `<mib_dir>` and the directory `<config_dir>` of the first steps above; to start here, create it with `mkdir -p <config_dir>`.
+
+1. To write the draft of the records of one column, for the indexes 1 to 8, run:
+
+    ```bash
+    <checkout>/bin/linux-x86_64/snmp3MibDraft.pl --mib <mib_dir> --index 1..8 PowerNet-MIB::rPDU2OutletSwitchedStatusState > <config_dir>/records.db
+    ```
+
+2. To check the database, run:
+
+    ```bash
+    <checkout>/bin/linux-x86_64/snmp3MibCheck.pl --mib <mib_dir> <config_dir>/records.db
+    ```
+
+3. To see the result in a script, read the exit status: 0 for a database without findings, 1 for findings, 2 for a fault of the call.
+
+The draft begins with a comment of three lines, then holds for each instance a comment that names the object, its access, its type and, where the MIB gives it, its units, a comment with the states of an enumerated integer, and the records:
+
+```text
+# PowerNet-MIB::rPDU2OutletSwitchedStatusState.1: read-only, integer
+# states: 1 = off, 2 = on
+record(longin, "$(P)rPDU2OutletSwitchedStatusState_1") {
+    field(DESC, "Indicates the present switch state of th")
+    field(DTYP, "snmp3")
+    field(INP, "@$(SESSION) PowerNet-MIB::rPDU2OutletSwitchedStatusState.1")
+}
+```
+
+A finding of the checker names the file, the line, the record and the class of the fault, for example `records.db:12: $(P)Example: index: MIB name PowerNet-MIB::rPDU2OutletSwitchedStatusState carries no index of an instance`. [Checking and drafting a database](snmp-rewrite-config.md#checking-and-drafting-a-database) lists the classes, the options and what the draft writes.
+
 ## Shared library names
 
 The build installs each shared library of the module under a versioned name, the way EPICS Base does for its own libraries:
