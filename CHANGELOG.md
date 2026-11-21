@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.0.8 — MIB Tools
+
+### Product
+
+- Two Perl programs are installed into `bin/<arch>` beside `snmp3NativeProbe`, which they find through their own location; `--probe` names another probe. They read MIB files and a database and contact no unit.
+- `snmp3MibCheck.pl [--probe PATH] [--mib PLACE]... [--system DIR] DATABASE...` checks the records with `DTYP` `snmp3` whose link names an object as `MODULE::name.index`. It resolves the names in one run of the probe and prints `FILE:LINE: RECORD: CLASS: TEXT` for each record the IOC would reject because of its MIB name, its access or its type. The classes are `name`, `module`, `object`, `index`, `type`, `read-only` and `not-readable`. The exit status is 0 for a database without findings, 1 for findings and 2 for a fault of the call or of the probe. Comments are skipped, and names and values written without quotes, with or without macros, are read.
+- `snmp3MibDraft.pl [--probe PATH] [--mib PLACE]... [--system DIR] [--index FIRST..LAST] MODULE::name...` writes the draft of a database on the standard output. Each object gets an input record, and an output record `<name>_Set` when its access allows writing; a column of a table gets the records for each index of the range. The record type comes from the declared type, `DESC` is the description cut to 40 bytes, units of at most 15 bytes become `EGU`, longer units and the labels of an enumerated integer stay in comments, and the text is written as UTF-8.
+- `snmp3NativeProbe --describe SYSTEM PLACES NAME...` returns, for each `MODULE::name` without an index, whether it is a scalar or a column, its type and access, its description, its units and the labels of an enumerated integer. The output of `--resolve` and `--capabilities` is unchanged.
+
+### Compatibility
+
+- The commands, the records and the output of the probe of `0.0.7` work as before. The release adds the two programs and the probe mode.
+
+### Known limits
+
+- The checker takes over the rules of the IOC for the MIB name, the access and the type only. A record can still be rejected for the fields of its record (`LINR`, `OOPT`, `SIZV`, the waveform), the grammar of its link, `SCAN` or a subscription. A link that holds a macro and a record whose `DTYP` is written as a macro are not checked.
+- The draft is a starting text: the names of the records, the scan and everything the MIB does not state are for the author. A column of a table whose rows have more than one index, or an index that is not a number, gets only the one arc given with `--index`, which names no row; the author completes those links.
+- The programs were tested with a fixture MIB, the PowerNet MIB and the TRIPPLITE MIBs, and the drafts were loaded in an IOC that reads the fixture agent. No laboratory unit was contacted, because the programs contact none.
+
 ## 0.0.7 — Shell Commands, MIB Names and Reply-Driven Records
 
 ### Product
