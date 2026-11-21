@@ -33,7 +33,7 @@ Out of scope: performance criteria and acceptance beyond the comparison of M20 (
 | Recovery | M16 | Recovery when a unit returns after a power or network loss | Milestone | In progress | No | G1, D18, D22, D23, D24, D25, D31 | With the IOC left running, the records of a unit return to normal by themselves when the unit comes back with its engine ID unchanged; a changed engine ID is shown and recorded, and until the IOC is restarted no SET is sent and no value is taken except system information; tag: the next free number at its closing; [detail](#m16---recovery-when-a-unit-returns-after-a-power-or-network-loss) |
 | B | M5 | SET outcome contract | Milestone | Complete | No | M4, D26, D27 | Output records complete only on the SET result; a refused SET and a SET without a reply are alarms with a message; consecutive writes follow Base; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
 | C | M7 | Shell-command configuration, MIB names and reply-driven processing | Milestone | Complete | No | M4, D28, D30, D32, D34, D36 | An IOC is configured by shell commands and record links without a file, objects are given by MIB name, and `SCAN=I/O Intr` records process on the reply of a subscription; tag `0.0.7`; [detail](#m7---shell-command-configuration-mib-names-and-reply-driven-processing) |
-| Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4 | A table read uses one GETBULK request where the profile allows it; tag: the next free number at its closing; [detail](#m8---getbulk-table-reads) |
+| Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4, D41 | Consecutive instances of one column are read with one GETBULK request where the profile allows it, counted in the report (D41); tag: the next free number at its closing; [detail](#m8---getbulk-table-reads) |
 | D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag: the next free number at its closing; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Complete | No | D3, D29, D31 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.5`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Records | M18 | Module state as records | Milestone | Complete | No | D30, D32, D33 | The runtime state and, per endpoint, the engine ID state and the request size are readable as records of databases the module installs, and the runtime report names each endpoint; [detail](#m18---module-state-as-records) |
@@ -88,6 +88,7 @@ Current work tally: 9 Complete, 1 In progress, 5 Not started, 0 Blocked; G1 Comp
 | D38 | M17 returns from the Backlog to the milestone table and takes part in `0.1.0`; M8, M9, M16 and M19 stay in it; a new unit M20 compares the module with the earlier one on the two units after M8 and M9 and before M11. Its criteria are the owner's: no more errors than the earlier module, a response that is not slower, every input filled and the SET of outlet 8 succeeding on both units, with the state records and the recovery shown by the results of their own units. Backlog M6, M12, M13 and M14 stay in the Backlog. | 2026-11-20 |
 | D39 | M19, six points of its plan: (1) the description, the units and the enumeration of an object come from a new mode `--describe` of the native probe; the output of `--resolve`, which the IOC reads, stays as it is. (2) The draft program takes the index values of a table column as a range given by the caller and writes one record for each. (3) A read-write object becomes an input record and an output record in the draft. (4) The two programs are written in Perl and read the MIB through the probe. (5) The unit changes the product, so it adds a `CHANGELOG.md` entry and takes the next free tag at its closing (D31). (6) The programs are `snmp3MibCheck.pl` and `snmp3MibDraft.pl` in the new directory `snmp3App/tools/`, installed into `bin/<arch>` with `PERL_SCRIPTS` the way Base installs its own Perl scripts, and each finds the probe installed beside it. | 2026-11-20 |
 | D40 | M19, two points after the observation of step 1 of its plan: (1) neither the fixture MIB nor the PowerNet MIB states units, and the TRIPPLITE-PRODUCTS MIB does and resolves with the probe as it is, so the draft is tried on objects of three MIBs and the units are shown by TRIPPLITE-PRODUCTS. (2) The agreement criterion is limited: the IOC also rejects records for rules of record fields, link grammar, `SCAN` and subscriptions, which the checker does not take over; the checker names the seven faults, a record it names for one of them is one the IOC rejects, and a database that the draft program writes and the checker passes loads in the IOC without a rejected record. The plan of commit 47112e7 is revised accordingly and needs its own acceptance and authorization. | 2026-11-20 |
+| D41 | M8, five points of its plan: (1) the worker, not the configuration, chooses GETBULK: when a batch holds consecutive instances of one column (same base OID, index rising by one) it sends one GETBULK for them and maps the rows onto the bindings by the OID of each row (the base OID and the index), never by position; the records, the database and `group=` do not change, and no table binding kind is added; (2) an irregular reply is judged per binding: a row that is missing between present rows gives noSuchInstance for that binding, a reply with fewer rows than asked is taken as tooBig and uses the halving of M4, and a row beyond the column (another column or endOfMibView) gives noSuchInstance for the bindings left; (3) the report and the state records of M18 gain a counter `bulks` (requests sent as GETBULK per endpoint), so that the use of GETBULK is visible without a wire capture; (4) a SNMPv1 profile never sends GETBULK and reads with GET as before; (5) the criterion on the units is a `bulks` count above zero with the records filled and no alarm. | 2026-11-21 |
 
 ### ID Migration
 
@@ -1057,51 +1058,66 @@ Status: Not started
 
 ##### Summary
 
-A 24-outlet PDU exposes its outlets as table columns. `0.0.1` reads each OID with GET in batches of `maxVarbinds`. SNMPv2c and SNMPv3 offer GETBULK with non-repeaters and max-repetitions, so one request can return a column. This unit adds a table binding kind that the worker reads with GETBULK and maps onto the bound records by index.
+A 24-outlet PDU exposes its outlets as table columns, and the module reads one record per binding; the scheduler already batches the bindings of one address into one GET. SNMPv2c and SNMPv3 offer GETBULK, with which one request names the first OID of a column and returns the following rows. The request is then smaller (one OID in place of 24); the number of requests does not fall, because a group is already read with one GET. This unit makes the worker send GETBULK for a batch of consecutive instances of one column and map the rows onto the bindings (D41). The records, the database and `group=` do not change.
 
 ##### Scope
 
-- Binding kind for a table column with a base OID, first index, count and max-repetitions.
-- Worker GETBULK request and response mapping with the existing response checks (position, tag, storage).
-- Interaction with M4: a tooBig on GETBULK reduces max-repetitions for that address.
+- Worker: recognise a batch of consecutive instances of one column (same base OID, index rising by one), build one GETBULK request for it and map the returned rows onto the bindings by the OID of each row (the base OID and the index), never by position.
+- Response checks for GETBULK: a missing row gives noSuchInstance for its binding, fewer rows than asked is taken as tooBig and uses the halving of M4, a row beyond the column gives noSuchInstance for the bindings left (D41 point 2). The check of tag and storage stays.
+- A counter `bulks` per endpoint in `snmp3Report` and in the state records of M18 (D41 point 3).
+- A SNMPv1 profile never sends GETBULK (D41 point 4).
 
-Out of scope: SNMPv1 profiles, sparse tables, and discovery of table size.
+Out of scope: a table binding kind or any change of the configuration or the database, sparse tables, discovery of table size, and the learning of an agent limit across restarts.
 
 ##### Completion Criteria
 
-- The fixture agent's outlet table of 24 rows is read with one GETBULK where the advertised size allows and the values match the GET path.
-- On both laboratory units the outlet column fills with the request count reported by `snmp3Report`.
+- The fixture agent's outlet column of 24 rows is read with one GETBULK where the advertised size allows, the values equal those of the GET path, and `bulks` counts the request.
+- The irregular replies of D41 point 2 give the stated results on the fixture agent.
+- A SNMPv1 profile reads the same column with GET and `bulks` stays zero.
+- On both laboratory units a column of outlets fills without alarm with `bulks` above zero (D41 point 5), or, if a unit does not answer GETBULK, the observed reply is recorded and the records still fill by GET.
 
 ##### Dependencies And Decisions
 
 - M4 must be Complete; the response size and reduction rules are shared.
+- D41 fixes the decisions of this plan.
+- Hypothesis H1, that both units answer GETBULK, is checked read-only with a bulk read on each unit (D8 permits reads) before T4 is run; its result is recorded in T4.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-11-21, with decision D41 and the size of the checks stated in this plan
+Implementation Authorization: 2026-11-21
 Superseded Plan Artifacts: none
 
-1. Add the table binding kind to the configuration schema and the worker request builder.
-2. Map the response to the bound positions and reuse the response checks.
-3. Add `NativeTest` and `ConfigTest` cases; run both units.
+1. `snmp3App/native/Native.cpp`: build a GETBULK PDU (`SNMP_MSG_GETBULK`, non-repeaters 0, max-repetitions from the batch size) for a batch of consecutive instances of one column, and replace the positional OID check for such a request by the mapping of each row to its binding by OID, with the results of D41 point 2. Closed by T1.
+2. `snmp3App/src/Scheduler.cpp` and `Binding.h`: detect the consecutive batch, keep SNMPv1 on GET, treat a short reply as tooBig for the halving of M4, and count `bulks`. Closed by T2 and T3.
+3. `snmp3App/src/StateSupport.cpp`, `Register.cpp` and the report: the `bulks` item. Closed by T3.
+4. `tests/rewrite/NativeTest.cpp` and `test_native.py` (the Worker layer, against the fixture agent) and `tests/rewrite/SchedulerTest.cpp` (the Scheduler layer): the cases of T1 and T2. Closed by T1 and T2.
+5. A matrix cell `getbulk` in `tests/rewrite` that runs the IOC against the fixture agent and checks the records, the report and the state records, with a mutation series by `scripts/build-mutants.py`. Closed by T3.
+6. Documentation: `docs/snmp-rewrite-config.md` and `CHANGELOG.md` state when GETBULK is used and what `bulks` counts. Closed by the second-person pass.
+7. Both units, read-only bulk read first (H1), then the IOC run. Closed by T4.
+
+Size of the checks, stated before the build and widened only by the owner: T1 5 cases and T2 4 cases, T3 about 10 checks in one cell with one mutation series of 7 mutants and their predictions written first, and T4 one run on each unit. The matrix runs once unchanged and once per mutant for the new cell only, then once in full at the end.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Native | `NativeTest` GETBULK against the fixture agent table | Linux host, ordinary product | Values equal the GET path |
-| T2 | Device | Outlet column on both units | Laboratory IOC, both units | Column fills; request count as expected |
-| T3 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` | Linux host | All cells PASS |
+| T1 | Worker | `NativeTest` against the fixture agent: a column of 24 rows by GETBULK; a partial column; a gap row (an instance left out of the objects file); a reply past the column (endOfMibView, as observed on 2026-11-21: 30 rows asked gives 24 rows and endOfMibView); the values against the GET path | Linux host, ordinary product | Each row reaches its own binding by OID, the gap and the rows past the column give noSuchInstance, values equal the GET path |
+| T2 | Scheduler | `SchedulerTest`: a batch of consecutive instances is sent as one GETBULK and a batch with a break is not; a reply with fewer rows than asked is taken as tooBig and halves the limit of M4; a SNMPv1 profile sends GET; `bulks` counts the GETBULK requests | Linux host, ordinary product | Each case gives the result of D41 points 1 to 4 |
+| T3 | IOC | New matrix cell `getbulk`: the IOC with a database of 24 consecutive outlet records against the fixture agent, with the checks on records, `snmp3Report` and the state records; the short reply is made by the means observed first (a profile with a small message size, or the UDP fault proxy of the request-sizing cell) and that means is recorded in the result; a mutation series of 7 mutants (no GETBULK, wrong max-repetitions, gap not noSuchInstance, short reply not tooBig, past-column not noSuchInstance, SNMPv1 sends GETBULK, `bulks` not counted) | Linux host, ordinary product | Cell passes unchanged; each mutant fails the check predicted for it |
+| T4 | Device | Read-only bulk read on each unit (H1), then the outlet column on both units | Laboratory IOC, both units | Column fills without alarm and `bulks` above zero, or the observed reply recorded |
+| T5 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` | Linux host | All cells PASS |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | Not run | Linux host, ordinary product | Pending | none |
-| T2 | Not run | Laboratory IOC, both units | Pending | none |
-| T3 | Not run | Linux host | Pending | none |
+| T2 | Not run | Linux host, ordinary product | Pending | none |
+| T3 | Not run | Linux host, ordinary product | Pending | none |
+| T4 | Not run | Laboratory IOC, both units | Pending | none |
+| T5 | Not run | Linux host | Pending | none |
 
 ##### Closure Evidence
 
@@ -1804,7 +1820,7 @@ Release `0.1.0` when the product runs as the earlier SNMP module does (D37): eve
 ##### Scope
 
 - Integrated re-runs of the checks that later units may have invalidated, on the final combined candidate.
-- Two-unit acceptance on the laboratory IOC with the final candidate: M3's three phases, M4's sizing, M7's `I/O Intr` cadence, M8's request count and M9's credentials together.
+- Two-unit acceptance on the laboratory IOC with the final candidate: M3's three phases, M4's sizing, M7's `I/O Intr` cadence, M8's `bulks` count and M9's credentials together.
 - The comparison with the earlier module of M20 repeated on the candidate when the product changed after M20.
 - The release notes state the known limit that the threaded runtime was not run under a thread sanitizer (D37).
 - Installation on a clean Rocky Linux 8.10 host by the documented procedure.
