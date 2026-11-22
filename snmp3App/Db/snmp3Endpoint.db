@@ -34,3 +34,13 @@ record(longin, "$(P)BatchSplits") {
     field(SCAN, "$(SCAN=1 second)")
     field(PINI, "YES")
 }
+# Requests handed to the worker as one GETBULK for consecutive instances of one column of the address, since the IOC
+# started. A request that the worker then does not send (an SNMPv3 unit that does not answer its engine ID request) is
+# counted too.
+record(longin, "$(P)Bulks") {
+    field(DESC, "Requests handed over as GETBULK")
+    field(DTYP, "snmp3 state")
+    field(INP,  "@bulks=$(ENDPOINT)")
+    field(SCAN, "$(SCAN=1 second)")
+    field(PINI, "YES")
+}

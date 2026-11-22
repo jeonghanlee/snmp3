@@ -23,6 +23,9 @@ constexpr unsigned FirstPort = 1024;
 constexpr unsigned LastPort = 65535;
 constexpr size_t ContextCount = 3;
 constexpr size_t ScalarCount = 26;
+// One column of integer instances, 1.3.6.1.4.1.53864.5.<row>, for the tests of table reads. The value of a row is
+// 1000 plus its number; SNMP3_FIXTURE_COLUMN_GAP names one row that the agent leaves out.
+constexpr unsigned ColumnRows = 24;
 const std::array<unsigned char, 8> Engine = {{0x80, 0, 0, 0, 1, 2, 3, 4}};
 const char* Contexts[ContextCount] = {"", "alpha", "beta"};
 volatile sig_atomic_t Running = 1;
@@ -40,6 +43,7 @@ struct Cell {
 };
 std::array<Cell, ContextCount * ScalarCount> Cells;
 std::vector<std::unique_ptr<Cell>> ExternalCells;
+std::vector<std::unique_ptr<Cell>> ColumnCells;
 
 std::string privateConfig(const char* path)
 {
@@ -241,10 +245,10 @@ int handle(netsnmp_mib_handler*, netsnmp_handler_registration* registration,
         const auto* pdu = info->asp ? info->asp->pdu : nullptr;
         std::printf("{\"event\":\"agent_handler\",\"mode\":%d,\"index\":%u,"
                     "\"context\":%u,\"type\":%u,\"length\":%zu,\"request_id\":%ld,"
-                    "\"version\":%ld,\"security_level\":%d}\n",
+                    "\"version\":%ld,\"security_level\":%d,\"command\":%d}\n",
                     info->mode, cell.index, cell.context, variable->type,
                     variable->val_len, pdu ? pdu->reqid : -1L,
-                    pdu ? pdu->version : -1L, pdu ? pdu->securityLevel : -1);
+                    pdu ? pdu->version : -1L, pdu ? pdu->securityLevel : -1, pdu ? pdu->command : -1);
     }
     return SNMP_ERR_NOERROR;
 }
@@ -322,6 +326,30 @@ int main(int argc, char** argv)
                 if (*Contexts[context]) reg->contextName = strdup(Contexts[context]);
                 if (netsnmp_register_scalar(reg) != MIB_REGISTERED_OK)
                     throw std::runtime_error("fixture scalar registration failed");
+            }
+        }
+        if (argc != 6) {
+            const char* gapText = std::getenv("SNMP3_FIXTURE_COLUMN_GAP");
+            const unsigned gap = gapText ? static_cast<unsigned>(std::strtoul(gapText, nullptr, 10)) : 0;
+            for (unsigned row = 1; row <= ColumnRows; ++row) {
+                if (row == gap) continue;
+                std::unique_ptr<Cell> cell(new Cell);
+                cell->index = 100 + row;
+                cell->context = 0;
+                const long number = 1000L + row;
+                netsnmp_variable_list* variable = nullptr;
+                snmp_varlist_add_variable(&variable, nullptr, 0, ASN_INTEGER,
+                    reinterpret_cast<const unsigned char*>(&number), sizeof(number));
+                if (!variable) throw std::runtime_error("fixture column allocation failed");
+                cell->value.reset(variable);
+                oid object[] = {1, 3, 6, 1, 4, 1, 53864, 5, row};
+                auto* reg = netsnmp_create_handler_registration("column-fixture", handle,
+                    object, OID_LENGTH(object), HANDLER_CAN_RONLY);
+                if (!reg) throw std::runtime_error("fixture registration failed");
+                reg->my_reg_void = cell.get();
+                if (netsnmp_register_instance(reg) != MIB_REGISTERED_OK)
+                    throw std::runtime_error("fixture column registration failed");
+                ColumnCells.push_back(std::move(cell));
             }
         }
         init_snmp("snmpd");

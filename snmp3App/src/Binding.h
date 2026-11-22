@@ -2,9 +2,11 @@
 #define SNMP3_BINDING_H
 
 #include "Value.h"
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace snmp3 {
 enum class Version { V1, V2c, V3 };
@@ -81,5 +83,25 @@ private:
     const std::shared_ptr<const Configuration> config;
     const BindingDefinition spec;
 };
+// True when a request for these read bindings is sent as one GETBULK: SNMPv2c or SNMPv3, at least two bindings
+// that are consecutive instances of one column (the same OID but the last arc, which rises by one from one
+// binding to the next), and a first instance that has a predecessor to name. The worker and the scheduler
+// use this one function, so the worker sends as GETBULK the requests that the scheduler counts, when it sends them at all.
+inline bool consecutiveColumn(Version version, const std::vector<const BindingDefinition*>& rows)
+{
+    if (version == Version::V1 || rows.size() < 2) return false;
+    for (size_t i = 0; i < rows.size(); ++i) {
+        const auto& oid = rows[i]->oid;
+        if (rows[i]->operation != Operation::Get || oid.size() < 3) return false;
+        if (i == 0) {
+            if (oid.back() == 0) return false;
+            continue;
+        }
+        const auto& before = rows[i - 1]->oid;
+        if (oid.size() != before.size() || !std::equal(oid.begin(), oid.end() - 1, before.begin()) ||
+            before.back() == UINT32_MAX || oid.back() != before.back() + 1) return false;
+    }
+    return true;
+}
 }
 #endif

@@ -251,6 +251,22 @@ int main(int argc, char** argv)
                 session->submit({config.bind(endpoint + "_G" + std::to_string(i))}, {}, collect);
                 wait(worker, completed, i - first + 1);
             }
+        } else if (mode.compare(0, 5, "bulk-") == 0) {
+            // Instances of one column (1.3.6.1.4.1.53864.5.<row>), bound as Main_C<row>: the first and the last row
+            // of each case are fixed here, and the agent decides what each row holds.
+            const unsigned first = mode == "bulk-partial" ? 20 : mode == "bulk-past" ? 18 : 1;
+            const unsigned last = mode == "bulk-partial" ? 24 : mode == "bulk-past" ? 30 : mode == "bulk-gap" ? 10 : 24;
+            std::vector<std::shared_ptr<const Binding>> column;
+            for (unsigned row = first; row <= last; ++row) column.push_back(config.bind(endpoint + "_C" + std::to_string(row)));
+            session->submit(column, {}, collect);
+            wait(worker, completed, 1);
+            if (mode == "bulk-compare") {
+                // The same rows one at a time: a request of one value is read with GET.
+                for (size_t i = 0; i < column.size(); ++i) {
+                    session->submit({column[i]}, {}, collect);
+                    wait(worker, completed, i + 2);
+                }
+            }
         } else if (mode == "reentry") {
             session->submit({binding}, {}, [&](NativeResult data) {
                 collect(std::move(data));

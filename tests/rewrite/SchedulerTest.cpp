@@ -546,6 +546,82 @@ void splitCount()
     check(s.snapshot(1).batchLimit==0 && s.snapshot(1).splits==2);
 }
 
+// Requests sent as GETBULK. A batch of consecutive instances of one column is sent as one GETBULK where the profile
+// allows it; the number of such requests of an address is counted when the batch is handed to the worker.
+std::shared_ptr<const Configuration> columnConfiguration(Version version, const std::vector<unsigned>& rows, unsigned maxVarbinds)
+{
+    auto c=std::make_shared<Configuration>(); Profile p; p.id="Default"; p.community={'f'}; p.version=version; p.maxVarbinds=maxVarbinds; c->profiles[p.id]=p;
+    Endpoint e; e.id="Main"; e.profile=p.id; e.address="127.0.0.1"; c->endpoints[e.id]=e;
+    for(const auto row:rows) {
+        BindingDefinition b; b.id="Col"+std::to_string(row); b.endpoint="Main"; b.oid={1,3,6,1,4,1,53864,5,row}; c->bindings[b.id]=b;
+    }
+    return c;
+}
+std::vector<ipc::Result> columnResults(const Scheduler& s, const Dispatch& d, bool tooBig)
+{
+    std::vector<ipc::Result> v;
+    for(const auto& c:d.commands) {
+        ipc::Result r; r.id=c.id;
+        if(tooBig) { r.outcome=ipc::Outcome::NativeFailure; r.nativeOutcome=ProtocolFailureCode; r.errorStatus=TooBigStatus; v.push_back(std::move(r)); continue; }
+        r.outcome=ipc::Outcome::Complete; r.nativeOutcome=1;
+        ipc::Writer w(ipc::DataBytes); w.oid(ipc::definitionOf(*s.configuration(),c.definition)->oid);
+        auto value=ipc::encodeValue(Value::integer(123)); w.raw(value.data(),value.size()); r.value=w.finish(); v.push_back(std::move(r));
+    }
+    return v;
+}
+// One round admits the rows, hands every request to the worker and answers it (the first one with a tooBig reply
+// when asked), and returns the number of requests sent.
+size_t columnRound(Scheduler& s, const std::vector<unsigned>& rows, bool firstTooBig, uint64_t& now)
+{
+    std::vector<uint64_t> all; for(const auto row:rows)all.push_back(handle(s,"Col"+std::to_string(row)));
+    s.admit(all,{},100,now); size_t requests=0; bool initial=true;
+    for(auto d=s.dispatch(1,now); !d.commands.empty(); d=s.dispatch(1,now)) {
+        ++requests; s.transmitted(1,d.batch);
+        const bool failing=initial && firstTooBig;
+        check(s.complete(1,d.batch,columnResults(s,d,failing),now+1)); check(s.retired(1,d.batch,identities(d)));
+        for(const auto& c:d.commands)consume(s,c.id,failing ? ipc::Outcome::NativeFailure : ipc::Outcome::Complete);
+        initial=false;
+    }
+    check(s.settled()); now+=1000; return requests;
+}
+void expectBulks(const char* label, uint64_t got, uint64_t want)
+{
+    ++checks;
+    if(got!=want)throw std::runtime_error(std::string(label)+": "+std::to_string(got)+" requests counted as GETBULK, expected "+std::to_string(want));
+}
+void bulkConsecutive()
+{
+    for(const auto version:{Version::V2c,Version::V3}) {
+        Scheduler s(columnConfiguration(version,{1,2,3,4,5,6},32),1,1); uint64_t now=1000;
+        check(columnRound(s,{1,2,3,4,5,6},false,now)==1);
+        expectBulks("six consecutive rows",s.snapshot(1).bulks,1);
+    }
+}
+void bulkBreak()
+{
+    const std::vector<std::vector<unsigned>> cases={{1,2,4},{1},{0,1,2},{3,2,1},{1,1}};
+    for(const auto& rows:cases) {
+        Scheduler s(columnConfiguration(Version::V2c,rows,32),1,1); uint64_t now=1000;
+        columnRound(s,rows,false,now);
+        expectBulks("rows that are not consecutive from a first row with a predecessor",s.snapshot(1).bulks,0);
+    }
+}
+void bulkVersionOne()
+{
+    Scheduler s(columnConfiguration(Version::V1,{1,2,3,4,5,6},32),1,1); uint64_t now=1000;
+    check(columnRound(s,{1,2,3,4,5,6},false,now)==1);
+    expectBulks("SNMPv1",s.snapshot(1).bulks,0);
+}
+void bulkHalves()
+{
+    const std::vector<unsigned> rows={1,2,3,4,5,6,7,8};
+    Scheduler s(columnConfiguration(Version::V2c,rows,8),1,1); uint64_t now=1000;
+    check(columnRound(s,rows,true,now)==1);
+    check(s.snapshot(1).batchLimit==4 && s.snapshot(1).splits==1); expectBulks("after the tooBig reply",s.snapshot(1).bulks,1);
+    check(columnRound(s,rows,false,now)==2);
+    check(s.snapshot(1).batchLimit==4); expectBulks("after the halved round",s.snapshot(1).bulks,3);
+}
+
 int main(int argc,char** argv)
 {
     // One ordered list drives both modes: with no argument every cell runs in order; with exactly one
@@ -560,7 +636,8 @@ int main(int argc,char** argv)
         {"group-expiry",groupExpiry},{"group-behind-retirement",groupBehindRetirement},
         {"toobig-halving",tooBigHalving},{"toobig-per-address",tooBigPerAddress},{"toobig-reset",tooBigReset},
         {"toobig-other-status",tooBigOtherStatus},{"unreadable-halves",unreadableHalves},{"no-reply-keeps",noReplyKeeps},
-        {"split-count",splitCount}};
+        {"split-count",splitCount},{"bulk-consecutive",bulkConsecutive},{"bulk-break",bulkBreak},
+        {"bulk-version-one",bulkVersionOne},{"bulk-halves",bulkHalves}};
     if(argc>2) { std::fprintf(stderr,"Usage: snmp3SchedulerTest [cell]\n"); return 2; }
     try {
         if(argc==2) {

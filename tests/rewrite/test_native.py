@@ -188,7 +188,7 @@ class Runner:
                     identities[str(library)] = self.identities[str(library)]
         return identities
 
-    def agent(self, family, engine=ENGINE_ID):
+    def agent(self, family, engine=ENGINE_ID, gap=None):
         protocol = socket.AF_INET if family == 4 else socket.AF_INET6
         address = "127.0.0.1" if family == 4 else "::1"
         with socket.socket(protocol, socket.SOCK_DGRAM) as reserved:
@@ -223,7 +223,8 @@ class Runner:
             argv.append(engine)
         stdout = (self.output / (name + ".stdout")).open("wb")
         stderr = (self.output / (name + ".stderr")).open("wb")
-        child = subprocess.Popen(argv, stdout=stdout, stderr=stderr, env=self.env)
+        environment = dict(self.env, SNMP3_FIXTURE_COLUMN_GAP=str(gap)) if gap else self.env
+        child = subprocess.Popen(argv, stdout=stdout, stderr=stderr, env=environment)
         entry = (name, child, stdout, stderr, argv)
         self.children.append(entry)
         deadline = time.monotonic() + READY_TIMEOUT
@@ -424,6 +425,9 @@ def adapter_configuration(runner, name, family, peer, paths, version=2, level="a
             document["bindings"].append({"id": "Main_" + ("G" if operation == "get" else "S") + str(index),
                 "endpoint": "Main", "oid": f"1.3.6.1.4.1.53864.4.{index}.0", "operation": operation,
                 "valueType": value_type, "capacity": 64 if value_type in ("octets", "oid") else 1})
+    for row in range(1, 31):
+        document["bindings"].append({"id": "Main_C" + str(row), "endpoint": "Main",
+            "oid": f"1.3.6.1.4.1.53864.5.{row}", "operation": "get", "valueType": "integer", "capacity": 1})
     path = runner.output / (name + ".config.json")
     write_json(path, document)
     return path, document
@@ -452,6 +456,57 @@ def expected_values(context=0):
             struct.unpack("=Q", struct.pack("=d", 1 / 3))[0]]
     return [{"type": index if index == 0 else index + 1, "data": value}
             for index, value in enumerate(data)]
+
+
+def bulk_cases(runner, helper, driver):
+    """Table reads on the fixture agent: a column of consecutive instances is read with GETBULK, each row
+    reaches its own binding by OID, and what the agent does not hold or does not answer is NoSuchInstance."""
+    exception_instance = {"type": 12, "data": None}
+    expected = {
+        "bulk-full": [{"type": 0, "data": 1000 + row} for row in range(1, 25)],
+        "bulk-partial": [{"type": 0, "data": 1000 + row} for row in range(20, 25)],
+        "bulk-gap": [exception_instance if row == 7 else {"type": 0, "data": 1000 + row} for row in range(1, 11)],
+        "bulk-past": [{"type": 0, "data": 1000 + row} for row in range(18, 25)] + [exception_instance] * 6,
+    }
+    for case in ("bulk-full", "bulk-partial", "bulk-gap", "bulk-past", "bulk-compare"):
+        peer, paths = runner.agent(4, gap=7 if case == "bulk-gap" else None)
+        agent_name = runner.children[-1][0]
+        name = "adapter-ipv4-" + case
+        config, document = adapter_configuration(runner, name, 4, peer, paths)
+        document["profiles"][0]["maxVarbinds"] = 32
+        document["profiles"][0]["timeoutMs"] = 1000
+        write_json(config, document)
+        events = runner.invoke(name, [driver, case, str(config), helper, "Main"])
+        results = [e for e in events if e.get("event") == "result"]
+        handled = [json.loads(line) for line in (runner.output / (agent_name + ".stdout")).read_text().splitlines()
+                   if '"event":"agent_handler"' in line]
+        commands = {e.get("command") for e in handled}
+        if case == "bulk-compare":
+            singles = [r.get("values")[0] for r in results[1:] if len(r.get("values", [])) == 1]
+            runner.check(name + ":rows-equal-the-get-path", len(results) == 25 and
+                         results[0].get("outcome") == 0 and len(singles) == 24 and
+                         results[0].get("values") == singles == [{"type": 0, "data": 1000 + row} for row in range(1, 25)])
+            runner.check(name + ":get-path-is-get", 160 in commands)
+        else:
+            runner.check(name + ":values-by-oid", len(results) == 1 and results[0].get("outcome") == 0 and
+                         results[0].get("values") == expected[case])
+            runner.check(name + ":one-getbulk-request", commands == {165} and
+                         len({e.get("request_id") for e in handled}) == 1)
+    # A reply to a GETBULK request, which holds one variable, whose error index points past it is rejected, as it is for
+    # a request of one value: the proxy answers every request with the error status genErr and the error index 2.
+    control = runner.output / "bulk-control"
+    control.write_text("bad-error-index\n")
+    runner.env["SNMP3_RECORD_FAULT_CONTROL"] = str(control)
+    peer, paths = runner.agent(4)
+    proxy, child = runner.fault("adapter-ipv4-bulk-index-proxy", 4, peer, "controlled")
+    name = "adapter-ipv4-bulk-index"
+    config, document = adapter_configuration(runner, name, 4, proxy, paths)
+    document["profiles"][0].update(maxVarbinds=32, timeoutMs=1000, retries=0)
+    write_json(config, document)
+    events = runner.invoke(name, [driver, "bulk-full", str(config), helper, "Main"])
+    runner.stop_entry(child)
+    results = [e for e in events if e.get("event") == "result"]
+    runner.check(name + ":index-past-the-request-rejected", len(results) == 1 and results[0].get("outcome") == 8)
 
 
 def adapter(runner):
@@ -772,6 +827,7 @@ def adapter(runner):
         runner.check(name + ":actual-native-timeliness-recovery", len(results) == 2 and
             all(e.get("outcome") == 0 for e in results) and any(e.get("event") == "native_callback" and
             e.get("operation") == 6 for e in events))
+    bulk_cases(runner, helper, driver)
 
 
 def main():

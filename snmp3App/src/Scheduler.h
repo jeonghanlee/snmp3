@@ -21,6 +21,9 @@ struct QueueSnapshot {
     // Batch limit learned from rejections of the unit (zero while the profile limit applies) and the number
     // of reductions since the scheduler was built.
     uint64_t batchLimit=0, splits=0;
+    // Requests handed to the worker as one GETBULK for consecutive instances of one column, since the scheduler was
+    // built (consecutiveColumn() of Binding.h decides, for the scheduler and for the worker).
+    uint64_t bulks=0;
     bool accepting=false;
 };
 struct Dispatch {
@@ -102,7 +105,7 @@ private:
         uint64_t admissions=0, bursts=0, burstSpanMaxUs=0, burstGapMaxUs=0, burstStartUs=0, lastAdmissionUs=0;
         // Largest number of values of one request after a rejection, kept until the worker restarts; zero
         // leaves the profile limit in force.
-        uint64_t batchLimit=0, splits=0;
+        uint64_t batchLimit=0, splits=0, bulks=0;
         bool accepting=true;
         std::deque<Key> queue;
         std::vector<Key> active;

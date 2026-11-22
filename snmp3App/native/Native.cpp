@@ -284,6 +284,45 @@ bool securityReport(netsnmp_pdu* pdu)
         return false;
     }
 }
+// The reply to a GETBULK for consecutive instances of one column holds the rows that follow the OID named in the
+// request. Each row reaches the binding that has its OID: a row that the agent left out between two rows it
+// answers is NoSuchInstance for its binding, and a row past the end of the column (another column or the end of
+// the MIB view) ends the rows, so that the bindings left are NoSuchInstance. A reply that ends before the rows
+// were all given and with no such mark was cut by the agent to fit its message, which is a tooBig reply.
+void mapBulk(const Request& request, netsnmp_pdu* pdu, NativeResult& result)
+{
+    const auto& first = request.bindings.front()->definition().oid;
+    const auto count = request.bindings.size();
+    size_t next = 0;
+    bool ended = false;
+    auto absent = [&](size_t index) {
+        const auto& expected = request.bindings[index]->definition();
+        result.variables.push_back({expected.oid, Value::exception(ValueType::NoSuchInstance)});
+    };
+    for (auto* variable = pdu->variables; variable && next < count; variable = variable->next_variable) {
+        const auto name = copy(variable->name, variable->name_length);
+        const bool column = name.size() == first.size() && std::equal(name.begin(), name.end() - 1, first.begin());
+        if (variable->type == SNMP_ENDOFMIBVIEW || !column) { ended = true; break; }
+        while (next < count) {
+            const auto& expected = request.bindings[next]->definition();
+            if (name.back() == expected.oid.back()) {
+                result.variables.push_back({expected.oid, responseValue(*variable, expected)});
+                ++next;
+                break;
+            }
+            if (name.back() < expected.oid.back())
+                throw NativeError(NativeOutcome::ResponseRejected, "native bulk rows not ascending");
+            absent(next++);
+        }
+    }
+    if (next < count && !ended) {
+        result.variables.clear();
+        result.outcome = NativeOutcome::ProtocolFailure;
+        result.errorStatus = SNMP_ERR_TOOBIG; result.errorIndex = 0;
+        return;
+    }
+    while (next < count) absent(next++);
+}
 int callback(int operation, netsnmp_session*, int requestId, netsnmp_pdu* pdu, void* data) noexcept
 {
     auto& request = *static_cast<Request*>(data);
@@ -314,8 +353,12 @@ int callback(int operation, netsnmp_session*, int requestId, netsnmp_pdu* pdu, v
             result.errorStatus = pdu->errstat; result.errorIndex = pdu->errindex;
             if (pdu->errstat != SNMP_ERR_NOERROR) {
                 result.outcome = NativeOutcome::ProtocolFailure;
-                if (pdu->errindex < 0 || static_cast<size_t>(pdu->errindex) > request.bindings.size())
+                // The error index counts the variables of the request: one for a GETBULK, one for each binding otherwise.
+                const size_t variables = request.bulk ? 1 : request.bindings.size();
+                if (pdu->errindex < 0 || static_cast<size_t>(pdu->errindex) > variables)
                     result.outcome = NativeOutcome::ResponseRejected;
+            } else if (request.bulk) {
+                mapBulk(request, pdu, result);
             } else {
                 auto* variable = pdu->variables;
                 for (auto& binding : request.bindings) {
@@ -501,7 +544,13 @@ uint64_t submit(Session& session, const std::vector<std::shared_ptr<const Bindin
     request->session = &session; request->token = owner.nextToken++;
     request->operation = operation; request->bindings = bindings;
     request->payload = payload; request->completion = std::move(completion);
-    Pdu pdu(snmp_pdu_create(operation == Operation::Get ? SNMP_MSG_GET : SNMP_MSG_SET));
+    std::vector<const BindingDefinition*> rows;
+    for (const auto& binding : bindings) {
+        if (!binding) throw NativeError(NativeOutcome::InvalidRequest, "native binding session mismatch");
+        rows.push_back(&binding->definition());
+    }
+    request->bulk = consecutiveColumn(session.profile.version, rows);
+    Pdu pdu(snmp_pdu_create(request->bulk ? SNMP_MSG_GETBULK : operation == Operation::Get ? SNMP_MSG_GET : SNMP_MSG_SET));
     if (!pdu) throw std::bad_alloc();
     for (size_t index = 0; index < bindings.size(); ++index) {
         const auto& binding = bindings[index];
@@ -513,7 +562,15 @@ uint64_t submit(Session& session, const std::vector<std::shared_ptr<const Bindin
             throw NativeError(NativeOutcome::InvalidRequest, "native binding session mismatch");
         requireOid(binding->definition().oid);
         if (operation == Operation::Set) append(*pdu, binding->definition(), request->payload[index]);
-        else {
+        else if (request->bulk) {
+            // GETBULK returns the rows after the OID it names, so it names the instance before the first row.
+            if (index == 0) {
+                auto object = nativeOid(binding->definition().oid);
+                --object.back();
+                pdu->non_repeaters = 0; pdu->max_repetitions = static_cast<long>(bindings.size());
+                if (!snmp_add_null_var(pdu.get(), object.data(), object.size())) throw std::bad_alloc();
+            }
+        } else {
             const auto object = nativeOid(binding->definition().oid);
             if (!snmp_add_null_var(pdu.get(), object.data(), object.size())) throw std::bad_alloc();
         }

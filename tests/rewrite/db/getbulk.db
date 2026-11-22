@@ -1,0 +1,129 @@
+# Twenty-four passive inputs of one binding group, the consecutive instances of one column, and two fanouts that
+# process all of them in one pass, so that the requests reach the scheduler together and leave as one batch.
+record(fanout, "$(P)Round1") {
+    field(SELM, "All")
+    field(LNK0, "$(P)C1")
+    field(LNK1, "$(P)C2")
+    field(LNK2, "$(P)C3")
+    field(LNK3, "$(P)C4")
+    field(LNK4, "$(P)C5")
+    field(LNK5, "$(P)C6")
+    field(LNK6, "$(P)C7")
+    field(LNK7, "$(P)C8")
+    field(LNK8, "$(P)C9")
+    field(LNK9, "$(P)C10")
+    field(LNKA, "$(P)C11")
+    field(LNKB, "$(P)C12")
+    field(LNKC, "$(P)C13")
+    field(LNKD, "$(P)C14")
+    field(LNKE, "$(P)C15")
+    field(LNKF, "$(P)C16")
+    field(FLNK, "$(P)Round2")
+}
+record(fanout, "$(P)Round2") {
+    field(SELM, "All")
+    field(LNK0, "$(P)C17")
+    field(LNK1, "$(P)C18")
+    field(LNK2, "$(P)C19")
+    field(LNK3, "$(P)C20")
+    field(LNK4, "$(P)C21")
+    field(LNK5, "$(P)C22")
+    field(LNK6, "$(P)C23")
+    field(LNK7, "$(P)C24")
+}
+record(longin, "$(P)C1") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C1 deadline_ms=5000")
+}
+record(longin, "$(P)C2") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C2 deadline_ms=5000")
+}
+record(longin, "$(P)C3") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C3 deadline_ms=5000")
+}
+record(longin, "$(P)C4") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C4 deadline_ms=5000")
+}
+record(longin, "$(P)C5") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C5 deadline_ms=5000")
+}
+record(longin, "$(P)C6") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C6 deadline_ms=5000")
+}
+record(longin, "$(P)C7") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C7 deadline_ms=5000")
+}
+record(longin, "$(P)C8") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C8 deadline_ms=5000")
+}
+record(longin, "$(P)C9") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C9 deadline_ms=5000")
+}
+record(longin, "$(P)C10") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C10 deadline_ms=5000")
+}
+record(longin, "$(P)C11") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C11 deadline_ms=5000")
+}
+record(longin, "$(P)C12") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C12 deadline_ms=5000")
+}
+record(longin, "$(P)C13") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C13 deadline_ms=5000")
+}
+record(longin, "$(P)C14") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C14 deadline_ms=5000")
+}
+record(longin, "$(P)C15") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C15 deadline_ms=5000")
+}
+record(longin, "$(P)C16") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C16 deadline_ms=5000")
+}
+record(longin, "$(P)C17") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C17 deadline_ms=5000")
+}
+record(longin, "$(P)C18") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C18 deadline_ms=5000")
+}
+record(longin, "$(P)C19") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C19 deadline_ms=5000")
+}
+record(longin, "$(P)C20") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C20 deadline_ms=5000")
+}
+record(longin, "$(P)C21") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C21 deadline_ms=5000")
+}
+record(longin, "$(P)C22") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C22 deadline_ms=5000")
+}
+record(longin, "$(P)C23") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C23 deadline_ms=5000")
+}
+record(longin, "$(P)C24") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=C24 deadline_ms=5000")
+}

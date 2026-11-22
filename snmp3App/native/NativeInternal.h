@@ -28,6 +28,8 @@ struct Request {
     // that a reply arrived and could not be read. One request is in flight per worker process.
     unsigned parseErrors = 0;
     Operation operation;
+    // The request is one GETBULK for consecutive instances of one column; the reply is mapped to the bindings by OID.
+    bool bulk = false;
     std::vector<std::shared_ptr<const Binding>> bindings;
     std::vector<Value> payload;
     Native::Completion completion;

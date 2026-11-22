@@ -161,7 +161,7 @@ QueueSnapshot Scheduler::snapshot(uint64_t address) const
 {
     std::lock_guard<std::mutex> guard(mutex); const auto& a=queues.at(address); QueueSnapshot r;
     r.address=address; r.count=a.count; r.bytes=a.bytes; r.countLimit=a.countLimit; r.byteLimit=a.byteLimit; r.accepting=accepting && a.accepting;
-    r.batchLimit=a.batchLimit; r.splits=a.splits;
+    r.batchLimit=a.batchLimit; r.splits=a.splits; r.bulks=a.bulks;
     for(const auto& e:a.generations) {
         const auto& g=*e.second;
         if(g.selected) { if(!g.consumed)++r.undelivered; else if(!g.retired)++r.retirementPending; }
@@ -244,6 +244,10 @@ void Scheduler::transmitted(uint64_t address, uint64_t batch)
 {
     std::lock_guard<std::mutex> guard(mutex); auto& a=queues.at(address); require(a.batch==batch && batch);
     for(auto id:a.active)a.generations.at(id)->sent=true;
+    // The worker sends a read batch of consecutive instances of one column as one GETBULK.
+    std::vector<const BindingDefinition*> rows; rows.reserve(a.active.size());
+    for(auto id:a.active)rows.push_back(&handles.at(id.first).binding->definition());
+    if(!rows.empty() && consecutiveColumn(handles.at(a.active.front().first).binding->profile().version,rows))++a.bulks;
 }
 void Scheduler::select(Generation& g, ipc::Outcome outcome)
 {

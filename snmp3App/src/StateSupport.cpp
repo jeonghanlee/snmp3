@@ -22,13 +22,14 @@
 //   peer=<id>           state of the endpoint: 0 normal, 1 changed, 2 unverified        (mbbi)
 //   batchLimit=<id>     limit of the address of the endpoint, as the report prints it   (longin)
 //   batchSplits=<id>    reductions of that limit since the IOC started                  (longin)
+//   bulks=<id>          requests handed to the worker as GETBULK since the IOC started  (longin)
 // <id> is the id of an endpoint of the loaded configuration; a record that names another one, or another item
 // than its record type reads, is rejected at initialization.
 // With SCAN "I/O Intr" a record processes when a state the module shows has changed: the records of this device
 // support share one list, and a change of any shown state processes all of them.
 using namespace snmp3;
 namespace {
-enum class Item { RuntimeState, PeerState, BatchLimit, BatchSplits };
+enum class Item { RuntimeState, PeerState, BatchLimit, BatchSplits, Bulks };
 struct Source {
     Item item;
     std::string endpoint, address;
@@ -59,7 +60,8 @@ Source parse(const std::string& text)
     const auto name=text.substr(0,split);
     if(name=="peer")source.item=Item::PeerState;
     else if(name=="batchLimit")source.item=Item::BatchLimit;
-    else { require(name=="batchSplits"); source.item=Item::BatchSplits; }
+    else if(name=="batchSplits")source.item=Item::BatchSplits;
+    else { require(name=="bulks"); source.item=Item::Bulks; }
     source.endpoint=text.substr(split+1);
     const auto configuration=Config::instance().snapshot().configuration;
     require(bool(configuration));
@@ -105,7 +107,7 @@ long readNumber(longinRecord* record)
     if(owner)for(const auto id:owner->addresses()) {
         if(owner->addressKey(id)!=source->address)continue;
         const auto queue=owner->snapshot(id);
-        value=source->item==Item::BatchLimit ? queue.batchLimit : queue.splits;
+        value=source->item==Item::BatchLimit ? queue.batchLimit : source->item==Item::BatchSplits ? queue.splits : queue.bulks;
         break;
     }
     record->val=value>uint64_t(INT_MAX) ? INT_MAX : epicsInt32(value);

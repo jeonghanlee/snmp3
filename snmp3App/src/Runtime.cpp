@@ -269,6 +269,7 @@ void Runtime::report()
                     (unsigned long long)queue.behindNeverSent);
         std::printf("snmp3 batch: address=%llu limit=%llu splits=%llu\n",
                     (unsigned long long)id,(unsigned long long)queue.batchLimit,(unsigned long long)queue.splits);
+        std::printf("snmp3 bulk: address=%llu bulks=%llu\n",(unsigned long long)id,(unsigned long long)queue.bulks);
         std::printf("snmp3 peer: address=%llu state=%s\n",(unsigned long long)id,
                     Peers::name(Peers::instance().shown(owner->addressKey(id))));
         std::printf("snmp3 admit: address=%llu admissions=%llu bursts=%llu burstSpanMaxUs=%llu burstGapMaxUs=%llu\n",
