@@ -36,7 +36,7 @@ The library disables ordinary user and system configuration, persistent state, a
 
 The call `Worker::open(profile, endpoint, capabilities)` returns a distinct `Native` session. The session identity includes the numeric address and port, the immutable profile, the version, the security level, the user, the algorithms, the security and context engine IDs, and the context name. Secrets stay private owned profile data, outside the reported identity.
 
-The call `Native::submit(bindings, payload, completion)` admits one GET or SET batch and returns its opaque token. The bindings must match the session endpoint and the complete immutable profile, and they must share one operation. A GET has no payload. A SET has one typed value per binding. The library rejects empty and oversized batches before the send.
+The call `Native::submit(bindings, payload, completion)` admits one GET or SET batch and returns its opaque token. A GET batch of consecutive instances of one column of an SNMPv2c or SNMPv3 endpoint is sent as one GETBULK; the [Native reference](snmp-native-reference.md) states how its reply is checked. The bindings must match the session endpoint and the complete immutable profile, and they must share one operation. A GET has no payload. A SET has one typed value per binding. The library rejects empty and oversized batches before the send.
 
 The request storage owns the binding handles, the SET values, and the callback context. A caller mutation of the submitted vectors does not alter the accepted operation.
 

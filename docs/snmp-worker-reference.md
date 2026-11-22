@@ -68,7 +68,7 @@ State Running means the servicing owner is ready. It does not promise that a dev
 
 ## Runtime report lines
 
-`snmp3RuntimeReport` prints these lines in this order. The `snmp3 queue:`, `snmp3 batch:`, `snmp3 peer:`, `snmp3 admit:`, and `snmp3 worker:` lines repeat once for each address. The queue, batch, peer, and admit lines of each address print first, address by address. The worker lines follow, then one `snmp3 endpoint:` line for each endpoint of the configuration.
+`snmp3RuntimeReport` prints these lines in this order. The `snmp3 queue:`, `snmp3 batch:`, `snmp3 bulk:`, `snmp3 peer:`, `snmp3 admit:`, and `snmp3 worker:` lines repeat once for each address. The queue, batch, bulk, peer, and admit lines of each address print first, address by address. The worker lines follow, then one `snmp3 endpoint:` line for each endpoint of the configuration.
 
 | Line | Fields |
 | --- | --- |
@@ -76,7 +76,8 @@ State Running means the servicing owner is ready. It does not promise that a dev
 | `snmp3 records:` | The counters and flags of the record contexts, listed in the next table |
 | `snmp3 queue:` | Per address: `count`, `bytes`, the four classes `queued`, `active`, `undelivered`, and `retirementPending`, and the live limits `countLimit` and `byteLimit` against which `count` and `bytes` are charged. Three more numbers end the line: `behindRetirement`, `behindAdmitted`, and `behindNeverSent`. |
 | `snmp3 batch:` | Per address, printed after its queue line: `limit`, the largest number of values of one request after a rejection of the unit, 0 while no rejection has lowered it; `splits`, the number of reductions since the IOC started |
-| `snmp3 peer:` | Per address, printed after its batch line: `state` is `normal`, `changed`, or `unverified`, the gravest state of the endpoints of the address after a responder showed another engine ID; see [Record behavior](snmp-record-behavior.md) |
+| `snmp3 bulk:` | Per address, printed after its batch line: `bulks`, the number of requests handed to the worker as one GETBULK for consecutive instances of one column since the IOC started, including a request that the worker then does not send; see [Record behavior](snmp-record-behavior.md) |
+| `snmp3 peer:` | Per address, printed after its bulk line: `state` is `normal`, `changed`, or `unverified`, the gravest state of the endpoints of the address after a responder showed another engine ID; see [Record behavior](snmp-record-behavior.md) |
 | `snmp3 admit:` | Per address, printed after its peer line: the admission statistics described below |
 | `snmp3 worker:` | Per address: the address, the epoch, the PID, `ready`, `closing`, the active `batch`, `launches`, `reaps`, and `forced` signals |
 | `snmp3 endpoint:` | Per endpoint, in the order of the endpoint IDs: `id`, the ID of the endpoint in the configuration; `address`, the number its address has in the lines above; `state`, which is `normal`, `changed`, or `unverified`; and, once the endpoint is settled as `changed` or `unverified`, `since`, the time of the `snmp3 engine:` line of that change in the IOC log. While the responder is still being asked to authenticate, the line shows `unverified` without `since` |

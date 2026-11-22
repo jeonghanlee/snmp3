@@ -144,6 +144,17 @@ rejects a configuration in which a group:
 The label is kept with the binding definition. The worker protocol does not
 carry it.
 
+The configuration has no setting for GETBULK. The worker sends a request as one
+GETBULK when its bindings are read bindings of an SNMPv2c or SNMPv3 endpoint
+and consecutive instances of one column: the object identifiers are the same
+but for the last arc, which rises by one from each binding to the next, and the
+last arc of the first binding is not 0. A group of the 24 outlets of one column
+is read this way. Every other read request, a group that mixes columns among
+them, and every read request of an SNMPv1 endpoint is sent as one GET; a write
+is sent as one SET. See
+[Record behavior](snmp-record-behavior.md) for the replies and for the count of
+these requests.
+
 | `valueType` | Capacity limit | Owned value representation |
 | --- | --- | --- |
 | `integer` | 1 | Signed 64-bit integer |

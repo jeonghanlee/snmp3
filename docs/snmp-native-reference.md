@@ -32,9 +32,10 @@ Open and admission errors use `NativeError`. An admitted operation produces one 
 ## Checks on a native response
 
 - Error status and index stay separate from values.
-- Response count, positional OID, and storage and type checks precede copying.
+- Response count, positional OID, and storage and type checks precede copying; a GETBULK reply is checked as the bullet on GETBULK below says.
 - Repeated requested OIDs remain distinct positions.
-- The transport rejects missing, extra, reordered, or inconsistent duplicate variable bindings (varbinds).
+- The transport rejects missing, extra, reordered, or inconsistent duplicate variable bindings (varbinds) in the reply to a GET or a SET.
+- A GET batch of consecutive instances of one column of an SNMPv2c or SNMPv3 endpoint is sent as one GETBULK that names the instance before the first one and asks for one row per binding. Its reply is not checked by position: each row reaches the binding that has its OID, a row the unit left out is NoSuchInstance for its binding, a row that is not of the column or the end of the MIB view ends the rows and the bindings left are NoSuchInstance, a reply that stops short of the rows asked for with neither of these ends as ProtocolFailure with the error status 1 (tooBig) and the error index 0, and rows that repeat or whose last arc does not rise end as ResponseRejected. An error index is checked against the one variable of the request.
 - Exceptions keep the NoSuchObject, NoSuchInstance, and EndOfMibView tags.
 - Intermediate REPORT and RESEND observations are not successful data.
 
