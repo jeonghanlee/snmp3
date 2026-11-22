@@ -299,6 +299,19 @@ void mapBulk(const Request& request, netsnmp_pdu* pdu, NativeResult& result)
         const auto& expected = request.bindings[index]->definition();
         result.variables.push_back({expected.oid, Value::exception(ValueType::NoSuchInstance)});
     };
+    // The rows of a reply rise. A row that repeats or falls shows that the reply is not the reply to this request, and
+    // it is looked for in the whole reply, also among the rows after the last binding was reached.
+    oid previous = 0;
+    bool seen = false;
+    for (auto* variable = pdu->variables; variable; variable = variable->next_variable) {
+        const auto name = copy(variable->name, variable->name_length);
+        const bool column = name.size() == first.size() && std::equal(name.begin(), name.end() - 1, first.begin());
+        if (variable->type == SNMP_ENDOFMIBVIEW || !column) break;
+        if (seen && name.back() <= previous)
+            throw NativeError(NativeOutcome::ResponseRejected, "native bulk rows not ascending");
+        previous = name.back();
+        seen = true;
+    }
     for (auto* variable = pdu->variables; variable && next < count; variable = variable->next_variable) {
         const auto name = copy(variable->name, variable->name_length);
         const bool column = name.size() == first.size() && std::equal(name.begin(), name.end() - 1, first.begin());

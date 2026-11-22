@@ -507,6 +507,19 @@ def bulk_cases(runner, helper, driver):
     runner.stop_entry(child)
     results = [e for e in events if e.get("event") == "result"]
     runner.check(name + ":index-past-the-request-rejected", len(results) == 1 and results[0].get("outcome") == 8)
+    # A reply whose rows do not rise is not the reply to the request, whether or not every binding was reached: the
+    # proxy turns the rows of the first reply around (reorder) or repeats the first row at the end (duplicate-varbind).
+    for mode, label in (("reorder", "turned-around"), ("duplicate-varbind", "repeated")):
+        peer, paths = runner.agent(4)
+        proxy, child = runner.fault("adapter-ipv4-bulk-" + label + "-proxy", 4, peer, mode)
+        name = "adapter-ipv4-bulk-" + label
+        config, document = adapter_configuration(runner, name, 4, proxy, paths)
+        document["profiles"][0].update(maxVarbinds=32, timeoutMs=1000, retries=0)
+        write_json(config, document)
+        events = runner.invoke(name, [driver, "bulk-full", str(config), helper, "Main"])
+        runner.stop_entry(child)
+        results = [e for e in events if e.get("event") == "result"]
+        runner.check(name + ":rows-that-do-not-rise-rejected", len(results) == 1 and results[0].get("outcome") == 8)
 
 
 def adapter(runner):
