@@ -9,7 +9,7 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 0.1.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: One unit is in progress in `docs/milestone-0.1.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. The release line is named `0.1.0` (D37) and holds M8, M9, M16, M17, M19, M20 and M21. The Ready rows are M8, M9 and M17; the owner chooses the next. M20, the comparison with the earlier module on the two units, starts when M8, M9 and M21 are Complete (D38, D42); M21 follows M8 (D42), and M11 releases `0.1.0` when every row above is Complete. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`), M18 (tag `0.0.6`), M7 (tag `0.0.7`), M19 (tag `0.0.8`) and G1 are complete. Commits, pushes, tags and issue actions each need their own authority.
+Next session entry point: Two units are in progress in `docs/milestone-0.1.0.md`. M8 is In progress: its change is checked by T1 to T5 in its detail and is not committed; the next action is the commit of the change under delegation, then the second-person pass of its closure record, the tag with the next free number and the closure. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. The release line is named `0.1.0` (D37) and holds M8, M9, M16, M17, M19, M20 and M21. The Ready rows are M9 and M17; the owner chooses the next. M20, the comparison with the earlier module on the two units, starts when M8, M9 and M21 are Complete (D38, D42); M21 follows M8 (D42), and M11 releases `0.1.0` when every row above is Complete. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`), M18 (tag `0.0.6`), M7 (tag `0.0.7`), M19 (tag `0.0.8`) and G1 are complete. Commits, pushes, tags and issue actions each need their own authority.
 
 ## Scope
 
@@ -33,7 +33,7 @@ Out of scope: performance criteria and acceptance beyond the comparison of M20 (
 | Recovery | M16 | Recovery when a unit returns after a power or network loss | Milestone | In progress | No | G1, D18, D22, D23, D24, D25, D31 | With the IOC left running, the records of a unit return to normal by themselves when the unit comes back with its engine ID unchanged; a changed engine ID is shown and recorded, and until the IOC is restarted no SET is sent and no value is taken except system information; tag: the next free number at its closing; [detail](#m16---recovery-when-a-unit-returns-after-a-power-or-network-loss) |
 | B | M5 | SET outcome contract | Milestone | Complete | No | M4, D26, D27 | Output records complete only on the SET result; a refused SET and a SET without a reply are alarms with a message; consecutive writes follow Base; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
 | C | M7 | Shell-command configuration, MIB names and reply-driven processing | Milestone | Complete | No | M4, D28, D30, D32, D34, D36 | An IOC is configured by shell commands and record links without a file, objects are given by MIB name, and `SCAN=I/O Intr` records process on the reply of a subscription; tag `0.0.7`; [detail](#m7---shell-command-configuration-mib-names-and-reply-driven-processing) |
-| Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4, D41 | Consecutive instances of one column are read with one GETBULK request where the profile allows it, counted in the report (D41); tag: the next free number at its closing; [detail](#m8---getbulk-table-reads) |
+| Performance | M8 | GETBULK table reads | Milestone | In progress | No | M4, D41 | Consecutive instances of one column are read with one GETBULK request where the profile allows it, counted in the report (D41); tag: the next free number at its closing; [detail](#m8---getbulk-table-reads) |
 | Sizing | M21 | Message size read from the unit at session start | Milestone | Not started | No | M8, D42 | The module reads the maximum message size of a unit when a session starts and the message size of the session follows it, so that no setting has to be matched to each unit by hand; the value read is shown in the report and in a state record; tag: the next free number at its closing; [detail](#m21---message-size-read-from-the-unit-at-session-start) |
 | D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag: the next free number at its closing; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Complete | No | D3, D29, D31 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.5`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
@@ -43,7 +43,7 @@ Out of scope: performance criteria and acceptance beyond the comparison of M20 (
 | Tools | M17 | Matrix cells moved from Python to bash and Perl | Milestone | Not started | Yes | D19, D38 | Each moved cell kills the same mutations as the Python cell it replaces, and the matrix gives the same cell names and statuses; [detail](#m17---matrix-cells-moved-from-python-to-bash-and-perl) |
 | Release | M11 | Release 0.1.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M17, M18, M19, M20, M21 | Integrated re-runs and the two-unit acceptance pass; tag `0.1.0` and GitHub release exist; [detail](#m11---release-010) |
 
-Current work tally: 9 Complete, 1 In progress, 6 Not started, 0 Blocked; G1 Complete. Ready rows: M8, M9, M17. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
+Current work tally: 9 Complete, 2 In progress, 5 Not started, 0 Blocked; G1 Complete. Ready rows: M9, M17. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -1056,7 +1056,7 @@ Last Compared: 2026-11-18T23:17Z; issue updatedAt 2026-11-18T23:17:13Z; label, a
 Origin: 0.1.0 / M7
 Identity History: M7 -> M8 (baseline row inserted before it, 2026-11-10)
 GitHub Issue: #8 - https://github.com/jeonghanlee/snmp3/issues/8
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -1083,6 +1083,19 @@ Out of scope: a table binding kind or any change of the configuration or the dat
 - M4 must be Complete; the response size and reduction rules are shared.
 - D41 fixes the decisions of this plan.
 - Hypothesis H1, that both units answer GETBULK, is checked read-only with a bulk read on each unit (D8 permits reads) before T4 is run; its result is recorded in T4.
+- Differences between the accepted plan and the work as run, listed for the owner's decision:
+  1. The GETBULK request and the mapping of the rows are made in `Native.cpp`, in the worker, as D41 point 1 says. The scheduler holds only the count `bulks` and shares the decision with the worker through one function, `consecutiveColumn` in `Binding.h`; item 2 of the plan wrote that the scheduler detects the batch.
+  2. The report that shows `bulks` is `snmp3RuntimeReport`, not `snmp3Report` as the plan wrote: a new line `snmp3 bulk:` after the `snmp3 batch:` line, with the existing lines unchanged, and a new record `$(P)Bulks`.
+  3. T3 holds 28 checks in three cases, not about 10: the values, the alarm messages, the two counts and the agent command are checked for each round.
+  4. The reply that stops short is made with the `missing` mode of the UDP fault proxy. The plan named a small message size too: the Net-SNMP fixture agent answers `genErr index 0` to a GETBULK it cannot fit, observed on 2026-11-21, and does not cut the reply. The module reports `genErr` as it is and does not halve for it.
+  5. N2 and N6 of the mutation series had a first prediction that was wrong (N2: the request size falls to one value, which is sent as a GET; N6: the alarm message stays empty when the request is not sent). The first prediction is in `mutation-table-1.json`, the corrected one in `mutation-table-2.json`, and both were run again with the same result.
+  6. T4 needed a run configuration of its own, because the measurement IOC has no `group` and reads one value per request: `work/m8-units/run_ioc.sh` with the 24 outlet records of one column in one group.
+  7. The fixture agent gained a column of 24 rows, `1.3.6.1.4.1.53864.5.<row>`, and a `command` key in its `agent_handler` event line.
+  8. `bulks` counts the requests handed to the worker as one GETBULK, not the requests sent: an SNMPv3 unit that does not answer the request for its engine ID leaves the GETBULK unsent and still raises the count (shown with a unit that did not answer, `bulks=1`). The four texts that name the count say so (`CHANGELOG.md`, `snmp-record-behavior.md`, `snmp-worker-reference.md`, `snmp3Endpoint.db`) and the comments in `Binding.h` and `StateSupport.cpp`; D41 point 3 wrote "requests sent as GETBULK". The owner chose this over counting in the worker, which would change the reply frame between worker and IOC.
+  9. The use of GETBULK is described in `docs/snmp-rewrite-config.md`, as the plan said, and also in `docs/snmp-record-behavior.md` and `docs/snmp-worker-reference.md`.
+  10. The error index of a reply is checked against the one variable of a GETBULK request, not against the number of bindings; before, a reply with status genErr and error index 2 was accepted for a GETBULK of 24 rows and rejected for a request of one value. The case `bulk-index` of T1 (fault proxy mode `controlled` with `bad-error-index`) checks it; T1 holds 8 cases, not the 5 of the plan (with difference 11).
+  11. The rows of a GETBULK reply must rise over the whole reply: a first version checked the order only until every binding was reached, so a reply whose rows were turned around was accepted as a success in which all but one binding were NoSuchInstance (shown with the fault proxy mode `reorder`); a repeated row was already rejected. Every row is now checked and both end as ResponseRejected. The cases `bulk-turned-around` and `bulk-repeated` of T1 check it.
+- Observed on 2026-11-21 by read-only reads of both units: both answer GETBULK (H1); a request for 61 rows is answered with 52 rows and no error status, so a unit cuts a reply that does not fit (H2); both report 2000 for `snmpEngineMaxMessageSize.0`. The last value is the premise of M21.
 
 ##### Implementation Plan
 
@@ -1115,11 +1128,11 @@ Size of the checks, stated before the build and widened only by the owner: T1 5 
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Linux host, ordinary product | Pending | none |
-| T2 | Not run | Linux host, ordinary product | Pending | none |
-| T3 | Not run | Linux host, ordinary product | Pending | none |
-| T4 | Not run | Laboratory IOC, both units | Pending | none |
-| T5 | Not run | Linux host | Pending | none |
+| T1 | 2026-11-22T08:19Z | Linux host, ordinary product, fixture agent | Pass | `test_native.py --phase adapter` on the final sources (hashes in `sources-3.sha256`): 830 checks, 0 failing. Before the code 6 failing (the cases `bulk-full`, `bulk-partial`, `bulk-gap` and `bulk-past` sent a GET, which is 4 checks, and in `bulk-gap` and `bulk-past` the missing rows gave NoSuchObject, which is 2 checks); the case `bulk-index` added after the third-person pass (difference 10) failed alone, 1 check, before its fix (`t1-red-2`), and the case `bulk-turned-around` added after the second-person pass (difference 11) failed alone, 1 check, before its fix (`t1-red-3`); local evidence `work/m8-evidence/t1-red-1`, `t1-red-2`, `t1-red-3` and `series-final-2/t1`, index `RUNS.txt` |
+| T2 | 2026-11-22T08:34Z | Linux host, ordinary product | Pass | `snmp3SchedulerTest`: 2117 checks, the four cells `bulk-consecutive`, `bulk-break`, `bulk-version-one`, `bulk-halves` among them; they did not compile before `bulks` existed |
+| T3 | 2026-11-22T08:19Z | Linux host, ordinary product, fixture agent and UDP fault proxy | Pass | Cell `getbulk` on the final sources (`series-final-2/t3`): 3 cases, 28 checks, 0 failing; before the code the cases were incomplete (no `snmp3 bulk:` line, no `Bulks` record). Mutation series on a snapshot of the sources of 2026-11-21 (`sources-1.sha256`): unchanged copy 0 failing, N1 to N7 each failed exactly the checks predicted, N2 and N6 after the corrected prediction (difference 5). The final sources differ from that snapshot only in the lines of the error index test and of the whole-reply row order test of `Native.cpp` (differences 10 and 11), three comments (`Binding.h`, `StateSupport.cpp`, `snmp3Endpoint.db`), the `DESC` of `$(P)Bulks`, and the new cases of `test_native.py`; no mutated line is among them, and the series was not run again |
+| T4 | 2026-11-22T08:19Z (first run 2026-11-22T00:54Z, same result) | Laboratory IOC `snmp3Ioc`, both units, read-only (GET and GETBULK only) | Pass | Per unit: 24 records read, all `NO_ALARM`, no message, `bulks` 1 in the report and in `$(P)Bulks`, no halving, the values equal those of a `snmpbulkget` of the same column; run files private under `work/m8-units/private` |
+| T5 | 2026-11-22T08:34Z | Linux host | Pass | `run_matrix.py --stages environment,ordinary` on the final sources: 50 PASS and 1 NOT APPLICABLE (`tsan`, by design), `work/m8-evidence/matrix-changed-3` (earlier runs on earlier sources: `matrix-changed-1` and `-2`, same result) |
 
 ##### Closure Evidence
 
