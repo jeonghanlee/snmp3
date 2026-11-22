@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.0.9 — GETBULK Table Reads
+
+### Product
+
+- A request is sent as one GETBULK when its values are consecutive instances of one column (the same object identifier but the last arc, which rises by one from each binding to the next) of an SNMPv2c or SNMPv3 endpoint. The request names the instance before the first one and asks for as many rows as the request has values. Any other read request, and every read request of an SNMPv1 endpoint, is sent as one GET as before; a write is sent as one SET as before. The records, the databases and `group` do not change.
+- Each row of the reply reaches the binding that has its object identifier, not the binding at its position. A row the unit leaves out between two rows it answers is NoSuchInstance for its binding. A row that is not of the column, or the end of the MIB view, ends the rows, and the bindings left are NoSuchInstance. A reply with fewer rows than were asked and neither of these is taken as a tooBig reply: the records show `tooBig` and the request size of the address is halved as for any tooBig reply.
+- `snmp3RuntimeReport` prints a new line `snmp3 bulk: address=<n> bulks=<count>` after the `snmp3 batch:` line of each address, and `snmp3Endpoint.db` has a new record `$(P)Bulks` (`longin`) with the same number: the requests handed to the worker as one GETBULK since the IOC started. A request that the worker then does not send, as when an SNMPv3 unit does not answer the request for its engine ID, is counted too.
+
+### Compatibility
+
+- The lines of the report and the records of `0.0.8` are as before; the new line and the new record are added. A configuration, a database and a record link work as before.
+
+### Known limits
+
+- Only a request whose values are all consecutive instances of one column is sent as GETBULK. A group that mixes columns is read with one GET.
+- The Net-SNMP agent answers `genErr` when a GETBULK reply would not fit the message size of the request, and does not cut the reply; the module reports that status and does not halve the request size for it. A unit that cuts the reply is handled as described above.
+- Observed on 2026-11-21 with the two laboratory units (one APC NMC2 and one NMC3, SNMPv3): both answer GETBULK; a request for 61 rows of an outlet column read with `snmpbulkget` was answered with 52 rows and no error status, so these units cut a reply that does not fit; both report 2000 for `snmpEngineMaxMessageSize.0`. The module read the 24 rows of an outlet column from each unit with one GETBULK, without alarm and with the values of `snmpbulkget`. A request of more rows than one reply holds was not run through the module on the units.
+
 ## 0.0.8 — MIB Tools
 
 ### Product
