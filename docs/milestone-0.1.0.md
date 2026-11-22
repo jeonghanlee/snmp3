@@ -9,11 +9,11 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 0.1.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: One unit is in progress in `docs/milestone-0.1.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. The release line is named `0.1.0` (D37) and holds M8, M9, M16, M17, M19 and M20. The Ready rows are M8, M9 and M17; the owner chooses the next. M20, the comparison with the earlier module on the two units, starts when M8 and M9 are Complete (D38), and M11 releases `0.1.0` when every row above is Complete. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`), M18 (tag `0.0.6`), M7 (tag `0.0.7`), M19 (tag `0.0.8`) and G1 are complete. Commits, pushes, tags and issue actions each need their own authority.
+Next session entry point: One unit is in progress in `docs/milestone-0.1.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. The release line is named `0.1.0` (D37) and holds M8, M9, M16, M17, M19, M20 and M21. The Ready rows are M8, M9 and M17; the owner chooses the next. M20, the comparison with the earlier module on the two units, starts when M8, M9 and M21 are Complete (D38, D42); M21 follows M8 (D42), and M11 releases `0.1.0` when every row above is Complete. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`), M18 (tag `0.0.6`), M7 (tag `0.0.7`), M19 (tag `0.0.8`) and G1 are complete. Commits, pushes, tags and issue actions each need their own authority.
 
 ## Scope
 
-The release line `0.1.0` (named `1.0.0` until 2026-11-20, D37) delivers a module that runs as the earlier SNMP module does: it reads the same signals with a response that is not slower and with no more errors, reads every input that the earlier module fills and sets an output as it does (shown by the SET of outlet 8 on both units), and offers errors shown on the records, recovery of a unit that returns after a loss without a restart of the IOC, the state of the module as records, and configuration by shell command with objects named by MIB. The guarantees in [What snmp3 guarantees against each cause](why-snmp3.md#what-snmp3-guarantees-against-each-cause) read Implemented, and the product is verified on one NMC2 unit and one NMC3 unit sharing one IOC. The five causes and the 23 items behind them are recorded in [The operating problems behind snmp3](why-snmp3.md) and the [Review record](legacy-review.md). The line includes the table-read request (GETBULK, M8), localized keys (M9), the SET outcome contract, shared-library SONAME versioning, the MIB tools (M19), the matrix cells in bash and Perl (M17) and a comparison with the earlier module on the two units (M20) (D1, D3, D35, D37, D38).
+The release line `0.1.0` (named `1.0.0` until 2026-11-20, D37) delivers a module that runs as the earlier SNMP module does: it reads the same signals with a response that is not slower and with no more errors, reads every input that the earlier module fills and sets an output as it does (shown by the SET of outlet 8 on both units), and offers errors shown on the records, recovery of a unit that returns after a loss without a restart of the IOC, the state of the module as records, and configuration by shell command with objects named by MIB. The guarantees in [What snmp3 guarantees against each cause](why-snmp3.md#what-snmp3-guarantees-against-each-cause) read Implemented, and the product is verified on one NMC2 unit and one NMC3 unit sharing one IOC. The five causes and the 23 items behind them are recorded in [The operating problems behind snmp3](why-snmp3.md) and the [Review record](legacy-review.md). The line includes the table-read request (GETBULK, M8), localized keys (M9), the SET outcome contract, shared-library SONAME versioning, the MIB tools (M19), the matrix cells in bash and Perl (M17) and a comparison with the earlier module on the two units (M20) and the message size of a unit read at session start (M21) (D1, D3, D35, D37, D38, D42).
 
 Work is ordered by the code surface each unit shares with the next; the row order is the execution order. Each completed M row that changes the product adds a `CHANGELOG.md` entry and an annotated tag with the version named in its detail; a row that changes no product code (M2, M17 and M20) adds neither; the final release is `0.1.0`. The tags `0.0.1` to `0.0.7` were made while the line was named `1.0.0` and stay as they are.
 
@@ -34,15 +34,16 @@ Out of scope: performance criteria and acceptance beyond the comparison of M20 (
 | B | M5 | SET outcome contract | Milestone | Complete | No | M4, D26, D27 | Output records complete only on the SET result; a refused SET and a SET without a reply are alarms with a message; consecutive writes follow Base; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
 | C | M7 | Shell-command configuration, MIB names and reply-driven processing | Milestone | Complete | No | M4, D28, D30, D32, D34, D36 | An IOC is configured by shell commands and record links without a file, objects are given by MIB name, and `SCAN=I/O Intr` records process on the reply of a subscription; tag `0.0.7`; [detail](#m7---shell-command-configuration-mib-names-and-reply-driven-processing) |
 | Performance | M8 | GETBULK table reads | Milestone | Not started | Yes | M4, D41 | Consecutive instances of one column are read with one GETBULK request where the profile allows it, counted in the report (D41); tag: the next free number at its closing; [detail](#m8---getbulk-table-reads) |
+| Sizing | M21 | Message size read from the unit at session start | Milestone | Not started | No | M8, D42 | The module reads the maximum message size of a unit when a session starts and the message size of the session follows it, so that no setting has to be matched to each unit by hand; the value read is shown in the report and in a state record; tag: the next free number at its closing; [detail](#m21---message-size-read-from-the-unit-at-session-start) |
 | D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag: the next free number at its closing; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Complete | No | D3, D29, D31 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.5`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Records | M18 | Module state as records | Milestone | Complete | No | D30, D32, D33 | The runtime state and, per endpoint, the engine ID state and the request size are readable as records of databases the module installs, and the runtime report names each endpoint; [detail](#m18---module-state-as-records) |
 | Tools | M19 | MIB tools: database check and database draft | Milestone | Complete | No | M7, D35 | A standalone program checks a database against MIB files for names, types and access before an IOC starts, and one writes a draft of records from MIB files for the author to finish; tag `0.0.8`; [detail](#m19---mib-tools-database-check-and-database-draft) |
-| Comparison | M20 | Comparison with the earlier module on the two units | Milestone | Not started | No | M2, M7, M8, M9, D37, D38 | On the same signals of both units the errors are not more and the response is not slower than those of the earlier module, every input it fills is filled and the SET of outlet 8 succeeds on both units, and the state records and the recovery are shown by the results of their units; [detail](#m20---comparison-with-the-earlier-module-on-the-two-units) |
+| Comparison | M20 | Comparison with the earlier module on the two units | Milestone | Not started | No | M2, M7, M8, M9, M21, D37, D38, D42 | On the same signals of both units the errors are not more and the response is not slower than those of the earlier module, every input it fills is filled and the SET of outlet 8 succeeds on both units, and the state records and the recovery are shown by the results of their units; [detail](#m20---comparison-with-the-earlier-module-on-the-two-units) |
 | Tools | M17 | Matrix cells moved from Python to bash and Perl | Milestone | Not started | Yes | D19, D38 | Each moved cell kills the same mutations as the Python cell it replaces, and the matrix gives the same cell names and statuses; [detail](#m17---matrix-cells-moved-from-python-to-bash-and-perl) |
-| Release | M11 | Release 0.1.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M17, M18, M19, M20 | Integrated re-runs and the two-unit acceptance pass; tag `0.1.0` and GitHub release exist; [detail](#m11---release-010) |
+| Release | M11 | Release 0.1.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M17, M18, M19, M20, M21 | Integrated re-runs and the two-unit acceptance pass; tag `0.1.0` and GitHub release exist; [detail](#m11---release-010) |
 
-Current work tally: 9 Complete, 1 In progress, 5 Not started, 0 Blocked; G1 Complete. Ready rows: M8, M9, M17. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
+Current work tally: 9 Complete, 1 In progress, 6 Not started, 0 Blocked; G1 Complete. Ready rows: M8, M9, M17. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -89,6 +90,7 @@ Current work tally: 9 Complete, 1 In progress, 5 Not started, 0 Blocked; G1 Comp
 | D39 | M19, six points of its plan: (1) the description, the units and the enumeration of an object come from a new mode `--describe` of the native probe; the output of `--resolve`, which the IOC reads, stays as it is. (2) The draft program takes the index values of a table column as a range given by the caller and writes one record for each. (3) A read-write object becomes an input record and an output record in the draft. (4) The two programs are written in Perl and read the MIB through the probe. (5) The unit changes the product, so it adds a `CHANGELOG.md` entry and takes the next free tag at its closing (D31). (6) The programs are `snmp3MibCheck.pl` and `snmp3MibDraft.pl` in the new directory `snmp3App/tools/`, installed into `bin/<arch>` with `PERL_SCRIPTS` the way Base installs its own Perl scripts, and each finds the probe installed beside it. | 2026-11-20 |
 | D40 | M19, two points after the observation of step 1 of its plan: (1) neither the fixture MIB nor the PowerNet MIB states units, and the TRIPPLITE-PRODUCTS MIB does and resolves with the probe as it is, so the draft is tried on objects of three MIBs and the units are shown by TRIPPLITE-PRODUCTS. (2) The agreement criterion is limited: the IOC also rejects records for rules of record fields, link grammar, `SCAN` and subscriptions, which the checker does not take over; the checker names the seven faults, a record it names for one of them is one the IOC rejects, and a database that the draft program writes and the checker passes loads in the IOC without a rejected record. The plan of commit 47112e7 is revised accordingly and needs its own acceptance and authorization. | 2026-11-20 |
 | D41 | M8, five points of its plan: (1) the worker, not the configuration, chooses GETBULK: when a batch holds consecutive instances of one column (same base OID, index rising by one) it sends one GETBULK for them and maps the rows onto the bindings by the OID of each row (the base OID and the index), never by position; the records, the database and `group=` do not change, and no table binding kind is added; (2) an irregular reply is judged per binding: a row that is missing between present rows gives noSuchInstance for that binding, a reply with fewer rows than asked is taken as tooBig and uses the halving of M4, and a row beyond the column (another column or endOfMibView) gives noSuchInstance for the bindings left; (3) the report and the state records of M18 gain a counter `bulks` (requests sent as GETBULK per endpoint), so that the use of GETBULK is visible without a wire capture; (4) a SNMPv1 profile never sends GETBULK and reads with GET as before; (5) the criterion on the units is a `bulks` count above zero with the records filled and no alarm. | 2026-11-21 |
+| D42 | M21 is added to `0.1.0`, after M8 and before M20 (the owner's order; it is not a Backlog row): the module reads the maximum message size of a unit when a session starts and sets the message size of the session from it, so that the profile setting `maxMessageSize` (default 1472) no longer has to be matched to each unit by hand. Observed on 2026-11-21 by read-only reads: both laboratory units report 2000 for `snmpEngineMaxMessageSize.0` (SNMP-FRAMEWORK-MIB) over SNMPv3, and both cut a reply to a GETBULK for 61 rows to 52 rows. The comparison M20 and the release M11 depend on M21. The rule that combines the value read with the configured one, the case of a value that cannot be read, and the reading again after a restart of a worker are for the plan review; this decision fixes the scope and the order only. | 2026-11-21 |
 
 ### ID Migration
 
@@ -1133,6 +1135,73 @@ Observed Labels: enhancement
 Observed Milestone: 0.1.0
 Last Compared: 2026-11-10T01:59Z; issue updatedAt 2026-11-10T01:58:33Z; title, label, assignee jeonghanlee and milestone verified with `gh issue list` after creation. The milestone, renamed 0.1.0, was read at 2026-11-20T17:24Z.
 
+#### M21 - Message size read from the unit at session start
+
+Origin: 0.1.0 / M21
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+A unit holds the largest message it can send and receive in `snmpEngineMaxMessageSize.0` (SNMP-FRAMEWORK-MIB, read-only). The module does not read it: the message size of a session is the profile setting `maxMessageSize` (default 1472), which an SNMPv3 request advertises to the unit and which also bounds what the session receives, and the module learns a smaller request size only from a rejection (the halving of M4, and that of M8 for a reply cut short). Observed on 2026-11-21 by read-only reads of both laboratory units: both report 2000, and both cut the reply to a GETBULK for 61 rows to 52 rows. This unit makes the module read the value when a session starts and set the message size of the session from it, so that the setting no longer has to be matched to each unit by hand.
+
+##### Scope
+
+- Read the maximum message size of the unit of an endpoint when its session starts.
+- Set the message size of the session from the value read.
+- Show the value read per endpoint in `snmp3RuntimeReport` and in a state record of M18.
+- Give the fixture agent of the tests the object `snmpEngineMaxMessageSize.0` with a value of the test's choice: it answers `No Such Object` for it today (observed 2026-11-21), so the tests have no value to read without this.
+
+Out of scope: learning a request size across restarts of a worker, a change of the halving of M4 or M8, and any reading of the unit beyond this one value. The plan review decides the rest (see Dependencies And Decisions).
+
+##### Completion Criteria
+
+- On the fixture agent, which holds the object after this unit, the value it reports is read when a session starts, the message size of the session follows it, and the request the agent receives shows that size.
+- The report and a state record show the value read for each endpoint.
+- On both laboratory units the value read is the value the unit reports, the records fill without alarm, and no write is made.
+- A unit whose value cannot be read leaves the session working; what size it then uses is decided at the plan review.
+
+##### Dependencies And Decisions
+
+- Work ordering: M8 is Complete first, in the owner's order (D42). Behavioral constraint: the unit shares the request size rules of M4 and M8, so the value read must not undo the halving.
+- D42 fixes the scope and the order. The plan review must obtain the owner's decision on four points before the plan is accepted: (1) whether the size follows the value read, or the lower of it and the configured `maxMessageSize`; (2) what a value that cannot be read leaves (no reply, an SNMPv1 or SNMPv2c endpoint that does not show the object, an access view that does not hold it); (3) whether the value is read again after a restart of a worker or a change of the engine ID; (4) which SNMP versions read it.
+- The first pass of the plan review reads the code that opens a session, what the fixture agent answers for the object (`No Such Object` on 2026-11-21), and what each version of each unit answers; it is done before this plan is written in full.
+- This unit changes the product, so it adds a `CHANGELOG.md` entry and takes the next free tag at its closing (D31).
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Outline only, to be replaced at the plan review: the fixture agent holds the object; the code that opens a session reads the value; the session takes its message size from it by the rule of the owner's decision; the report and a state record show it; the fixture agent, the cell and the units show it.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Worker | The session of a native test against the fixture agent, which holds the object, reads the value and uses it | Linux host, ordinary product | The request the agent receives carries the size read |
+| T2 | IOC | A matrix cell with the production IOC against the fixture agent, which holds the object: the report and the state record show the value | Linux host, ordinary product | Value shown as read; records fill |
+| T3 | Device | A read-only run on both laboratory units | Laboratory IOC, both units | Value read as the unit reports it; records fill without alarm |
+| T4 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` | Linux host | All cells PASS |
+
+The size of the checks is stated at the plan review, before anything is built.
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Linux host, ordinary product | Pending | none |
+| T2 | Not run | Linux host, ordinary product | Pending | none |
+| T3 | Not run | Laboratory IOC, both units | Pending | none |
+| T4 | Not run | Linux host | Pending | none |
+
+##### Closure Evidence
+
+- none
+
 #### M9 - SNMPv3 localized keys and secret procedure
 
 Origin: 0.1.0 / M8
@@ -1709,7 +1778,7 @@ Out of scope: the second-client ratio and other criteria of M13, SET timing unde
 
 ##### Dependencies And Decisions
 
-- M2 recorded the earlier module on the two units; M7, M8 and M9 must be Complete so that the final product is the one measured (D38).
+- M2 recorded the earlier module on the two units; M7, M8, M9 and M21 must be Complete so that the final product is the one measured (D38, D42).
 - D8 and D9 limit the writes; each write run needs the owner's confirmation, restores the original state, and no address, user name, secret or engine ID value is recorded.
 - The earlier module runs only under D11: its credential file is made for the run, and each creation needs the owner's permission.
 - The fourth criterion waits for M16 (M16 / T4 and M16 / T5): the runs T1 to T3 do not wait for it, and this unit is Complete only after M16 is Complete.
@@ -1820,7 +1889,7 @@ Release `0.1.0` when the product runs as the earlier SNMP module does (D37): eve
 ##### Scope
 
 - Integrated re-runs of the checks that later units may have invalidated, on the final combined candidate.
-- Two-unit acceptance on the laboratory IOC with the final candidate: M3's three phases, M4's sizing, M7's `I/O Intr` cadence, M8's `bulks` count and M9's credentials together.
+- Two-unit acceptance on the laboratory IOC with the final candidate: M3's three phases, M4's sizing, M7's `I/O Intr` cadence, M8's `bulks` count, M9's credentials and M21's message size together.
 - The comparison with the earlier module of M20 repeated on the candidate when the product changed after M20.
 - The release notes state the known limit that the threaded runtime was not run under a thread sanitizer (D37).
 - Installation on a clean Rocky Linux 8.10 host by the documented procedure.
@@ -1835,7 +1904,7 @@ Out of scope: operations deployment, performance acceptance beyond the compariso
 
 ##### Dependencies And Decisions
 
-- M1 to M5, M7 to M10 and M16 to M20 Complete.
+- M1 to M5, M7 to M10 and M16 to M21 Complete.
 
 ##### Implementation Plan
 
@@ -1863,7 +1932,7 @@ Superseded Plan Artifacts: none
 
 | Release Verification Label | Timing | System | Version | Architecture | Deployment Path | Method | Expected Result | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Release Verification 6 | pre-change | Laboratory IOC host with both units | candidate | x86_64 | laboratory IOC startup | M3 three phases plus M4, M7, M8 and M9 criteria on the candidate | All criteria met | pending |
+| Release Verification 6 | pre-change | Laboratory IOC host with both units | candidate | x86_64 | laboratory IOC startup | M3 three phases plus M4, M7, M8, M9 and M21 criteria on the candidate | All criteria met | pending |
 | Release Verification 11 | pre-change | Laboratory IOC host with both units | candidate | x86_64 | laboratory IOC startup | the comparison of M20 repeated on the candidate | The criteria of M20 are met | pending |
 | Release Verification 7 | post-release | Clean Rocky Linux 8.10 host | 0.1.0 | x86_64 | documented installation procedure | Install from the release and run the fixture startup | IOC starts and acquires from the fixture agent | pending |
 
