@@ -9,11 +9,11 @@ Remote tracker: jeonghanlee/snmp3, GitHub milestone 0.1.0
 Recorded date: 2026-11-09
 Source baseline: tag `0.0.1` at `8c5bd199f3137bb3c5756c7a2c7d1640122ed788`; register reset from `ba6c558a1118c792e769aed79ded7581538c3888`
 
-Next session entry point: One unit is in progress in `docs/milestone-0.1.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. The release line is named `0.1.0` (D37) and holds M8, M9, M16, M17, M19, M20 and M21. The Ready rows are M9, M17 and M21; the owner chooses the next, and the plan review of M21 needs the owner's four decisions listed in its Dependencies And Decisions. M20, the comparison with the earlier module on the two units, starts when M8, M9 and M21 are Complete (D38, D42); M21 follows M8 (D42), and M11 releases `0.1.0` when every row above is Complete. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`), M18 (tag `0.0.6`), M7 (tag `0.0.7`), M19 (tag `0.0.8`), M8 (tag `0.0.9`) and G1 are complete; issue #8 of M8 is closed (its Closure Evidence). Commits, pushes, tags and issue actions each need their own authority.
+Next session entry point: One unit is in progress in `docs/milestone-0.1.0.md`. M16 is In progress: its change is on `origin/master`, T1, T2, T3 and T6 are recorded, and item 7 on the units remains, T4 (link cut and restore) and T5 (power loss and return, with engine ID and boots read before and after), which wait until the owner can cut the link and the power (start `work/m16-units/run_units.sh` before the cut, as its Dependencies And Decisions describe); then its `CHANGELOG.md` entry, the tag with the next free number (D31) and the closure, each under its own authority. The release line is named `0.1.0` (D37) and holds M8, M9, M16, M17, M19, M20, M21 and M22. The Ready rows are M9, M17, M21 and M22; the owner chooses the next, and the plan review of M21 needs the owner's four decisions listed in its Dependencies And Decisions. M20, the comparison with the earlier module on the two units, starts when M8, M9, M21 and M22 are Complete (D38, D42, D44); M22 and M21 follow M8 in that order (D44, D42), and M11 releases `0.1.0` when every row above is Complete. M6 was deferred to the Backlog by D28 with its measurements. M1 (tag `0.0.2`), M2, M3 (retired by D13), M4 (tag `0.0.3`), M5 (tag `0.0.4`), M10 (tag `0.0.5`), M18 (tag `0.0.6`), M7 (tag `0.0.7`), M19 (tag `0.0.8`), M8 (tag `0.0.9`) and G1 are complete; issue #8 of M8 is closed (its Closure Evidence). Commits, pushes, tags and issue actions each need their own authority.
 
 ## Scope
 
-The release line `0.1.0` (named `1.0.0` until 2026-11-20, D37) delivers a module that runs as the earlier SNMP module does: it reads the same signals with a response that is not slower and with no more errors, reads every input that the earlier module fills and sets an output as it does (shown by the SET of outlet 8 on both units), and offers errors shown on the records, recovery of a unit that returns after a loss without a restart of the IOC, the state of the module as records, and configuration by shell command with objects named by MIB. The guarantees in [What snmp3 guarantees against each cause](why-snmp3.md#what-snmp3-guarantees-against-each-cause) read Implemented, and the product is verified on one NMC2 unit and one NMC3 unit sharing one IOC. The five causes and the 23 items behind them are recorded in [The operating problems behind snmp3](why-snmp3.md) and the [Review record](legacy-review.md). The line includes the table-read request (GETBULK, M8), localized keys (M9), the SET outcome contract, shared-library SONAME versioning, the MIB tools (M19), the matrix cells in bash and Perl (M17) and a comparison with the earlier module on the two units (M20) and the message size of a unit read at session start (M21) (D1, D3, D35, D37, D38, D42).
+The release line `0.1.0` (named `1.0.0` until 2026-11-20, D37) delivers a module that runs as the earlier SNMP module does: it reads the same signals with a response that is not slower and with no more errors, reads every input that the earlier module fills and sets an output as it does (shown by the SET of outlet 8 on both units), and offers errors shown on the records, recovery of a unit that returns after a loss without a restart of the IOC, the state of the module as records, and configuration by shell command with objects named by MIB. The guarantees in [What snmp3 guarantees against each cause](why-snmp3.md#what-snmp3-guarantees-against-each-cause) read Implemented, and the product is verified on one NMC2 unit and one NMC3 unit sharing one IOC. The five causes and the 23 items behind them are recorded in [The operating problems behind snmp3](why-snmp3.md) and the [Review record](legacy-review.md). The line includes the table-read request (GETBULK, M8), localized keys (M9), the SET outcome contract, shared-library SONAME versioning, the MIB tools (M19), the matrix cells in bash and Perl (M17) and a comparison with the earlier module on the two units (M20) and the message size of a unit read at session start (M21) and a review of the module for races and locks (M22) (D1, D3, D35, D37, D38, D42, D44).
 
 Work is ordered by the code surface each unit shares with the next; the row order is the execution order. Each completed M row that changes the product adds a `CHANGELOG.md` entry and an annotated tag with the version named in its detail; a row that changes no product code (M2, M17 and M20) adds neither; the final release is `0.1.0`. The tags `0.0.1` to `0.0.7` were made while the line was named `1.0.0` and stay as they are.
 
@@ -34,16 +34,17 @@ Out of scope: performance criteria and acceptance beyond the comparison of M20 (
 | B | M5 | SET outcome contract | Milestone | Complete | No | M4, D26, D27 | Output records complete only on the SET result; a refused SET and a SET without a reply are alarms with a message; consecutive writes follow Base; tag `0.0.4`; [detail](#m5---set-outcome-contract) |
 | C | M7 | Shell-command configuration, MIB names and reply-driven processing | Milestone | Complete | No | M4, D28, D30, D32, D34, D36 | An IOC is configured by shell commands and record links without a file, objects are given by MIB name, and `SCAN=I/O Intr` records process on the reply of a subscription; tag `0.0.7`; [detail](#m7---shell-command-configuration-mib-names-and-reply-driven-processing) |
 | Performance | M8 | GETBULK table reads | Milestone | Complete | No | M4, D41, D43 | Consecutive instances of one column are read with one GETBULK request where the profile allows it, counted in the report (D41); tag `0.0.9`; [detail](#m8---getbulk-table-reads) |
+| Thread safety | M22 | Race and lock review of the module | Milestone | Not started | Yes | M8, D44 | Every lock, atomic and shared structure of the module is listed with its guard and reviewed for races, lock order and object lifetime; each confirmed defect is fixed with a check that failed before; the thread sanitizer runs on the tests of the module where the tool builds and runs, or the reason it cannot is recorded; tag: the next free number at its closing when the product code changes; [detail](#m22---race-and-lock-review-of-the-module) |
 | Sizing | M21 | Message size read from the unit at session start | Milestone | Not started | Yes | M8, D42 | The module reads the maximum message size of a unit when a session starts and the message size of the session follows it, so that no setting has to be matched to each unit by hand; the value read is shown in the report and in a state record; tag: the next free number at its closing; [detail](#m21---message-size-read-from-the-unit-at-session-start) |
 | D | M9 | SNMPv3 localized keys and secret procedure | Carry-forward | Not started | Yes | G1, D10 | Worker retains localized keys only; the configuration carries localized keys and a documented procedure creates the files that reach both units; tag: the next free number at its closing; [detail](#m9---snmpv3-localized-keys-and-secret-procedure) |
 | Release | M10 | Shared-library SONAME and symbolic-link versioning | Carry-forward | Complete | No | D3, D29, D31 | Installed libraries carry SONAMEs and links per policy; consumers load them; tag `0.0.5`; [detail](#m10---shared-library-soname-and-symbolic-link-versioning) |
 | Records | M18 | Module state as records | Milestone | Complete | No | D30, D32, D33 | The runtime state and, per endpoint, the engine ID state and the request size are readable as records of databases the module installs, and the runtime report names each endpoint; [detail](#m18---module-state-as-records) |
 | Tools | M19 | MIB tools: database check and database draft | Milestone | Complete | No | M7, D35 | A standalone program checks a database against MIB files for names, types and access before an IOC starts, and one writes a draft of records from MIB files for the author to finish; tag `0.0.8`; [detail](#m19---mib-tools-database-check-and-database-draft) |
-| Comparison | M20 | Comparison with the earlier module on the two units | Milestone | Not started | No | M2, M7, M8, M9, M21, D37, D38, D42 | On the same signals of both units the errors are not more and the response is not slower than those of the earlier module, every input it fills is filled and the SET of outlet 8 succeeds on both units, and the state records and the recovery are shown by the results of their units; [detail](#m20---comparison-with-the-earlier-module-on-the-two-units) |
+| Comparison | M20 | Comparison with the earlier module on the two units | Milestone | Not started | No | M2, M7, M8, M9, M21, M22, D37, D38, D42, D44 | On the same signals of both units the errors are not more and the response is not slower than those of the earlier module, every input it fills is filled and the SET of outlet 8 succeeds on both units, and the state records and the recovery are shown by the results of their units; [detail](#m20---comparison-with-the-earlier-module-on-the-two-units) |
 | Tools | M17 | Matrix cells moved from Python to bash and Perl | Milestone | Not started | Yes | D19, D38 | Each moved cell kills the same mutations as the Python cell it replaces, and the matrix gives the same cell names and statuses; [detail](#m17---matrix-cells-moved-from-python-to-bash-and-perl) |
-| Release | M11 | Release 0.1.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M17, M18, M19, M20, M21 | Integrated re-runs and the two-unit acceptance pass; tag `0.1.0` and GitHub release exist; [detail](#m11---release-010) |
+| Release | M11 | Release 0.1.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M17, M18, M19, M20, M21, M22 | Integrated re-runs and the two-unit acceptance pass; tag `0.1.0` and GitHub release exist; [detail](#m11---release-010) |
 
-Current work tally: 10 Complete, 1 In progress, 5 Not started, 0 Blocked; G1 Complete. Ready rows: M9, M17, M21. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
+Current work tally: 10 Complete, 1 In progress, 6 Not started, 0 Blocked; G1 Complete. Ready rows: M9, M17, M21, M22. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
 
 ### Decisions
 
@@ -92,6 +93,7 @@ Current work tally: 10 Complete, 1 In progress, 5 Not started, 0 Blocked; G1 Com
 | D41 | M8, five points of its plan: (1) the worker, not the configuration, chooses GETBULK: when a batch holds consecutive instances of one column (same base OID, index rising by one) it sends one GETBULK for them and maps the rows onto the bindings by the OID of each row (the base OID and the index), never by position; the records, the database and `group=` do not change, and no table binding kind is added; (2) an irregular reply is judged per binding: a row that is missing between present rows gives noSuchInstance for that binding, a reply with fewer rows than asked is taken as tooBig and uses the halving of M4, and a row beyond the column (another column or endOfMibView) gives noSuchInstance for the bindings left; (3) the report and the state records of M18 gain a counter `bulks` (requests sent as GETBULK per endpoint), so that the use of GETBULK is visible without a wire capture; (4) a SNMPv1 profile never sends GETBULK and reads with GET as before; (5) the criterion on the units is a `bulks` count above zero with the records filled and no alarm. | 2026-11-21 |
 | D42 | M21 is added to `0.1.0`, after M8 and before M20 (the owner's order; it is not a Backlog row): the module reads the maximum message size of a unit when a session starts and sets the message size of the session from it, so that the profile setting `maxMessageSize` (default 1472) no longer has to be matched to each unit by hand. Observed on 2026-11-21 by read-only reads: both laboratory units report 2000 for `snmpEngineMaxMessageSize.0` (SNMP-FRAMEWORK-MIB) over SNMPv3, and both cut a reply to a GETBULK for 61 rows to 52 rows. The comparison M20 and the release M11 depend on M21. The rule that combines the value read with the configured one, the case of a value that cannot be read, and the reading again after a restart of a worker are for the plan review; this decision fixes the scope and the order only. | 2026-11-21 |
 | D43 | M8: differences 1 to 11 between its accepted plan and the work as run are accepted as listed in the detail of M8. The annotated tag `0.0.9` names `e6a0e3f`, the last commit of the change. | 2026-11-22 |
+| D44 | M22 is added to `0.1.0`, after M8 and before M21, as a short unit (the owner's order): the whole module is reviewed once for races, lock order, shared state and object lifetime, what the review confirms is fixed at once, and the thread sanitizer is run on the tests of the module where the tool builds and runs. The cell `tsan` of the matrix is NOT APPLICABLE today ("no thread sanitizer build tool exists") and D37 names the missing run as a known limit of the release; the host holds `libtsan.a` (observed 2026-11-22), and the owner installs a tool whenever one is needed. The unit changes the product code only through the fixes it makes, and takes a `CHANGELOG.md` entry and a tag only then. | 2026-11-22 |
 
 ### ID Migration
 
@@ -1154,6 +1156,71 @@ Observed Labels: enhancement
 Observed Milestone: 0.1.0
 Last Compared: 2026-11-22T17:11Z; issue updatedAt 2026-11-22T17:11:34Z; title, label enhancement, assignee jeonghanlee and milestone 0.1.0 unchanged; the body carries the change as made and the checked acceptance criteria, and one closing comment names the tag.
 
+#### M22 - Race and lock review of the module
+
+Origin: 0.1.0 / M22
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+The IOC process of the module runs more than one thread: the threads of Base that scan and process the records, and the servicing thread `snmp3Runtime` that the runtime creates. They share the scheduler, the runtime state, the table of the peers and the configuration, which are guarded by mutexes and atomic values. No check of that guarding by a tool exists: the cell `tsan` of the matrix is NOT APPLICABLE ("no thread sanitizer build tool exists"), D37 names the missing run as a known limit of the release, and the sanitizer builds that were run (address and undefined behavior) do not find a data race. This unit reviews all shared state and all locks of the module once, fixes what the review confirms, and runs the thread sanitizer on the tests of the module where the tool builds and runs. The owner installs a tool whenever one is needed (D44).
+
+##### Scope
+
+- A review, in one reading, of every mutex, atomic value, condition and structure that more than one thread can reach in `snmp3App/src` (the scheduler, the runtime, the supervisor, the peers, the configuration, the record contexts, the device support and the state support) and of what `snmp3App/native` shares between its owner thread and its callbacks: the guard of each, the lock order, data read or written without its guard, a callback called with a lock held, and the lifetime of an object that two threads hold.
+- A classification of every candidate as a confirmed defect, a hypothesis or an owner decision, with its place in the code; the confirmed defects are fixed at once, each with a check or a run that fails before the fix.
+- The thread sanitizer on the tests of the module (the Scheduler, Runtime, Lifecycle and Shutdown tests among them) where the tool builds and runs, in place of the cell that is NOT APPLICABLE.
+
+Out of scope: the internals of Net-SNMP, EPICS Base and the C library, where a report is recorded and not fixed; a change of the threading model; performance work; and the worker processes, which run one thread each.
+
+##### Completion Criteria
+
+- The shared structures and locks of the files named in the scope are listed in the detail with their guards, and every candidate is classified.
+- Each confirmed defect is fixed with a check that failed before the fix and passes after it, or the owner records it as a limit with a decision.
+- The thread sanitizer runs the tests of the module with no report inside the code of the module, or the reason it cannot run is recorded with the owner's decision.
+- The tests and the matrix pass as before.
+
+##### Dependencies And Decisions
+
+- Work ordering: M8 is Complete first (D44); the review reads the scheduler and the worker path as M8 left them.
+- D44 fixes the scope and the order. The owner decides on the tool: the host holds `libtsan.a` (observed 2026-11-22), and whether it builds and runs the module is the result of the first pass of the plan review; when the owner has to install something, a gate row is made then.
+- This unit changes the product code only through the defects it fixes; it then adds a `CHANGELOG.md` entry and takes the next free tag at its closing (D31), and otherwise takes neither.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Outline only, to be replaced at the plan review: list the shared state and the locks, classify the candidates, fix the confirmed defects with a check that fails before each fix, build the module and its tests with the thread sanitizer where the tool allows, and record the results.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Review | The list of shared structures and locks with their guards, and the classification of every candidate, recorded in this detail | Source of `snmp3App/src` and `snmp3App/native` | Every structure listed, every candidate classified |
+| T2 | Real path | For each confirmed defect, the check or the run that fails before the fix and passes after it | Linux host, ordinary product | Fails before, passes after |
+| T3 | Thread sanitizer | The tests of the module built and run with the thread sanitizer | Linux host with the tool | No report inside the code of the module, or the reason recorded |
+| T4 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` | Linux host | All cells PASS |
+
+The size of the checks is stated at the plan review, before anything is built.
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Source | Pending | none |
+| T2 | Not run | Linux host, ordinary product | Pending | none |
+| T3 | Not run | Linux host with the tool | Pending | none |
+| T4 | Not run | Linux host | Pending | none |
+
+##### Closure Evidence
+
+- none
+
 #### M21 - Message size read from the unit at session start
 
 Origin: 0.1.0 / M21
@@ -1797,7 +1864,7 @@ Out of scope: the second-client ratio and other criteria of M13, SET timing unde
 
 ##### Dependencies And Decisions
 
-- M2 recorded the earlier module on the two units; M7, M8, M9 and M21 must be Complete so that the final product is the one measured (D38, D42).
+- M2 recorded the earlier module on the two units; M7, M8, M9, M21 and M22 must be Complete so that the final product is the one measured (D38, D42, D44).
 - D8 and D9 limit the writes; each write run needs the owner's confirmation, restores the original state, and no address, user name, secret or engine ID value is recorded.
 - The earlier module runs only under D11: its credential file is made for the run, and each creation needs the owner's permission.
 - The fourth criterion waits for M16 (M16 / T4 and M16 / T5): the runs T1 to T3 do not wait for it, and this unit is Complete only after M16 is Complete.
@@ -1923,7 +1990,7 @@ Out of scope: operations deployment, performance acceptance beyond the compariso
 
 ##### Dependencies And Decisions
 
-- M1 to M5, M7 to M10 and M16 to M21 Complete.
+- M1 to M5, M7 to M10 and M16 to M22 Complete.
 
 ##### Implementation Plan
 
