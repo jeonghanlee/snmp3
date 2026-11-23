@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.0.10 — Message Size Read From The Unit
+
+### Product
+
+- When a session opens, the worker reads `snmpEngineMaxMessageSize.0` of the unit (SNMP-FRAMEWORK-MIB) with one GET, for every version, with the timeout and the retries of the profile. The session uses the lower of the value read and `maxMessageSize` (default 1472, which stays the upper limit) as its message size, never less than 484. A unit that does not report the value (no reply, an error, an exception, or a value that is not a positive integer) leaves `maxMessageSize`, and the read never fails the open. An SNMPv3 request carries the size used as `msgMaxSize`; a request of SNMPv1 or SNMPv2c has no such field.
+- `snmp3RuntimeReport` prints a new line `snmp3 size: id=<endpoint> unit=<value>` after each `snmp3 endpoint:` line. The value is the number the unit reported, `unread` when the unit did not report it, or `unknown` before a request of the endpoint has completed. `snmp3Endpoint.db` has a new record `$(P)MessageSize` (`longin`) with the same number, 0 for the last two.
+
+### Compatibility
+
+- The lines of the report and the records of `0.0.9` are as before; the new line and the new record are added. A configuration, a database and a record link work as before. A session sends one more GET when it opens, and the open of a session of a unit that does not answer waits for the timeout and the retries of the profile once more.
+- The worker and the IOC of one release are installed together, as before: the result record that the worker sends to the IOC has a new field and is 52 bytes before its value, not 48.
+
+### Known limits
+
+- The number of values of a request is not limited from the value read; a unit that rejects a request as too large still halves it, as in `0.0.3` and `0.0.9`.
+- The read is part of the open of every session; a session of an SNMPv1 or SNMPv2c endpoint is opened once for each start of a worker, and an SNMPv3 session is opened again after repeated timeouts. That a session opened again reads the value again follows from the code and was not shown by a case.
+- Observed on 2026-11-23 with the two laboratory units (one APC NMC2 and one NMC3, SNMPv3 only): both report a value larger than 1472, so their sessions use 1472, and the value read equals the one the Net-SNMP client reads. The case that lowers the size was shown with the fixture agent only. SNMPv1 and SNMPv2c were shown with the fixture agent only, because the recorded configuration of the units holds no community.
+
 ## 0.0.9 — GETBULK Table Reads
 
 ### Product
