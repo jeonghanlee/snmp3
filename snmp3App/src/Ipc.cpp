@@ -297,22 +297,25 @@ std::vector<Command> decodeCommands(const std::vector<uint8_t>& b)
 }
 std::vector<uint8_t> encodeResults(const std::vector<Result>& v)
 {
-    uint64_t length=8; for(const auto& c:v)length=add(length,add(48,c.value.size()));
+    uint64_t length=8; for(const auto& c:v)length=add(length,add(ResultRecordBytes,c.value.size()));
     Writer w(DataBytes,size(length)); members(w,v.size());
     for(const auto& c:v) {
         require(uint16_t(c.outcome)>=1 && uint16_t(c.outcome)<=6 && c.nativeOutcome<=MaxNativeOutcome &&
-                (c.outcome==Outcome::Complete || c.value.empty() || (c.nativeOutcome==NativeEngineChanged && c.value.size()<=EngineNoteBytes)));
+                (c.outcome==Outcome::Complete || c.value.empty() || (c.nativeOutcome==NativeEngineChanged && c.value.size()<=EngineNoteBytes)) &&
+                (c.unitMessageSize==NoSessionSize || c.unitMessageSize<=uint32_t(INT32_MAX)));
         identity(w,c.id); w.u16(uint16_t(c.outcome)); w.u16(c.nativeOutcome); w.u32(c.value.size());
-        uint64_t bits; std::memcpy(&bits,&c.errorStatus,8); w.u64(bits); std::memcpy(&bits,&c.errorIndex,8); w.u64(bits); w.raw(c.value.data(),c.value.size());
+        uint64_t bits; std::memcpy(&bits,&c.errorStatus,8); w.u64(bits); std::memcpy(&bits,&c.errorIndex,8); w.u64(bits);
+        w.u32(c.unitMessageSize); w.raw(c.value.data(),c.value.size());
     }
     return w.finish();
 }
 std::vector<Result> decodeResults(const std::vector<uint8_t>& b)
 {
-    require(b.size()<=DataBytes); Reader r(b); auto n=members(r); require(n<=r.left()/48); std::vector<Result> v; v.reserve(n);
+    require(b.size()<=DataBytes); Reader r(b); auto n=members(r); require(n<=r.left()/ResultRecordBytes); std::vector<Result> v; v.reserve(n);
     while(n--) {
         Result c; c.id=identity(r); auto op=r.u16(); require(op>=1 && op<=6); c.outcome=Outcome(op); c.nativeOutcome=r.u16(); require(c.nativeOutcome<=MaxNativeOutcome);
         auto len=r.u32(); auto bits=r.u64(); std::memcpy(&c.errorStatus,&bits,8); bits=r.u64(); std::memcpy(&c.errorIndex,&bits,8);
+        c.unitMessageSize=r.u32(); require(c.unitMessageSize==NoSessionSize || c.unitMessageSize<=uint32_t(INT32_MAX));
         require(len<=DataBytes && (c.outcome==Outcome::Complete || len==0 || (c.nativeOutcome==NativeEngineChanged && len<=EngineNoteBytes))); auto p=r.raw(len); c.value.assign(p,p+len); v.push_back(std::move(c));
     }
     r.end(); return v;
@@ -325,12 +328,12 @@ std::vector<Result> decodeResults(const std::vector<uint8_t>& b,
     require(b.size()<=DataBytes); Reader r(b); const auto count=members(r);
     require(count==expected.size());
     uint64_t maximum=add(8,EngineNoteBytes);
-    for(const auto& e:expected) { require(e.definition); maximum=add(maximum,add(48,responseBytes(*e.definition))); }
+    for(const auto& e:expected) { require(e.definition); maximum=add(maximum,add(ResultRecordBytes,responseBytes(*e.definition))); }
     require(b.size()<=maximum);
     for(const auto& e:expected) {
         if(!(identity(r)==e.id))throw StaleIdentity();
         const auto outcome=r.u16(); require(outcome>=1 && outcome<=6);
-        const auto native=r.u16(); require(native<=MaxNativeOutcome); const auto length=r.u32(); r.u64(); r.u64();
+        const auto native=r.u16(); require(native<=MaxNativeOutcome); const auto length=r.u32(); r.u64(); r.u64(); r.u32();
         require((length<=responseBytes(*e.definition) && (outcome==1 || length==0)) ||
                 (outcome!=1 && native==NativeEngineChanged && length<=EngineNoteBytes));
         r.raw(length);
@@ -552,7 +555,7 @@ bool BatchReader::read(Channel& channel, size_t& budget, std::vector<Command>& c
         if(pending.size()==count) {
             require(remaining==0);
             uint64_t response=8;
-            for(const auto& member:pending)response=add(response,add(48,responseBytes(definitions.at(member.definition)->definition())));
+            for(const auto& member:pending)response=add(response,add(ResultRecordBytes,responseBytes(definitions.at(member.definition)->definition())));
             require(response<=DataBytes); channel.finishBody(); commands=std::move(pending); started=false; return true;
         }
     }

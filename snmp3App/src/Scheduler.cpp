@@ -109,7 +109,7 @@ std::vector<ipc::Identity> Scheduler::admit(const std::vector<uint64_t>& ids, co
         require(existing<=1 && consumed); behind.push_back(existing==1);
         if(h.generation==UINT64_MAX) { a.accepting=false; throw std::runtime_error("generation identity exhausted"); }
         total=ipc::add(total,ipc::add(ipc::charge(b),h.generationBytes)); require(ipc::add(a.bytes,total)<=a.byteLimit);
-        require(ipc::add(8+48,ipc::responseBytes(b))<=ipc::DataBytes);
+        require(ipc::add(8+ipc::ResultRecordBytes,ipc::responseBytes(b))<=ipc::DataBytes);
         if(operation==Operation::Set) {
             require(values[index].type()==b.valueType);
             if(b.valueType==ValueType::Octets)require(values[index].octets().size()<=b.capacity);
@@ -126,7 +126,7 @@ std::vector<ipc::Identity> Scheduler::admit(const std::vector<uint64_t>& ids, co
         g->command.definition=h.definition; g->command.id.binding=id; g->command.id.generation=h.generation+1;
         g->command.id.admission=admission++; g->command.deadline=deadline; g->command.operation=operation;
         g->admittedUs=nowUs;
-        g->q=ipc::add(ipc::charge(b),h.generationBytes); g->behind=behind[index]; require(ipc::add(8+48,ipc::responseBytes(b))<=ipc::DataBytes);
+        g->q=ipc::add(ipc::charge(b),h.generationBytes); g->behind=behind[index]; require(ipc::add(8+ipc::ResultRecordBytes,ipc::responseBytes(b))<=ipc::DataBytes);
         if(operation==Operation::Set) {
             auto encoded=ipc::encodeValue(values[index]); ipc::Reader check(encoded);
             ipc::decodeValue(check,b,true); check.end();
@@ -225,7 +225,7 @@ Dispatch Scheduler::dispatch(uint64_t address, uint64_t nowUs)
         const auto& g=*a.generations.at(id);
         if(g.command.deadline<=nowUs || !compatible(first.first,id.first,initial,g) || d.commands.size()>=maximum)break;
         const auto request=ipc::add(commandBytes,ipc::add(48,g.command.value.size()));
-        const auto response=ipc::add(resultBytes,ipc::add(48,ipc::responseBytes(handles.at(id.first).binding->definition())));
+        const auto response=ipc::add(resultBytes,ipc::add(ipc::ResultRecordBytes,ipc::responseBytes(handles.at(id.first).binding->definition())));
         if(request>ipc::DataBytes || response>ipc::DataBytes)break;
         d.commands.push_back(g.command); commandBytes=request; resultBytes=response;
     }

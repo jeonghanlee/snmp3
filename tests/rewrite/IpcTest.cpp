@@ -58,7 +58,7 @@ void bodies()
     std::vector<ipc::Identity> retired; std::vector<ipc::Result> results;
     for(const auto& c:commands) { retired.push_back(c.id); ipc::Result r; r.id=c.id; r.outcome=ipc::Outcome::Deadline; results.push_back(std::move(r)); }
     auto r=ipc::encodeRetired(retired); check(r.size()==24584 && ipc::decodeRetired(r).back()==retired.back());
-    auto out=ipc::encodeResults(results); check(out.size()==49160 && ipc::decodeResults(out).size()==1024);
+    auto out=ipc::encodeResults(results); check(out.size()==8+1024*52 && ipc::decodeResults(out).size()==1024);
     commands.push_back(commands.front()); rejects([&]{ipc::encodeCommands(commands);});
 }
 void bootstrap()
@@ -135,6 +135,14 @@ void streaming()
     ipc::Writer content(ipc::DataBytes); content.oid(spec.oid); content.raw(c.value.data(),c.value.size()); result.value=content.finish();
     std::vector<ipc::ResultReservation> expected={{c.id,&spec}};
     check(ipc::decodeResults(ipc::encodeResults({result}),expected).size()==1);
+    // The maximum message size that the session of the unit read (0: not read, NoSessionSize: the result is not from a session).
+    for(uint32_t size:{uint32_t(0),uint32_t(484),uint32_t(2000),uint32_t(2147483647),ipc::NoSessionSize}) {
+        result.unitMessageSize=size;
+        const auto back=ipc::decodeResults(ipc::encodeResults({result}),expected);
+        check(back.size()==1 && back[0].unitMessageSize==size);
+    }
+    result.unitMessageSize=2147483648u; rejects([&]{ipc::decodeResults(ipc::encodeResults({result}),expected);});
+    result.unitMessageSize=ipc::NoSessionSize;
     result.id.generation=2; rejects([&]{ipc::decodeResults(ipc::encodeResults({result}),expected);});
     result.id=c.id; result.value.resize(ipc::responseBytes(spec)+1); rejects([&]{ipc::decodeResults(ipc::encodeResults({result}),expected);});
 }

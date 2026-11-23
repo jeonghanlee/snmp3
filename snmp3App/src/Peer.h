@@ -33,13 +33,17 @@ public:
     PeerState shown(const std::string& address) const;
     // What the state record and the runtime report show for one endpoint: its state with Pending shown as
     // Unverified, and the time of its entry into Changed or Unverified as the log line printed it, empty before.
-    struct View { PeerState state = PeerState::Normal; std::string since; };
+    // messageSize: the maximum message size that the unit of the endpoint reported to the session, 0 when it was not
+    // read, -1 when no session has answered a request of the endpoint yet.
+    struct View { PeerState state = PeerState::Normal; std::string since; long messageSize = -1; };
     View view(const std::string& endpoint) const;
+    // A result of the endpoint carried the maximum message size of the unit as its session read it (0: not read).
+    void sizeRead(const std::string& endpoint, uint32_t size);
     static const char* name(PeerState state);
     // Alarm message of the records of an endpoint in that state; null for Normal.
     static const char* message(PeerState state);
 private:
-    struct Entry { std::string address, since; PeerState state = PeerState::Normal; std::vector<uint8_t> previous, current; };
+    struct Entry { std::string address, since; PeerState state = PeerState::Normal; std::vector<uint8_t> previous, current; long messageSize = -1; };
     void enter(const std::string& endpoint, Entry& entry, PeerState state, bool authenticated);
     mutable std::mutex mutex;
     std::map<std::string, Entry> entries;

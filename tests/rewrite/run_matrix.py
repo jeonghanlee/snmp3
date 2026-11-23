@@ -210,6 +210,7 @@ def ordinary(matrix, base):
     matrix.run("lifecycle", py("tests/rewrite/test_lifecycle.py", "--base", base, "--output", str(out / "o-lifecycle")))
     matrix.run("request-sizing", ["bash", "tests/rewrite/test_request_sizing.bash", "--output", str(out / "o-request-sizing")])
     matrix.run("getbulk", ["bash", "tests/rewrite/test_getbulk.bash", "--output", str(out / "o-getbulk")])
+    matrix.run("message-size", ["bash", "tests/rewrite/test_message_size.bash", "--output", str(out / "o-message-size")])
     matrix.run("recovery", ["bash", "tests/rewrite/test_recovery.bash", "--output", str(out / "o-recovery")])
     matrix.run("set-contract", ["bash", "tests/rewrite/test_set_contract.bash", "--output", str(out / "o-set-contract")])
     matrix.run("library-names", ["bash", "tests/rewrite/test_library_names.bash", "--output", str(out / "o-library-names")])
@@ -308,7 +309,7 @@ def main():
     if args.list:
         print("ordinary:", ", ".join(["rec-" + c for c in RECORD_CASES]) + ", record-shutdown, record-startup, record-ca, "
               "supervisor-ioc, qualification, r5-components, spawn-descriptors, r5-operator, native-adapter, config, lifecycle, "
-              "request-sizing, getbulk, recovery, set-contract, library-names, module-state, shell-config, mib-names, reply-driven, mib-tools")
+              "request-sizing, getbulk, message-size, recovery, set-contract, library-names, module-state, shell-config, mib-names, reply-driven, mib-tools")
         print("controls:", ", ".join(json.loads((HERE / "control-groups.json").read_text())))
         return 0
     if not os.environ.get("EPICS_BASE"):

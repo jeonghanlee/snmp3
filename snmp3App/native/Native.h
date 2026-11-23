@@ -39,6 +39,9 @@ struct NativeIdentity {
     std::string profile, user, contextName;
     Algorithm authentication, privacy;
     std::vector<uint8_t> securityEngineId, contextEngineId;
+    // The maximum message size that the unit reports in snmpEngineMaxMessageSize.0 when the session opens (0: it was not
+    // read), and the message size of the session, advertised to the unit in an SNMPv3 request.
+    uint32_t unitMessageSize = 0, messageSize = 0;
 };
 class Native {
 public:

@@ -1,5 +1,20 @@
 #!/usr/bin/env python3
-"""Apply faults only to actual loopback UDP messages; retain redacted metadata."""
+"""Apply faults only to actual loopback UDP messages; retain redacted metadata.
+
+A worker session reads snmpEngineMaxMessageSize.0 of the unit when it opens, with the first requests after the discovery
+of the client. That exchange is not an application request. Every mode lets it through except drop-size, which drops only
+the responses of that exchange: a mode that loses the responses of the application requests (drop, drop-all) keeps modelling
+that, and the read does not hold the request back by waiting for a lost response. Its requests and responses are the events
+fault_size_read_request and fault_size_read_response, a response it drops is the event fault_size_read_dropped, and none of
+them is in the counts of the application requests and responses (fault_request, fault_response, fault_dropped) or in the
+counters requests and responses of fault_stopped, which are as they are without a read.
+The exchange is the first non-discovery request of a client and its repetitions, up to --read-attempts requests (the
+request and its retries: a request that is sent again has a new message ID in SNMPv3), and it ends at the first response
+delivered to the client that is not a REPORT which makes an SNMPv3 session send the request again (a REPORT that sets the
+clock or names the engine ID; after a wrong digest it does not). A response belongs to it when it answers one of those
+requests: the message ID of SNMPv3 and the request ID of the other versions are the identity, because an SNMPv3 request is
+encrypted and shows no object.
+"""
 
 import argparse
 import heapq
@@ -14,10 +29,18 @@ import struct
 import time
 
 RUNNING = True
-MODES = ("pass", "drop", "drop-all", "delay", "duplicate", "reorder", "missing", "extra", "duplicate-varbind",
+REPORT_PREFIX = bytes([0x2b, 6, 1, 6, 3, 15, 1, 1])
+# The REPORT causes after which an SNMPv3 session sends its request again: the clock is set, or the engine ID is known.
+RESEND_CAUSES = (2, 4)
+MODES = ("pass", "drop", "drop-all", "drop-size", "delay", "duplicate", "reorder", "missing", "extra", "duplicate-varbind",
          "malformed", "wrong-request-id", "foreign-report", "drop-protected", "controlled")
 CONTROL_MODES = ("pass", "drop-all", "drop-protected", "duplicate", "error-status", "too-big", "bad-error-index",
                  "no-such-object", "no-such-instance", "end-of-mib", "wrong-type", "numeric-seed")
+
+
+def exchange_key(metadata):
+    """The identity that a request and its response share: the message ID of SNMPv3, else the request ID."""
+    return metadata.get("message_id") if metadata.get("version") == 3 else metadata.get("request_id")
 
 
 def stop(_signal, _frame):
@@ -101,6 +124,12 @@ def parse(data):
                     index=integer(fields[2]), varbinds=len(variables))
     metadata["variable_metadata"] = [{"type": pair[1]["tag"], "length": len(pair[1]["body"])}
                                      for pair in (items(v["body"]) for v in variables)]
+    if pdu["tag"] == 168 and variables:
+        # A REPORT names its cause by an object of usmStats (1.3.6.1.6.3.15.1.1.<cause>.0): 2 notInTimeWindows, 4
+        # unknownEngineIDs, 5 wrongDigests.
+        name = items(variables[0]["body"])[0]["body"]
+        if len(name) == 10 and name[:8] == REPORT_PREFIX and name[9] == 0:
+            metadata["report_cause"] = name[8]
     return outer, pdu, fields, metadata
 
 
@@ -159,6 +188,8 @@ def main():
     parser.add_argument("--agent-port", type=int, required=True)
     parser.add_argument("--mode", choices=MODES, required=True)
     parser.add_argument("--delay-ms", type=int, default=75)
+    parser.add_argument("--read-attempts", type=int, default=2,
+                        help="most requests of a client that belong to the size read: the request and its retries")
     args = parser.parse_args()
     family = socket.AF_INET if args.family == 4 else socket.AF_INET6
     host = "127.0.0.1" if args.family == 4 else "::1"
@@ -174,7 +205,10 @@ def main():
     serial = itertools.count()
     reports = {}
     mutated = set()
-    counts = {"requests": 0, "responses": 0, "application_requests": 0, "discovery_requests": 0}
+    size_reads = {}
+    read_open = {}
+    read_used = {}
+    counts = {"requests": 0, "responses": 0, "application_requests": 0, "discovery_requests": 0, "size_read_requests": 0}
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     emit("fault_ready", port=listener.getsockname()[1], mode=args.mode)
@@ -196,10 +230,23 @@ def main():
                     client = source
                     if source[0] != host:
                         continue
-                    counts["requests"] += 1
-                    category = "discovery_requests" if metadata.get("discovery") else "application_requests"
-                    counts[category] += 1
-                    emit("fault_request", **metadata)
+                    key = None if metadata.get("discovery") else exchange_key(metadata)
+                    is_read = False
+                    if key is not None and read_open.get(client, True):
+                        read_used[client] = read_used.get(client, 0) + 1
+                        size_reads.setdefault(client, set()).add(key)
+                        if read_used[client] >= max(1, args.read_attempts):
+                            read_open[client] = False
+                    is_read = key is not None and key in size_reads.get(client, ())
+                    if is_read:
+                        # The read is not an application request: its own counter and events keep the counts and the
+                        # events of the application requests as they are without a read.
+                        counts["size_read_requests"] += 1
+                        emit("fault_size_read_request", **metadata)
+                    else:
+                        counts["requests"] += 1
+                        counts["discovery_requests" if metadata.get("discovery") else "application_requests"] += 1
+                        emit("fault_request", **metadata)
                     if client not in upstream:
                         transport = socket.socket(family, socket.SOCK_DGRAM)
                         transport.bind((host, 0))
@@ -210,11 +257,25 @@ def main():
                     upstream[client].send(packet)
                 else:
                     client = key.data
+                    key = None if metadata.get("discovery") else exchange_key(metadata)
+                    is_read = key is not None and key in size_reads.get(client, ())
+                    if is_read:
+                        emit("fault_size_read_response", **metadata)
+                        if args.mode == "drop-size":
+                            emit("fault_size_read_dropped", length=len(packet))
+                        else:
+                            listener.sendto(packet, client)
+                            if metadata.get("report_cause") not in RESEND_CAUSES:
+                                read_open[client] = False
+                        continue
                     counts["responses"] += 1
                     emit("fault_response", **metadata)
                     if metadata.get("command") == 168 and metadata.get("discovery") and args.mode != "drop-all":
                         reports[client] = packet
                         reports["latest"] = packet
+                        listener.sendto(packet, client)
+                        continue
+                    if args.mode == "drop-size":
                         listener.sendto(packet, client)
                         continue
                     mode = args.mode

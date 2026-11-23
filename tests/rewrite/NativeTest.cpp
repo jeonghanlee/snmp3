@@ -95,7 +95,8 @@ std::shared_ptr<Native> open(Worker& worker, const Configuration& config, const 
     std::printf("],\"context_engine\":[");
     for (size_t i = 0; i < identity.contextEngineId.size(); ++i)
         std::printf("%s%u", i ? "," : "", identity.contextEngineId[i]);
-    std::printf("],\"context_length\":%zu}\n", identity.contextName.size());
+    std::printf("],\"context_length\":%zu,\"unit_message_size\":%u,\"message_size\":%u}\n",
+                identity.contextName.size(), identity.unitMessageSize, identity.messageSize);
     return session;
 }
 std::vector<Value> initial(unsigned context)

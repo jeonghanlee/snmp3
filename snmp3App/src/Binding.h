@@ -26,7 +26,8 @@ struct Profile {
     Version version = Version::V2c;
     SecurityLevel securityLevel = SecurityLevel::NoAuthNoPriv;
     unsigned timeoutMs = 1000, retries = 3, maxVarbinds = 32;
-    // Largest message the session accepts, advertised to the agent in the SNMPv3 header (msgMaxSize).
+    // Largest message size of the session, advertised to the agent in the SNMPv3 header (msgMaxSize); the maximum message
+    // size that the unit reports can lower it.
     unsigned maxMessageSize = 1472;
     bool checkRanges = true;
     Algorithm authentication, privacy;

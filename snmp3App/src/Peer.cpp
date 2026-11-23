@@ -79,7 +79,16 @@ Peers::View Peers::view(const std::string& endpoint) const
     if (found == entries.end()) return result;
     result.state = found->second.state == PeerState::Pending ? PeerState::Unverified : found->second.state;
     result.since = found->second.since;
+    result.messageSize = found->second.messageSize;
     return result;
+}
+void Peers::sizeRead(const std::string& endpoint, uint32_t size)
+{
+    std::lock_guard<std::mutex> guard(mutex);
+    auto& entry = entries[endpoint];
+    if (entry.messageSize == long(size)) return;
+    entry.messageSize = long(size);
+    stateChanged();
 }
 const char* Peers::name(PeerState state)
 {

@@ -292,6 +292,12 @@ void Runtime::report()
             std::printf("snmp3 endpoint: id=%s address=%llu state=%s%s%s\n",endpoint.first.c_str(),
                         (unsigned long long)(number==numbers.end() ? 0:number->second),Peers::name(view.state),
                         view.since.empty() ? "":" since=",view.since.c_str());
+            // The maximum message size the unit reported to the session: a number, unread (the unit did not report it),
+            // or unknown (no session has answered a request of the endpoint yet).
+            char size[24] = "unknown";
+            if(view.messageSize == 0)std::snprintf(size,sizeof(size),"unread");
+            else if(view.messageSize > 0)std::snprintf(size,sizeof(size),"%ld",view.messageSize);
+            std::printf("snmp3 size: id=%s unit=%s\n",endpoint.first.c_str(),size);
         }
     }
     std::printf("snmp3 loop: passes=%llu\n",(unsigned long long)passes.load());

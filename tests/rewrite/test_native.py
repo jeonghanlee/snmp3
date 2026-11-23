@@ -97,8 +97,11 @@ class Runner:
         self.agent_count = 0
         self.stopped = set()
 
-    def check(self, name, observed):
-        self.checks.append({"name": name, "passed": bool(observed)})
+    def check(self, name, observed, actual=None):
+        entry = {"name": name, "passed": bool(observed)}
+        if actual is not None:
+            entry["actual"] = actual
+        self.checks.append(entry)
 
     def secret(self, path):
         token = secrets.token_hex(24)
@@ -188,7 +191,7 @@ class Runner:
                     identities[str(library)] = self.identities[str(library)]
         return identities
 
-    def agent(self, family, engine=ENGINE_ID, gap=None):
+    def agent(self, family, engine=ENGINE_ID, gap=None, size=None):
         protocol = socket.AF_INET if family == 4 else socket.AF_INET6
         address = "127.0.0.1" if family == 4 else "::1"
         with socket.socket(protocol, socket.SOCK_DGRAM) as reserved:
@@ -200,11 +203,20 @@ class Runner:
         material = {key: self.secret(path) for key, path in paths.items()}
         config = self.output / (name + ".conf")
         text = (
-            f"rwcommunity {material['community']} 127.0.0.1 .1.3.6.1.4.1.53864\n"
-            f"rwcommunity6 {material['community']} ::1 .1.3.6.1.4.1.53864\n"
+            # The community reaches the same view as the user: the objects of the fixture and, read only, the engine
+            # maximum message size. The shorthand rwcommunity cannot hold two subtrees for one community: the first
+            # entry that matches the community and the source is the only one that is used.
+            f"com2sec nativeComV4 127.0.0.1 {material['community']}\n"
+            f"com2sec6 nativeComV6 ::1 {material['community']}\n"
+            "group nativeCommunityGroup v1 nativeComV4\n"
+            "group nativeCommunityGroup v2c nativeComV4\n"
+            "group nativeCommunityGroup v1 nativeComV6\n"
+            "group nativeCommunityGroup v2c nativeComV6\n"
+            "access nativeCommunityGroup \"\" any noauth exact nativeView nativeView none\n"
             f"createUser {USER} SHA {material['auth']} AES {material['privacy']}\n"
             f"group nativeGroup usm {USER}\n"
             "view nativeView included .1.3.6.1.4.1.53864\n"
+            "view nativeView included .1.3.6.1.6.3.10.2.1.4\n"
             "access nativeGroup \"\" usm noauth prefix nativeView nativeView none\n"
         )
         text += (f"createUser independentFixtureUser SHA {material['auth']} AES {material['privacy']}\n"
@@ -223,7 +235,9 @@ class Runner:
             argv.append(engine)
         stdout = (self.output / (name + ".stdout")).open("wb")
         stderr = (self.output / (name + ".stderr")).open("wb")
-        environment = dict(self.env, SNMP3_FIXTURE_COLUMN_GAP=str(gap)) if gap else self.env
+        environment = dict(self.env, SNMP3_FIXTURE_COLUMN_GAP=str(gap)) if gap else dict(self.env)
+        if size is not None:
+            environment["SNMP3_FIXTURE_MAX_MESSAGE_SIZE"] = str(size)
         child = subprocess.Popen(argv, stdout=stdout, stderr=stderr, env=environment)
         entry = (name, child, stdout, stderr, argv)
         self.children.append(entry)
@@ -266,11 +280,13 @@ class Runner:
                 str(paths["community"]), str(paths["auth"]), str(paths["privacy"]), user]
         return self.invoke(name, argv, expected)
 
-    def fault(self, name, family, peer, mode, delay_ms=None):
+    def fault(self, name, family, peer, mode, delay_ms=None, read_attempts=None):
         argv = [sys.executable, str(ROOT / "tests/rewrite/helpers/udp_fault.py"), "--family", str(family),
                 "--agent-port", peer.rsplit(":", 1)[1], "--mode", mode]
         if delay_ms is not None:
             argv += ["--delay-ms", str(delay_ms)]
+        if read_attempts is not None:
+            argv += ["--read-attempts", str(read_attempts)]
         stdout = (self.output / (name + ".stdout")).open("wb")
         stderr = (self.output / (name + ".stderr")).open("wb")
         child = subprocess.Popen(argv, stdout=stdout, stderr=stderr, env=self.env)
@@ -456,6 +472,72 @@ def expected_values(context=0):
             struct.unpack("=Q", struct.pack("=d", 1 / 3))[0]]
     return [{"type": index if index == 0 else index + 1, "data": value}
             for index, value in enumerate(data)]
+
+
+def size_cases(runner, helper, driver):
+    """The maximum message size of the unit: it is read when a session opens, the session advertises the lower of it and
+    the configured size and never less than 484, a value that is absent or gets no answer leaves the configured size, and
+    the read never fails the open. The agent shows the msgMaxSize of every SNMPv3 request (-1 for the other versions)."""
+    configured = 1472
+    # name, version, value of the agent (None: it does not hold the object), proxy mode, value read, size used
+    cases = (
+        ("size-below", 3, 700, None, 700, 700),
+        ("size-above", 3, 3000, None, 3000, configured),
+        ("size-absent", 3, None, None, 0, configured),
+        ("size-small", 3, 100, None, 100, 484),
+        ("size-silent", 3, 700, "drop-size", 0, configured),
+        ("size-v1", 1, 700, None, 700, 700),
+        ("size-v2c", 2, 700, None, 700, 700),
+        # Both sides of the two limits of the rule: the lowest size (484) and the configured size.
+        ("size-483", 3, 483, None, 483, 484),
+        ("size-484", 3, 484, None, 484, 484),
+        ("size-485", 3, 485, None, 485, 485),
+        ("size-1471", 3, configured - 1, None, configured - 1, configured - 1),
+        ("size-1472", 3, configured, None, configured, configured),
+        ("size-1473", 3, configured + 1, None, configured + 1, configured),
+    )
+    for case, version, value, proxy_mode, read, used in cases:
+        peer, paths = runner.agent(4, size=value)
+        agent_name = runner.children[-1][0]
+        target, proxy_child = peer, None
+        if proxy_mode:
+            target, proxy_child = runner.fault("adapter-ipv4-" + case + "-proxy", 4, peer, proxy_mode)
+        name = "adapter-ipv4-" + case
+        config, document = adapter_configuration(runner, name, 4, target, paths, version=version)
+        document["profiles"][0]["maxMessageSize"] = configured
+        write_json(config, document)
+        events = runner.invoke(name, [driver, case, str(config), helper, "Main"])
+        handled = [json.loads(line) for line in (runner.output / (agent_name + ".stdout")).read_text().splitlines()
+                   if '"event":"agent_handler"' in line]
+        identity = [e for e in events if e.get("event") == "identity"]
+        results = [e for e in events if e.get("event") == "result"]
+        runner.check(name + ":value-read", len(identity) == 1 and identity[0].get("unit_message_size") == read,
+                     actual={"expected": read, "identity": [e.get("unit_message_size") for e in identity]})
+        runner.check(name + ":size-used", len(identity) == 1 and identity[0].get("message_size") == used,
+                     actual={"expected": used, "identity": [e.get("message_size") for e in identity]})
+        if version == 3:
+            requests = [h for h in handled if h.get("index") != 200]
+            runner.check(name + ":request-advertises-size-used", len(requests) >= 1 and
+                         all(h.get("msg_max_size") == used for h in requests),
+                         actual={"expected": used, "msg_max_size": [h.get("msg_max_size") for h in requests]})
+        else:
+            runner.check(name + ":request-has-no-size-field", len(handled) >= 1 and
+                         all(h.get("msg_max_size") == -1 for h in handled),
+                         actual={"msg_max_size": [h.get("msg_max_size") for h in handled]})
+        if proxy_mode:
+            # The mode drops only the responses of the read: the proxy must show that it dropped the read once for the
+            # request and once for each retry, and the request that follows is answered.
+            packets = [json.loads(line) for line in
+                       (runner.output / (name + "-proxy.stdout")).read_text().splitlines()]
+            retries = document["profiles"][0]["retries"]
+            dropped = [e for e in packets if e.get("event") == "fault_size_read_dropped"]
+            runner.check(name + ":read-response-dropped-by-the-proxy", len(dropped) == retries + 1,
+                         actual={"expected": retries + 1, "dropped": len(dropped)})
+            runner.check(name + ":request-answered-after-silent-read", len(results) == 1 and results[0].get("outcome") == 0)
+        else:
+            runner.check(name + ":request-answered", len(results) == 1 and results[0].get("outcome") == 0)
+        if proxy_child:
+            runner.stop_entry(proxy_child)
 
 
 def bulk_cases(runner, helper, driver):
@@ -801,7 +883,7 @@ def adapter(runner):
             trials = (0, 1, 3) if mode == "drop" else (1,)
             for retries in trials:
                 name = f"adapter-ipv{family}-fault-{mode}-{retries}"
-                proxy, child = runner.fault(name + "-proxy", family, peer, mode)
+                proxy, child = runner.fault(name + "-proxy", family, peer, mode, read_attempts=retries + 1)
                 config, document = adapter_configuration(runner, name, family, proxy, paths,
                     version=3 if mode == "foreign-report" else 2)
                 document["profiles"][0]["retries"] = retries
@@ -841,6 +923,7 @@ def adapter(runner):
             all(e.get("outcome") == 0 for e in results) and any(e.get("event") == "native_callback" and
             e.get("operation") == 6 for e in events))
     bulk_cases(runner, helper, driver)
+    size_cases(runner, helper, driver)
 
 
 def main():

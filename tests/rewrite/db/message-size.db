@@ -1,0 +1,6 @@
+# One passive input of the fixture agent: its first request after the open of the session carries the maximum message
+# size of the unit to the IOC, and the state record of the endpoint shows it.
+record(longin, "$(P)G1") {
+    field(DTYP, "snmp3")
+    field(INP, "@binding=G1 deadline_ms=5000")
+}

@@ -25,6 +25,8 @@ constexpr size_t ContextCount = 3;
 constexpr size_t ScalarCount = 26;
 // One column of integer instances, 1.3.6.1.4.1.53864.5.<row>, for the tests of table reads. The value of a row is
 // 1000 plus its number; SNMP3_FIXTURE_COLUMN_GAP names one row that the agent leaves out.
+// SNMP3_FIXTURE_MAX_MESSAGE_SIZE gives snmpEngineMaxMessageSize.0 (SNMP-FRAMEWORK-MIB) that value; without it the agent
+// answers No Such Object for the object, as a unit does that does not show it.
 constexpr unsigned ColumnRows = 24;
 const std::array<unsigned char, 8> Engine = {{0x80, 0, 0, 0, 1, 2, 3, 4}};
 const char* Contexts[ContextCount] = {"", "alpha", "beta"};
@@ -245,10 +247,11 @@ int handle(netsnmp_mib_handler*, netsnmp_handler_registration* registration,
         const auto* pdu = info->asp ? info->asp->pdu : nullptr;
         std::printf("{\"event\":\"agent_handler\",\"mode\":%d,\"index\":%u,"
                     "\"context\":%u,\"type\":%u,\"length\":%zu,\"request_id\":%ld,"
-                    "\"version\":%ld,\"security_level\":%d,\"command\":%d}\n",
+                    "\"version\":%ld,\"security_level\":%d,\"command\":%d,\"msg_max_size\":%ld}\n",
                     info->mode, cell.index, cell.context, variable->type,
                     variable->val_len, pdu ? pdu->reqid : -1L,
-                    pdu ? pdu->version : -1L, pdu ? pdu->securityLevel : -1, pdu ? pdu->command : -1);
+                    pdu ? pdu->version : -1L, pdu ? pdu->securityLevel : -1, pdu ? pdu->command : -1,
+                    pdu && pdu->version == SNMP_VERSION_3 ? static_cast<long>(pdu->msgMaxSize) : -1L);
     }
     return SNMP_ERR_NOERROR;
 }
@@ -349,6 +352,30 @@ int main(int argc, char** argv)
                 reg->my_reg_void = cell.get();
                 if (netsnmp_register_instance(reg) != MIB_REGISTERED_OK)
                     throw std::runtime_error("fixture column registration failed");
+                ColumnCells.push_back(std::move(cell));
+            }
+        }
+        if (argc != 6) {
+            if (const char* sizeText = std::getenv("SNMP3_FIXTURE_MAX_MESSAGE_SIZE")) {
+                char* end = nullptr;
+                const long size = std::strtol(sizeText, &end, 10);
+                if (!*sizeText || *end || size < 0 || size > 2147483647L)
+                    throw std::runtime_error("fixture maximum message size invalid");
+                std::unique_ptr<Cell> cell(new Cell);
+                cell->index = 200;
+                cell->context = 0;
+                netsnmp_variable_list* variable = nullptr;
+                snmp_varlist_add_variable(&variable, nullptr, 0, ASN_INTEGER,
+                    reinterpret_cast<const unsigned char*>(&size), sizeof(size));
+                if (!variable) throw std::runtime_error("fixture size allocation failed");
+                cell->value.reset(variable);
+                oid object[] = {1, 3, 6, 1, 6, 3, 10, 2, 1, 4, 0};
+                auto* reg = netsnmp_create_handler_registration("engine-size-fixture", handle,
+                    object, OID_LENGTH(object), HANDLER_CAN_RONLY);
+                if (!reg) throw std::runtime_error("fixture registration failed");
+                reg->my_reg_void = cell.get();
+                if (netsnmp_register_instance(reg) != MIB_REGISTERED_OK)
+                    throw std::runtime_error("fixture size registration failed");
                 ColumnCells.push_back(std::move(cell));
             }
         }

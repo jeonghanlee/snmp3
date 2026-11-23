@@ -93,6 +93,7 @@ void prepare(RecordContext& context,const ipc::Result& result)
     // answered an authenticated request, and that is shown with the alarm of the state.
     const auto& endpoint=definition.binding->endpoint();
     auto& peers=Peers::instance();
+    if(result.unitMessageSize!=ipc::NoSessionSize)peers.sizeRead(endpoint.id,result.unitMessageSize);
     if(result.outcome==ipc::Outcome::NativeFailure && result.nativeOutcome==ipc::NativeEngineChanged) {
         std::vector<uint8_t> previous,current; const auto& note=result.value;
         if(!note.empty() && size_t(note[0])+2<=note.size() && size_t(note[0])+2+note[note[0]+1]==note.size()) {

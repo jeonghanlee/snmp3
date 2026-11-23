@@ -34,6 +34,15 @@ record(longin, "$(P)BatchSplits") {
     field(SCAN, "$(SCAN=1 second)")
     field(PINI, "YES")
 }
+# Maximum message size that the unit of the endpoint reported to the session when it opened, as the report prints it in
+# the line "snmp3 size:". 0: the unit did not report it, or no session has answered a request of the endpoint yet.
+record(longin, "$(P)MessageSize") {
+    field(DESC, "Unit maximum message size")
+    field(DTYP, "snmp3 state")
+    field(INP,  "@messageSize=$(ENDPOINT)")
+    field(SCAN, "$(SCAN=1 second)")
+    field(PINI, "YES")
+}
 # Requests handed to the worker as one GETBULK for consecutive instances of one column of the address, since the IOC
 # started. A request that the worker then does not send (an SNMPv3 unit that does not answer its engine ID request) is
 # counted too.

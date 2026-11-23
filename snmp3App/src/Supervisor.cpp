@@ -269,7 +269,7 @@ void Supervisor::output(Address& a,uint64_t now)
                     const auto* definition=ipc::definitionOf(*scheduler->configuration(),command.definition);
                     require(definition!=nullptr);
                     a.reservations.push_back({command.id,definition}); a.members.push_back(command.id);
-                    a.resultMaximum=ipc::add(a.resultMaximum,ipc::add(48,ipc::responseBytes(*definition)));
+                    a.resultMaximum=ipc::add(a.resultMaximum,ipc::add(ipc::ResultRecordBytes,ipc::responseBytes(*definition)));
                 }
                 queue(a,ipc::Kind::Batch,dispatch.batch,ipc::encodeCommands(dispatch.commands)); event(a,now,13);
             }

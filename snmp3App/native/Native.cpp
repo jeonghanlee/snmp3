@@ -15,6 +15,8 @@ using Bytes = std::vector<uint8_t>;
 using Oids = std::vector<oid>;
 struct FreePdu { void operator()(netsnmp_pdu* value) const { snmp_free_pdu(value); } };
 using Pdu = std::unique_ptr<netsnmp_pdu, FreePdu>;
+// The lowest message size that a session can advertise (SNMP_MIN_MAX_LEN of the library, the range of the profile).
+constexpr uint32_t MinimumMessageSize = 484;
 template<typename T> std::vector<T> copy(const T* data, size_t size)
 {
     if (!size) return {};
@@ -110,6 +112,32 @@ std::string peer(const Endpoint& endpoint)
     if (inet_pton(AF_INET6, endpoint.address.c_str(), address) == 1)
         return "udp6:[" + endpoint.address + "]:" + std::to_string(endpoint.port);
     throw NativeError(NativeOutcome::OpenFailure, "native endpoint requires a numeric address");
+}
+// Reads snmpEngineMaxMessageSize.0 (SNMP-FRAMEWORK-MIB) of the unit with one GET on a session that has just opened, for
+// every version, with the timeout and the retries of the session. 0 means the value was not read: no reply, an error
+// status, an exception, or a value that is not a positive INTEGER. The read never fails the open.
+uint32_t readUnitMessageSize(void* handle)
+{
+    static const oid object[] = {1, 3, 6, 1, 6, 3, 10, 2, 1, 4, 0};
+    Pdu pdu(snmp_pdu_create(SNMP_MSG_GET));
+    if (!pdu) throw std::bad_alloc();
+    if (!snmp_add_null_var(pdu.get(), object, OID_LENGTH(object))) throw std::bad_alloc();
+    netsnmp_pdu* response = nullptr;
+    // The library frees the request, whether or not it was sent.
+    const int status = snmp_sess_synch_response(handle, pdu.release(), &response);
+    std::unique_ptr<netsnmp_pdu, FreePdu> reply(response);
+    if (status != STAT_SUCCESS || !response || response->errstat != SNMP_ERR_NOERROR) return 0;
+    const auto* variable = response->variables;
+    if (!variable || variable->next_variable || variable->type != ASN_INTEGER ||
+        variable->val_len != sizeof(long) || !variable->val.integer) return 0;
+    const long value = *variable->val.integer;
+    return value > 0 && value <= INT32_MAX ? static_cast<uint32_t>(value) : 0;
+}
+// The message size of a session: the lower of the value read and the configured size, and never below 484, the lowest
+// size that the library accepts. A value that was not read leaves the configured size.
+uint32_t sessionMessageSize(uint32_t unit, uint32_t configured)
+{
+    return unit ? std::min(std::max(unit, MinimumMessageSize), configured) : configured;
 }
 Bytes discover(Service& owner, const Profile& profile, std::string& address)
 {
@@ -526,6 +554,14 @@ std::shared_ptr<Session> open(Service& owner, const Profile& profile, const Endp
         const bool matches = cachedMaterial(profile, identity.securityEngineId, material);
         owner.event("native_material_matches", identity.session, 0, 0, matches ? 1 : 0);
         if (!matches) throw NativeError(NativeOutcome::SecurityConflict, "native registered material mismatch");
+    }
+    identity.unitMessageSize = readUnitMessageSize(handle);
+    identity.messageSize = sessionMessageSize(identity.unitMessageSize, profile.maxMessageSize);
+    owner.event("unit_message_size", identity.session, 0, 0, static_cast<long>(identity.unitMessageSize));
+    if (identity.messageSize != profile.maxMessageSize) {
+        auto* in_use = snmp_sess_session(handle);
+        if (!in_use) throw NativeError(NativeOutcome::OpenFailure, "native session structure unavailable");
+        in_use->rcvMsgMaxSize = identity.messageSize;
     }
     netsnmp_large_fd_set descriptors;
     netsnmp_large_fd_set_init(&descriptors, FD_SETSIZE);

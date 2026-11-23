@@ -20,6 +20,9 @@ constexpr uint16_t NativeTimeout=2, NativeSecurityFailure=5, NativeProtocolFailu
 // before. The first result of such a batch carries both engine IDs, each as one length byte and its bytes.
 constexpr uint16_t NativeEngineChanged=13, MaxNativeOutcome=13;
 constexpr uint32_t EngineNoteBytes=66;
+// A result record is 52 bytes before its value: the 48 bytes of a command record and the maximum message size that the unit
+// reported to the session (NoSessionSize: the result does not come from a session, 0: the value was not read).
+constexpr uint32_t ResultRecordBytes=52, NoSessionSize=0xFFFFFFFFu;
 constexpr int64_t ErrorStatusTooBig=1;
 enum class Outcome : uint16_t { Complete=1, Deadline=2, ChannelFailure=3,
                                 WorkerFailure=4, Stopping=5, NativeFailure=6 };
@@ -44,6 +47,7 @@ struct Result {
     Outcome outcome = Outcome::NativeFailure;
     uint16_t nativeOutcome = 0;
     int64_t errorStatus = 0, errorIndex = 0;
+    uint32_t unitMessageSize = NoSessionSize;
     std::vector<uint8_t> value;
 };
 uint64_t add(uint64_t a, uint64_t b);

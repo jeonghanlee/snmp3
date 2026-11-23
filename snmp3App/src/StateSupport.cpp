@@ -23,13 +23,15 @@
 //   batchLimit=<id>     limit of the address of the endpoint, as the report prints it   (longin)
 //   batchSplits=<id>    reductions of that limit since the IOC started                  (longin)
 //   bulks=<id>          requests handed to the worker as GETBULK since the IOC started  (longin)
+//   messageSize=<id>    maximum message size that the unit of the endpoint reported to the session, 0 when it was not read or no
+//                       session has answered a request of the endpoint yet                (longin)
 // <id> is the id of an endpoint of the loaded configuration; a record that names another one, or another item
 // than its record type reads, is rejected at initialization.
 // With SCAN "I/O Intr" a record processes when a state the module shows has changed: the records of this device
 // support share one list, and a change of any shown state processes all of them.
 using namespace snmp3;
 namespace {
-enum class Item { RuntimeState, PeerState, BatchLimit, BatchSplits, Bulks };
+enum class Item { RuntimeState, PeerState, BatchLimit, BatchSplits, Bulks, MessageSize };
 struct Source {
     Item item;
     std::string endpoint, address;
@@ -61,6 +63,7 @@ Source parse(const std::string& text)
     if(name=="peer")source.item=Item::PeerState;
     else if(name=="batchLimit")source.item=Item::BatchLimit;
     else if(name=="batchSplits")source.item=Item::BatchSplits;
+    else if(name=="messageSize")source.item=Item::MessageSize;
     else { require(name=="bulks"); source.item=Item::Bulks; }
     source.endpoint=text.substr(split+1);
     const auto configuration=Config::instance().snapshot().configuration;
@@ -103,6 +106,11 @@ long readNumber(longinRecord* record)
     const auto* source=static_cast<const Source*>(record->dpvt);
     if(!source) { recGblSetSevr(record,LINK_ALARM,INVALID_ALARM); return -1; }
     uint64_t value=0;
+    if(source->item==Item::MessageSize) {
+        const auto size=Peers::instance().view(source->endpoint).messageSize;
+        record->val=size<0 ? 0 : size>INT_MAX ? INT_MAX : epicsInt32(size);
+        return 0;
+    }
     const auto owner=Runtime::instance().schedulerOwner();
     if(owner)for(const auto id:owner->addresses()) {
         if(owner->addressKey(id)!=source->address)continue;

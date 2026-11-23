@@ -150,6 +150,7 @@ void AddressWorker::completion(NativeResult result)
         const auto& spec=definitions.at(commands[i].definition)->definition();
         ipc::Result value; value.id=commands[i].id; value.outcome=ipc::Outcome::Complete; value.nativeOutcome=code;
         value.errorStatus=result.errorStatus; value.errorIndex=result.errorIndex;
+        value.unitMessageSize=sessions.at(activeEndpoint)->identity().unitMessageSize;
         auto bytes=ipc::encodeValue(result.variables[i].value);
         ipc::Writer encoded(ipc::size(ipc::responseBytes(spec)),ipc::size(ipc::add(4,ipc::add(ipc::multiply(result.variables[i].oid.size(),4),bytes.size()))));
         encoded.oid(result.variables[i].oid); encoded.raw(bytes.data(),bytes.size());
