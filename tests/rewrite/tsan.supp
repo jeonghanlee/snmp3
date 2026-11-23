@@ -1,0 +1,5 @@
+# Reports of the cell tsan that were classified as not the module's, one entry per line:
+#   kind | pattern that the SUMMARY line of the report must match | reason
+# A report with a frame inside the code of the module or of its tests is never listed here: it fails the cell. An
+# entry is added only after the stack of the report was read down to the code that takes the locks or touches the data.
+lock-order-inversion | libCom\.so | EPICS Base takes two of its own mutexes in both orders when an IOC shuts down: testIocShutdownOk, iocShutdown, callbackCleanup, the destructor of timerQueueActiveMgr (native stacks read with gdb on 2026-11-22 in snmp3RuntimeTest and in snmp3RecordTest, in its main thread and in the thread of stopWithHeldDownstream); no frame of the module is on the stack

@@ -12,7 +12,9 @@ Stages, in order:
 
 Instrumented products and the controls run where the environment policy asks for them: by default on Debian 13 and
 Rocky Linux 8.10 only. Elsewhere those cells are written as NOT APPLICABLE and never as PASS. The thread sanitizer
-cell is NOT APPLICABLE on every environment because no build tool exists.
+cell tsan builds the module and its test programs with -fsanitize=thread and runs them; it runs with the instrumented
+stage and under the same policy, is NOT APPLICABLE where that policy excludes the environment, and is NOT RUN in a run
+that has no instrumented stage.
 
 cells.tsv has one row per cell: name, status, return code, seconds, detail. A status is PASS, FAIL, INCOMPLETE,
 NOT RUN or NOT APPLICABLE. FAIL means the cell ran and wrote a results.json that does not pass. INCOMPLETE means the
@@ -334,9 +336,13 @@ def main():
     if "ordinary" in stages:
         ordinary(matrix, base)
     receipt = None
+    tsan_recorded = False
     if "instrumented" in stages or "controls" in stages:
         if do_instrumented:
             receipt = instrumented(matrix) if "instrumented" in stages else None
+            if "instrumented" in stages:
+                matrix.run("tsan", ["bash", "tests/rewrite/test_tsan.bash", "--output", str(matrix.output / "o-tsan")])
+                tsan_recorded = True
             if "controls" in stages:
                 if receipt is None and "instrumented" not in stages:
                     matrix.record("controls", "NOT RUN", detail="needs the instrumented stage in the same run")
@@ -347,7 +353,10 @@ def main():
         else:
             matrix.record("instrumented", "NOT APPLICABLE", detail="policy: instrumented products on Debian 13 and Rocky 8.10 only")
             matrix.record("controls", "NOT APPLICABLE", detail="the control harness needs the instrumented build")
-    matrix.record("tsan", "NOT APPLICABLE", detail="no thread sanitizer build tool exists")
+            matrix.record("tsan", "NOT APPLICABLE", detail="policy: instrumented products on Debian 13 and Rocky 8.10 only")
+            tsan_recorded = True
+    if not tsan_recorded:
+        matrix.record("tsan", "NOT RUN", detail="needs the instrumented stage in the same run")
     if "load" in stages:
         load(matrix, args.warmup_seconds, args.load_seconds, args.sample_seconds)
     counts = {}

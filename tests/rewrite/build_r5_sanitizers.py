@@ -13,7 +13,8 @@ def build(output):
     base = Path(next(line.split("=", 1)[1].strip() for line in
                     (ROOT / "configure/RELEASE.local").read_text().splitlines()
                     if line.strip().startswith("EPICS_BASE") and "=" in line))
-    common = ["g++", "-std=c++11", "-O1", "-g", "-fPIC", "-pthread",
+    # No -std option: the products are built with the standard that the compiler uses by default, and so are these.
+    common = ["g++", "-O1", "-g", "-fPIC", "-pthread",
               "-fsanitize=address,undefined", "-fno-omit-frame-pointer", "-fno-sanitize-recover=all"]
     common += ["-I" + str(p) for p in (ROOT / "snmp3App/src", ROOT / "snmp3App/native",
                base / "include", base / "include/os/Linux", base / "include/compiler/gcc")]
@@ -25,7 +26,8 @@ def build(output):
     jobs = [("libsnmp3Wire.so", [src / (n + ".cpp") for n in ("Ipc", "Identity")],
              ["-shared"], ["-lCom"], False),
             ("libsnmp3.so", [src / (n + ".cpp") for n in
-             ("Register", "Runtime", "Config", "Json", "Scheduler", "Supervisor", "Conversion", "Request", "DeviceSupport")],
+             ("Register", "Runtime", "Config", "Json", "Scheduler", "Supervisor", "Conversion", "Request", "DeviceSupport",
+              "Peer", "StateSupport")],
              ["-shared"], ["-lsnmp3Wire", "-ldbCore", "-lCom"], False),
             ("libsnmp3Native.so", [native / (n + ".cpp") for n in ("Capabilities", "Native", "Worker")],
              ["-shared"], ["-lCom"] + native_libs, True),

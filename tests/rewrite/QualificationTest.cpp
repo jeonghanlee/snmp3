@@ -312,8 +312,15 @@ void ambiguous(Fixture& f,const char* marker)
     while(access(marker,F_OK)!=0 && monotonicUs()<end) { f.tick(); }
     check(access(marker,F_OK)==0,"actual SET loss coordination absent");
     const auto view=f.take(id);
-    if(!view.result)f.read(id,ipc::Outcome::WorkerFailure);
-    else { check(view.result->outcome==ipc::Outcome::WorkerFailure,"ambiguous SET wrong outcome"); f.scheduler->release(view.id); }
+    // The loss of the worker ends the SET as WorkerFailure when the supervisor reaps the worker first and as
+    // ChannelFailure when it reads the closed channel first; the record shows the same alarm for both, and read() takes
+    // either when ChannelFailure is expected.
+    if(!view.result)f.read(id,ipc::Outcome::ChannelFailure);
+    else {
+        check(view.result->outcome==ipc::Outcome::WorkerFailure || view.result->outcome==ipc::Outcome::ChannelFailure,
+              "ambiguous SET wrong outcome");
+        f.scheduler->release(view.id);
+    }
     f.admit({read},{},5000,monotonicUs()); f.read(read,ipc::Outcome::Complete,777); f.settle();
 }
 void crashes(Fixture& f)
