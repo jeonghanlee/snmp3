@@ -201,6 +201,6 @@ These items are outside the accepted verification scope:
 - Hardware behavior beyond the selected APC GET cases, including application SET delivery and untested physical outages.
 - Complete legacy equivalence and strict matched CPU and native-latency comparisons.
 - Operating systems outside the five qualified environments, or later products without applicable evidence.
-- Thread sanitizer (TSan) runs, leak checking, and sustained resource acceptance.
+- Thread sanitizer (TSan) coverage beyond the test programs of the module, which the cell `tsan` runs: EPICS Base and Net-SNMP are not instrumented. Leak checking and sustained resource acceptance.
 
 Available support does not imply that these cases have run or that a particular device is reachable. The work register owns the exact deferred cases and dated limitations.
