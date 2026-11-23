@@ -67,10 +67,16 @@ Version 1 and 2c require `communityFile`. They reject every v3 field listed
 below. The native adapter uses timeout, retry and batch settings. Configuration
 loading itself executes no request and converts no record field.
 
-`maxMessageSize` is the largest message, in bytes, that the worker session
-accepts. An SNMPv3 request for objects carries it as `msgMaxSize`, and the unit sizes its
-reply against it. A version 1 or 2c message has no size field, so the value
-has no effect on the wire for those versions. The request itself must fit:
+`maxMessageSize` is the largest message size, in bytes, that the worker session
+uses: the upper limit of the size of a session. When a session
+opens, the worker reads `snmpEngineMaxMessageSize.0` of the unit (SNMP-FRAMEWORK-MIB) with one GET, for every
+version, and the session uses the lower of the value read and `maxMessageSize`, never less than
+484, the lowest size that a profile or the library accepts. A unit that does not report the value
+(no reply, an error, an exception, or a value that is not a positive integer) leaves
+`maxMessageSize`, and the read never fails the open. An SNMPv3 request for objects carries the size used as
+`msgMaxSize`, and the unit sizes its reply against it. A version 1 or 2c message has no size field,
+so the size used has no effect on the wire for those versions. The value read is shown in the runtime report and in a state record, see
+[Record behavior](snmp-record-behavior.md). The request itself must fit:
 with the Net-SNMP agent of the tests and a size of 484, requests of 484 bytes
 and more got no reply while requests of 467 bytes and less were answered; the
 APC units were not run this way. `maxVarbinds` is the

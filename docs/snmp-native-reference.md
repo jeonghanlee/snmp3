@@ -29,6 +29,10 @@ Abbreviations on this page: SNMP is the Simple Network Management Protocol.
 
 Open and admission errors use `NativeError`. An admitted operation produces one terminal completion. Wrong credentials can produce a native timeout rather than SecurityFailure. A particular key-derivation failure is qualified only when an actual native call fails, because an open failure does not prove it.
 
+## The message size of a session
+
+After a session opens, the library reads `snmpEngineMaxMessageSize.0` of the unit (SNMP-FRAMEWORK-MIB) with one synchronous GET, with the timeout and the retries of the profile, for every version. `NativeIdentity.unitMessageSize` holds the value, 0 when it was not read: no reply, an error status, an exception, or a value that is not a positive integer. The read never fails the open. `NativeIdentity.messageSize` holds the message size of the session, which an SNMPv3 request carries as `msgMaxSize`: the lower of the value read and the configured `maxMessageSize`, never below 484, and the configured size when the value was not read. The worker returns `unitMessageSize` with every completed result of the session, and the IOC process shows it per endpoint.
+
 ## Checks on a native response
 
 - Error status and index stay separate from values.

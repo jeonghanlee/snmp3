@@ -81,6 +81,7 @@ State Running means the servicing owner is ready. It does not promise that a dev
 | `snmp3 admit:` | Per address, printed after its peer line: the admission statistics described below |
 | `snmp3 worker:` | Per address: the address, the epoch, the PID, `ready`, `closing`, the active `batch`, `launches`, `reaps`, and `forced` signals |
 | `snmp3 endpoint:` | Per endpoint, in the order of the endpoint IDs: `id`, the ID of the endpoint in the configuration; `address`, the number its address has in the lines above; `state`, which is `normal`, `changed`, or `unverified`; and, once the endpoint is settled as `changed` or `unverified`, `since`, the time of the `snmp3 engine:` line of that change in the IOC log. While the responder is still being asked to authenticate, the line shows `unverified` without `since` |
+| `snmp3 size:` | Per endpoint, printed after its endpoint line: `id`, the ID of the endpoint; `unit`, the maximum message size that the unit reported to the session when it opened, `unread` when the unit did not report it, and `unknown` before any request of the endpoint has completed; see [Record behavior](snmp-record-behavior.md) |
 | `snmp3 loop:` | `passes`, the number of servicing-loop passes since the process started |
 
 The last three numbers of the queue line mean:
