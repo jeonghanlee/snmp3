@@ -41,7 +41,7 @@ Out of scope: performance criteria and acceptance beyond the comparison of M20 (
 | Records | M18 | Module state as records | Milestone | Complete | No | D30, D32, D33 | The runtime state and, per endpoint, the engine ID state and the request size are readable as records of databases the module installs, and the runtime report names each endpoint; [detail](#m18---module-state-as-records) |
 | Tools | M19 | MIB tools: database check and database draft | Milestone | Complete | No | M7, D35 | A standalone program checks a database against MIB files for names, types and access before an IOC starts, and one writes a draft of records from MIB files for the author to finish; tag `0.0.8`; [detail](#m19---mib-tools-database-check-and-database-draft) |
 | Comparison | M20 | Comparison with the earlier module on the two units | Milestone | Not started | No | M2, M7, M8, M9, M21, M22, D37, D38, D42, D44 | On the same signals of both units the errors are not more and the response is not slower than those of the earlier module, every input it fills is filled and the SET of outlet 8 succeeds on both units, and the state records and the recovery are shown by the results of their units; [detail](#m20---comparison-with-the-earlier-module-on-the-two-units) |
-| Tools | M17 | Matrix cells moved from Python to bash and Perl | Milestone | Not started | Yes | D19, D38 | Each moved cell kills the same mutations as the Python cell it replaces, and the matrix gives the same cell names and statuses; [detail](#m17---matrix-cells-moved-from-python-to-bash-and-perl) |
+| Tools | M17 | Matrix cells moved from Python to bash and Perl | Milestone | Not started | Yes | D19, D38, D50 | Each moved cell kills the same mutations as the Python cell it replaces, and the matrix gives the same cell names and statuses; [detail](#m17---matrix-cells-moved-from-python-to-bash-and-perl) |
 | Release | M11 | Release 0.1.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M7, M8, M9, M10, M16, M17, M18, M19, M20, M21, M22 | Integrated re-runs and the two-unit acceptance pass; tag `0.1.0` and GitHub release exist; [detail](#m11---release-010) |
 
 Current work tally: 12 Complete, 1 In progress, 4 Not started, 0 Blocked; G1 Complete. Ready rows: M9, M17. Backlog contains 1 Open and 3 Deferred rows and is excluded from this tally.
@@ -99,6 +99,7 @@ Current work tally: 12 Complete, 1 In progress, 4 Not started, 0 Blocked; G1 Com
 | D47 | M21, the four points of its plan review, decided by the owner: (1) the message size of a session is the lower of the value read and the configured `maxMessageSize` (default 1472), so the configured size stays the upper limit; (2) when the value cannot be read, the session keeps the configured size and the report and the state record show that it was not read; (3) the value is read each time a session starts, and a new attempt at a fixed interval after a failed read is not part of this unit; (4) the value is read with SNMPv1, SNMPv2c and SNMPv3. The first pass of the plan review of 2026-11-23, recorded in the detail of M21, checked in the code when a session start happens again; it found the units' file without a community, so D48 limits the units to SNMPv3. | 2026-11-23 |
 | D48 | M21, three points of its plan after the first pass of the plan review: (1) the value is read by one synchronous GET inside the open of the session in the worker, the place where the discovery of an SNMPv3 session already waits, and not as a first request through the scheduler; (2) the scope stays as D42 and D47 set it: the value read is shown and the message size of the session follows it, and the number of rows of a request is not limited from it (the halving of M4 and M8 is unchanged); (3) the units are read with SNMPv3 only, because the recorded file of the units holds no community, so SNMPv1 and SNMPv2c are shown by the fixture agent alone. | 2026-11-23 |
 | D49 | M21: differences 1 to 7 between its accepted plan and the work as run are accepted as listed in the detail of M21, among them the widening of T1 to thirteen cases and of T5 to six mutants, the result record of 52 bytes, and the change of the fault proxy so that it tells the read of a session from the application requests. | 2026-11-23 |
+| D50 | M17, four points of its plan after the first pass of the plan review: (1) the first batch is four cells, moved one at a time in this order: `r5-components`, `spawn-descriptors`, `lifecycle`, `config`; `r5-operator` and `supervisor-ioc`, which import `Runner` of `test_native.py`, and every later cell follow by a revision of the plan, with the effort that the batch measured; (2) the fault proxy `helpers/udp_fault.py` and the matrix runner `run_matrix.py` stay Python tools that every cell shares, and are not moved; (3) the mutation table of each moved cell is kept in the repository as `tests/rewrite/mutations/<cell>.json`, in the format of `build-mutants.py`; (4) the 167 controls of the record cells (`test_record_controls.py`) are moved in the last batch. | 2026-11-23 |
 
 ### ID Migration
 
@@ -1986,13 +1987,13 @@ Status: Not started
 
 ##### Summary
 
-The cells of `tests/rewrite/run_matrix.py` are driven by Python harnesses (25 harness files of 10,442 lines and 5 helper files of 1,134 lines, counted on 2026-11-14). The owner writes new tests in bash and Perl (D19). This unit moves the existing cells to the same form, one cell at a time, without losing what each cell proves.
+The cells of `tests/rewrite/run_matrix.py` are driven by Python harnesses (25 harness files of 10,442 lines and 5 helper files of 1,134 lines, counted on 2026-11-14). The owner writes new tests in bash and Perl (D19). This unit moves the existing cells to the same form, one cell at a time, without losing what each cell proves. Recount on 2026-11-23: 24 Python harness files of 10,266 lines besides `run_matrix.py` of 375 lines (25 Python files), 5 helper files of 1,195 lines, and 28 bash and Perl files of 8,123 lines.
 
 ##### Scope
 
 - Move each Python cell to bash, which starts and stops the processes, and Perl, which reads the records and judges.
 - For each moved cell, run the old and the new cell on the same inputs and the same mutation table and compare the mutations each kills.
-- Decide whether the matrix runner itself and the fault proxy move as well.
+- Decide whether the matrix runner itself and the fault proxy move as well (decided by D50: they stay).
 
 Out of scope: the C++ test bodies, product changes, and new checks.
 
@@ -2003,7 +2004,9 @@ Out of scope: the C++ test bodies, product changes, and new checks.
 
 ##### Dependencies And Decisions
 
-- D19 placed this work in Backlog on 2026-11-14. D38 returns it to the milestone table on 2026-11-20. The order of the cells is named when its plan is accepted.
+- D19 placed this work in Backlog on 2026-11-14. D38 returns it to the milestone table on 2026-11-20. D50 names the first batch and its order, and the plan below is of that batch only; the other cells follow by a revision of the plan.
+- First pass of the plan review (2026-11-23, files and the last full matrix read, nothing run): the last matrix had 89 cells, 12 driven by bash and Perl and 77 by Python, from 13 Python programs (12 test programs and `build_r5_sanitizers.py`); 36 of the 37 `san-` cells run the same test programs against the instrumented products, and `san-build` builds those products. The matrix reads a cell as PASS when the command exits 0 and as FAIL when it does not, and as INCOMPLETE when it does not and neither `results.json` nor `module-results.json` is in the directory named by `--output` of its arguments (`run_matrix.py`, `Matrix.run`); a cell that is moved keeps `--output`, writes `results.json` and exits 0 when it passes, 1 when a check fails, and 2 when it could not judge. Nine Python files import from `test_native.py` (`ROOT`, `digest` and `write_json`, and seven of them `Runner`); `r5-components` and `spawn-descriptors` import nothing of the repository, while `lifecycle` and `config` import `ARCH`, `BUILD_TIMEOUT`, `ROOT`, `TIMEOUT`, `digest`, `invoke`, `owns_udp`, `udp_port` and `validate_base` from `run_independence.py`, which `record-shutdown`, `record-startup` and `record-ca` import too and which `lifecycle` also runs as a program; the moved cells of the batch write the few functions they use again and keep calling `run_independence.py` as a program where the old cell did. Only `r5-components` has a `san-` twin (`san-r5-components`, started with `--products` and `--sanitizers`). The only mutation tables in the repository are the 167 controls of the record cells; the tables of the earlier cells in bash and Perl are in `work/` and not in the repository.
+- Candidates after that pass: hypotheses with their checks: H1, the effort of a move (a copy of the tree and two runs for each mutant), which the first cell measures; H2, the cases of `test_records.py`, which join events of a C++ program and a fault proxy and may not be a plain translation, which the batch cannot show and the plan revision for the next batch decides. Owner decisions: D50.
 - This unit changes no product code, so it takes no tag and adds no `CHANGELOG.md` entry, as M2 did.
 
 ##### Implementation Plan
@@ -2013,22 +2016,33 @@ Plan Acceptance: none
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. List the cells with their mutation tables, or write the table of a cell that has none, before its move.
-2. Move one cell, compare the killed sets, and repeat.
+Rules for every cell of the batch. A cell is moved to `tests/rewrite/test_<name>.bash`, which starts and stops the processes, and `tests/rewrite/<name>.pl`, which reads what the run produced and judges, where `<name>` is the name of the cell with its hyphens written as underscores, as in `test_request_sizing.bash` and `request_sizing.pl` (`r5_components` for the cell `r5-components`); it keeps the command line of the old cell (`--output`, and `--products` and `--sanitizers` or `--base` where the old cell has them), writes `results.json` with `passed` and one entry for each check, and exits 0, 1 or 2 as the first pass of the plan review states. The only change in `run_matrix.py` is the command of the cell. A checksum or another reference that the old cell took from Python (`hashlib`) is taken from a tool that does not belong to the product (`sha256sum`), so that the reference stays independent of the code under test. The names of the old receipts or checks are the names of the new checks, so that the killed sets can be compared by name. The table of the cell is `tests/rewrite/mutations/<cell>.json`, with its rows and the expected failing checks written before the first mutant runs, from the mechanism of each change; a row whose kill depends on the logic of the harness (a reference that the product cannot fake, a program that exits 0 and prints to the error output, a program that is left out) is among them, and a row that only the C++ test bodies can kill is not counted as proof of the move. The old cell runs first on the unchanged tree and passes every check; then the old and the new cell run on every mutant. A mutant that the old cell kills and the new cell does not is resolved before the move is accepted; a mutant that neither kills is recorded in the Backlog and not fixed here, because new checks are out of scope. After the cell is accepted the old file is removed with `git rm` once a search of the documents, the inputs lists of the other harnesses and `run_matrix.py --list` finds no reference to it. Each cell is one commit (the new files, the table, the change of `run_matrix.py` and the removal), and its results go to the register.
+1. `r5-components`: the new cell runs the four test programs (Ipc, Scheduler, Inventory, Conversion), the digest of nine fixtures of the lengths 0, 1, 55, 56, 63, 64, 65, 4096 and 65537 and the digest of the worker and of the `libnetsnmp` that the native library loads, with the environment `PATH=/usr/bin:/bin`, `LANG=C` and `LC_ALL=C` and, under `--sanitizers`, `ASAN_OPTIONS` and `UBSAN_OPTIONS`; a check passes when the program exits 0, is not ended by the bound of 15 s, prints nothing to the error output and, for a digest, prints the value of `sha256sum`; the list of source hashes names the new files. The table has 6 rows, among them a change of the padding of the SHA-256 in `Identity.cpp` (`digest`, declared in `Ipc.h`) that only the independent reference catches. Closed by T1.
+2. `spawn-descriptors`: the new cell starts the production IOC with two inheritable pipes and reads `/proc` of the IOC and of its worker for the six checks of the old cell (the worker is ready, the pipes are open in the IOC, the pipes are absent in the worker, descriptors 0 and 1 of the worker are `/dev/null`, descriptor 3 is a socket, the worker has no other pipe). The table has 6 rows, one for each check. Closed by T2.
+3. `lifecycle` (with `--base`): the new cell runs the checks of the old cell, among them the order of the hook of `PINI` and of the shutdown, the counts of the report, the cold fallback, the partial cleanup, the repeated stop, the real failure of a thread limit and the isolated Base, and runs `run_independence.py` as a program where the old cell did; the few functions it takes from `run_independence.py` (`digest`, `invoke`, `owns_udp`, `udp_port`, `validate_base`) are written again in bash and Perl. The table has 8 rows. Closed by T3.
+4. `config` (with `--base`): the new cell runs the checks of the old cell (22 calls of `check` in `test_config.py`) and writes the same functions again as item 3. The table has 8 rows. Closed by T4.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Conversion | The old and the new cell on the same inputs and the same mutation table | Linux host, ordinary product | The same mutations are killed |
-| T2 | Regression | `tests/rewrite/run_matrix.py --stages environment,ordinary` before and after | Linux host | The same cell names and statuses |
+| T1 | Conversion | `r5-components`: the old and the new cell on the unchanged tree and on each of the 6 mutants of its table | Linux host, ordinary product | Both pass on the unchanged tree; the same mutants are killed, by the checks that the table names |
+| T2 | Conversion | `spawn-descriptors`: the same, 6 mutants | Linux host, ordinary product | The same |
+| T3 | Conversion | `lifecycle`: the same, 8 mutants | Linux host, ordinary product | The same |
+| T4 | Conversion | `config`: the same, 8 mutants | Linux host, ordinary product | The same |
+| T5 | Regression | For each cell, `run_matrix.py` with `--only` for the cell before and after its move (for `r5-components` with its twin `san-r5-components` and `san-build`, in the stage `instrumented`), and at the end of the batch one run of `--stages environment,ordinary,instrumented` | Linux host | The same cell names and statuses before and after |
+
+Size of the checks, stated before the build and widened only by the owner: 28 mutants in four tables (6, 6, 8 and 8 rows), each with a copy of the tree and two runs, the old cell and the new; one run of the old and one of the new cell on the unchanged tree for each of the four cells; for T5 two runs of `--only` for each cell and one run of the matrix at the end of the batch. No check is added to a moved cell.
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | Not run | Linux host, ordinary product | Pending | none |
-| T2 | Not run | Linux host | Pending | none |
+| T2 | Not run | Linux host, ordinary product | Pending | none |
+| T3 | Not run | Linux host, ordinary product | Pending | none |
+| T4 | Not run | Linux host, ordinary product | Pending | none |
+| T5 | Not run | Linux host | Pending | none |
 
 ##### Closure Evidence
 
