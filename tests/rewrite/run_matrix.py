@@ -202,7 +202,7 @@ def ordinary(matrix, base):
     matrix.run("record-ca", py("tests/rewrite/test_record_ca.py", "--output", str(out / "o-ca")))
     matrix.run("supervisor-ioc", py("tests/rewrite/test_supervisor.py", "--ioc", "--output", str(out / "o-supervisor")))
     matrix.run("qualification", py("tests/rewrite/test_qualification.py", "--output", str(out / "o-qualification")))
-    matrix.run("r5-components", py("tests/rewrite/test_r5_components.py", "--output", str(out / "o-components")))
+    matrix.run("r5-components", ["bash", "tests/rewrite/test_r5_components.bash", "--output", str(out / "o-components")])
     matrix.run("spawn-descriptors", py("tests/rewrite/test_spawn_descriptors.py", "--output", str(out / "o-spawn")))
     matrix.run("r5-operator", py("tests/rewrite/test_r5_operator.py", "--output", str(out / "o-operator")))
     matrix.run("native-adapter", py("tests/rewrite/test_native.py", "--phase", "adapter", "--output", str(out / "o-native")))
@@ -250,7 +250,7 @@ def instrumented(matrix):
     matrix.run("san-record-ca", py("tests/rewrite/test_record_ca.py", *common, "--output", str(out / "s-ca")))
     matrix.run("san-supervisor-ioc", py("tests/rewrite/test_supervisor.py", "--ioc", *common, "--output", str(out / "s-supervisor")))
     matrix.run("san-qualification", py("tests/rewrite/test_qualification.py", *common, "--output", str(out / "s-qualification")))
-    matrix.run("san-r5-components", py("tests/rewrite/test_r5_components.py", *common, "--output", str(out / "s-components")))
+    matrix.run("san-r5-components", ["bash", "tests/rewrite/test_r5_components.bash", *common, "--output", str(out / "s-components")])
     matrix.run("san-native-adapter", py("tests/rewrite/test_native.py", "--phase", "adapter", "--sanitizers",
                                          "--output", str(out / "s-native")))
     return build / "sanitizer-build.json"

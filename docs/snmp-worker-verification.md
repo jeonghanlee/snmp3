@@ -27,7 +27,7 @@ The worker verification of the input/output controller (IOC) runs the shipped co
 3. To check IPC, scheduling, inventory, value conversion, and file digests, run:
 
     ```bash
-    python3 tests/rewrite/test_r5_components.py --output work/r5-components
+    bash tests/rewrite/test_r5_components.bash --output work/r5-components
     ```
 
 4. To check the supervisor through the actual IOC, run:

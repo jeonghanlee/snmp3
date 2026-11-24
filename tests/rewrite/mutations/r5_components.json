@@ -1,0 +1,31 @@
+{
+ "cell": "r5-components",
+ "note": "Names in intended and also are the check names of the cell, equal to the receipt names of the former Python cell. R1 to R3 change the SHA-256 of snmp3IpcTest --digest, which no C++ test checks against a value: only the independent reference (sha256sum) of the cell can kill them. The worker and the libnetsnmp file of this tree are 102800 and 919888 bytes, both 16 modulo 64, so their padding is not at the boundaries of R1 and R2. R4 makes a program print to the error output and exit 0: only the check of the error output of the cell kills it. R5 and R6 are killed by the exit status of a C++ test body; they show that the cell still runs the programs and are not counted as proof of the move.",
+ "mutations": [
+  {"id": "R1", "file": "snmp3App/src/Identity.cpp",
+   "old": "    if(n>56) {",
+   "new": "    if(n>=56) {",
+   "intended": ["digest-55"], "also": []},
+  {"id": "R2", "file": "snmp3App/src/Identity.cpp",
+   "old": "    if(n>56) {",
+   "new": "    if(n>57) {",
+   "intended": ["digest-56"], "also": []},
+  {"id": "R3", "file": "snmp3App/src/Identity.cpp",
+   "old": "auto bits=multiply(total,8);",
+   "new": "auto bits=multiply(total,1);",
+   "intended": ["digest-1", "digest-55", "digest-56", "digest-63", "digest-64", "digest-65", "digest-4096", "digest-65537",
+                "digest-executable", "digest-native-library"], "also": []},
+  {"id": "R4", "file": "tests/rewrite/ConversionTest.cpp",
+   "old": "        return 0;\n    } catch (const std::exception& error) {\n        std::fprintf(stderr, \"snmp3 conversion failure",
+   "new": "        std::fputs(\"diagnostic\\n\", stderr);\n        return 0;\n    } catch (const std::exception& error) {\n        std::fprintf(stderr, \"snmp3 conversion failure",
+   "intended": ["conversion"], "also": []},
+  {"id": "R5", "file": "snmp3App/src/Scheduler.cpp",
+   "old": "reduced<a.batchLimit",
+   "new": "reduced>a.batchLimit",
+   "intended": ["scheduler"], "also": []},
+  {"id": "R6", "file": "snmp3App/native/NativeInternal.h",
+   "old": "struct Request {\n    Session* session;",
+   "new": "struct Request {\n    char padding[8192];\n    Session* session;",
+   "intended": ["inventory"], "also": []}
+ ]
+}

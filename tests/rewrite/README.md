@@ -491,7 +491,7 @@ commands. Build the separate test products before the component/IOC runners:
 
 ```bash
 make -C tests/rewrite -j4
-python3 tests/rewrite/test_r5_components.py --output work/r5-components
+bash tests/rewrite/test_r5_components.bash --output work/r5-components
 python3 tests/rewrite/test_supervisor.py --ioc --output work/r5-ioc
 python3 tests/rewrite/test_qualification.py --output work/r5-qualification
 python3 tests/rewrite/test_r5_operator.py --output work/r5-operator
