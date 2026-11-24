@@ -1,0 +1,86 @@
+{
+ "cell": "spawn-descriptors",
+ "note": "Names in intended and also are the check names of the cell, equal to the names of the checks of the former Python cell. The cell starts the IOC with four inheritable descriptors, the two ends of two pipes; in the IOC they have the numbers 3, 4, 5 and 6 (the unchanged run lists the descriptors 0 to 6 and 8 to 13 of the IOC, and the first free number above 3 is 7), and its standard input is a pipe and its standard output a file. A worker that is not ready leaves only the check worker-ready in the result, as in the former cell. worker-fd3-socket is listed as unproven (see unproven).",
+ "mutations": [
+  {
+   "id": "S1",
+   "file": "snmp3App/src/Supervisor.cpp",
+   "old": "actions.duplicate(safe.value,3); ",
+   "new": "",
+   "intended": [
+    "worker-ready"
+   ],
+   "also": []
+  },
+  {
+   "id": "S2",
+   "file": "snmp3App/src/Main.cpp",
+   "old": "int main(int argc, char *argv[])\n{",
+   "new": "#include <unistd.h>\nint main(int argc, char *argv[])\n{\n    for (int fd = 3; fd < 64; ++fd) ::close(fd);",
+   "intended": [
+    "markers-open-in-ioc"
+   ],
+   "also": []
+  },
+  {
+   "id": "S3",
+   "file": "snmp3App/src/Supervisor.cpp",
+   "old": " actions.closeFrom(4);",
+   "new": "",
+   "intended": [
+    "markers-absent-in-worker",
+    "worker-no-other-pipe"
+   ],
+   "also": []
+  },
+  {
+   "id": "S4",
+   "file": "snmp3App/src/Supervisor.cpp",
+   "old": "actions.null(0); actions.null(1);",
+   "new": "actions.null(0);",
+   "intended": [
+    "worker-stdin-stdout-null"
+   ],
+   "also": []
+  },
+  {
+   "id": "S5",
+   "file": "snmp3App/src/Supervisor.cpp",
+   "old": "actions.duplicate(safe.value,3); actions.closeFrom(4);\n    std::string argument=\"--ipc-fd=3\";",
+   "new": "actions.duplicate(safe.value,7); actions.closeFrom(8);\n    std::string argument=\"--ipc-fd=7\";",
+   "intended": [
+    "worker-ready"
+   ],
+   "also": [],
+   "first_prediction": {
+    "intended": [
+     "worker-fd3-socket"
+    ],
+    "also": [
+     "markers-absent-in-worker",
+     "worker-no-other-pipe"
+    ],
+    "written": "2026-11-24T17:28Z, before the series of 17:29Z"
+   },
+   "correction": "The first prediction assumed that a worker is ready with the channel at descriptor 7. WorkerMain.cpp accepts the argument --ipc-fd=3 only and ends with status 2 for any other, so the mutated start leaves no ready worker and only worker-ready can fail. The check worker-fd3-socket is not reached by this change (see unproven)."
+  },
+  {
+   "id": "S6",
+   "file": "snmp3App/src/Supervisor.cpp",
+   "old": "actions.null(0); actions.null(1);",
+   "new": "actions.null(1);",
+   "intended": [
+    "worker-stdin-stdout-null"
+   ],
+   "also": [
+    "worker-no-other-pipe"
+   ]
+  }
+ ],
+ "unproven": [
+  {
+   "check": "worker-fd3-socket",
+   "reason": "A ready worker always holds its channel at descriptor 3, because WorkerMain.cpp accepts --ipc-fd=3 only; a change that moves the channel stops the worker before the check runs, and a change of the worker and the supervisor together is two files in one row. The check follows from worker-ready and is not proved by a mutant."
+  }
+ ]
+}
