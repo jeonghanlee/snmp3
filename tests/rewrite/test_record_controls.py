@@ -379,7 +379,11 @@ WAKE_CONTROLS.update({
         ("self.pause(self.supervisor->nextWake(after),outcome.retry,UINT64_MAX);",
          "self.pause(self.supervisor->nextWake(after),false,UINT64_MAX);")]),
     "stale-wake-kept": ("Runtime.cpp", "lifecycle", "module", None, [
-        ("        ready.tryWait();\n        wake.clear();\n", "        ready.tryWait();\n")]),
+        ("        ready.tryWait();\n        wake.clear();\n", "        ready.tryWait();\n"),
+        ("        for(;;) {\n            self.wake.clear();\n            { epicsGuard<epicsMutex> state(self.stateMutex); if(self.current.state!=State::Running)break; }",
+         "        for(;;) {\n            { epicsGuard<epicsMutex> state(self.stateMutex); if(self.current.state!=State::Running)break; }"),
+        ("try { self.pause(UINT64_MAX,false,UINT64_MAX); } catch(...) { break; }",
+         "try { self.pause(UINT64_MAX,false,UINT64_MAX); } catch(...) { break; } break;")]),
     "channel-pollin-omitted": ("Runtime.cpp", "record", "wake-loop", "single-read-completes-without-waiting-for-the-poll", [
         ("entry.fd=channel.fd; entry.events=POLLIN|(channel.write ? POLLOUT:0); set.push_back(entry);",
          "entry.fd=channel.fd; entry.events=(channel.write ? POLLOUT:0); set.push_back(entry);")]),
