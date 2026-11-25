@@ -1,0 +1,134 @@
+{
+ "cell": "lifecycle",
+ "note": "Names in intended and also are the check names of the cell, equal to the names of the checks of the former Python cell. Both cells stop at the first failed check, so a mutant fails exactly one check of the cell: the first check in the order of the cell that the mutant breaks. The predictions below are the checks that come first in that order. The checks V2.7_independence, test_build, owned_repeater_ready, the exit, library and identity checks of every case, V2.4_repeat_stop, V2.6_isolated and frozen_inputs are not the target of any mutant (see unproven).",
+ "mutations": [
+  {
+   "id": "L1",
+   "file": "snmp3App/src/Register.cpp",
+   "old": "name = \"AfterStopScan\"",
+   "new": "name = \"AfterStopScn\"",
+   "intended": [
+    "V2.2_hook_PINI_shutdown_order"
+   ],
+   "also": []
+  },
+  {
+   "id": "L2",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "++current.joined;",
+   "new": "current.joined += 2;",
+   "intended": [
+    "V2.2_counts"
+   ],
+   "also": []
+  },
+  {
+   "id": "L3",
+   "file": "tests/rewrite/db/lifecycle.db",
+   "old": "field(INP, \"42\")",
+   "new": "field(INP, \"41\")",
+   "intended": [
+    "V2.2_actual_Pini_value"
+   ],
+   "also": []
+  },
+  {
+   "id": "L4",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "case State::Cold: return \"Cold\";",
+   "new": "case State::Cold: return \"Colt\";",
+   "intended": [
+    "V2.3_cold_fallback"
+   ],
+   "also": []
+  },
+  {
+   "id": "L5",
+   "file": "snmp3App/src/Main.cpp",
+   "old": "        std::fprintf(stderr, \"snmp3Ioc: startup script failed\\n\");\n        epicsExit(1);",
+   "new": "        std::fprintf(stderr, \"snmp3Ioc: startup script failed\\n\");\n        snmp3::Runtime::instance().report();\n        epicsExit(1);",
+   "intended": [
+    "V2.3_preinit_error"
+   ],
+   "also": []
+  },
+  {
+   "id": "L6",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "trace(\"joined\");",
+   "new": "trace(\"joined\"); trace(\"joined\");",
+   "intended": [
+    "V2.4_partial_cleanup"
+   ],
+   "also": []
+  },
+  {
+   "id": "L7",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "trace(\"create-failed\");",
+   "new": "trace(\"create-fail\");",
+   "intended": [
+    "V2.5_real_limit_failure"
+   ],
+   "also": []
+  },
+  {
+   "id": "L8",
+   "file": "tests/rewrite/LifecycleTest.cpp",
+   "old": "const unsigned ActivationCount = 20;",
+   "new": "const unsigned ActivationCount = 19;",
+   "intended": [
+    "V2.1_V2.6_module"
+   ],
+   "also": [],
+   "first_attempt": {
+    "file": "snmp3App/src/Runtime.cpp",
+    "old": "        ready.tryWait();\n        wake.clear();",
+    "new": "        ready.tryWait();",
+    "intended": [
+     "V2.1_V2.6_module"
+    ],
+    "also": [],
+    "result": "Survived: the former Python cell and the new cell passed all 38 checks.",
+    "reason": "The thread loop of Runtime::run clears the wake descriptor at each pass (the line after the comment about another wake), so a wake left by the previous activation is cleared by two lines, the one in start and the one in the loop; removing one of them changes nothing the module test observes. A row has one edit, so the two together are not a mutant.",
+    "evidence": "work/trash/lc-L8-first-20261125T0431Z (the mutant copy and the results of both cells)"
+   }
+  }
+ ],
+ "unproven": [
+  {
+   "check": "V2.7_independence",
+   "reason": "No mutant of this table. The check runs run_independence.py as a program and requires its PASS; the mutants of run_independence.py itself are outside this cell."
+  },
+  {
+   "check": "test_build",
+   "reason": "No mutant of this table."
+  },
+  {
+   "check": "V2.4_repeat_stop",
+   "reason": "No mutant of this table."
+  },
+  {
+   "check": "V2.6_isolated",
+   "reason": "No mutant of this table."
+  },
+  {
+   "check": "owned_repeater_ready",
+   "reason": "No mutant of this table. The repeater is started by the cell itself, not by the product."
+  },
+  {
+   "check": "exit, production_library and base_identity of every case",
+   "reason": "No mutant of this table. The check is not unreachable: a review run on a copy that changed the exit status of the test program (the call epicsExit(0) after the line lifecycle test: PASS in LifecycleTest.cpp changed to epicsExit(5)) failed module_exit first (work/m17-evidence/rv-out6); that change is not a row of this table."
+  },
+  {
+   "check": "frozen_inputs",
+   "reason": "No mutant of this table. The digests are taken after the mutation is applied and again at the end of the run, so a change of a source cannot fail the check; only a run that changes its own inputs can."
+  },
+  {
+   "check": "wake cleared at the start of an activation",
+   "reason": "Two lines clear a wake left by the previous activation (start and the loop of the thread); the module test passes with either alone, and one row holds one edit."
+  }
+ ],
+ "predictions_written": "2026-11-25T03:11Z, before any mutant of the series was built",
+ "l8_replaced": "2026-11-25T04:30Z, before the rerun of L8"
+}

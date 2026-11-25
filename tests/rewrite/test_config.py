@@ -101,7 +101,7 @@ def main():
         check(executable.stem + "_reaped", gone)
 
     try:
-        regression = run("lifecycle", [sys.executable, ROOT / "tests/rewrite/test_lifecycle.py",
+        regression = run("lifecycle", ["bash", ROOT / "tests/rewrite/test_lifecycle.bash",
                                        "--base", base, "--output", output / "lifecycle"],
                          timeout=BUILD_TIMEOUT + 240)
         check("V3.11_regressions", regression.returncode == 0 and

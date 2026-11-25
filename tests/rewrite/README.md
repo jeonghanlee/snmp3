@@ -366,7 +366,7 @@ script default remains unchanged.
 Use the same existing Base path and a new directory:
 
 ```bash
-python3 tests/rewrite/test_lifecycle.py --base "$BASE_PATH" --output work/r2-evidence
+bash tests/rewrite/test_lifecycle.bash --base "$BASE_PATH" --output work/r2-evidence
 ```
 
 This runner first executes the complete shipped independence runner, then
@@ -394,8 +394,9 @@ must still exit 1 because Runtime retains Failed. This direct Main/module
 case does not claim an actual iocInit failure integration test.
 
 The main results.json records named checks, input/product SHA256, actual
-loaded-library paths and private repeater cleanup. Per-case command,
-stdout/stderr, exit/reap status and startup scripts remain alongside it.
+loaded-library paths and private repeater cleanup. Per case, the command, stdout,
+stderr, exit status (`<name>.rc`) and startup scripts remain alongside it; the exit status of the private repeater is in
+`repeater.returncode`.
 Normal cases require exit 0. Intentional script/failure cases require exit 1;
 that expected exit never represents an unobserved graceful success. A timeout
 or forced termination always fails. Before execution, a differing local Base

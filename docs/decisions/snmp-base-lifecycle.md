@@ -48,7 +48,7 @@ covers cold registration and repeated cleanup without a second join.
 
 ## Verification Or Enforcement
 
-The shipped tests/rewrite/test_lifecycle.py fixture observes actual ready
+The shipped tests/rewrite/test_lifecycle.bash cell observes actual ready
 before PINI and actual worker return/join before Base callback shutdown.
 Direct module tests exercise concurrent/repeated stop and event reuse.
 Two actual isolated Base database cycles require restored hooks and

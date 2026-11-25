@@ -77,6 +77,6 @@ the environment cannot create an independently owned file. It never substitutes
 a mock owner or internal native/Config implementation.
 
 `run_independence.py` separately audits the Base-only IOC and the declared native
-helper. `test_lifecycle.py` runs two actual isolated database cycles and requires
+helper. `test_lifecycle.bash` runs two actual isolated database cycles and requires
 the process-owned configuration to remain frozen across cleanup. The configuration
 guide and command help define the operator contract enforced by these tests.
