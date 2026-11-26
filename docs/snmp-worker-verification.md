@@ -33,7 +33,7 @@ The worker verification of the input/output controller (IOC) runs the shipped co
 4. To check the supervisor through the actual IOC, run:
 
     ```bash
-    python3 tests/rewrite/test_supervisor.py --ioc --output work/r5-ioc
+    bash tests/rewrite/test_supervisor_ioc.bash --ioc --output work/r5-ioc
     ```
 
 5. To run the qualification cases, run:
@@ -71,7 +71,7 @@ The worker verification of the input/output controller (IOC) runs the shipped co
 10. To run the supervisor check through the IOC on the instrumented products, run:
 
     ```bash
-    python3 tests/rewrite/test_supervisor.py --products "$R5_PRODUCTS" --sanitizers --ioc --output work/r5-san-ioc
+    bash tests/rewrite/test_supervisor_ioc.bash --products "$R5_PRODUCTS" --sanitizers --ioc --output work/r5-san-ioc
     ```
 
 ## Verification

@@ -1,0 +1,113 @@
+{
+ "cell": "supervisor-ioc",
+ "note": "Names in intended and also are the check names of the cell, equal to the names of the checks of the former Python cell (run with --ioc). This cell, like the former cell, judges every check and does not stop at the first one that fails, so a mutant fails each check that its change reaches; the predictions below are all of them. S1 to S4 change one source of the module or of its worker, S5 to S8 one line of the runtime test program that the cell runs; each mutant is built before the cell runs. The code 2 of the supervision events is not changed by any row because the runtime test program reads it for its own flow. The checks that no mutant of this table is aimed at are listed under unproven. For S4 the former cell is killed by an exception, not by a named check (see difference of S4).",
+ "mutations": [
+  {
+   "id": "S1",
+   "file": "snmp3App/src/Supervisor.cpp",
+   "old": "a.status.ready=true; event(a,now,3);",
+   "new": "a.status.ready=true; event(a,now,30);",
+   "intended": [
+    "one-ready-worker-per-address"
+   ],
+   "also": []
+  },
+  {
+   "id": "S2",
+   "file": "snmp3App/src/Supervisor.cpp",
+   "old": "event(a,now,7,status);",
+   "new": "event(a,now,70,status);",
+   "intended": [
+    "every-worker-exact-reap",
+    "ioc:every-real-worker-reaped"
+   ],
+   "also": []
+  },
+  {
+   "id": "S3",
+   "file": "snmp3App/native/Worker.cpp",
+   "old": "event(\"native_close\"",
+   "new": "event(\"native_closed\"",
+   "intended": [
+    "two-real-native-closes"
+   ],
+   "also": []
+  },
+  {
+   "id": "S4",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "trace(\"ready\");",
+   "new": "trace(\"readied\");",
+   "intended": [
+    "ioc:ready-before-initial-process:1",
+    "ioc:ready-before-initial-process:2"
+   ],
+   "also": [],
+   "difference": "The former Python cell is killed by this mutant without a failed check: text.index of the line 'snmp3 lifecycle: ready activation=1' raises ValueError, the cell writes abort.json and results.json with aborted true and passed false. The new cell is killed by the two checks that name the line, ioc:ready-before-initial-process:1 and :2. Both cells kill the mutant; the names differ, and the new cell is not changed to stop at the missing line."
+  },
+  {
+   "id": "S5",
+   "file": "tests/rewrite/RuntimeTest.cpp",
+   "old": "epicsExit(0);",
+   "new": "epicsExit(4);",
+   "intended": [
+    "ioc:real-exit"
+   ],
+   "also": []
+  },
+  {
+   "id": "S6",
+   "file": "tests/rewrite/RuntimeTest.cpp",
+   "old": "{\\\"event\\\":\\\"incomplete_stop\\\"",
+   "new": "{\\\"event\\\":\\\"incomplete_stp\\\"",
+   "intended": [
+    "ioc:unconsumed-terminal-retains-full-charge"
+   ],
+   "also": []
+  },
+  {
+   "id": "S7",
+   "file": "tests/rewrite/RuntimeTest.cpp",
+   "old": "{\\\"event\\\":\\\"reconciled_stop\\\"",
+   "new": "{\\\"event\\\":\\\"reconciled_stp\\\"",
+   "intended": [
+    "ioc:nonblocking-reconciliation-without-second-join"
+   ],
+   "also": []
+  },
+  {
+   "id": "S8",
+   "file": "tests/rewrite/RuntimeTest.cpp",
+   "old": "{\\\"event\\\":\\\"concurrent_stop\\\"",
+   "new": "{\\\"event\\\":\\\"concurrent_stp\\\"",
+   "intended": [
+    "ioc:concurrent-stop-one-join-retained-native-owner",
+    "ioc:every-real-worker-reaped"
+   ],
+   "also": []
+  }
+ ],
+ "unproven": [
+  {
+   "check": "agent-ipv4-1:bind-ready, agent-ipv4-1:only-owned-loopback-listener, agent-ipv6-2:bind-ready and agent-ipv6-2:only-owned-loopback-listener",
+   "reason": "No mutant of this table. The two agents are started by the cell itself, not by the module."
+  },
+  {
+   "check": "two-address:return, real-two-address-consumption, no-forced-stop and native-events-no-drop",
+   "reason": "No mutant of this table."
+  },
+  {
+   "check": "agent-ipv4-1:actual-equal-deadline-two-member-batch and agent-ipv6-2:actual-equal-deadline-two-member-batch",
+   "reason": "No mutant of this table."
+  },
+  {
+   "check": "ioc:two-real-activations-exact-join",
+   "reason": "No mutant of this table."
+  },
+  {
+   "check": "agent-ipv6-2:normal-stop, agent-ipv4-1:normal-stop, secret-sentinels-absent and sanitizer-diagnostics-absent",
+   "reason": "No mutant of this table. The agents are the fixture of the cell, not the module."
+  }
+ ],
+ "predictions_written": "2026-11-26T21:22Z, before any mutant of the series was built"
+}
