@@ -1,0 +1,126 @@
+{
+ "cell": "config",
+ "note": "Names in intended and also are the check names of the cell, equal to the names of the checks of the former Python cell. Both cells stop at the first failed check, so a mutant fails exactly one check of the cell: the first check in the order of the cell that the mutant breaks. The predictions below are that check. A mutant makes one change in one source of the module or of its probe; the cell builds nothing of the module itself (the nested lifecycle cell rebuilds it), so each mutant is built before the cell runs. The checks that no mutant of this table is aimed at are listed under unproven.",
+ "mutations": [
+  {
+   "id": "C1",
+   "file": "snmp3App/src/Json.cpp",
+   "old": "!yajl_config(handle.get(), yajl_allow_comments, 0) ||",
+   "new": "!yajl_config(handle.get(), yajl_allow_comments, 1) ||",
+   "intended": [
+    "json-comment_exit"
+   ],
+   "also": []
+  },
+  {
+   "id": "C2",
+   "file": "snmp3App/src/Config.cpp",
+   "old": "(status.st_mode & 0077)",
+   "new": "(status.st_mode & 0007)",
+   "intended": [
+    "secret-mode-640_exit"
+   ],
+   "also": []
+  },
+  {
+   "id": "C3",
+   "file": "snmp3App/src/Config.cpp",
+   "old": "if (frozen || bound) reject(\"configuration frozen\");",
+   "new": "if (frozen || bound) reject(\"configuration locked\");",
+   "intended": [
+    "V3.2_4_5_8_9_positive_exit"
+   ],
+   "also": []
+  },
+  {
+   "id": "C4",
+   "file": "snmp3App/native/NativeProbe.cpp",
+   "old": "string(generator, \"schema\"); check(yajl_gen_integer(generator, 1));\n        string(generator, \"version\"); string(generator, capabilities.nativeVersion.c_str());",
+   "new": "string(generator, \"schema\"); check(yajl_gen_integer(generator, 2));\n        string(generator, \"version\"); string(generator, capabilities.nativeVersion.c_str());",
+   "intended": [
+    "V3.6_actual_native_catalog"
+   ],
+   "also": []
+  },
+  {
+   "id": "C5",
+   "file": "snmp3App/src/Register.cpp",
+   "old": "\"configuration arguments required\"",
+   "new": "\"configuration arguments needed\"",
+   "intended": [
+    "IOC_argument_failure"
+   ],
+   "also": []
+  },
+  {
+   "id": "C6",
+   "file": "snmp3App/src/Register.cpp",
+   "old": "nativeProbe is absolute.",
+   "new": "nativeProbe is relative.",
+   "intended": [
+    "V3.13_command_help"
+   ],
+   "also": []
+  },
+  {
+   "id": "C7",
+   "file": "snmp3App/src/Register.cpp",
+   "old": "        std::fprintf(stderr, \"snmp3: %s\\n\", error.what());\n        iocshSetError(1);\n    }\n}\n// The option words of a command: argv[0] is the command name.",
+   "new": "        std::fprintf(stderr, \"snmp3: %s\\n\", error.what());\n    }\n}\n// The option words of a command: argv[0] is the command name.",
+   "intended": [
+    "ioc-frozen-build_exit"
+   ],
+   "also": [],
+   "first_attempt": {
+    "file": "snmp3App/src/Register.cpp",
+    "old": "        isolatedCleanup=false;\n        snmp3::Config::instance().freeze();\n        snmp3::Config::instance().report();",
+    "new": "        isolatedCleanup=false;\n        snmp3::Config::instance().report();",
+    "intended": [
+     "V3.13_documented_startup"
+    ],
+    "also": [],
+    "result": "Survived: the former Python cell and the new cell passed all 703 checks.",
+    "reason": "A run of the same configuration with no record (snmp3Load, iocInit, and a report before and after) prints the same three report lines with and without the removal (frozen=0, 1, 1), so no report line and no rejection of this cell shows the freeze in the hook AfterFinishDevSup. Why the configuration is already frozen or bound when the hook reports is not established.",
+    "evidence": "work/trash/cfg-C7-first-20261125 (the mutant copy and the results of both cells)"
+   }
+  },
+  {
+   "id": "C8",
+   "file": "snmp3App/src/Config.cpp",
+   "old": "const unsigned ProbeTimeoutMs = 5000;",
+   "new": "const unsigned ProbeTimeoutMs = 12000;",
+   "intended": [
+    "helper-timeout_bounded"
+   ],
+   "also": []
+  }
+ ],
+ "unproven": [
+  {
+   "check": "lifecycle_exit and V3.11_regressions",
+   "reason": "No mutant of this table. The nested lifecycle cell has its own table (mutations/lifecycle.json)."
+  },
+  {
+   "check": "native-capabilities_exit, native-cli_exit and native_cli_usage",
+   "reason": "No mutant of this table."
+  },
+  {
+   "check": "V3.5_race-freeze and V3.5_race-bind, and the _reaped check of every helper and gate",
+   "reason": "No mutant of this table."
+  },
+  {
+   "check": "owned_repeater_ready and the checks of the IOC runs ioc-startup, ioc-replacement, ioc-frozen-build, ioc-frozen-start, ioc-frozen-stop, ioc-frozen-cold-stop, ioc-load-error, ioc-load-preservation, ioc-utf8-error and ioc-utf8-preservation",
+   "reason": "No mutant of this table."
+  },
+  {
+   "check": "V3.12_secret_diagnostics, V3.11_inputs_unchanged and V3.12_secret_receipt",
+   "reason": "No mutant of this table. The first two are the last checks of the cell and the third is written for every run."
+  },
+  {
+   "check": "the freeze in the hook AfterFinishDevSup",
+   "reason": "No mutant of this table. The freeze in the hook changes no report line and no rejection of the cell, and a run with no record prints the same lines with and without it (see first_attempt of C7); a case that shows it is not known."
+  }
+ ],
+ "predictions_written": "2026-11-25T16:19Z, before any mutant of the series was built",
+ "c7_replaced": "2026-11-25T16:49Z, before the run of the new C7"
+}

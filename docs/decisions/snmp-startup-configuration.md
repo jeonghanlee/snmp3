@@ -64,7 +64,7 @@ the IOC would remove the selected process and dependency boundary.
 
 ## Verification Or Enforcement
 
-The shipped `tests/rewrite/test_config.py` runs the real Config/YAJL library,
+The shipped `tests/rewrite/test_config.bash` runs the real Config/YAJL library,
 native helper, generated IOC registration, and standard PINI fixture. It checks
 strict syntax, schema limits, security levels, descriptor-checked secret files,
 atomic replacement, binding/freeze races, owned values, cold/post-start stop,

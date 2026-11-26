@@ -122,7 +122,7 @@ redacted wire metadata, timing, terminal tokens and every owned child's reap
 status. Secret sentinels must be absent from diagnostic output. Required
 unexecuted cells block full component acceptance.
 
-`test_config.py` runs complete current foundation/lifecycle/configuration
+`test_config.bash` runs complete current foundation/lifecycle/configuration
 regressions. The independence audit keeps IOC source/object/command/link/loader
 checks strict and audits separately declared native products. Privilege-dependent
 wrong-owner secret cells can remain explicit NOT RUN; old owner receipts do not

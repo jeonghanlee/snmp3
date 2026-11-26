@@ -415,7 +415,7 @@ Run the complete configuration checkpoint with the existing Base path and a
 new evidence directory:
 
 ```bash
-python3 tests/rewrite/test_config.py --base "$BASE_PATH" --output work/r3-evidence
+bash tests/rewrite/test_config.bash --base "$BASE_PATH" --output work/r3-evidence
 ```
 
 This invocation runs the complete foundation and lifecycle runners first,
@@ -527,7 +527,7 @@ After production changes, run complete current configuration regressions (which
 include R1/R2) and both native phases against the same selected Base:
 
 ```bash
-python3 tests/rewrite/test_config.py --base "$BASE_PATH" --output work/r5-regressions
+bash tests/rewrite/test_config.bash --base "$BASE_PATH" --output work/r5-regressions
 python3 tests/rewrite/test_native.py --phase preflight --output work/r5-native-api
 python3 tests/rewrite/test_native.py --phase adapter --output work/r5-native-adapter
 ```

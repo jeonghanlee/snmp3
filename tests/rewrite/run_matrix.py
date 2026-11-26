@@ -206,7 +206,7 @@ def ordinary(matrix, base):
     matrix.run("spawn-descriptors", ["bash", "tests/rewrite/test_spawn_descriptors.bash", "--output", str(out / "o-spawn")])
     matrix.run("r5-operator", py("tests/rewrite/test_r5_operator.py", "--output", str(out / "o-operator")))
     matrix.run("native-adapter", py("tests/rewrite/test_native.py", "--phase", "adapter", "--output", str(out / "o-native")))
-    matrix.run("config", py("tests/rewrite/test_config.py", "--base", base, "--output", str(out / "o-config")))
+    matrix.run("config", ["bash", "tests/rewrite/test_config.bash", "--base", base, "--output", str(out / "o-config")])
     matrix.run("lifecycle", ["bash", "tests/rewrite/test_lifecycle.bash", "--base", base, "--output", str(out / "o-lifecycle")])
     matrix.run("request-sizing", ["bash", "tests/rewrite/test_request_sizing.bash", "--output", str(out / "o-request-sizing")])
     matrix.run("getbulk", ["bash", "tests/rewrite/test_getbulk.bash", "--output", str(out / "o-getbulk")])

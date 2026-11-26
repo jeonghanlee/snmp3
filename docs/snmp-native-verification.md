@@ -43,7 +43,7 @@ The native verification of the input/output controller (IOC) builds the real pro
 6. To run the foundation, lifecycle, and configuration regression with the same Base, run:
 
     ```bash
-    python3 tests/rewrite/test_config.py --base "$BASE_PATH" --output work/native-regression
+    bash tests/rewrite/test_config.bash --base "$BASE_PATH" --output work/native-regression
     ```
 
 The regression rebuilds and runs the real IOC and Config paths.
