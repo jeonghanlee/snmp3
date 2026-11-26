@@ -204,7 +204,7 @@ def ordinary(matrix, base):
     matrix.run("qualification", py("tests/rewrite/test_qualification.py", "--output", str(out / "o-qualification")))
     matrix.run("r5-components", ["bash", "tests/rewrite/test_r5_components.bash", "--output", str(out / "o-components")])
     matrix.run("spawn-descriptors", ["bash", "tests/rewrite/test_spawn_descriptors.bash", "--output", str(out / "o-spawn")])
-    matrix.run("r5-operator", py("tests/rewrite/test_r5_operator.py", "--output", str(out / "o-operator")))
+    matrix.run("r5-operator", ["bash", "tests/rewrite/test_r5_operator.bash", "--output", str(out / "o-operator")])
     matrix.run("native-adapter", py("tests/rewrite/test_native.py", "--phase", "adapter", "--output", str(out / "o-native")))
     matrix.run("config", ["bash", "tests/rewrite/test_config.bash", "--base", base, "--output", str(out / "o-config")])
     matrix.run("lifecycle", ["bash", "tests/rewrite/test_lifecycle.bash", "--base", base, "--output", str(out / "o-lifecycle")])

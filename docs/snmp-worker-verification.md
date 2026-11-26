@@ -45,7 +45,7 @@ The worker verification of the input/output controller (IOC) runs the shipped co
 6. To check the operator commands and reports, run:
 
     ```bash
-    python3 tests/rewrite/test_r5_operator.py --output work/r5-operator
+    bash tests/rewrite/test_r5_operator.bash --output work/r5-operator
     ```
 
 7. To build the instrumented products, run:

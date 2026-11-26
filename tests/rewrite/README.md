@@ -495,7 +495,7 @@ make -C tests/rewrite -j4
 bash tests/rewrite/test_r5_components.bash --output work/r5-components
 python3 tests/rewrite/test_supervisor.py --ioc --output work/r5-ioc
 python3 tests/rewrite/test_qualification.py --output work/r5-qualification
-python3 tests/rewrite/test_r5_operator.py --output work/r5-operator
+bash tests/rewrite/test_r5_operator.bash --output work/r5-operator
 ```
 
 The actual generated IOC registrar exercises pre-PINI readiness, live limits,

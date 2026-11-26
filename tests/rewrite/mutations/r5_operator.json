@@ -1,0 +1,85 @@
+{
+ "cell": "r5-operator",
+ "note": "Names in intended and also are the check names of the cell, equal to the names of the checks of the former Python cell. This cell, like the former cell, judges every check and does not stop at the first one that fails, so a mutant fails each check that its change reaches; the predictions below are all of them. A mutant makes one change in one source of the module; the cell builds nothing, so each mutant is built before the cell runs. The checks that no mutant of this table is aimed at are listed under unproven.",
+ "mutations": [
+  {
+   "id": "O1",
+   "file": "snmp3App/src/Register.cpp",
+   "old": "capability=owned-worker-transport; recordSupport=available",
+   "new": "capability=owned-worker-transport; recordSupport=unavailable",
+   "intended": [
+    "documented-capability"
+   ],
+   "also": []
+  },
+  {
+   "id": "O2",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "case State::Running: return \"Running\";",
+   "new": "case State::Running: return \"Runnin\";",
+   "intended": [
+    "actual-running-then-stopped"
+   ],
+   "also": []
+  },
+  {
+   "id": "O3",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "countLimit=%llu byteLimit=%llu",
+   "new": "countLimits=%llu byteLimit=%llu",
+   "intended": [
+    "actual-default-limits"
+   ],
+   "also": []
+  },
+  {
+   "id": "O4",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "++current.joined;",
+   "new": "current.joined += 2;",
+   "intended": [
+    "exact-one-join"
+   ],
+   "also": []
+  },
+  {
+   "id": "O5",
+   "file": "snmp3App/src/Config.cpp",
+   "old": "state.frozen ? 1u : 0u",
+   "new": "0u",
+   "intended": [
+    "frozen-config"
+   ],
+   "also": []
+  },
+  {
+   "id": "O6",
+   "file": "snmp3App/src/Main.cpp",
+   "old": "    epicsExit(status);\n    return status;",
+   "new": "    epicsExit(status + 3);\n    return status + 3;",
+   "intended": [
+    "actual-operator-exit"
+   ],
+   "also": []
+  }
+ ],
+ "unproven": [
+  {
+   "check": "agent-ipv4-1:bind-ready, agent-ipv4-1:only-owned-loopback-listener, agent-ipv6-2:bind-ready and agent-ipv6-2:only-owned-loopback-listener",
+   "reason": "No mutant of this table. The two agents are started by the cell itself, not by the module."
+  },
+  {
+   "check": "actual-IOC-loader-native-free",
+   "reason": "No mutant of this table."
+  },
+  {
+   "check": "agent-ipv6-2:normal-stop and agent-ipv4-1:normal-stop",
+   "reason": "No mutant of this table. The agents are the fixture of the cell, not the module."
+  },
+  {
+   "check": "secret-sentinels-absent and sanitizer-diagnostics-absent",
+   "reason": "No mutant of this table."
+  }
+ ],
+ "predictions_written": "2026-11-26T20:47Z, before any mutant of the series was built"
+}
