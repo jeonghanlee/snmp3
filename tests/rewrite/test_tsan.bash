@@ -107,13 +107,13 @@ function main {
     EPICS_CA_SERVER_PORT="${server}" EPICS_CA_REPEATER_PORT="${repeater}" EPICS_CA_AUTO_ADDR_LIST=NO \
         EPICS_CA_ADDR_LIST=127.0.0.1 EPICS_CAS_INTF_ADDR_LIST=127.0.0.1 \
         run_program lifecycle "${products}/snmp3LifecycleTest" module
-    run_program supervisor python3 "${runners}/test_supervisor.py" --ioc --products "${products}" \
+    run_program supervisor bash "${runners}/test_supervisor_ioc.bash" --ioc --products "${products}" \
         --output "${OUTPUT}/o-supervisor"
     run_program qualification python3 "${runners}/test_qualification.py" --products "${products}" \
         --output "${OUTPUT}/o-qualification"
-    run_program record-shutdown python3 "${runners}/test_record_shutdown.py" --products "${products}" \
+    run_program record-shutdown bash "${runners}/test_record_shutdown.bash" --products "${products}" \
         --output "${OUTPUT}/o-record-shutdown"
-    run_program record-startup python3 "${runners}/test_record_startup.py" --products "${products}" \
+    run_program record-startup bash "${runners}/test_record_startup.bash" --products "${products}" \
         --output "${OUTPUT}/o-record-startup"
     for case in "${RECORD_CASES[@]}"; do
         run_program "records-${case}" python3 "${runners}/test_records.py" --case "${case}" \

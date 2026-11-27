@@ -641,6 +641,52 @@ def main_d7(args, jobs, output):
 
 
 
+# The phase checks of the shutdown cell, written again here so that the controls import no harness.
+SHUTDOWN_PHASES = ("prepared", "queued", "AtShutdown", "AfterCloseLinks",
+          "AfterStopCallback", "AfterShutdown", "restart")
+
+
+SHUTDOWN_REQUEST_FIELDS = ("contexts", "active", "pending", "queued", "running", "inert", "entered",
+                  "enqueueFailures", "completions", "entryOpen", "drainFailed", "detachAllowed")
+
+
+SHUTDOWN_RUNTIME_FIELDS = ("admission", "activation", "created", "exited", "joined")
+
+
+SHUTDOWN_CONTEXT_FIELDS = ("record_null", "attached", "published", "native_success", "revision", "activation", "binding", "generation",
+                  "admission", "terminal", "sent", "identity_match", "outcome")
+
+
+def shutdown_integer_fields(value, fields):
+    return isinstance(value, dict) and all(type(value.get(k)) is int for k in fields)
+
+
+def shutdown_phase_schema(event):
+    if not (event.get("case") == "retained" and isinstance(event.get("phase"), str) and
+            shutdown_integer_fields(event, ("at_us", "ready", "watchdog", "before_free", "restart", "queue_status",
+                                   "queue_size", "queue_used", "result_batches", "retired_batches")) and
+            shutdown_integer_fields(event.get("runtime"), SHUTDOWN_RUNTIME_FIELDS) and
+            isinstance(event["runtime"].get("state"), str) and
+            shutdown_integer_fields(event.get("requests"), SHUTDOWN_REQUEST_FIELDS)):
+        return False
+    records, contexts, reservations = (event.get(k) for k in ("records", "contexts", "reservations"))
+    return (isinstance(records, list) and len(records) == 3 and all(
+        shutdown_integer_fields(r, ("dpvt_null", "attached", "pact")) and
+        type(r.get("value")) in (int, float) for r in records) and
+        isinstance(contexts, list) and len(contexts) in (0, 2) and
+        all(shutdown_integer_fields(c, SHUTDOWN_CONTEXT_FIELDS) for c in contexts) and
+        isinstance(reservations, list) and len(reservations) == 1 and
+        all(shutdown_integer_fields(q, ("address", "count", "bytes", "undelivered", "retirement_pending"))
+            for q in reservations))
+
+
+def shutdown_phase_inventory(observed):
+    phases = [e for e in observed if e.get("event") == "shutdown_phase"]
+    return (tuple(e.get("phase") for e in phases) == SHUTDOWN_PHASES and all(map(shutdown_phase_schema, phases)) and
+            all(a["at_us"] < b["at_us"] for a, b in zip(phases, phases[1:])) and
+            not any(e.get("event") == "shutdown_observer_error" for e in observed))
+
+
 SHUTDOWN_CONTROLS = {
     "nonisolated-release-after-join": ("Register.cpp", "retained-contexts-after-callback-join", [
         ('} else if(state==initHookAfterShutdown && isolatedCleanup) {',
@@ -661,7 +707,7 @@ SHUTDOWN_CONTROLS = {
 
 
 def run_shutdown(products, output):
-    argv = [sys.executable, str(ROOT / "tests/rewrite/test_record_shutdown.py"), "--case", "retained",
+    argv = ["bash", str(ROOT / "tests/rewrite/test_record_shutdown.bash"), "--case", "retained",
             "--products", str(products), "--sanitizers", "--output", str(output)]
     with output.with_suffix(".stdout").open("xb") as stdout, output.with_suffix(".stderr").open("xb") as stderr:
         child = subprocess.Popen(argv, stdout=stdout, stderr=stderr)
@@ -679,7 +725,6 @@ def unique_check(outcome, name, expected):
 
 
 def shutdown_completed(outcome):
-    from test_record_shutdown import phase_inventory
     required = ("retained-actual-IOC-ready", "retained-actual-Base-shutdown-order",
                 "retained-no-watchdog-or-isolated-free", "retained-all-child-receipts-clean",
                 "sanitizer-diagnostics-absent", "secret-sentinels-absent", "retained-IOC-native-free",
@@ -688,7 +733,7 @@ def shutdown_completed(outcome):
                 "retained-native-retired-before-exit", "retained-two-queued-before-exit",
                 "retained-real-GET-SET-responses")
     return (not outcome["aborted"] and outcome["cleanup_passed"] and
-            phase_inventory(outcome["observations"]) and
+            shutdown_phase_inventory(outcome["observations"]) and
             all(unique_check(outcome, check, True) for check in required))
 
 
@@ -750,6 +795,44 @@ def main_shutdown(args, jobs, output):
     print(("PASS: " if passed else "FAIL: ") + str(output / "results.json"))
     return 0 if passed else 1
 
+# The phase checks of the startup cell, written again here so that the controls import no harness.
+STARTUP_PHASE_FIELDS = ("at_us", "before_free", "restart", "admission", "activation", "created", "exited",
+                "joined", "inventory", "active", "pending", "queued", "entered", "completions",
+                "entry_open", "detach_allowed", "drain_failed")
+
+
+STARTUP_CONTEXT_FIELDS = ("record_null", "attached", "handle", "generation", "admission", "published",
+                  "native_success", "terminal")
+
+
+def startup_ints(item, names):
+    return isinstance(item, dict) and all(type(item.get(k)) is int for k in names)
+
+
+def startup_phase_schema(item):
+    return (startup_ints(item, STARTUP_PHASE_FIELDS) and isinstance(item.get("state"), str) and
+            isinstance(item.get("records"), list) and len(item["records"]) == 4 and all(
+                startup_ints(r, ("dpvt_null", "attached", "pact", "stat", "sevr")) and
+                type(r.get("value")) in (int, float) for r in item["records"]) and
+            isinstance(item.get("contexts"), list) and len(item["contexts"]) in (0, 2) and
+            all(startup_ints(c, STARTUP_CONTEXT_FIELDS) for c in item["contexts"]) and
+            isinstance(item.get("reservations"), list) and len(item["reservations"]) == 1 and
+            all(startup_ints(q, ("count", "bytes", "undelivered", "retirement_pending")) for q in item["reservations"]))
+
+
+def startup_phase_inventory(observed, failure):
+    expected = ["initialized", "started"] + (["attempted", "stop1", "stop2"] if failure else ["completed"])
+    expected += ["AtShutdown", "AfterCloseLinks", "AfterStopCallback", "AfterShutdown"]
+    if failure:
+        expected.append("restart")
+    phases = [e for e in observed if e.get("event") == "startup_phase"]
+    attempts = [e for e in observed if e.get("event") == "startup_process"]
+    return ([e.get("phase") for e in phases] == expected and all(map(startup_phase_schema, phases)) and
+            all(a["at_us"] < b["at_us"] for a, b in zip(phases, phases[1:])) and
+            [e.get("slot") for e in attempts] == [0, 1] and all(startup_ints(e, ("status",)) for e in attempts) and
+            not any(e.get("event") == "startup_observer_error" for e in observed))
+
+
 STARTUP_CONTROLS = {
     "startup-failed-state-lost": ("Runtime.cpp", "startup-failed-state-preserved", [
         ('if(reconciled && drained && !recordDrainFailed && current.state==State::IncompleteStopped)',
@@ -775,7 +858,7 @@ STARTUP_CONTROLS = {
 
 def run_startup(products, output, phase):
     case = "thread-break" if phase == "thread" else "failure-break"
-    argv = [sys.executable, str(ROOT / "tests/rewrite/test_record_startup.py"), "--case", case,
+    argv = ["bash", str(ROOT / "tests/rewrite/test_record_startup.bash"), "--case", case,
             "--products", str(products), "--sanitizers", "--output", str(output)]
     with output.with_suffix(".stdout").open("xb") as stdout, output.with_suffix(".stderr").open("xb") as stderr:
         child = subprocess.Popen(argv, stdout=stdout, stderr=stderr)
@@ -788,7 +871,6 @@ def run_startup(products, output, phase):
 
 
 def startup_completed(outcome, phase):
-    from test_record_startup import phase_inventory
     required = ("startup-phase-inventory", "startup-two-contexts-before-runtime",
                 ("startup-thread-failed-before-processing" if phase == "thread" else "startup-preflight-failed-before-processing"),
                 "startup-rejection-diagnostics",
@@ -799,7 +881,7 @@ def startup_completed(outcome, phase):
         required += ("startup-trace-complete", "startup-parent-limit-preserved",
                      "startup-thread-limit-restored", "startup-real-kernel-thread-refusal")
     return (not outcome["aborted"] and outcome["cleanup_passed"] and
-            phase_inventory(outcome["observations"], True) and
+            startup_phase_inventory(outcome["observations"], True) and
             all(unique_check(outcome, name, True) for name in required))
 
 
