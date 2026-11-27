@@ -1,0 +1,122 @@
+{
+ "cell": "record-ca",
+ "note": "Names in intended and also are those of the checks of results.json. The former harness test_record_ca.py and the new cell test_record_ca.bash are run on each mutant, and the checks that each fails are compared with each other and with this table; the checks named client:return (ca-NNN-TOOL:return) never fail in these mutants, because a client that ends with another status than the expected one ends the run in both. A1 and A7 change one line of the fixture agent, A2 one line of the fault proxy, A3 to A6 and A8 one line of a source of the module. A1 and A2 change the observation of the cell, not the product: A1 removes the event of the stored value of the agent and A2 the event of the request that the proxy forwards.",
+ "mutations": [
+  {
+   "id": "A1",
+   "file": "tests/rewrite/NativeAgent.cpp",
+   "old": "\\\"event\\\":\\\"agent_set_value\\\"",
+   "new": "\\\"event\\\":\\\"agent_set_valu\\\"",
+   "intended": [
+    "Ca_ActiveAo:plain-put:agent-stored-first-then-latest",
+    "Ca_ActiveAo:put-callback:agent-stored-first-then-latest",
+    "Ca_ActiveLongout:plain-put:agent-stored-first-then-latest",
+    "Ca_ActiveLongout:put-callback:agent-stored-first-then-latest",
+    "Ca_ActiveInt64out:plain-put:agent-stored-first-then-latest",
+    "Ca_ActiveInt64out:put-callback:agent-stored-first-then-latest",
+    "Ca_ActiveStringout:plain-put:agent-stored-first-then-latest",
+    "Ca_ActiveStringout:put-callback:agent-stored-first-then-latest",
+    "Ca_ActiveLso:plain-put:agent-stored-first-then-latest",
+    "Ca_ActiveLso:put-callback:agent-stored-first-then-latest"
+   ],
+   "also": []
+  },
+  {
+   "id": "A2",
+   "file": "tests/rewrite/helpers/udp_fault.py",
+   "old": "emit(\"fault_request\"",
+   "new": "emit(\"fault_requestx\"",
+   "intended": [
+    "Ca_ActiveAo:plain-put:two-SETs-second-after-first-delivery",
+    "Ca_ActiveAo:put-callback:two-SETs-second-after-first-delivery",
+    "Ca_ActiveLongout:plain-put:two-SETs-second-after-first-delivery",
+    "Ca_ActiveLongout:put-callback:two-SETs-second-after-first-delivery",
+    "Ca_ActiveInt64out:plain-put:two-SETs-second-after-first-delivery",
+    "Ca_ActiveInt64out:put-callback:two-SETs-second-after-first-delivery",
+    "Ca_ActiveStringout:plain-put:two-SETs-second-after-first-delivery",
+    "Ca_ActiveStringout:put-callback:two-SETs-second-after-first-delivery",
+    "Ca_ActiveLso:plain-put:two-SETs-second-after-first-delivery",
+    "Ca_ActiveLso:put-callback:two-SETs-second-after-first-delivery"
+   ],
+   "also": [],
+   "difference": "The former Python harness is killed by this mutant without a failed check of the intended kind: with no fault_request event proxy_events(\"fault_request\", 163)[sets] raises IndexError in the first active output, the harness writes abort.json and results.json with aborted true and passed false after 121 checks, and the failed checks are native-worker-reaped and exact-native-completion-count-and-closed-gate. The new cell reads the same events with a count, judges all 315 checks and fails the ten two-SETs-second-after-first-delivery checks that were predicted."
+  },
+  {
+   "id": "A3",
+   "file": "snmp3App/src/Request.cpp",
+   "old": "++completions; ++changes;",
+   "new": "completions += 2; ++changes;",
+   "intended": [
+    "exact-native-completion-count-and-closed-gate"
+   ],
+   "also": []
+  },
+  {
+   "id": "A4",
+   "file": "snmp3App/src/Register.cpp",
+   "old": "name = \"AfterShutdown\"",
+   "new": "name = \"AfterShutdwn\"",
+   "intended": [
+    "Base-normal-shutdown"
+   ],
+   "also": []
+  },
+  {
+   "id": "A5",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "launches=%llu reaps=%llu forced=%llu",
+   "new": "launches=%llu reapz=%llu forced=%llu",
+   "intended": [
+    "native-worker-reaped"
+   ],
+   "also": []
+  },
+  {
+   "id": "A6",
+   "file": "snmp3App/src/Conversion.cpp",
+   "old": "require(value.integer() >= 0);",
+   "new": "require(true);",
+   "intended": [
+    "INT64_MIN-CA-Counter64-rejected-without-SET"
+   ],
+   "also": [
+    "exact-native-completion-count-and-closed-gate"
+   ],
+   "correction": "The first prediction missed Ca_WideIn:NO_ALARM: with the mutant the write of INT64_MIN is sent and the agent holds 2^63 in its Counter64; the next processing of the int64in record Ca_WideIn reads a value above INT64_MAX that it cannot convert, and the record shows the severity INVALID (the severity is read in ca-214 and the unchanged value in ca-215 of the new cell). The former harness and the new cell both fail it, together with the two predicted checks."
+  },
+  {
+   "id": "A7",
+   "file": "tests/rewrite/NativeAgent.cpp",
+   "old": ": -123L) -",
+   "new": ": -124L) -",
+   "intended": [
+    "PINI-native-input"
+   ],
+   "also": []
+  },
+  {
+   "id": "A8",
+   "file": "snmp3App/src/Conversion.cpp",
+   "old": "if (value.type() == ValueType::Counter64) return value.counter64();",
+   "new": "if (value.type() == ValueType::Counter64) return value.counter64() - 1;",
+   "intended": [
+    "Counter64-UINT64_MAX-decimal-CA"
+   ],
+   "also": [
+    "int64-decimal-CA-SET-GET:9007199254740993",
+    "int64-decimal-CA-SET-GET:9223372036854775807"
+   ]
+  }
+ ],
+ "unproven": [
+  "the checks of the agent, the delaying proxy, the private repeater and the IOC at start (bind-ready, only-owned-loopback-listener, ready, private-repeater-owned, actual-production-IOC-ready)",
+  "the checks named ca-NNN-TOOL:return",
+  "the checks named RECORD:PACT-cleared and RECORD:NO_ALARM, except Ca_WideIn:NO_ALARM, which A6 fails",
+  "PINI-Base-FLNK",
+  "the checks of the long strings, the short view, the capacity rejection and the short string (long-string-CHAR-CA-SET-GET:*, CA-DBR_STRING-short-view, CA-client-capacity-rejection, short-string-CA-SET-GET)",
+  "INT32_MIN-CA-SET-GET",
+  "for the active outputs: write-while-active, idle-without-alarm and callback-after-second-delivery",
+  "actual-owned-worker-PID, ioc:normal-exit, IOC-native-free, repeater:normal-exit, ca-response-delay:normal-stop, agent-ipv4-1:normal-stop, secret-sentinels-absent and sanitizer-diagnostics-absent"
+ ],
+ "predictions_written": "2026-11-27T06:33Z, before any mutant of the series was built"
+}

@@ -955,14 +955,14 @@ Base/system/vendor dependencies are uninstrumented and leak checks are disabled.
 Production CA access uses a separate runner:
 
 ```bash
-python3 tests/rewrite/test_record_ca.py --output work/r6-ca
-python3 tests/rewrite/test_record_ca.py --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-ca
+bash tests/rewrite/test_record_ca.bash --output work/r6-ca
+bash tests/rewrite/test_record_ca.bash --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-ca
 ```
 
 This runner launches the actual snmp3Ioc Main and generated registrar with
 record-ca.db, the unchanged Base CA server, actual worker/native products and
 loopback agent. Private CA ports and a private repeater isolate the clients;
-all child exit/reap and loaded-library identities are recorded. The sanitizer
+all child exit statuses and loaded-library identities are recorded. The sanitizer
 builder includes a separate production snmp3Ioc for this path. Base caget/caput
 and Base/system/vendor dependencies remain uninstrumented.
 
@@ -1234,9 +1234,9 @@ bash "$NS_DRIVER" --products "$NS_PRODUCTS" --sanitizers --output "$NS_RUN-asan"
 NS_ISOLATED=tests/rewrite/test_records.py
 python3 "$NS_ISOLATED" --case queued-shutdown --output "$NS_RUN-reg-isolated"
 python3 "$NS_ISOLATED" --case queued-shutdown --products "$NS_PRODUCTS" --sanitizers --output "$NS_RUN-reg-iso-asan"
-NS_CA=tests/rewrite/test_record_ca.py
-python3 "$NS_CA" --output "$NS_RUN-reg-ca"
-python3 "$NS_CA" --products "$NS_PRODUCTS" --sanitizers --output "$NS_RUN-reg-ca-asan"
+NS_CA=tests/rewrite/test_record_ca.bash
+bash "$NS_CA" --output "$NS_RUN-reg-ca"
+bash "$NS_CA" --products "$NS_PRODUCTS" --sanitizers --output "$NS_RUN-reg-ca-asan"
 ```
 
 The separate `--shutdown-controls` group uses all six controls when given
