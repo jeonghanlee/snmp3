@@ -549,7 +549,7 @@ queue, FLNK and isolated shutdown run unchanged.
 ```bash
 make -C snmp3App/native/tests -j4
 make -C tests/rewrite -j4
-python3 tests/rewrite/test_records.py --case baseline --output work/r6-records
+bash tests/rewrite/test_records.bash --case baseline --output work/r6-records
 python3 tests/rewrite/test_records.py --case scan-proc --output work/r6-scan-proc
 python3 tests/rewrite/test_records.py --case alarm-flow --output work/r6-alarm-flow
 python3 tests/rewrite/test_records.py --case chain-flow --output work/r6-chain-flow

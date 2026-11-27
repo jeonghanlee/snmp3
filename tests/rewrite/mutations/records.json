@@ -1,0 +1,85 @@
+{
+  "cell": "rec-baseline",
+  "note": "Names in intended and also are the check names of the cell, equal to the names of the checks of the case baseline of the former Python harness test_records.py. The former harness test_records.py and the new cell test_records.bash are run on each mutant, and the checks that each fails are compared with each other and with this table. This cell, like the former harness, judges every check and does not stop at the first one that fails. Each mutant changes one line of the record test program (RecordTest.cpp) or of the fixture agent (NativeAgent.cpp); each is built before the cell runs (the cell builds nothing). R1 to R4 change one field of an event that the program prints and R6 adds a line to its error output, so they change what the cell reads and not the module; R5 changes the exit status of the fixture agent. Rows named in the register as only reachable by the C++ test bodies are not among them: none of these changes makes a check inside the program fail. The checks that no mutant of this table is aimed at are listed under unproven.",
+  "mutations": [
+    {
+      "id": "R1",
+      "file": "tests/rewrite/RecordTest.cpp",
+      "old": "\\\"records\\\":11}",
+      "new": "\\\"records\\\":10}",
+      "intended": [
+        "actual-eleven-record-path"
+      ],
+      "also": []
+    },
+    {
+      "id": "R2",
+      "file": "tests/rewrite/RecordTest.cpp",
+      "old": "name,(unsigned long long)monotonicUs(),(unsigned long long)context->handle,",
+      "new": "name,(unsigned long long)monotonicUs(),(unsigned long long)0*context->handle,",
+      "intended": [
+        "actual-record-identities"
+      ],
+      "also": []
+    },
+    {
+      "id": "R3",
+      "file": "tests/rewrite/RecordTest.cpp",
+      "old": "\\\"completed_once\\\":true}",
+      "new": "\\\"completed_once\\\":false}",
+      "intended": [
+        "actual-callback-pressure"
+      ],
+      "also": []
+    },
+    {
+      "id": "R4",
+      "file": "tests/rewrite/RecordTest.cpp",
+      "old": "\\\"callback_pressure\\\",\\\"record\\\":\\\"%s\\\"",
+      "new": "\\\"callback_pressure\\\",\\\"recrd\\\":\\\"%s\\\"",
+      "intended": [
+        "actual-GET-and-SET-pressure"
+      ],
+      "also": []
+    },
+    {
+      "id": "R5",
+      "file": "tests/rewrite/NativeAgent.cpp",
+      "old": "std::puts(\"{\\\"event\\\":\\\"agent_stopped\\\"}\");\n        return 0;",
+      "new": "std::puts(\"{\\\"event\\\":\\\"agent_stopped\\\"}\");\n        return 3;",
+      "intended": [
+        "agent-ipv4-1:normal-stop"
+      ],
+      "also": []
+    },
+    {
+      "id": "R6",
+      "file": "tests/rewrite/RecordTest.cpp",
+      "old": "std::printf(\"{\\\"event\\\":\\\"record_summary\\\",",
+      "new": "std::fprintf(stderr,\"runtime error: injected\\n\"); std::printf(\"{\\\"event\\\":\\\"record_summary\\\",",
+      "intended": [
+        "sanitizer-diagnostics-absent"
+      ],
+      "also": []
+    }
+  ],
+  "unproven": [
+    {
+      "check": "agent-ipv4-1:bind-ready and agent-ipv4-1:only-owned-loopback-listener",
+      "reason": "No mutant of this table. The agent is the fixture of the cell, not the module."
+    },
+    {
+      "check": "records:return",
+      "reason": "No mutant of this table. Only a failing check inside the C++ test program makes it fail, and a row that only the C++ test bodies can kill is not counted as proof of the move."
+    },
+    {
+      "check": "IOC-native-free",
+      "reason": "No mutant of this table."
+    },
+    {
+      "check": "secret-sentinels-absent",
+      "reason": "No mutant of this table."
+    }
+  ],
+  "predictions_written": "2026-11-27T16:07Z, before any mutant of the series was built"
+}

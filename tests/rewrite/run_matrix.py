@@ -55,6 +55,8 @@ RECORD_CASES = ("baseline scan-proc alarm-flow chain-flow queued-simm boundaries
                 "policy numeric shutdown queued-shutdown stop-queued active-unforced accounting deadline-queue "
                 "near-deadline rebuild stop-inflight stop-enqueue-failed stop-downstream live-detach repeat-detach "
                 "contract stale-record final-clauses wake-loop").split()
+# The cases that test_records.bash runs; the other cases run in test_records.py.
+MOVED_RECORD_CASES = ("baseline",)
 
 
 def sha256(path):
@@ -193,10 +195,17 @@ def py(*args):
     return [sys.executable, *args]
 
 
+def record_command(case, *args):
+    # A case that is moved runs in the bash cell; the others still run in test_records.py.
+    if case in MOVED_RECORD_CASES:
+        return ["bash", "tests/rewrite/test_records.bash", "--case", case, *args]
+    return py("tests/rewrite/test_records.py", "--case", case, *args)
+
+
 def ordinary(matrix, base):
     out = matrix.output
     for case in RECORD_CASES:
-        matrix.run(f"rec-{case}", py("tests/rewrite/test_records.py", "--case", case, "--output", str(out / f"o-rec-{case}")))
+        matrix.run(f"rec-{case}", record_command(case, "--output", str(out / f"o-rec-{case}")))
     matrix.run("record-shutdown", ["bash", "tests/rewrite/test_record_shutdown.bash", "--output", str(out / "o-shutdown")])
     matrix.run("record-startup", ["bash", "tests/rewrite/test_record_startup.bash", "--output", str(out / "o-startup")])
     matrix.run("record-ca", ["bash", "tests/rewrite/test_record_ca.bash", "--output", str(out / "o-ca")])
@@ -243,8 +252,7 @@ def instrumented(matrix):
     products = str(build / "products")
     common = ["--products", products, "--sanitizers"]
     for case in RECORD_CASES:
-        matrix.run(f"san-rec-{case}", py("tests/rewrite/test_records.py", "--case", case, *common,
-                                          "--output", str(out / f"s-rec-{case}")))
+        matrix.run(f"san-rec-{case}", record_command(case, *common, "--output", str(out / f"s-rec-{case}")))
     matrix.run("san-record-shutdown", ["bash", "tests/rewrite/test_record_shutdown.bash", *common, "--output", str(out / "s-shutdown")])
     matrix.run("san-record-startup", ["bash", "tests/rewrite/test_record_startup.bash", *common, "--output", str(out / "s-startup")])
     matrix.run("san-record-ca", ["bash", "tests/rewrite/test_record_ca.bash", *common, "--output", str(out / "s-ca")])
