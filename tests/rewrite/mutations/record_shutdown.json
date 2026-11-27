@@ -1,0 +1,115 @@
+{
+ "cell": "record-shutdown",
+ "note": "Names in intended and also are the check names of the cell, equal to the names of the checks of the former Python harness. The cell runs two cases, inflight and retained, and a name carries the case in its first word; the predictions below are all the names that fail, and the series compares the failing names of each case of the old and the new cell. This cell, like the former harness, judges every check and does not stop at the first one that fails, except that the 19 checks of the phase events that follow retained-phase-inventory (from retained-no-watchdog-or-isolated-free to retained-exact-transport-retirement) are not made when it fails (H6), and that the checks that follow a missing fallback report are not made (H2). H1 to H4 and H7 change one line of one source of the module; H5, H6 and H8 change one line of the shutdown test program or of the fixture agent. Each mutant is built before the cell runs (the cell builds nothing). The checks that no mutant of this table is aimed at are listed under unproven.",
+ "mutations": [
+  {
+   "id": "H1",
+   "file": "snmp3App/src/Register.cpp",
+   "old": "name = \"AfterStopScan\"",
+   "new": "name = \"AfterStopScn\"",
+   "intended": [
+    "inflight-actual-Base-shutdown-order",
+    "retained-actual-Base-shutdown-order"
+   ],
+   "also": []
+  },
+  {
+   "id": "H2",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "snmp3 lifecycle: fallback",
+   "new": "snmp3 lifecycle: fallbac",
+   "intended": [
+    "inflight-single-fallback",
+    "inflight-parse-complete-observations",
+    "retained-single-fallback",
+    "retained-parse-complete-observations"
+   ],
+   "also": []
+  },
+  {
+   "id": "H3",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "case State::IncompleteStopped: return \"IncompleteStopped\";",
+   "new": "case State::IncompleteStopped: return \"IncompleteStoppe\";",
+   "intended": [
+    "retained-incomplete-stopped",
+    "retained-fallback-incomplete"
+   ],
+   "also": []
+  },
+  {
+   "id": "H4",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "case State::Running: return \"Running\";",
+   "new": "case State::Running: return \"Runnin\";",
+   "intended": [
+    "inflight-pending-before-exit",
+    "retained-pending-before-exit"
+   ],
+   "also": []
+  },
+  {
+   "id": "H5",
+   "file": "tests/rewrite/ShutdownTest.cpp",
+   "old": "shutdown_transport",
+   "new": "shutdown_transpor",
+   "intended": [
+    "retained-exact-transport-retirement"
+   ],
+   "also": []
+  },
+  {
+   "id": "H6",
+   "file": "tests/rewrite/ShutdownTest.cpp",
+   "old": "\"AfterCloseLinks\"",
+   "new": "\"AfterCloseLink\"",
+   "intended": [
+    "retained-phase-inventory"
+   ],
+   "also": []
+  },
+  {
+   "id": "H7",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "case State::Stopped: return \"Stopped\";",
+   "new": "case State::Stopped: return \"Stoppe\";",
+   "intended": [
+    "inflight-stopped"
+   ],
+   "also": []
+  },
+  {
+   "id": "H8",
+   "file": "tests/rewrite/NativeAgent.cpp",
+   "old": "agent_set_value",
+   "new": "agent_set_valu",
+   "intended": [
+    "retained-real-GET-SET-responses"
+   ],
+   "also": []
+  }
+ ],
+ "unproven": [
+  {
+   "check": "agent-ipv4-1:bind-ready, agent-ipv4-1:only-owned-loopback-listener and shutdown-proxy:ready",
+   "reason": "No mutant of this table. The agent and the proxy are the fixture of the cell, not the module."
+  },
+  {
+   "check": "inflight-actual-IOC-ready, retained-actual-IOC-ready, the four checks ca-002-caput:normal-exit to ca-005-caget:normal-exit, and the checks both-CA-records-active, actual-request-before-exit, actual-owned-worker and exit-before-deadlines of both cases",
+   "reason": "No mutant of this table."
+  },
+  {
+   "check": "ioc:normal-exit, repeater:normal-exit, shutdown-proxy:normal-stop, agent-ipv4-1:normal-stop, secret-sentinels-absent and sanitizer-diagnostics-absent",
+   "reason": "No mutant of this table."
+  },
+  {
+   "check": "worker-reaped and completed-before-link-close, and the checks of the phase events of the case retained other than retained-phase-inventory, retained-incomplete-stopped, retained-exact-transport-retirement and the check retained-fallback-incomplete",
+   "reason": "No mutant of this table."
+  },
+  {
+   "check": "all-child-receipts-clean and IOC-native-free of both cases",
+   "reason": "No mutant of this table."
+  }
+ ],
+ "predictions_written": "2026-11-27T00:34Z, before any mutant of the series was built"
+}

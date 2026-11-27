@@ -1160,7 +1160,7 @@ python3 -B "$RD_CONTROL_DRIVER" --build-receipt "$RD_RECEIPT" --d7-controls $RD_
 
 ### Non-isolated shutdown with outstanding records
 
-`test_record_shutdown.py` runs two fresh-process cases with `record-shutdown.db`:
+`test_record_shutdown.bash` runs two fresh-process cases with `record-shutdown.db`:
 passive low-priority ai Integer GET and ao OpaqueFloat SET, 60000 ms record
 deadlines, initial values 71 and 19.5, and a shared calc FLNK counter.
 `--case inflight|retained|all` selects the case; the default is `all`.
@@ -1209,8 +1209,8 @@ duplicate or malformed observations fail. Inventory is checked before reading
 saved context pointers. A watchdog can release the external hold for cleanup,
 but any watchdog, abnormal child exit, forced cleanup, sanitizer diagnostic,
 credential sentinel, missing receipt or runner abort fails the case. IOC, CA
-clients, private repeater, agent and proxy have individual exit/reaping receipts;
-`results.json` aggregates them. Loaded-library and input/product hashes accompany
+clients, private repeater, agent and proxy have individual exit statuses (`NAME.stop`);
+`results.json` records whether all were clean. Loaded-library and input/product hashes accompany
 raw stdout/stderr and per-case observations.
 
 Build root and tests before generating the separate instrumented products.
@@ -1222,15 +1222,15 @@ by isolated queued-shutdown and production CA regressions on both product sets.
 ```bash
 NS_BUILD=work/nonisolated-san
 NS_RUN=work/nonisolated
-NS_DRIVER=tests/rewrite/test_record_shutdown.py
+NS_DRIVER=tests/rewrite/test_record_shutdown.bash
 make -j2
 make -C tests/rewrite -j2
 python3 tests/rewrite/build_r5_sanitizers.py --output "$NS_BUILD"
 NS_PRODUCTS="$PWD/$NS_BUILD/products"
-python3 "$NS_DRIVER" --output "$NS_RUN-1"
-python3 "$NS_DRIVER" --output "$NS_RUN-2"
-python3 "$NS_DRIVER" --output "$NS_RUN-3"
-python3 "$NS_DRIVER" --products "$NS_PRODUCTS" --sanitizers --output "$NS_RUN-asan"
+bash "$NS_DRIVER" --output "$NS_RUN-1"
+bash "$NS_DRIVER" --output "$NS_RUN-2"
+bash "$NS_DRIVER" --output "$NS_RUN-3"
+bash "$NS_DRIVER" --products "$NS_PRODUCTS" --sanitizers --output "$NS_RUN-asan"
 NS_ISOLATED=tests/rewrite/test_records.py
 python3 "$NS_ISOLATED" --case queued-shutdown --output "$NS_RUN-reg-isolated"
 python3 "$NS_ISOLATED" --case queued-shutdown --products "$NS_PRODUCTS" --sanitizers --output "$NS_RUN-reg-iso-asan"
@@ -1396,7 +1396,7 @@ bash "$runner" --products "$products" --sanitizers --output work/startup-sanitiz
 ```
 
 Recheck `edges` and `repeat-detach` with `test_records.py`, and both cases of
-`test_record_shutdown.py`, on ordinary and instrumented products. Their commands
+`test_record_shutdown.bash`, on ordinary and instrumented products. Their commands
 and evidence requirements are defined in their sections above. The startup
 runner retains the real startup scripts, raw output, ordered typed events,
 source/product/library hashes, child exit statuses,
