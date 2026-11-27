@@ -556,13 +556,13 @@ python3 tests/rewrite/test_records.py --case chain-flow --output work/r6-chain-f
 python3 tests/rewrite/test_records.py --case queued-simm --output work/r6-queued-simm
 python3 tests/rewrite/test_records.py --case boundaries --output work/r6-boundaries
 python3 tests/rewrite/test_records.py --case retirement-flow --output work/r6-retirement
-python3 tests/rewrite/test_records.py --case edges --output work/r6-edges
+bash tests/rewrite/test_records.bash --case edges --output work/r6-edges
 python3 tests/rewrite/test_records.py --case alarms --output work/r6-alarms
 python3 tests/rewrite/test_records.py --case active --output work/r6-active
 python3 tests/rewrite/test_records.py --case policy --output work/r6-policy
 python3 tests/rewrite/test_records.py --case numeric --output work/r6-numeric
-python3 tests/rewrite/test_records.py --case shutdown --output work/r6-shutdown
-python3 tests/rewrite/test_records.py --case queued-shutdown --output work/r6-queued
+bash tests/rewrite/test_records.bash --case shutdown --output work/r6-shutdown
+bash tests/rewrite/test_records.bash --case queued-shutdown --output work/r6-queued
 python3 tests/rewrite/test_records.py --case stop-queued --output work/r6-stop-queued
 python3 tests/rewrite/test_records.py --case active-unforced --output work/r6-unforced
 python3 tests/rewrite/test_records.py --case accounting --output work/r6-accounting
@@ -940,12 +940,12 @@ For separate ASan/UBSan products:
 ```bash
 python3 tests/rewrite/build_r5_sanitizers.py --output work/r6-sanitizer-build
 R6_PRODUCTS=work/r6-sanitizer-build/products
-python3 tests/rewrite/test_records.py --case edges --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-edge
+bash tests/rewrite/test_records.bash --case edges --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-edge
 python3 tests/rewrite/test_records.py --case alarms --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-alarm
 python3 tests/rewrite/test_records.py --case active --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-active
 python3 tests/rewrite/test_records.py --case policy --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-policy
 python3 tests/rewrite/test_records.py --case numeric --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-num
-python3 tests/rewrite/test_records.py --case shutdown --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-stop
+bash tests/rewrite/test_records.bash --case shutdown --products "$R6_PRODUCTS" --sanitizers --output work/r6-asan-stop
 ```
 
 Run queued-shutdown with the same selected products in another new output
@@ -1231,9 +1231,9 @@ bash "$NS_DRIVER" --output "$NS_RUN-1"
 bash "$NS_DRIVER" --output "$NS_RUN-2"
 bash "$NS_DRIVER" --output "$NS_RUN-3"
 bash "$NS_DRIVER" --products "$NS_PRODUCTS" --sanitizers --output "$NS_RUN-asan"
-NS_ISOLATED=tests/rewrite/test_records.py
-python3 "$NS_ISOLATED" --case queued-shutdown --output "$NS_RUN-reg-isolated"
-python3 "$NS_ISOLATED" --case queued-shutdown --products "$NS_PRODUCTS" --sanitizers --output "$NS_RUN-reg-iso-asan"
+NS_ISOLATED=tests/rewrite/test_records.bash
+bash "$NS_ISOLATED" --case queued-shutdown --output "$NS_RUN-reg-isolated"
+bash "$NS_ISOLATED" --case queued-shutdown --products "$NS_PRODUCTS" --sanitizers --output "$NS_RUN-reg-iso-asan"
 NS_CA=tests/rewrite/test_record_ca.bash
 bash "$NS_CA" --output "$NS_RUN-reg-ca"
 bash "$NS_CA" --products "$NS_PRODUCTS" --sanitizers --output "$NS_RUN-reg-ca-asan"
@@ -1395,7 +1395,7 @@ runner=tests/rewrite/test_record_startup.bash
 bash "$runner" --products "$products" --sanitizers --output work/startup-sanitized-check
 ```
 
-Recheck `edges` and `repeat-detach` with `test_records.py`, and both cases of
+Recheck `edges` with `test_records.bash` and `repeat-detach` with `test_records.py`, and both cases of
 `test_record_shutdown.bash`, on ordinary and instrumented products. Their commands
 and evidence requirements are defined in their sections above. The startup
 runner retains the real startup scripts, raw output, ordered typed events,

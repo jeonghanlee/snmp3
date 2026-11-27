@@ -1,6 +1,6 @@
 {
-  "cell": "rec-baseline",
-  "note": "Names in intended and also are the check names of the cell, equal to the names of the checks of the case baseline of the former Python harness test_records.py. The former harness test_records.py and the new cell test_records.bash are run on each mutant, and the checks that each fails are compared with each other and with this table. This cell, like the former harness, judges every check and does not stop at the first one that fails. Each mutant changes one line of the record test program (RecordTest.cpp) or of the fixture agent (NativeAgent.cpp); each is built before the cell runs (the cell builds nothing). R1 to R4 change one field of an event that the program prints and R6 adds a line to its error output, so they change what the cell reads and not the module; R5 changes the exit status of the fixture agent. Rows named in the register as only reachable by the C++ test bodies are not among them: none of these changes makes a check inside the program fail. The checks that no mutant of this table is aimed at are listed under unproven.",
+  "cell": "records",
+  "note": "Names in intended and also are the check names of the cell, equal to the names of the checks of the cases of the former Python harness test_records.py. The former harness test_records.py and the new cell test_records.bash are run on each mutant, and the checks that each fails are compared with each other and with this table. This cell, like the former harness, judges every check and does not stop at the first one that fails. Each mutant changes one line of the record test program (RecordTest.cpp) or of the fixture agent (NativeAgent.cpp); each is built before the cell runs (the cell builds nothing). R1 to R4 change one field of an event that the program prints and R6 adds a line to its error output, so they change what the cell reads and not the module; R5 changes the exit status of the fixture agent. Rows named in the register as only reachable by the C++ test bodies are not among them: none of these changes makes a check inside the program fail. The checks that no mutant of this table is aimed at are listed under unproven. Each row names its case; the series runs a row on that case only. R7 and R8 change one field of the event of the case shutdown and queued-shutdown, and R9 to R12 one field of an event of the case edges, so they change what the cell reads and not the module.",
   "mutations": [
     {
       "id": "R1",
@@ -10,7 +10,8 @@
       "intended": [
         "actual-eleven-record-path"
       ],
-      "also": []
+      "also": [],
+      "case": "baseline"
     },
     {
       "id": "R2",
@@ -20,7 +21,8 @@
       "intended": [
         "actual-record-identities"
       ],
-      "also": []
+      "also": [],
+      "case": "baseline"
     },
     {
       "id": "R3",
@@ -30,7 +32,8 @@
       "intended": [
         "actual-callback-pressure"
       ],
-      "also": []
+      "also": [],
+      "case": "baseline"
     },
     {
       "id": "R4",
@@ -40,7 +43,8 @@
       "intended": [
         "actual-GET-and-SET-pressure"
       ],
-      "also": []
+      "also": [],
+      "case": "baseline"
     },
     {
       "id": "R5",
@@ -50,7 +54,8 @@
       "intended": [
         "agent-ipv4-1:normal-stop"
       ],
-      "also": []
+      "also": [],
+      "case": "baseline"
     },
     {
       "id": "R6",
@@ -60,7 +65,74 @@
       "intended": [
         "sanitizer-diagnostics-absent"
       ],
-      "also": []
+      "also": [],
+      "case": "baseline"
+    },
+    {
+      "id": "R7",
+      "file": "tests/rewrite/RecordTest.cpp",
+      "old": "\\\"waited_for_entered\\\":true",
+      "new": "\\\"waited_for_entered\\\":false",
+      "intended": [
+        "actual-blocked-shutdown"
+      ],
+      "also": [],
+      "case": "shutdown"
+    },
+    {
+      "id": "R8",
+      "file": "tests/rewrite/RecordTest.cpp",
+      "old": "\\\"abandoned_finalized_once\\\":true",
+      "new": "\\\"abandoned_finalized_once\\\":false",
+      "intended": [
+        "actual-queued-shutdown"
+      ],
+      "also": [],
+      "case": "queued-shutdown"
+    },
+    {
+      "id": "R9",
+      "file": "tests/rewrite/RecordTest.cpp",
+      "old": "\\\"binary_exact\\\":true",
+      "new": "\\\"binary_exact\\\":false",
+      "intended": [
+        "actual-input-edges"
+      ],
+      "also": [],
+      "case": "edges"
+    },
+    {
+      "id": "R10",
+      "file": "tests/rewrite/RecordTest.cpp",
+      "old": "\\\"flnk_source_pact\\\":1,",
+      "new": "\\\"flnk_source_pact\\\":0,",
+      "intended": [
+        "actual-Base-FLNK-order"
+      ],
+      "also": [],
+      "case": "edges"
+    },
+    {
+      "id": "R11",
+      "file": "tests/rewrite/RecordTest.cpp",
+      "old": "\\\"terminal_released\\\":true,",
+      "new": "\\\"terminal_released\\\":false,",
+      "intended": [
+        "actual-six-input-simulation"
+      ],
+      "also": [],
+      "case": "edges"
+    },
+    {
+      "id": "R12",
+      "file": "tests/rewrite/RecordTest.cpp",
+      "old": "\\\"wire_bit_fixtures\\\":36",
+      "new": "\\\"wire_bit_fixtures\\\":35",
+      "intended": [
+        "actual-output-edges"
+      ],
+      "also": [],
+      "case": "edges"
     }
   ],
   "unproven": [
@@ -79,7 +151,12 @@
     {
       "check": "secret-sentinels-absent",
       "reason": "No mutant of this table."
+    },
+    {
+      "check": "actual-normal-mode-native-publication and actual-max-payload-queue",
+      "reason": "No mutant of this table. They are checks of the case edges."
     }
   ],
-  "predictions_written": "2026-11-27T16:07Z, before any mutant of the series was built"
+  "predictions_written": "2026-11-27T16:07Z, before any mutant of the series was built",
+  "predictions_written_R7_to_R12": "2026-11-27T17:47Z, before any mutant of the rows R7 to R12 was built"
 }

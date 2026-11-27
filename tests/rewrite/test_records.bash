@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Record cell: runs the record test program (snmp3RecordTest, with the actual DSET, the callback path, the worker and the native
-# library) against a fixture agent on a loopback port, and records.pl judges what they produced. Only the case baseline is moved so
-# far; the other cases of the former harness test_records.py still run there. The cell starts the fixture agent, writes the
+# library) against a fixture agent on a loopback port, and records.pl judges what they produced. The cases baseline, shutdown,
+# queued-shutdown and edges are moved so far; the other cases of the former harness test_records.py still run there. The cell starts the fixture agent, writes the
 # configuration, runs the program, stops the agent and judges.
-# usage: test_records.bash --output NEW_DIRECTORY [--products DIRECTORY] [--sanitizers] [--case baseline]
+# usage: test_records.bash --output NEW_DIRECTORY [--products DIRECTORY] [--sanitizers] [--case CASE]
 # exit status: 0 every check passed, 1 a check failed, 2 the cell could not be judged (a case that is not moved is refused)
 
 set -u
@@ -19,7 +19,7 @@ readonly AGENT_NAME="agent-ipv4-1"
 readonly READY_SECONDS=5
 readonly STOP_SECONDS=8
 readonly PROCESS_SECONDS=30
-readonly -a CASES=(baseline)
+readonly -a CASES=(baseline shutdown queued-shutdown edges)
 
 OUTPUT=""
 PRODUCTS="${ROOT}/bin/${ARCH}"
@@ -104,7 +104,7 @@ function start_agent {
     return 1
 }
 
-# Runs the case baseline. Sets the status that the judge returns in CASE_STATUS.
+# Runs one case. Sets the status that the judge returns in CASE_STATUS.
 function run_case {
     local case="$1" port aborted=0 status=0
     printf "%s\n" "${PRODUCTS}" > "${OUTPUT}/products.txt"
@@ -138,7 +138,7 @@ function main {
             --products) PRODUCTS="$(cd "${2:-}" 2> /dev/null && pwd -P)" || die "--products must name a directory"; shift 2 ;;
             --sanitizers) SANITIZERS=1; shift ;;
             --case) selected="${2:-}"; shift 2 ;;
-            *) die "usage: test_records.bash --output NEW_DIRECTORY [--products DIRECTORY] [--sanitizers] [--case baseline]" ;;
+            *) die "usage: test_records.bash --output NEW_DIRECTORY [--products DIRECTORY] [--sanitizers] [--case CASE]" ;;
         esac
     done
     [[ -n "${output}" ]] || die "--output is required"

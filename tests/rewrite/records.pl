@@ -1,14 +1,16 @@
 #!/usr/bin/env perl
 # Judge and helper of the record cell. test_records.bash keeps what the fixture agent and the record test program produced in the
-# output directory (OUT); this script writes the configuration and judges. Only the case baseline is moved so far.
+# output directory (OUT); this script writes the configuration and judges. The cases baseline, shutdown, queued-shutdown and edges
+# are moved so far.
 #   records.pl port                  print a free UDP port of the loopback address
 #   records.pl sockets PID PORT OUT  write the sockets that the process holds as JSON to OUT
 #   records.pl config OUT PORT       write OUT/records.json for the agent on PORT
 #   records.pl judge OUT CASE        judge a case, write OUT/results.json, print one line for each check and the verdict;
 #                                    exit 0 (every check passed) or 1
 # Exit status 2: the observations could not be read.
-# The checks and their order are those of the case baseline of the former Python harness: the agent, the exit of the record test
-# program, the four checks of the record path and the pressure phase, the libraries of the program, the stop of the agent and the scan.
+# The checks and their order are those of the former Python harness: the agent, the exit of the record test program, the four
+# checks of the record path and the pressure phase, the checks that the case adds, the libraries of the program, the stop of the
+# agent and the scan.
 # Language level: Perl 5.26.
 use strict;
 use warnings;
@@ -18,7 +20,7 @@ use IO::Socket::INET;
 use JSON::PP;
 
 my $ROOT = abs_path(dirname(__FILE__) . '/../..');
-my @CASES = qw(baseline);
+my @CASES = qw(baseline shutdown queued-shutdown edges);
 my $AGENT = 'agent-ipv4-1';
 
 # The bindings of the case: name, object index, operation, value type, capacity.
@@ -147,6 +149,56 @@ sub events {
     return @found;
 }
 
+# True when at least one event of the kind has every named field true.
+sub any_event {
+    my ($observed, $kind, @fields) = @_;
+    for my $event (@$observed) {
+        next unless ($event->{event} // '') eq $kind;
+        return 1 unless grep { !$event->{$_} } @fields;
+    }
+    return 0;
+}
+
+# How many events of the kind have the field true.
+sub count_events {
+    my ($observed, $kind, $field) = @_;
+    return scalar(grep { ($_->{event} // '') eq $kind && $_->{$field} } @$observed);
+}
+
+# The checks that the former harness adds for a case after the checks that every case shares.
+sub case_checks {
+    my ($checks, $case, $observed) = @_;
+    if ($case eq 'shutdown') {
+        push @$checks, ['actual-blocked-shutdown', any_event($observed, 'blocked_shutdown', qw(waited_for_entered restart_rejected))];
+    } elsif ($case eq 'queued-shutdown') {
+        push @$checks, ['actual-queued-shutdown', any_event($observed, 'queued_shutdown',
+            qw(storage_retained_until_cleanup abandoned_finalized_once restart_rejected))];
+    } elsif ($case eq 'edges') {
+        push @$checks, ['actual-input-edges', any_event($observed, 'input_edges', qw(precision_rejected binary_exact))];
+        my $order = 0;
+        for my $event (@$observed) {
+            next unless ($event->{event} // '') eq 'base_order';
+            $order = 1 if ($event->{flnk_source_pact} // -1) == 1 && ($event->{target_completions} // -1) == 1;
+        }
+        push @$checks, ['actual-Base-FLNK-order', $order];
+        push @$checks, ['actual-six-input-simulation', count_events($observed, 'simulation_bypass', 'terminal_released') == 6];
+        push @$checks, ['actual-normal-mode-native-publication', count_events($observed, 'simulation_bypass', 'normal_native_published') == 4];
+        my $output = 0;
+        for my $event (@$observed) {
+            next unless ($event->{event} // '') eq 'output_edges';
+            $output = 1 if ($event->{rounding_modes} // -1) == 4 && ($event->{wire_bit_fixtures} // -1) == 36 && $event->{invalid_set_rejected};
+        }
+        push @$checks, ['actual-output-edges', $output];
+        my $payload = 0;
+        for my $event (@$observed) {
+            next unless ($event->{event} // '') eq 'max_payload_queue';
+            $payload = 1 if ($event->{data_bytes} // -1) == 32766 && $event->{rejected_without_admission} && $event->{retained_before_release};
+        }
+        push @$checks, ['actual-max-payload-queue', $payload];
+    }
+    return;
+}
+
 sub judge {
     my ($dir, $case) = @_;
     defined $case && -d $dir or die "usage: records.pl judge OUT CASE\n";
@@ -197,6 +249,7 @@ sub judge {
         push @checks, ['actual-callback-pressure', scalar(grep { ($_->{enqueue_failures} // 0) > 0 && $_->{completed_once} } @pressure) ? 1 : 0];
         my %records = map { (defined $_->{record} ? $_->{record} : "\0absent") => 1 } @pressure;
         push @checks, ['actual-GET-and-SET-pressure', join(',', sort keys %records) eq 'Records_Ao,Records_Longin'];
+        case_checks(\@checks, $case, \@observed);
         @libraries = libraries("$dir/records.stderr");
         push @checks, ['IOC-native-free', @libraries && !grep { index($_, 'netsnmp') >= 0 } @libraries];
         write_file("$dir/record-observations.json", JSON::PP->new->canonical->pretty->encode(\@observed));
@@ -228,6 +281,7 @@ sub judge {
     my @inputs = (sort(glob("$ROOT/snmp3App/src/*.cpp")), sort(glob("$ROOT/snmp3App/src/*.h")),
         map({ "$ROOT/tests/rewrite/$_" } qw(test_records.bash records.pl RecordTest.cpp NativeAgent.cpp db/records.db db/record-output.db)),
         "$ROOT/dbd/snmp3RecordTest.dbd", map { "$products/$_" } qw(snmp3RecordTest snmp3NativeProbe snmp3Worker snmp3NativeAgent));
+    push @inputs, map { "$ROOT/tests/rewrite/db/$_" } qw(record-edges.db record-order.db) if $case eq 'edges';
     my $failed = grep { !$_->[1] } @checks;
     my $passed = !$failed && !$aborted && @checks ? 1 : 0;
     my %result = (passed => $passed ? JSON::PP::true : JSON::PP::false, aborted => $aborted ? JSON::PP::true : JSON::PP::false,
