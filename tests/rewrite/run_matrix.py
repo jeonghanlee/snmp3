@@ -198,7 +198,7 @@ def ordinary(matrix, base):
     for case in RECORD_CASES:
         matrix.run(f"rec-{case}", py("tests/rewrite/test_records.py", "--case", case, "--output", str(out / f"o-rec-{case}")))
     matrix.run("record-shutdown", py("tests/rewrite/test_record_shutdown.py", "--output", str(out / "o-shutdown")))
-    matrix.run("record-startup", py("tests/rewrite/test_record_startup.py", "--output", str(out / "o-startup")))
+    matrix.run("record-startup", ["bash", "tests/rewrite/test_record_startup.bash", "--output", str(out / "o-startup")])
     matrix.run("record-ca", py("tests/rewrite/test_record_ca.py", "--output", str(out / "o-ca")))
     matrix.run("supervisor-ioc", ["bash", "tests/rewrite/test_supervisor_ioc.bash", "--ioc", "--output", str(out / "o-supervisor")])
     matrix.run("qualification", py("tests/rewrite/test_qualification.py", "--output", str(out / "o-qualification")))
@@ -246,7 +246,7 @@ def instrumented(matrix):
         matrix.run(f"san-rec-{case}", py("tests/rewrite/test_records.py", "--case", case, *common,
                                           "--output", str(out / f"s-rec-{case}")))
     matrix.run("san-record-shutdown", py("tests/rewrite/test_record_shutdown.py", *common, "--output", str(out / "s-shutdown")))
-    matrix.run("san-record-startup", py("tests/rewrite/test_record_startup.py", *common, "--output", str(out / "s-startup")))
+    matrix.run("san-record-startup", ["bash", "tests/rewrite/test_record_startup.bash", *common, "--output", str(out / "s-startup")])
     matrix.run("san-record-ca", py("tests/rewrite/test_record_ca.py", *common, "--output", str(out / "s-ca")))
     matrix.run("san-supervisor-ioc", ["bash", "tests/rewrite/test_supervisor_ioc.bash", "--ioc", *common, "--output", str(out / "s-supervisor")])
     matrix.run("san-qualification", py("tests/rewrite/test_qualification.py", *common, "--output", str(out / "s-qualification")))

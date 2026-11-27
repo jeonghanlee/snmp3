@@ -296,3 +296,25 @@ def trace(argv, env, output, inject):
         receipt.update(child_reaped=reaped, marker_count=raw.count(MARKER), finished_ns=time.monotonic_ns(),
                        parent_limit_after=list(resource.getrlimit(resource.RLIMIT_NPROC)))
     return receipt
+
+
+def main():
+    """Run a command under the tracer: --output DIR --inject 0|1 -- COMMAND...; writes DIR/thread-trace.json."""
+    import argparse
+    import json
+    from pathlib import Path
+    parser = argparse.ArgumentParser(description=main.__doc__)
+    parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--inject", required=True, type=int, choices=(0, 1))
+    parser.add_argument("argv", nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+    command = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
+    if not command:
+        parser.error("a command is required")
+    evidence = trace(command, dict(os.environ), args.output, bool(args.inject))
+    (args.output / "thread-trace.json").write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

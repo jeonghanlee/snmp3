@@ -1,0 +1,115 @@
+{
+ "cell": "record-startup",
+ "note": "Names in intended and also are the check names of the cell, equal to the names of the checks of the former Python harness. The cell runs ten cases, and a name stands for every case in which the check fails; the predictions below are the names that fail in at least one case, and the series compares the failing names of each case of the old and the new cell. This cell, like the former harness, judges every check and does not stop at the first one that fails. Each mutant changes one line of one source of the module; each is built before the cell runs (the cell builds nothing). R1 acts in the cases with a preflight failure (failure-break, failure-continue, production-break, production-continue), R2 in the cases with a thread failure (thread-break, thread-continue, production-thread-break, production-thread-continue), R6 in the cases that run the startup test program, and R3, R4 and R5 in all ten. The checks that no mutant of this table is aimed at are listed under unproven.",
+ "mutations": [
+  {
+   "id": "R1",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "trace(\"preflight-failed\");",
+   "new": "trace(\"preflight-fail\");",
+   "intended": [
+    "startup-real-preflight-failure"
+   ],
+   "also": []
+  },
+  {
+   "id": "R2",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "trace(\"create-failed\");",
+   "new": "trace(\"create-fail\");",
+   "intended": [
+    "startup-real-thread-failure"
+   ],
+   "also": []
+  },
+  {
+   "id": "R3",
+   "file": "snmp3App/src/Register.cpp",
+   "old": "name = \"AfterStopScan\"",
+   "new": "name = \"AfterStopScn\"",
+   "intended": [
+    "startup-real-shutdown-order"
+   ],
+   "also": []
+  },
+  {
+   "id": "R4",
+   "file": "snmp3App/src/DeviceSupport.cpp",
+   "old": "record initialization rejected: %s",
+   "new": "record initialization refused: %s",
+   "intended": [
+    "startup-rejection-diagnostics"
+   ],
+   "also": []
+  },
+  {
+   "id": "R5",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "snmp3 lifecycle: fallback",
+   "new": "snmp3 lifecycle: fallbac",
+   "intended": [
+    "startup-observations-complete"
+   ],
+   "also": []
+  },
+  {
+   "id": "R6",
+   "file": "snmp3App/src/Runtime.cpp",
+   "old": "case State::Cold: return \"Cold\";",
+   "new": "case State::Cold: return \"Colt\";",
+   "intended": [
+    "startup-two-contexts-before-runtime"
+   ],
+   "also": []
+  },
+  {
+   "id": "R7",
+   "file": "snmp3App/src/Main.cpp",
+   "old": "        epicsExit(1);\n        return 1;",
+   "new": "        epicsExit(5);\n        return 5;",
+   "intended": [
+    "ioc:expected-exit",
+    "startup-all-child-receipts-clean"
+   ],
+   "also": []
+  },
+  {
+   "id": "R8",
+   "file": "snmp3App/src/Register.cpp",
+   "old": "runtime startup failed; admission closed",
+   "new": "runtime startup refused; admission closed",
+   "intended": [
+    "startup-real-preflight-failure",
+    "startup-real-thread-failure"
+   ],
+   "also": []
+  }
+ ],
+ "unproven": [
+  {
+   "check": "agent-ipv4-1:bind-ready, agent-ipv4-1:only-owned-loopback-listener and startup-proxy:ready",
+   "reason": "No mutant of this table. The agent and the proxy are the fixture of the cell, not the module."
+  },
+  {
+   "check": "repeater:expected-exit, startup-proxy:normal-stop, agent-ipv4-1:normal-stop, secret-sentinels-absent and sanitizer-diagnostics-absent",
+   "reason": "No mutant of this table."
+  },
+  {
+   "check": "startup-trace-complete, startup-parent-limit-preserved, startup-traced-normal-unrestricted, startup-thread-limit-restored and startup-real-kernel-thread-refusal",
+   "reason": "No mutant of this table. They read the tracer, a Python test tool that is not changed by a mutant of the module."
+  },
+  {
+   "check": "startup-script-policy, startup-fallback-failed, startup-fallback-idle-retained, startup-no-worker-or-wire, startup-real-GET-SET and startup-worker-reaped",
+   "reason": "No mutant of this table."
+  },
+  {
+   "check": "the other checks of the phase events (startup-phase-inventory and the checks that follow it in companion_checks, except startup-two-contexts-before-runtime)",
+   "reason": "No mutant of this table."
+  },
+  {
+   "check": "startup-IOC-native-free",
+   "reason": "No mutant of this table."
+  }
+ ],
+ "predictions_written": "2026-11-26T23:30Z, before any mutant of the series was built"
+}

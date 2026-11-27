@@ -1293,7 +1293,7 @@ buffers, isolated reuse and the remaining [deferred record cells](../../docs/mil
 
 ## Record Startup Failure
 
-`test_record_startup.py` runs ten fresh processes on local Linux/Base 7.0.10.
+`test_record_startup.bash` runs ten fresh processes on local Linux/Base 7.0.10.
 The shipped `db/record-startup.db` contains valid ai Integer GET and ao
 OpaqueFloat SET records, an ai referencing an unknown binding, and an ao
 referencing the GET binding. The latter two are rejected individually during
@@ -1381,7 +1381,7 @@ From the repository root, build the ordinary products before running:
 ```bash
 make -j2
 make -C tests/rewrite -j2
-python3 tests/rewrite/test_record_startup.py --output work/startup-check
+bash tests/rewrite/test_record_startup.bash --output work/startup-check
 ```
 
 Every output directory must be new. `--case` selects one row above; its default
@@ -1391,15 +1391,15 @@ products include the startup companion:
 ```bash
 python3 tests/rewrite/build_r5_sanitizers.py --output work/startup-sanitizers
 products=work/startup-sanitizers/products
-runner=tests/rewrite/test_record_startup.py
-python3 "$runner" --products "$products" --sanitizers --output work/startup-sanitized-check
+runner=tests/rewrite/test_record_startup.bash
+bash "$runner" --products "$products" --sanitizers --output work/startup-sanitized-check
 ```
 
 Recheck `edges` and `repeat-detach` with `test_records.py`, and both cases of
 `test_record_shutdown.py`, on ordinary and instrumented products. Their commands
 and evidence requirements are defined in their sections above. The startup
 runner retains the real startup scripts, raw output, ordered typed events,
-source/product/library hashes, private ports, child exit/reaping receipts,
+source/product/library hashes, child exit statuses,
 checks and per-case results. Script EOF reaches Main naturally; no explicit
 exit bypasses Main's Failed check. Expected IOC exits are 0 for both normal cases and 1
 for all eight failed starts. Crashes, timeouts, forced cleanup, missing events,
