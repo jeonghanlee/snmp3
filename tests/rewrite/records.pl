@@ -1,10 +1,12 @@
 #!/usr/bin/env perl
 # Judge and helper of the record cell. test_records.bash keeps what the fixture agent and the record test program produced in the
 # output directory (OUT); this script writes the configuration and judges. The cases baseline, shutdown, queued-shutdown and edges
-# are moved so far.
+# and accounting are moved so far.
 #   records.pl port                  print a free UDP port of the loopback address
 #   records.pl sockets PID PORT OUT  write the sockets that the process holds as JSON to OUT
-#   records.pl config OUT PORT       write OUT/records.json for the agent on PORT
+#   records.pl config OUT PORT CASE  write OUT/records.json for the agent on PORT and, for a case with fault proxies, for the
+#                                    ports that OUT/NAME.port holds
+#   records.pl faultport FILE        print the port that the fault proxy announced in FILE (exit 1 when it announced none)
 #   records.pl judge OUT CASE        judge a case, write OUT/results.json, print one line for each check and the verdict;
 #                                    exit 0 (every check passed) or 1
 # Exit status 2: the observations could not be read.
@@ -20,8 +22,12 @@ use IO::Socket::INET;
 use JSON::PP;
 
 my $ROOT = abs_path(dirname(__FILE__) . '/../..');
-my @CASES = qw(baseline shutdown queued-shutdown edges);
+my @CASES = qw(baseline shutdown queued-shutdown edges accounting);
 my $AGENT = 'agent-ipv4-1';
+# The fault proxies that a case starts after the agent, in the order of their start, and the windows of the Retired send that
+# the case holds.
+my %PROXIES = (accounting => [qw(active-response-delay active-response-drop)]);
+my %WINDOWS = (accounting => 7);
 
 # The bindings of the case: name, object index, operation, value type, capacity.
 my @SPECS = (['IntegerRead', 1, 'get', 'integer', 1], ['Counter32Read', 2, 'get', 'counter32', 1],
@@ -95,19 +101,49 @@ sub sockets {
 }
 
 sub config {
-    my ($dir, $port) = @_;
-    defined $port && $port =~ /^\d+$/ or die "usage: records.pl config OUT PORT\n";
+    my ($dir, $port, $case) = @_;
+    defined $port && $port =~ /^\d+$/ or die "usage: records.pl config OUT PORT CASE\n";
+    $case //= 'baseline';
     my @bindings;
     for my $spec (@SPECS) {
         my ($name, $index, $operation, $type, $capacity) = @$spec;
         push @bindings, { id => $name, endpoint => 'Local', oid => "1.3.6.1.4.1.53864.4.$index.0", operation => $operation,
                           valueType => $type, capacity => $capacity + 0 };
     }
-    write_file("$dir/records.json", JSON::PP->new->canonical->pretty->encode({ schema => 1,
-        profiles => [{ id => 'Local', version => '2c', communityFile => "$dir/$AGENT-community", timeoutMs => 100, retries => 0,
-                       maxVarbinds => 16 }],
-        endpoints => [{ id => 'Local', address => '127.0.0.1', port => $port + 0, profile => 'Local' }], bindings => \@bindings }));
+    my %local = (id => 'Local', version => '2c', communityFile => "$dir/$AGENT-community", timeoutMs => 100, retries => 0,
+                 maxVarbinds => 16);
+    my @profiles = (\%local);
+    my @endpoints = ({ id => 'Local', address => '127.0.0.1', port => $port + 0, profile => 'Local' });
+    if ($case eq 'accounting') {
+        my ($delayed, $dropped) = map { (split ' ', read_file("$dir/$_.port"))[0] + 0 } @{ $PROXIES{$case} };
+        push @profiles, { %local, id => 'Delayed', timeoutMs => 1500 }, { %local, id => 'NativeRetry', retries => 1 };
+        push @endpoints, { id => 'Delayed', address => '127.0.0.1', port => $delayed, profile => 'Delayed' },
+                         { id => 'Dropped', address => '127.0.0.1', port => $dropped, profile => 'Local' },
+                         { id => 'NativeRetry', address => '127.0.0.1', port => $dropped, profile => 'NativeRetry' };
+        my @outputs = grep { $_->{operation} eq 'set' } @bindings;
+        my ($float) = grep { $_->{id} eq 'FloatWrite' } @outputs;
+        push @bindings, (map { { %$_, id => "Active$_->{id}", endpoint => 'Delayed' } } @outputs),
+                        { %$float, id => 'RetryFloatWrite', endpoint => 'Dropped' },
+                        { %$float, id => 'NativeRetryFloatWrite', endpoint => 'NativeRetry' };
+    }
+    write_file("$dir/records.json", JSON::PP->new->canonical->pretty->encode({ schema => 1, profiles => \@profiles,
+        endpoints => \@endpoints, bindings => \@bindings }));
     return 0;
+}
+
+# The port that a fault proxy announced in its first fault_ready event.
+sub fault_port {
+    my ($path) = @_;
+    defined $path or die "usage: records.pl faultport FILE\n";
+    -f $path or return 1;
+    for my $line (split /\n/, read_file($path)) {
+        next unless substr($line, 0, 1) eq '{';
+        my $event = eval { JSON::PP->new->utf8->decode($line) };
+        next unless ref $event eq 'HASH' && ($event->{event} // '') eq 'fault_ready' && $event->{port};
+        print "$event->{port}\n";
+        return 0;
+    }
+    return 1;
 }
 
 # The libraries that the loader initialized, as real paths (LD_DEBUG=libs prints "calling init:").
@@ -173,6 +209,31 @@ sub case_checks {
     } elsif ($case eq 'queued-shutdown') {
         push @$checks, ['actual-queued-shutdown', any_event($observed, 'queued_shutdown',
             qw(storage_retained_until_cleanup abandoned_finalized_once restart_rejected))];
+    } elsif ($case eq 'accounting') {
+        my @windows = grep { ($_->{event} // '') eq 'accounting_window' } @$observed;
+        my @seen = grep { required($_, 'observed') } @windows;
+        my $window_ok = 1;
+        for my $event (@seen) {
+            next if required($event, 'peak_count') == 2 && required($event, 'peak_bytes') == 2 * required($event, 'single_bytes') &&
+                required($event, 'retirement_pending') == 1 && required($event, 'queued') == 1;
+            $window_ok = 0;
+            last;
+        }
+        push @$checks, ['two-generation-window-observed', @seen && $window_ok];
+        my $latest = @windows == 3 ? 1 : 0;
+        for my $event ($latest ? @windows : ()) {
+            next if required($event, 'generations') == 2 && required($event, 'sevr') eq 'NO_ALARM';
+            $latest = 0;
+            last;
+        }
+        push @$checks, ['two-generation-trials-latest-sent', $latest];
+        my ($limit) = grep { ($_->{event} // '') eq 'accounting_limit' } @$observed;
+        $limit ||= {};
+        push @$checks, ['count-limit-rejects-reprocess-synchronously', ($limit->{limited_generations} // -1) == 1 &&
+            ($limit->{limited_stat} // '') eq 'WRITE' && ($limit->{limited_sevr} // '') eq 'INVALID' && ($limit->{limited_pact} // -1) == 0];
+        push @$checks, ['raised-limit-admits-explicit-request', ($limit->{explicit_sevr} // '') eq 'NO_ALARM' &&
+            ($limit->{explicit_completions} // -1) == 1];
+        push @$observed, { event => 'accounting_summary', trials => scalar(@windows), window_observed => scalar(@seen) };
     } elsif ($case eq 'edges') {
         push @$checks, ['actual-input-edges', any_event($observed, 'input_edges', qw(precision_rejected binary_exact))];
         my $order = 0;
@@ -225,11 +286,23 @@ sub judge {
                            $listeners[0]{local} eq sprintf('0100007F:%04X', $port)];
         }
     }
+    # The fault proxies of the case, in the order of their start.
+    my @proxies = @{ $PROXIES{$case} || [] };
+    for my $name (@proxies) {
+        push @checks, ["$name:ready", read_file("$dir/$name.ready") =~ /^1/ ? 1 : 0] if -f "$dir/$name.ready";
+    }
     # The record test program.
     my @observed;
     my @libraries;
     my $judged = eval {
         -f "$dir/records.rc" or die "the record test program did not run\n";
+        if ($WINDOWS{$case}) {
+            # Without a receipt the hold did not run to its end: the check fails instead of being left out.
+            my $held = -f "$dir/records.retired.json" ? decode_json(read_file("$dir/records.retired.json")) : {};
+            push @checks, ['records:retired-hold', (!grep { !$held->{$_} } qw(attached held released detached)) && !$held->{error} &&
+                           !$held->{cleanup_error} && ($held->{activation} // -1) == 1 &&
+                           @{ $held->{windows_held} || [] } == $WINDOWS{$case} ? 1 : 0];
+        }
         my ($code, $forced) = split ' ', read_file("$dir/records.rc");
         push @checks, ['records:return', $code == 0 && !$forced];
         @observed = events(read_file("$dir/records.stdout"));
@@ -260,10 +333,11 @@ sub judge {
         $aborted = 1;
         write_file("$dir/abort.json", JSON::PP->new->canonical->pretty->encode({ message => "$judge_error" }));
     }
-    # The stop of the agent and the scan of the records.
-    if (-f "$dir/$AGENT.stop") {
-        my ($code, $forced) = split ' ', read_file("$dir/$AGENT.stop");
-        push @checks, ["$AGENT:normal-stop", $code == 0 && !$forced];
+    # The stop of the proxies, last started first, then of the agent, and the scan of the records.
+    for my $name (reverse(@proxies), $AGENT) {
+        next unless -f "$dir/$name.stop";
+        my ($code, $forced) = split ' ', read_file("$dir/$name.stop");
+        push @checks, ["$name:normal-stop", $code == 0 && !$forced];
     }
     my (@leaks, @diagnostics);
     opendir(my $dh, $dir) or die "cannot read $dir: $!\n";
@@ -282,11 +356,12 @@ sub judge {
         map({ "$ROOT/tests/rewrite/$_" } qw(test_records.bash records.pl RecordTest.cpp NativeAgent.cpp db/records.db db/record-output.db)),
         "$ROOT/dbd/snmp3RecordTest.dbd", map { "$products/$_" } qw(snmp3RecordTest snmp3NativeProbe snmp3Worker snmp3NativeAgent));
     push @inputs, map { "$ROOT/tests/rewrite/db/$_" } qw(record-edges.db record-order.db) if $case eq 'edges';
+    push @inputs, map { "$ROOT/tests/rewrite/helpers/$_" } qw(retired_hold.py runtime_thread_limit.py) if $WINDOWS{$case};
     my $failed = grep { !$_->[1] } @checks;
     my $passed = !$failed && !$aborted && @checks ? 1 : 0;
     my %result = (passed => $passed ? JSON::PP::true : JSON::PP::false, aborted => $aborted ? JSON::PP::true : JSON::PP::false,
         checks => [map { { name => $_->[0], passed => $_->[1] ? JSON::PP::true : JSON::PP::false } } @checks],
-        inputs => digests(@inputs), loaded_libraries => digests(@libraries, libraries("$dir/$AGENT.stderr")),
+        inputs => digests(@inputs), loaded_libraries => digests(@libraries, map { libraries("$dir/$_.stderr") } @proxies, $AGENT),
         scope => "Record case $case; qualifies this invocation only and does not close the full T1-T14 matrix");
     write_file("$dir/results.json", JSON::PP->new->canonical->pretty->encode(\%result));
     printf "%s %s\n", $_->[1] ? 'PASS' : 'FAIL', $_->[0] for @checks;
@@ -296,10 +371,11 @@ sub judge {
 
 sub main {
     my ($command, @arguments) = @_;
-    defined $command or die "usage: records.pl port|sockets|config|judge ...\n";
+    defined $command or die "usage: records.pl port|sockets|config|faultport|judge ...\n";
     return free_port() if $command eq 'port';
     return sockets(@arguments) if $command eq 'sockets';
     return config(@arguments) if $command eq 'config';
+    return fault_port(@arguments) if $command eq 'faultport';
     return judge(@arguments) if $command eq 'judge';
     die "unknown command $command\n";
 }

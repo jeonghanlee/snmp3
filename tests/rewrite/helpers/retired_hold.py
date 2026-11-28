@@ -6,7 +6,10 @@ import signal
 import struct
 import time
 
-from .runtime_thread_limit import ptrace, SyscallTracker, SYSCALL, TRACESYSGOOD
+try:
+    from .runtime_thread_limit import ptrace, SyscallTracker, SYSCALL, TRACESYSGOOD
+except ImportError:  # run as a script: the helpers directory is the first entry of sys.path
+    from runtime_thread_limit import ptrace, SyscallTracker, SYSCALL, TRACESYSGOOD
 
 SEIZE, INTERRUPT, DETACH = 0x4206, 0x4207, 17
 SENDTO, HEADER_BYTES = 44, 64
@@ -138,3 +141,48 @@ def hold(child, worker, marker, windows=1):
             except BaseException as error:
                 receipt["cleanup_error"] = type(error).__name__ + ": " + str(error)
     return receipt
+
+
+def main():
+    """Run a command and hold its worker's Retired sends.
+
+    --marker MARKER --worker WORKER --windows N --receipt FILE [--timeout SECONDS] -- COMMAND...
+    The command keeps the descriptors and the environment of this process. The receipt of `hold` is written to FILE.
+    The exit status is the one of the command; 124 when the command had to be killed after SECONDS."""
+    import argparse
+    import json
+    import subprocess
+    parser = argparse.ArgumentParser(description=main.__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--marker", required=True, type=Path)
+    parser.add_argument("--worker", required=True, type=Path)
+    parser.add_argument("--windows", required=True, type=int)
+    parser.add_argument("--receipt", required=True, type=Path)
+    parser.add_argument("--timeout", type=float, default=None)
+    parser.add_argument("argv", nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+    command = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
+    if not command or args.windows < 1:
+        parser.error("a command and a positive number of windows are required")
+    child = subprocess.Popen(command)
+    forced = False
+    try:
+        receipt = hold(child, args.worker, args.marker, args.windows)
+        args.receipt.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+        try:
+            code = child.wait(timeout=args.timeout)
+        except subprocess.TimeoutExpired:
+            forced = True
+            child.kill()
+            code = child.wait(timeout=10)
+    except BaseException:
+        if child.poll() is None:
+            child.kill()
+            child.wait()
+        raise
+    if forced:
+        return 124
+    return code if code >= 0 else 128 - code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

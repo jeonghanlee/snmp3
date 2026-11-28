@@ -133,6 +133,28 @@
       ],
       "also": [],
       "case": "edges"
+    },
+    {
+      "id": "R13",
+      "file": "tests/rewrite/helpers/retired_hold.py",
+      "old": "receipt.update(released=True, detached=True, released_ns=seen[\"released_ns\"])",
+      "new": "receipt.update(released=True, detached=False, released_ns=seen[\"released_ns\"])",
+      "intended": [
+        "records:retired-hold"
+      ],
+      "also": [],
+      "case": "accounting"
+    },
+    {
+      "id": "R14",
+      "file": "tests/rewrite/RecordTest.cpp",
+      "old": "\\\"explicit_sevr\\\":",
+      "new": "\\\"explicit_sev\\\":",
+      "intended": [
+        "raised-limit-admits-explicit-request"
+      ],
+      "also": [],
+      "case": "accounting"
     }
   ],
   "unproven": [
@@ -155,8 +177,21 @@
     {
       "check": "actual-normal-mode-native-publication and actual-max-payload-queue",
       "reason": "No mutant of this table. They are checks of the case edges."
+    },
+    {
+      "check": "active-response-delay:ready and active-response-drop:ready",
+      "reason": "No mutant of this table. They are checks of the fault proxies of the cell, not of the module."
+    },
+    {
+      "check": "active-response-drop:normal-stop and active-response-delay:normal-stop",
+      "reason": "No mutant of this table."
+    },
+    {
+      "check": "two-generation-window-observed, two-generation-trials-latest-sent and count-limit-rejects-reprocess-synchronously",
+      "reason": "No mutant of this table. They are checks of the case accounting."
     }
   ],
   "predictions_written": "2026-11-27T16:07Z, before any mutant of the series was built",
-  "predictions_written_R7_to_R12": "2026-11-27T17:47Z, before any mutant of the rows R7 to R12 was built"
+  "predictions_written_R7_to_R12": "2026-11-27T17:47Z, before any mutant of the rows R7 to R12 was built",
+  "predictions_written_R13_to_R14": "2026-11-27T22:56Z"
 }
