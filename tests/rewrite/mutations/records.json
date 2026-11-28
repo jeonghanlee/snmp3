@@ -186,6 +186,32 @@
       ],
       "also": [],
       "case": "near-deadline"
+    },
+    {
+      "id": "R17",
+      "file": "tests/rewrite/helpers/retired_hold.py",
+      "old": "receipt.update(released=True, detached=True, released_ns=seen[\"released_ns\"])",
+      "new": "receipt.update(released=True, detached=False, released_ns=seen[\"released_ns\"])",
+      "intended": [
+        "records-sample-1:retired-hold",
+        "records-sample-2:retired-hold",
+        "records-sample-3:retired-hold",
+        "records-below:retired-hold",
+        "records-above:retired-hold"
+      ],
+      "also": [],
+      "case": "deadline-queue"
+    },
+    {
+      "id": "R18",
+      "file": "tests/rewrite/RecordTest.cpp",
+      "old": "followAmsg=rec->amsg;",
+      "new": "followAmsg=\"stale\";",
+      "intended": [
+        "followup-after-never-sent-has-no-stale-message"
+      ],
+      "also": [],
+      "case": "deadline-queue"
     }
   ],
   "unproven": [
@@ -232,10 +258,31 @@
     {
       "check": "records-near-{14,16,18,20,22}ms-{1,2}:return (ten checks)",
       "reason": "No mutant of this table. Only a failing check inside the C++ test program makes each of them fail, and a row that only the C++ test bodies can kill is not counted as proof of the move."
+    },
+    {
+      "check": "queue-response-drop:ready and queue-response-drop:normal-stop",
+      "reason": "No mutant of this table. They are checks of the fault proxy of the cell, not of the module."
+    },
+    {
+      "check": "records-sample-{1,2,3}:return, records-below:return and records-above:return (five checks)",
+      "reason": "No mutant of this table. Only a failing check inside the C++ test program makes each of them fail, and a row that only the C++ test bodies can kill is not counted as proof of the move."
+    },
+    {
+      "check": "deadline-threshold-sampled",
+      "reason": "No mutant of this table. It counts the sampling executions that measured a relaunch interval, so a change that stops the measurement fails it; no row is aimed at that."
+    },
+    {
+      "check": "deadline-trials-completed",
+      "reason": "No mutant of this table. It is a count of the executions of the cell."
+    },
+    {
+      "check": "below-threshold-queued-generation-not-sent, below-threshold-never-sent-message, queue-report-counters, threshold-over-every-relaunch, put-to-dispatch-within-late-application-bound, sent-deadline-without-never-sent-message and above-threshold-queued-generation-sent-after-ready",
+      "reason": "No mutant of this table. The two rows of the case deadline-queue are aimed at the hold and at the check of the follow-up message."
     }
   ],
   "predictions_written": "2026-11-27T16:07Z, before any mutant of the series was built",
   "predictions_written_R7_to_R12": "2026-11-27T17:47Z, before any mutant of the rows R7 to R12 was built",
   "predictions_written_R13_to_R14": "2026-11-27T22:56Z",
-  "predictions_written_R15_to_R16": "2026-11-28T03:31Z"
+  "predictions_written_R15_to_R16": "2026-11-28T03:31Z",
+  "predictions_written_R17_to_R18": "2026-11-28T07:04Z"
 }

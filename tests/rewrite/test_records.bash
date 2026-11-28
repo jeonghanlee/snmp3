@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Record cell: runs the record test program (snmp3RecordTest, with the actual DSET, the callback path, the worker and the native
 # library) against a fixture agent on a loopback port, and records.pl judges what they produced. The cases baseline, shutdown,
-# queued-shutdown, edges, accounting and near-deadline are moved so far; the other cases of the former harness test_records.py still run there. The cell starts the
-# fixture agent and the fault proxies of the case, writes the configuration, runs the program (through retired_hold.py when the case
-# holds the Retired send of the worker), stops the proxies and the agent and judges.
+# queued-shutdown, edges, accounting, near-deadline and deadline-queue are moved so far; the other cases of the former harness
+# test_records.py still run there. The cell starts the fixture agent and the fault proxies of the case, writes the configuration,
+# runs the program (through retired_hold.py when the case holds the Retired send of the worker), stops the proxies and the agent
+# and judges.
 # usage: test_records.bash --output NEW_DIRECTORY [--products DIRECTORY] [--sanitizers] [--case CASE]
 # exit status: 0 every check passed, 1 a check failed, 2 the cell could not be judged (a case that is not moved is refused)
 
@@ -20,14 +21,17 @@ readonly AGENT_NAME="agent-ipv4-1"
 readonly READY_SECONDS=5
 readonly STOP_SECONDS=8
 readonly PROCESS_SECONDS=30
-readonly -a CASES=(baseline shutdown queued-shutdown edges accounting near-deadline)
+readonly -a CASES=(baseline shutdown queued-shutdown edges accounting near-deadline deadline-queue)
 readonly -a PROXY_SPECS_ACCOUNTING=("active-response-delay delay 750" "active-response-drop drop-all")
 readonly ACCOUNTING_WINDOWS=7
 readonly -a PROXY_SPECS_NEAR=("near-response-delay delay 300")
 readonly NEAR_DELAY_MS=300
 readonly -a NEAR_MARGINS_MS=(14 16 18 20 22)
 readonly NEAR_REPEATS=2
-readonly NEAR_PROCESS_SECONDS=180
+readonly -a PROXY_SPECS_DEADLINE=("queue-response-drop drop-all")
+readonly DEADLINE_SAMPLES=3
+readonly DEADLINE_SAMPLE_BUDGET_MS=1000
+readonly QUEUE_PROCESS_SECONDS=180
 
 OUTPUT=""
 PRODUCTS="${ROOT}/bin/${ARCH}"
@@ -175,6 +179,7 @@ function start_proxies {
     case "${case}" in
         accounting) specs=("${PROXY_SPECS_ACCOUNTING[@]}") ;;
         near-deadline) specs=("${PROXY_SPECS_NEAR[@]}") ;;
+        deadline-queue) specs=("${PROXY_SPECS_DEADLINE[@]}") ;;
     esac
     for spec in "${specs[@]}"; do
         # shellcheck disable=SC2086
@@ -233,12 +238,46 @@ function run_near {
         for margin in "${NEAR_MARGINS_MS[@]}"; do
             tag="records-near-${margin}ms-${repeat}"
             status=0
-            run_held "${tag}" "${OUTPUT}/hold-near-${margin}ms-${repeat}" 1 "${NEAR_PROCESS_SECONDS}" near-deadline \
+            run_held "${tag}" "${OUTPUT}/hold-near-${margin}ms-${repeat}" 1 "${QUEUE_PROCESS_SECONDS}" near-deadline \
                 "SNMP3_RECORD_DELAY_TRACE=${OUTPUT}/near-response-delay.stdout" "SNMP3_RECORD_QUEUE_BINDING=NearFloatWrite" \
                 "SNMP3_RECORD_BUDGET_MS=$((NEAR_DELAY_MS + margin))" || status=$?
             write_rc "${tag}" "${status}"
         done
     done
+}
+
+# The number of lines that the fault proxy queue-response-drop has written so far.
+function queue_proxy_lines {
+    local path="${OUTPUT}/queue-response-drop.stdout" lines=0
+    [[ ! -f "${path}" ]] || lines="$(wc -l < "${path}")"
+    printf "%s\n" "${lines}"
+}
+
+# One execution of the program for the case deadline-queue, with the record budget BUDGET (ms) and the trial name TRIAL, and with one
+# held Retired send. The lines of the fault proxy before and after it go to OUTPUT/TAG.proxy-lines, so that the judge counts the SET
+# requests that the proxy traced during it.
+# usage: run_queue_trial TAG TRIAL BUDGET
+function run_queue_trial {
+    local tag="$1" trial="$2" budget="$3" before after status=0
+    before="$(queue_proxy_lines)"
+    run_held "${tag}" "${OUTPUT}/hold-${tag#records-}" 1 "${QUEUE_PROCESS_SECONDS}" deadline-queue \
+        "SNMP3_RECORD_DELAY_TRACE=${OUTPUT}/queue-response-drop.stdout" "SNMP3_RECORD_QUEUE_BINDING=QueueFloatWrite" \
+        "SNMP3_RECORD_BUDGET_MS=${budget}" "SNMP3_RECORD_TRIAL=${trial}" || status=$?
+    write_rc "${tag}" "${status}"
+    after="$(queue_proxy_lines)"
+    printf "%s %s\n" "${before}" "${after}" > "${OUTPUT}/${tag}.proxy-lines"
+}
+
+# The case deadline-queue: three executions that sample the relaunch of the worker after its containment, then one with a budget below
+# and one with a budget above the interval that they measured. The judge computes the two budgets from the output of the samples.
+function run_deadline {
+    local sample below above
+    for ((sample = 1; sample <= DEADLINE_SAMPLES; sample++)); do
+        run_queue_trial "records-sample-${sample}" "sample-${sample}" "${DEADLINE_SAMPLE_BUDGET_MS}"
+    done
+    read -r below above < <(perl "${JUDGE}" budgets "${OUTPUT}") || die "cannot read the budgets of the trials"
+    run_queue_trial records-below below "${below}"
+    run_queue_trial records-above above "${above}"
 }
 
 # Runs one case. Sets the status that the judge returns in CASE_STATUS.
@@ -248,11 +287,11 @@ function run_case {
     if start_agent && start_proxies "${case}"; then
         port="$(< "${OUTPUT}/${AGENT_NAME}.port")"
         perl "${JUDGE}" config "${OUTPUT}" "${port}" "${case}" || die "cannot write the configuration"
-        if [[ "${case}" == near-deadline ]]; then
-            run_near
-        else
-            run_program "${case}"
-        fi
+        case "${case}" in
+            near-deadline) run_near ;;
+            deadline-queue) run_deadline ;;
+            *) run_program "${case}" ;;
+        esac
     else
         aborted=1
     fi

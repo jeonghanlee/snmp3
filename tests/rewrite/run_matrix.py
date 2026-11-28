@@ -56,7 +56,7 @@ RECORD_CASES = ("baseline scan-proc alarm-flow chain-flow queued-simm boundaries
                 "near-deadline rebuild stop-inflight stop-enqueue-failed stop-downstream live-detach repeat-detach "
                 "contract stale-record final-clauses wake-loop").split()
 # The cases that test_records.bash runs; the other cases run in test_records.py.
-MOVED_RECORD_CASES = ("baseline", "shutdown", "queued-shutdown", "edges", "accounting", "near-deadline")
+MOVED_RECORD_CASES = ("baseline", "shutdown", "queued-shutdown", "edges", "accounting", "near-deadline", "deadline-queue")
 
 
 def sha256(path):

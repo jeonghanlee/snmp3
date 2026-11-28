@@ -566,7 +566,7 @@ bash tests/rewrite/test_records.bash --case queued-shutdown --output work/r6-que
 python3 tests/rewrite/test_records.py --case stop-queued --output work/r6-stop-queued
 python3 tests/rewrite/test_records.py --case active-unforced --output work/r6-unforced
 bash tests/rewrite/test_records.bash --case accounting --output work/r6-accounting
-python3 tests/rewrite/test_records.py --case deadline-queue --output work/r6-deadline-queue
+bash tests/rewrite/test_records.bash --case deadline-queue --output work/r6-deadline-queue
 bash tests/rewrite/test_records.bash --case near-deadline --output work/r6-near-deadline
 python3 tests/rewrite/test_records.py --case rebuild --output work/r6-rebuild
 python3 tests/rewrite/test_records.py --case stop-inflight --output work/r6-stop-inflight

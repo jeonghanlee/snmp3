@@ -1,12 +1,14 @@
 #!/usr/bin/env perl
 # Judge and helper of the record cell. test_records.bash keeps what the fixture agent and the record test program produced in the
 # output directory (OUT); this script writes the configuration and judges. The cases baseline, shutdown, queued-shutdown, edges,
-# accounting and near-deadline are moved so far.
+# accounting, near-deadline and deadline-queue are moved so far.
 #   records.pl port                  print a free UDP port of the loopback address
 #   records.pl sockets PID PORT OUT  write the sockets that the process holds as JSON to OUT
 #   records.pl config OUT PORT CASE  write OUT/records.json for the agent on PORT and, for a case with fault proxies, for the
 #                                    ports that OUT/NAME.port holds
 #   records.pl faultport FILE        print the port that the fault proxy announced in FILE (exit 1 when it announced none)
+#   records.pl budgets OUT           print the budgets (ms) of the trials below and above the threshold that the three sampling
+#                                    executions of the case deadline-queue measured
 #   records.pl judge OUT CASE        judge a case, write OUT/results.json, print one line for each check and the verdict;
 #                                    exit 0 (every check passed) or 1
 # Exit status 2: the observations could not be read.
@@ -20,22 +22,27 @@ use Cwd qw(abs_path);
 use File::Basename qw(dirname);
 use IO::Socket::INET;
 use JSON::PP;
+use List::Util qw(max min);
 
 my $ROOT = abs_path(dirname(__FILE__) . '/../..');
-my @CASES = qw(baseline shutdown queued-shutdown edges accounting near-deadline);
+my @CASES = qw(baseline shutdown queued-shutdown edges accounting near-deadline deadline-queue);
 my $AGENT = 'agent-ipv4-1';
 # The fault proxies that a case starts after the agent, in the order of their start, and the windows of the Retired send that
 # the case holds.
-my %PROXIES = (accounting => [qw(active-response-delay active-response-drop)], 'near-deadline' => [qw(near-response-delay)]);
-my %WINDOWS = (accounting => 7, 'near-deadline' => 1);
+my %PROXIES = (accounting => [qw(active-response-delay active-response-drop)], 'near-deadline' => [qw(near-response-delay)],
+               'deadline-queue' => [qw(queue-response-drop)]);
+my %WINDOWS = (accounting => 7, 'near-deadline' => 1, 'deadline-queue' => 1);
 # The cases that hold the Retired send and judge that the held batch has exactly this size (the others accept any size).
-my %BATCH = ('near-deadline' => 1);
+my %BATCH = ('near-deadline' => 1, 'deadline-queue' => 1);
 # The case near-deadline runs the program once for each margin (ms) and each repeat, the repeats being the outer loop.
 my @NEAR_MARGINS = (14, 16, 18, 20, 22);
 my $NEAR_REPEATS = 2;
 my $NEAR_DELAY_MS = 300;
+# The case deadline-queue runs the program for the samples of the relaunch, then below and above the interval that they measured.
+my $DEADLINE_TRIALS = 3;
+my $NATIVE_TIMEOUT_MS = 10000;
 # The cases that skip the checks of the baseline and pressure phases (the queue cases check their records trial by trial).
-my %SKIP_SHARED = ('near-deadline' => 1);
+my %SKIP_SHARED = ('near-deadline' => 1, 'deadline-queue' => 1);
 
 # The bindings of the case: name, object index, operation, value type, capacity.
 my @SPECS = (['IntegerRead', 1, 'get', 'integer', 1], ['Counter32Read', 2, 'get', 'counter32', 1],
@@ -141,6 +148,13 @@ sub config {
         push @bindings, { id => 'NearFloatWrite', endpoint => 'NearDelayed', oid => '1.3.6.1.4.1.53864.4.9.0', operation => 'set',
                           valueType => 'opaqueFloat', capacity => 1 };
     }
+    if ($case eq 'deadline-queue') {
+        my ($dropped) = map { (split ' ', read_file("$dir/$_.port"))[0] + 0 } @{ $PROXIES{$case} };
+        push @profiles, { %local, id => 'Slow', timeoutMs => $NATIVE_TIMEOUT_MS };
+        push @endpoints, { id => 'QueueDropped', address => '127.0.0.1', port => $dropped, profile => 'Slow' };
+        push @bindings, { id => 'QueueFloatWrite', endpoint => 'QueueDropped', oid => '1.3.6.1.4.1.53864.4.9.0', operation => 'set',
+                          valueType => 'opaqueFloat', capacity => 1 };
+    }
     write_file("$dir/records.json", JSON::PP->new->canonical->pretty->encode({ schema => 1, profiles => \@profiles,
         endpoints => \@endpoints, bindings => \@bindings }));
     return 0;
@@ -219,8 +233,103 @@ sub count_events {
 # The names of the executions of the program in the order of their start, each the prefix of its files in OUT.
 sub run_tags {
     my ($case) = @_;
+    if ($case eq 'deadline-queue') {
+        return ((map { "records-sample-$_" } 1 .. $DEADLINE_TRIALS), 'records-below', 'records-above');
+    }
     return 'records' unless $case eq 'near-deadline';
     return map { my $repeat = $_; map { "records-near-${_}ms-$repeat" } @NEAR_MARGINS } 1 .. $NEAR_REPEATS;
+}
+
+# The interval of a deadline trial from the admission of the second generation, or from the deadline when the admission was not
+# measured (0 when neither was).
+sub relaunch_interval {
+    my ($event) = @_;
+    return required($event, 'admission_to_ready_us') || required($event, 'deadline_to_ready_us');
+}
+
+# The intervals of the deadline trials among the events that were measured (a trial without an interval leaves none).
+sub measured_intervals {
+    my (@events) = @_;
+    return grep { $_ } map { relaunch_interval($_) } grep { ($_->{event} // '') eq 'deadline_queue' } @events;
+}
+
+# The budgets (ms) of the trial below and of the trial above the interval that the sampling executions measured: half of the
+# smallest and twice the largest, and at least 1.
+sub deadline_budgets {
+    my ($dir) = @_;
+    my @samples = measured_intervals(map { events(read_file("$dir/records-sample-$_.stdout")) } 1 .. $DEADLINE_TRIALS);
+    my ($low, $high) = @samples ? (min(@samples), max(@samples)) : (0, 0);
+    return (max(1, int($low / 2000)), max(1, int($high * 2 / 1000)));
+}
+
+sub budgets {
+    my ($dir) = @_;
+    defined $dir && -d $dir or die "usage: records.pl budgets OUT\n";
+    printf "%d %d\n", deadline_budgets($dir);
+    return 0;
+}
+
+# How many SET requests (command 163) the fault proxy traced between the two line counts that the driver took around the
+# execution TAG.
+sub proxy_sets {
+    my ($dir, $tag, $name) = @_;
+    -f "$dir/$tag.proxy-lines" or die "the lines of the fault proxy around $tag were not kept\n";
+    my ($before, $after) = split ' ', read_file("$dir/$tag.proxy-lines");
+    my @lines = split /\n/, read_file("$dir/$name.stdout");
+    my $count = 0;
+    for my $index ($before .. $after - 1) {
+        my $line = $lines[$index];
+        next unless defined $line && substr($line, 0, 1) eq '{';
+        my $event = eval { JSON::PP->new->utf8->decode($line) };
+        next unless ref $event eq 'HASH' && ($event->{event} // '') eq 'fault_request' && ($event->{command} // -1) == 163;
+        $count++;
+    }
+    return $count;
+}
+
+# The three counters of the first "snmp3 queue:" report line of an execution (the empty list when it printed none).
+sub queue_counters {
+    my ($path) = @_;
+    for my $line (split /\n/, read_file($path)) {
+        return ($1 + 0, $2 + 0, $3 + 0)
+            if $line =~ /^snmp3 queue: .* behindRetirement=(\d+) behindAdmitted=(\d+) behindNeverSent=(\d+)$/;
+    }
+    return ();
+}
+
+# What the case deadline-queue adds to the events of one execution: the SET requests that the proxy traced during it and, for
+# the trials below and above, the budget that the driver gave it.
+sub annotate_deadline {
+    my ($run, $dir, $tag) = @_;
+    my $sets = proxy_sets($dir, $tag, $PROXIES{'deadline-queue'}[0]);
+    my $budget = $tag eq 'records-below' ? (deadline_budgets($dir))[0] : $tag eq 'records-above' ? (deadline_budgets($dir))[1] : undef;
+    for my $event (grep { ($_->{event} // '') eq 'deadline_queue' } @$run) {
+        $event->{proxy_sets} = $sets;
+        $event->{budget_ms} = $budget if defined $budget;
+    }
+    return;
+}
+
+# After the last sampling execution: the check of the samples and the event with their threshold.
+sub deadline_threshold {
+    my ($checks, $observed) = @_;
+    my @samples = measured_intervals(@$observed);
+    push @$checks, ['deadline-threshold-sampled', @samples == $DEADLINE_TRIALS ? 1 : 0];
+    my ($low, $high) = @samples ? (min(@samples), max(@samples)) : (0, 0);
+    push @$observed, { event => 'deadline_threshold', trials => $DEADLINE_TRIALS, samples_us => \@samples,
+                       minimum_us => $low, maximum_us => $high };
+    return;
+}
+
+# After the last execution: the event with every relaunch that the case measured, sampling and budget trials alike.
+sub deadline_all_relaunches {
+    my ($observed) = @_;
+    my ($threshold) = grep { ($_->{event} // '') eq 'deadline_threshold' } @$observed;
+    my @relaunches = (@{ $threshold->{samples_us} || [] },
+        measured_intervals(grep { ($_->{trial} // '') =~ /^(?:below|above)\z/ } @$observed));
+    push @$observed, { event => 'deadline_threshold_all', trials => scalar(@relaunches), samples_us => \@relaunches,
+                       minimum_us => @relaunches ? min(@relaunches) : 0, maximum_us => @relaunches ? max(@relaunches) : 0 };
+    return;
 }
 
 # True when the receipt of the hold shows a hold that ran to its end with the windows of the case. Without a receipt the hold did
@@ -235,7 +344,7 @@ sub hold_ok {
 
 # The checks that the former harness adds for a case after the checks that every case shares.
 sub case_checks {
-    my ($checks, $case, $observed) = @_;
+    my ($checks, $case, $observed, $dir) = @_;
     if ($case eq 'shutdown') {
         push @$checks, ['actual-blocked-shutdown', any_event($observed, 'blocked_shutdown', qw(waited_for_entered restart_rejected))];
     } elsif ($case eq 'queued-shutdown') {
@@ -284,6 +393,55 @@ sub case_checks {
             last;
         }
         push @$checks, ['near-deadline-grace-exercised-in-every-early-trial', $early];
+    } elsif ($case eq 'deadline-queue') {
+        my (%trials, @order);
+        for my $event (grep { ($_->{event} // '') eq 'deadline_queue' } @$observed) {
+            my $trial = required($event, 'trial');
+            push @order, $trial unless exists $trials{$trial};
+            $trials{$trial} = $event;
+        }
+        my @summaries = grep { ($_->{event} // '') eq 'record_summary' } @$observed;
+        push @$checks, ['deadline-trials-completed', @summaries == $DEADLINE_TRIALS + 2 ? 1 : 0];
+        my $below = $trials{below} || {};
+        my $above = $trials{above} || {};
+        # The proxy sees the first SET and the follow-up SET; the queued second generation is never sent.
+        push @$checks, ['below-threshold-queued-generation-not-sent', ($below->{generation} // -1) == 2 &&
+            !$below->{second_dispatched} && ($below->{proxy_sets} // -1) == 2 && ($below->{stat} // '') eq 'COMM' &&
+            ($below->{sevr} // '') eq 'INVALID'];
+        push @$checks, ['below-threshold-never-sent-message', ($below->{amsg} // '') eq 'deadline before send'];
+        # (behindRetirement, behindAdmitted, behindNeverSent): the queued generation was admitted behind its predecessor in both
+        # trials and expired unsent only below the threshold.
+        push @$checks, ['queue-report-counters', join(',', queue_counters("$dir/records-below.stdout")) eq '0,1,1' &&
+            join(',', queue_counters("$dir/records-above.stdout")) eq '0,1,0'];
+        my ($all) = grep { ($_->{event} // '') eq 'deadline_threshold_all' } @$observed;
+        $all ||= {};
+        my @listed = @{ $all->{samples_us} || [] };
+        my @measured = map { relaunch_interval($_) } grep { ($_->{event} // '') eq 'deadline_queue' } @$observed;
+        push @$checks, ['threshold-over-every-relaunch', ($all->{trials} // -1) == $DEADLINE_TRIALS + 2 &&
+            join(',', sort { $a <=> $b } @listed) eq join(',', sort { $a <=> $b } @measured) && @listed &&
+            ($all->{minimum_us} // -1) == min(@listed) && ($all->{maximum_us} // -1) == max(@listed) &&
+            ($below->{budget_ms} // 0) * 1000 < ($all->{minimum_us} // 0) && ($above->{budget_ms} // 0) * 1000 > ($all->{maximum_us} // 0)];
+        # A successor keeps the deadline of its own admission, so after the operator's put it can be dispatched at most two budgets
+        # later, plus the callback delay between the predecessor's deadline and its completion.
+        my @dispatched = grep { $_->{second_dispatched} } map { $trials{$_} } @order;
+        my $bound = @dispatched >= 1 ? 1 : 0;
+        for my $event ($bound ? @dispatched : ()) {
+            next if required($event, 'first_admitted_us') < required($event, 'put_at_us') &&
+                required($event, 'put_to_dispatch_us') == required($event, 'dispatched_us') - required($event, 'put_at_us') &&
+                0 < required($event, 'put_to_dispatch_us') &&
+                required($event, 'put_to_dispatch_us') <= 2 * required($event, 'budget_ms') * 1000 +
+                    max(0, required($event, 'admitted_us') - (required($event, 'first_admitted_us') + required($event, 'budget_ms') * 1000));
+            $bound = 0;
+            last;
+        }
+        push @$checks, ['put-to-dispatch-within-late-application-bound', $bound];
+        push @$checks, ['followup-after-never-sent-has-no-stale-message', ($below->{followup_generation} // -1) == 3 &&
+            ($below->{followup_stat} // '') eq 'COMM' && defined $below->{followup_amsg} && $below->{followup_amsg} eq ''];
+        push @$checks, ['sent-deadline-without-never-sent-message', @dispatched >= 1 &&
+            !grep { ($_->{amsg} // '') eq 'deadline before send' } @dispatched];
+        push @$checks, ['above-threshold-queued-generation-sent-after-ready', ($above->{generation} // -1) == 2 &&
+            $above->{second_dispatched} && ($above->{proxy_sets} // -1) == 2 && ($above->{stat} // '') eq 'COMM' &&
+            ($above->{sevr} // '') eq 'INVALID'];
     } elsif ($case eq 'edges') {
         push @$checks, ['actual-input-edges', any_event($observed, 'input_edges', qw(precision_rejected binary_exact))];
         my $order = 0;
@@ -355,8 +513,11 @@ sub judge {
             if ($tag =~ /^records-near-(\d+)ms-\d+\z/) {
                 $_->{margin_ms} = $1 + 0 for grep { ($_->{event} // '') eq 'near_deadline' } @run;
             }
+            annotate_deadline(\@run, $dir, $tag) if $case eq 'deadline-queue';
             push @observed, @run;
+            deadline_threshold(\@checks, \@observed) if $case eq 'deadline-queue' && $tag eq "records-sample-$DEADLINE_TRIALS";
         }
+        deadline_all_relaunches(\@observed) if $case eq 'deadline-queue';
         unless ($SKIP_SHARED{$case}) {
             my ($summary) = grep { ($_->{event} // '') eq 'record_summary' } @observed;
             $summary ||= {};
@@ -375,7 +536,7 @@ sub judge {
             my %records = map { (defined $_->{record} ? $_->{record} : "\0absent") => 1 } @pressure;
             push @checks, ['actual-GET-and-SET-pressure', join(',', sort keys %records) eq 'Records_Ao,Records_Longin'];
         }
-        case_checks(\@checks, $case, \@observed);
+        case_checks(\@checks, $case, \@observed, $dir);
         @libraries = libraries("$dir/$tags[-1].stderr");
         push @checks, ['IOC-native-free', @libraries && !grep { index($_, 'netsnmp') >= 0 } @libraries];
         write_file("$dir/record-observations.json", JSON::PP->new->canonical->pretty->encode(\@observed));
@@ -409,7 +570,8 @@ sub judge {
         map({ "$ROOT/tests/rewrite/$_" } qw(test_records.bash records.pl RecordTest.cpp NativeAgent.cpp db/records.db db/record-output.db)),
         "$ROOT/dbd/snmp3RecordTest.dbd", map { "$products/$_" } qw(snmp3RecordTest snmp3NativeProbe snmp3Worker snmp3NativeAgent));
     push @inputs, map { "$ROOT/tests/rewrite/db/$_" } qw(record-edges.db record-order.db) if $case eq 'edges';
-    push @inputs, "$ROOT/tests/rewrite/db/record-queue.db", "$ROOT/tests/rewrite/helpers/udp_fault.py" if $case eq 'near-deadline';
+    push @inputs, "$ROOT/tests/rewrite/db/record-queue.db", "$ROOT/tests/rewrite/helpers/udp_fault.py"
+        if $case eq 'near-deadline' || $case eq 'deadline-queue';
     push @inputs, map { "$ROOT/tests/rewrite/helpers/$_" } qw(retired_hold.py runtime_thread_limit.py) if $WINDOWS{$case};
     my $failed = grep { !$_->[1] } @checks;
     my $passed = !$failed && !$aborted && @checks ? 1 : 0;
@@ -425,11 +587,12 @@ sub judge {
 
 sub main {
     my ($command, @arguments) = @_;
-    defined $command or die "usage: records.pl port|sockets|config|faultport|judge ...\n";
+    defined $command or die "usage: records.pl port|sockets|config|faultport|budgets|judge ...\n";
     return free_port() if $command eq 'port';
     return sockets(@arguments) if $command eq 'sockets';
     return config(@arguments) if $command eq 'config';
     return fault_port(@arguments) if $command eq 'faultport';
+    return budgets(@arguments) if $command eq 'budgets';
     return judge(@arguments) if $command eq 'judge';
     die "unknown command $command\n";
 }
