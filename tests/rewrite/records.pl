@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 # Judge and helper of the record cell. test_records.bash keeps what the fixture agent and the record test program produced in the
-# output directory (OUT); this script writes the configuration and judges. The cases baseline, shutdown, queued-shutdown and edges
-# and accounting are moved so far.
+# output directory (OUT); this script writes the configuration and judges. The cases baseline, shutdown, queued-shutdown, edges,
+# accounting and near-deadline are moved so far.
 #   records.pl port                  print a free UDP port of the loopback address
 #   records.pl sockets PID PORT OUT  write the sockets that the process holds as JSON to OUT
 #   records.pl config OUT PORT CASE  write OUT/records.json for the agent on PORT and, for a case with fault proxies, for the
@@ -22,12 +22,20 @@ use IO::Socket::INET;
 use JSON::PP;
 
 my $ROOT = abs_path(dirname(__FILE__) . '/../..');
-my @CASES = qw(baseline shutdown queued-shutdown edges accounting);
+my @CASES = qw(baseline shutdown queued-shutdown edges accounting near-deadline);
 my $AGENT = 'agent-ipv4-1';
 # The fault proxies that a case starts after the agent, in the order of their start, and the windows of the Retired send that
 # the case holds.
-my %PROXIES = (accounting => [qw(active-response-delay active-response-drop)]);
-my %WINDOWS = (accounting => 7);
+my %PROXIES = (accounting => [qw(active-response-delay active-response-drop)], 'near-deadline' => [qw(near-response-delay)]);
+my %WINDOWS = (accounting => 7, 'near-deadline' => 1);
+# The cases that hold the Retired send and judge that the held batch has exactly this size (the others accept any size).
+my %BATCH = ('near-deadline' => 1);
+# The case near-deadline runs the program once for each margin (ms) and each repeat, the repeats being the outer loop.
+my @NEAR_MARGINS = (14, 16, 18, 20, 22);
+my $NEAR_REPEATS = 2;
+my $NEAR_DELAY_MS = 300;
+# The cases that skip the checks of the baseline and pressure phases (the queue cases check their records trial by trial).
+my %SKIP_SHARED = ('near-deadline' => 1);
 
 # The bindings of the case: name, object index, operation, value type, capacity.
 my @SPECS = (['IntegerRead', 1, 'get', 'integer', 1], ['Counter32Read', 2, 'get', 'counter32', 1],
@@ -126,6 +134,13 @@ sub config {
                         { %$float, id => 'RetryFloatWrite', endpoint => 'Dropped' },
                         { %$float, id => 'NativeRetryFloatWrite', endpoint => 'NativeRetry' };
     }
+    if ($case eq 'near-deadline') {
+        my ($delayed) = map { (split ' ', read_file("$dir/$_.port"))[0] + 0 } @{ $PROXIES{$case} };
+        push @profiles, { %local, id => 'Near', timeoutMs => 5 * $NEAR_DELAY_MS };
+        push @endpoints, { id => 'NearDelayed', address => '127.0.0.1', port => $delayed, profile => 'Near' };
+        push @bindings, { id => 'NearFloatWrite', endpoint => 'NearDelayed', oid => '1.3.6.1.4.1.53864.4.9.0', operation => 'set',
+                          valueType => 'opaqueFloat', capacity => 1 };
+    }
     write_file("$dir/records.json", JSON::PP->new->canonical->pretty->encode({ schema => 1, profiles => \@profiles,
         endpoints => \@endpoints, bindings => \@bindings }));
     return 0;
@@ -201,6 +216,23 @@ sub count_events {
     return scalar(grep { ($_->{event} // '') eq $kind && $_->{$field} } @$observed);
 }
 
+# The names of the executions of the program in the order of their start, each the prefix of its files in OUT.
+sub run_tags {
+    my ($case) = @_;
+    return 'records' unless $case eq 'near-deadline';
+    return map { my $repeat = $_; map { "records-near-${_}ms-$repeat" } @NEAR_MARGINS } 1 .. $NEAR_REPEATS;
+}
+
+# True when the receipt of the hold shows a hold that ran to its end with the windows of the case. Without a receipt the hold did
+# not run to its end, and the check fails instead of being left out.
+sub hold_ok {
+    my ($dir, $tag, $case) = @_;
+    my $held = -f "$dir/$tag.retired.json" ? decode_json(read_file("$dir/$tag.retired.json")) : {};
+    return (!grep { !$held->{$_} } qw(attached held released detached)) && !$held->{error} && !$held->{cleanup_error} &&
+           ($held->{activation} // -1) == 1 && @{ $held->{windows_held} || [] } == $WINDOWS{$case} &&
+           (!defined $BATCH{$case} || ($held->{batch} // 0) == $BATCH{$case}) ? 1 : 0;
+}
+
 # The checks that the former harness adds for a case after the checks that every case shares.
 sub case_checks {
     my ($checks, $case, $observed) = @_;
@@ -234,6 +266,24 @@ sub case_checks {
         push @$checks, ['raised-limit-admits-explicit-request', ($limit->{explicit_sevr} // '') eq 'NO_ALARM' &&
             ($limit->{explicit_completions} // -1) == 1];
         push @$observed, { event => 'accounting_summary', trials => scalar(@windows), window_observed => scalar(@seen) };
+    } elsif ($case eq 'near-deadline') {
+        my @trials = grep { ($_->{event} // '') eq 'near_deadline' } @$observed;
+        push @$checks, ['near-deadline-trials-completed', @trials == @NEAR_MARGINS * $NEAR_REPEATS ? 1 : 0];
+        my $contained = scalar(grep { required($_, 'contained_after_result') } @trials);
+        my $exercised = scalar(grep { required($_, 'grace_exercised') } @trials);
+        push @$observed, { event => 'near_deadline_summary', trials => scalar(@trials), contained_after_result => $contained,
+                           status => $contained ? 'observed' : 'not observed', grace_exercised => $exercised,
+                           grace_status => $exercised ? 'run' : 'not run' };
+        # The Retired send is held past the budget, so every trial whose result was judged before the budget exercises the
+        # grace and none is contained after its success.
+        my @before = grep { required($_, 'decision_us') && required($_, 'decision_us') < required($_, 'deadline_us') } @trials;
+        my $early = @before ? 1 : 0;
+        for my $event ($early ? @before : ()) {
+            next if required($event, 'grace_exercised') && !required($event, 'contained_after_result');
+            $early = 0;
+            last;
+        }
+        push @$checks, ['near-deadline-grace-exercised-in-every-early-trial', $early];
     } elsif ($case eq 'edges') {
         push @$checks, ['actual-input-edges', any_event($observed, 'input_edges', qw(precision_rejected binary_exact))];
         my $order = 0;
@@ -294,36 +344,39 @@ sub judge {
     # The record test program.
     my @observed;
     my @libraries;
+    my @tags = run_tags($case);
     my $judged = eval {
-        -f "$dir/records.rc" or die "the record test program did not run\n";
-        if ($WINDOWS{$case}) {
-            # Without a receipt the hold did not run to its end: the check fails instead of being left out.
-            my $held = -f "$dir/records.retired.json" ? decode_json(read_file("$dir/records.retired.json")) : {};
-            push @checks, ['records:retired-hold', (!grep { !$held->{$_} } qw(attached held released detached)) && !$held->{error} &&
-                           !$held->{cleanup_error} && ($held->{activation} // -1) == 1 &&
-                           @{ $held->{windows_held} || [] } == $WINDOWS{$case} ? 1 : 0];
+        for my $tag (@tags) {
+            -f "$dir/$tag.rc" or die "the record test program did not run\n";
+            push @checks, ["$tag:retired-hold", hold_ok($dir, $tag, $case)] if $WINDOWS{$case};
+            my ($code, $forced) = split ' ', read_file("$dir/$tag.rc");
+            push @checks, ["$tag:return", $code == 0 && !$forced];
+            my @run = events(read_file("$dir/$tag.stdout"));
+            if ($tag =~ /^records-near-(\d+)ms-\d+\z/) {
+                $_->{margin_ms} = $1 + 0 for grep { ($_->{event} // '') eq 'near_deadline' } @run;
+            }
+            push @observed, @run;
         }
-        my ($code, $forced) = split ' ', read_file("$dir/records.rc");
-        push @checks, ['records:return', $code == 0 && !$forced];
-        @observed = events(read_file("$dir/records.stdout"));
-        my ($summary) = grep { ($_->{event} // '') eq 'record_summary' } @observed;
-        $summary ||= {};
-        push @checks, ['actual-eleven-record-path', is_number($summary->{records}) && $summary->{records} == 11 &&
-                       ($summary->{checks} // 0) > 100];
-        my @completions = grep { ($_->{event} // '') eq 'record_completed' } @observed;
-        my $identities = @completions ? 1 : 0;
-        for my $event (@completions) {
-            last unless $identities;
-            $identities = 0 unless required($event, 'activation') == 1 &&
-                required($event, 'revision') == 1 && required($event, 'handle') > 0;
+        unless ($SKIP_SHARED{$case}) {
+            my ($summary) = grep { ($_->{event} // '') eq 'record_summary' } @observed;
+            $summary ||= {};
+            push @checks, ['actual-eleven-record-path', is_number($summary->{records}) && $summary->{records} == 11 &&
+                           ($summary->{checks} // 0) > 100];
+            my @completions = grep { ($_->{event} // '') eq 'record_completed' } @observed;
+            my $identities = @completions ? 1 : 0;
+            for my $event (@completions) {
+                last unless $identities;
+                $identities = 0 unless required($event, 'activation') == 1 &&
+                    required($event, 'revision') == 1 && required($event, 'handle') > 0;
+            }
+            push @checks, ['actual-record-identities', $identities];
+            my @pressure = grep { ($_->{event} // '') eq 'callback_pressure' } @observed;
+            push @checks, ['actual-callback-pressure', scalar(grep { ($_->{enqueue_failures} // 0) > 0 && $_->{completed_once} } @pressure) ? 1 : 0];
+            my %records = map { (defined $_->{record} ? $_->{record} : "\0absent") => 1 } @pressure;
+            push @checks, ['actual-GET-and-SET-pressure', join(',', sort keys %records) eq 'Records_Ao,Records_Longin'];
         }
-        push @checks, ['actual-record-identities', $identities];
-        my @pressure = grep { ($_->{event} // '') eq 'callback_pressure' } @observed;
-        push @checks, ['actual-callback-pressure', scalar(grep { ($_->{enqueue_failures} // 0) > 0 && $_->{completed_once} } @pressure) ? 1 : 0];
-        my %records = map { (defined $_->{record} ? $_->{record} : "\0absent") => 1 } @pressure;
-        push @checks, ['actual-GET-and-SET-pressure', join(',', sort keys %records) eq 'Records_Ao,Records_Longin'];
         case_checks(\@checks, $case, \@observed);
-        @libraries = libraries("$dir/records.stderr");
+        @libraries = libraries("$dir/$tags[-1].stderr");
         push @checks, ['IOC-native-free', @libraries && !grep { index($_, 'netsnmp') >= 0 } @libraries];
         write_file("$dir/record-observations.json", JSON::PP->new->canonical->pretty->encode(\@observed));
         1;
@@ -356,12 +409,13 @@ sub judge {
         map({ "$ROOT/tests/rewrite/$_" } qw(test_records.bash records.pl RecordTest.cpp NativeAgent.cpp db/records.db db/record-output.db)),
         "$ROOT/dbd/snmp3RecordTest.dbd", map { "$products/$_" } qw(snmp3RecordTest snmp3NativeProbe snmp3Worker snmp3NativeAgent));
     push @inputs, map { "$ROOT/tests/rewrite/db/$_" } qw(record-edges.db record-order.db) if $case eq 'edges';
+    push @inputs, "$ROOT/tests/rewrite/db/record-queue.db", "$ROOT/tests/rewrite/helpers/udp_fault.py" if $case eq 'near-deadline';
     push @inputs, map { "$ROOT/tests/rewrite/helpers/$_" } qw(retired_hold.py runtime_thread_limit.py) if $WINDOWS{$case};
     my $failed = grep { !$_->[1] } @checks;
     my $passed = !$failed && !$aborted && @checks ? 1 : 0;
     my %result = (passed => $passed ? JSON::PP::true : JSON::PP::false, aborted => $aborted ? JSON::PP::true : JSON::PP::false,
         checks => [map { { name => $_->[0], passed => $_->[1] ? JSON::PP::true : JSON::PP::false } } @checks],
-        inputs => digests(@inputs), loaded_libraries => digests(@libraries, map { libraries("$dir/$_.stderr") } @proxies, $AGENT),
+        inputs => digests(@inputs), loaded_libraries => digests(@libraries, map { libraries("$dir/$_.stderr") } @tags, @proxies, $AGENT),
         scope => "Record case $case; qualifies this invocation only and does not close the full T1-T14 matrix");
     write_file("$dir/results.json", JSON::PP->new->canonical->pretty->encode(\%result));
     printf "%s %s\n", $_->[1] ? 'PASS' : 'FAIL', $_->[0] for @checks;

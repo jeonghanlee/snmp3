@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Record cell: runs the record test program (snmp3RecordTest, with the actual DSET, the callback path, the worker and the native
 # library) against a fixture agent on a loopback port, and records.pl judges what they produced. The cases baseline, shutdown,
-# queued-shutdown, edges and accounting are moved so far; the other cases of the former harness test_records.py still run there. The cell starts the
+# queued-shutdown, edges, accounting and near-deadline are moved so far; the other cases of the former harness test_records.py still run there. The cell starts the
 # fixture agent and the fault proxies of the case, writes the configuration, runs the program (through retired_hold.py when the case
 # holds the Retired send of the worker), stops the proxies and the agent and judges.
 # usage: test_records.bash --output NEW_DIRECTORY [--products DIRECTORY] [--sanitizers] [--case CASE]
@@ -20,9 +20,14 @@ readonly AGENT_NAME="agent-ipv4-1"
 readonly READY_SECONDS=5
 readonly STOP_SECONDS=8
 readonly PROCESS_SECONDS=30
-readonly -a CASES=(baseline shutdown queued-shutdown edges accounting)
+readonly -a CASES=(baseline shutdown queued-shutdown edges accounting near-deadline)
 readonly -a PROXY_SPECS_ACCOUNTING=("active-response-delay delay 750" "active-response-drop drop-all")
 readonly ACCOUNTING_WINDOWS=7
+readonly -a PROXY_SPECS_NEAR=("near-response-delay delay 300")
+readonly NEAR_DELAY_MS=300
+readonly -a NEAR_MARGINS_MS=(14 16 18 20 22)
+readonly NEAR_REPEATS=2
+readonly NEAR_PROCESS_SECONDS=180
 
 OUTPUT=""
 PRODUCTS="${ROOT}/bin/${ARCH}"
@@ -169,6 +174,7 @@ function start_proxies {
     local -a specs=()
     case "${case}" in
         accounting) specs=("${PROXY_SPECS_ACCOUNTING[@]}") ;;
+        near-deadline) specs=("${PROXY_SPECS_NEAR[@]}") ;;
     esac
     for spec in "${specs[@]}"; do
         # shellcheck disable=SC2086
@@ -177,40 +183,75 @@ function start_proxies {
     return 0
 }
 
-# Runs the record test program of the case and returns its exit status. The case accounting holds the Retired sends of the worker: the
-# program then runs under retired_hold.py, which keeps the descriptors and the environment, and 124 is its status for a program that
-# it had to kill.
+# Runs the record test program once under retired_hold.py, which holds the Retired sends of its worker, and returns its exit status.
+# Output goes to OUTPUT/TAG.stdout and OUTPUT/TAG.stderr, the receipt of the hold to OUTPUT/TAG.retired.json. The entry runs without the
+# loader trace, so that only the program adds libraries to TAG.stderr; env executes the program in the same process, so the worker is
+# still a child of the process that the entry traces for. 124 is the status of a program that the entry had to kill.
+# usage: run_held TAG MARKER WINDOWS SECONDS CASE [NAME=VALUE...]
+function run_held {
+    local tag="$1" marker="$2" windows="$3" seconds="$4" case="$5"
+    shift 5
+    python3 "${ROOT}/tests/rewrite/helpers/retired_hold.py" --marker "${marker}" --worker "${PRODUCTS}/snmp3Worker" \
+        --windows "${windows}" --receipt "${OUTPUT}/${tag}.retired.json" --timeout "${seconds}" -- \
+        "${ENV_RUN[@]}" "$@" "SNMP3_RETIRED_HOLD=${marker}" \
+        "${PRODUCTS}/snmp3RecordTest" "${OUTPUT}/records.json" "${PRODUCTS}/snmp3NativeProbe" "${PRODUCTS}/snmp3Worker" \
+        "${ROOT}/dbd/snmp3RecordTest.dbd" "${ROOT}/tests/rewrite/db/records.db" "${ROOT}/tests/rewrite/db/record-output.db" \
+        "${OUTPUT}/workers.stderr" "${case}" < /dev/null > "${OUTPUT}/${tag}.stdout" 2> "${OUTPUT}/${tag}.stderr"
+}
+
+# Keeps the exit status of the execution TAG and whether the bound had to end it (124 or 137) in OUTPUT/TAG.rc.
+function write_rc {
+    local tag="$1" status="$2"
+    if [[ ${status} -eq 124 || ${status} -eq 137 ]]; then
+        printf "%s\t1\n" "${status}" > "${OUTPUT}/${tag}.rc"
+    else
+        printf "%s\t0\n" "${status}" > "${OUTPUT}/${tag}.rc"
+    fi
+}
+
+# Runs the record test program of the case once and keeps its status. The case accounting holds the Retired sends of the worker.
 function run_program {
-    local case="$1"
+    local case="$1" status=0
     local -a command=("${PRODUCTS}/snmp3RecordTest" "${OUTPUT}/records.json" "${PRODUCTS}/snmp3NativeProbe" "${PRODUCTS}/snmp3Worker"
         "${ROOT}/dbd/snmp3RecordTest.dbd" "${ROOT}/tests/rewrite/db/records.db" "${ROOT}/tests/rewrite/db/record-output.db"
         "${OUTPUT}/workers.stderr" "${case}")
     if [[ "${case}" == accounting ]]; then
-        # The entry runs without the loader trace, so that only the program adds libraries to records.stderr; env executes the program
-        # in the same process, so the worker is still a child of the process that the entry traces for.
-        python3 "${ROOT}/tests/rewrite/helpers/retired_hold.py" --marker "${OUTPUT}/hold-accounting" --worker "${PRODUCTS}/snmp3Worker" \
-            --windows "${ACCOUNTING_WINDOWS}" --receipt "${OUTPUT}/records.retired.json" --timeout "${PROCESS_SECONDS}" -- \
-            "${ENV_RUN[@]}" "SNMP3_RECORD_DELAY_TRACE=${OUTPUT}/active-response-delay.stdout" "SNMP3_RETIRED_HOLD=${OUTPUT}/hold-accounting" \
-            "${command[@]}" < /dev/null > "${OUTPUT}/records.stdout" 2> "${OUTPUT}/records.stderr"
-        return $?
+        run_held records "${OUTPUT}/hold-accounting" "${ACCOUNTING_WINDOWS}" "${PROCESS_SECONDS}" "${case}" \
+            "SNMP3_RECORD_DELAY_TRACE=${OUTPUT}/active-response-delay.stdout" || status=$?
+    else
+        timeout -s KILL "${PROCESS_SECONDS}" "${ENV_RUN[@]}" "${command[@]}" \
+            < /dev/null > "${OUTPUT}/records.stdout" 2> "${OUTPUT}/records.stderr" || status=$?
     fi
-    timeout -s KILL "${PROCESS_SECONDS}" "${ENV_RUN[@]}" "${command[@]}" \
-        < /dev/null > "${OUTPUT}/records.stdout" 2> "${OUTPUT}/records.stderr"
+    write_rc records "${status}"
+}
+
+# The case near-deadline: one execution of the program for each margin and each repeat, each with the budget of the delay of the
+# proxy plus the margin and with one held Retired send.
+function run_near {
+    local repeat margin tag status
+    for ((repeat = 1; repeat <= NEAR_REPEATS; repeat++)); do
+        for margin in "${NEAR_MARGINS_MS[@]}"; do
+            tag="records-near-${margin}ms-${repeat}"
+            status=0
+            run_held "${tag}" "${OUTPUT}/hold-near-${margin}ms-${repeat}" 1 "${NEAR_PROCESS_SECONDS}" near-deadline \
+                "SNMP3_RECORD_DELAY_TRACE=${OUTPUT}/near-response-delay.stdout" "SNMP3_RECORD_QUEUE_BINDING=NearFloatWrite" \
+                "SNMP3_RECORD_BUDGET_MS=$((NEAR_DELAY_MS + margin))" || status=$?
+            write_rc "${tag}" "${status}"
+        done
+    done
 }
 
 # Runs one case. Sets the status that the judge returns in CASE_STATUS.
 function run_case {
-    local case="$1" port aborted=0 status=0
+    local case="$1" port aborted=0
     printf "%s\n" "${PRODUCTS}" > "${OUTPUT}/products.txt"
     if start_agent && start_proxies "${case}"; then
         port="$(< "${OUTPUT}/${AGENT_NAME}.port")"
         perl "${JUDGE}" config "${OUTPUT}" "${port}" "${case}" || die "cannot write the configuration"
-        run_program "${case}" || status=$?
-        # An exit of the program under a kill by the bound (124 or 137) is a forced end.
-        if [[ ${status} -eq 124 || ${status} -eq 137 ]]; then
-            printf "%s\t1\n" "${status}" > "${OUTPUT}/records.rc"
+        if [[ "${case}" == near-deadline ]]; then
+            run_near
         else
-            printf "%s\t0\n" "${status}" > "${OUTPUT}/records.rc"
+            run_program "${case}"
         fi
     else
         aborted=1
